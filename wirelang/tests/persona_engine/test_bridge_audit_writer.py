@@ -92,7 +92,7 @@ def test_jcs_bytes_alphabetical_keys(tmp_path):
     w = _writer(tmp_path, sink)
     evt = w.emit("audit_annotation", b"")
     text = evt.to_jcs_bytes().decode("utf-8")
-    # alphabetical-order keys: engine_version < event_kind < org_id < ...
+    # alphabetical-order keys: engine_version < event_kind < org_id <...
     expected_keys = [
         "engine_version",
         "event_kind",

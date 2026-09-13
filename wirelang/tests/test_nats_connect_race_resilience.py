@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# Hermetic Race-Reproduction Tests for the Sprint-9 Tag-5
+# Hermetic Race-Reproduction Tests for the
 # NATS-Connect-Retry-Layer.
-"""Hermetic race-reproduction tests for the Sprint-9 Tag-5 retry layer.
+"""Hermetic race-reproduction tests for the retry layer.
 
 The Pilot-VM smoke discrepancy (2/6 ↔ 4/6) was driven by four
-candidate race conditions (Mira-Bug-Bilanz 2026-05-13). Each
+candidate race conditions. Each
 test below reproduces ONE hypothesis against a mock adapter that
 emits a scripted sequence of (raise, raise, succeed) outcomes,
 asserting:
@@ -66,7 +66,7 @@ class _FakeClock:
     """Deterministic monotonic-clock substitute.
 
     Advances on every read by ``tick_seconds``. Tests can also
-    call :meth:`advance` to skip large gaps without polling.
+    call:meth:`advance` to skip large gaps without polling.
     """
 
     def __init__(self, *, start: float = 0.0, tick_seconds: float = 0.0):
@@ -420,7 +420,7 @@ def test_mixed_sequence_tcp_then_auth_then_success():
 
 
 class _FakeJwtCallbackCacheEmpty(Exception):
-    """Stand-in for ``NatsJwtCallbackCacheEmpty`` (Sprint-6 Tag-10).
+    """Stand-in for ``NatsJwtCallbackCacheEmpty``.
 
     The retry layer cooperates with the callback skizze by
     matching the exception CLASS NAME, not by importing the

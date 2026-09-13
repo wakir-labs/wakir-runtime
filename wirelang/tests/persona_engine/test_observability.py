@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for wirelang.persona_engine.observability — Sprint-SRE Tag-15.
+"""Tests for wirelang.persona_engine.observability — -SRE.
 
 Hermetic — no opentelemetry wheels, no network. Drives the
 :class:`PersonaEngineObservability` facade in in-memory-sink mode
@@ -322,7 +322,7 @@ def test_engine_boot_emits_v907_verify_duration_and_span(tmp_path):
     boot_spans = [s for s in obs.records.spans if s.span_name == "persona_engine.boot"]
     assert len(boot_spans) == 1
     # Boot must not have started the spawn-latency clock-stop yet
-    # (that happens in spawn()).
+    # (that happens in spawn).
     spawn_latency_metrics = [
         m for m in obs.records.metrics
         if m.metric_name == "persona_engine.spawn.latency_seconds"

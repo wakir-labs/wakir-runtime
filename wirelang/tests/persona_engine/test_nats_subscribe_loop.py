@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the NATS-Subscribe-Loop (Sprint-Pengine-10 OI-PEFR-6).
+"""Hermetic tests for the NATS-Subscribe-Loop (-Pengine-10 OI-PEFR-6).
 
 Tests cover:
 - Subject build helpers.
@@ -656,12 +656,12 @@ async def test_loop_hook_exception_does_not_break_loop():
 
 @pytest.mark.asyncio
 async def test_loop_no_ack_method_tolerated():
-    """If the inbound msg has no ack() (core-pubsub), the loop runs anyway."""
+    """If the inbound msg has no ack (core-pubsub), the loop runs anyway."""
     class _NoAckMsg:
         def __init__(self, data):
             self.data = data
             self.subject = "wakir.dev.agent.agent.task.assigned.tomas"
-        # NB: no ack().
+        # NB: no ack.
 
     sink = io.StringIO()
     writer = _make_writer(sink)

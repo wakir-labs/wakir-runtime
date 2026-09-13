@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic spec-integrity tests for ``wirelang/specs/wirelang-spec-v0-4.md``.
 
-Phase: Phase-3-trigger-window (Tag-45)
+Phase: Phase-3-trigger-window
 Owner: role: wirelang-spec-owner (Dev-Engineering-2 / Wirelang)
 
 These tests are **stdlib-only**, do **not** import the Wirelang runtime,
@@ -13,7 +13,7 @@ invariants of the v0.4 consolidation refresh:
 - Section heading inventory (sections 1 through 13).
 - Phase-3a foundation Rust-crate count (15 crates, §3.1).
 - Phase-3b ENV-flag-schema component count (9 components, §4.1).
-- Phase-3c welle count (7 wellen, §5.1).
+- Phase-3c wave count (7 wellen, §5.1).
 - Bug-42-fix-anchor cross-reference (§6 anchors v0.2.1 §13).
 - Backward-compatibility statement v0.3 → v0.4 (§9.2 normative).
 - NATS-JetStream-subjects-audit baseline cross-reference (§8).
@@ -160,7 +160,7 @@ def test_t5_phase_3b_nine_components(spec_text: str) -> None:
 
 
 # -------------------------------------------------------------------------
-# T-6 / Phase-3c welle inventory: 7 wellen
+# T-6 / Phase-3c wave inventory: 7 wellen
 # -------------------------------------------------------------------------
 def test_t6_phase_3c_seven_wellen(spec_text: str) -> None:
     welle_marker = "### 5.1 Welle inventory"
@@ -172,7 +172,7 @@ def test_t6_phase_3c_seven_wellen(spec_text: str) -> None:
     rows = re.findall(r"^\|\s*(\d+)\s*\|", block, flags=re.MULTILINE)
     nums = [int(r) for r in rows]
     assert nums == list(range(1, 8)), (
-        f"expected 7 numbered welle rows 1..7 in §5.1, got {nums}"
+        f"expected 7 numbered wave rows 1..7 in §5.1, got {nums}"
     )
 
 
@@ -194,7 +194,7 @@ def test_t7_bug_42_anchor_present(spec_text: str) -> None:
         assert adapter in spec_text, f"missing adapter declaration: {adapter}"
     # The publish-mode CLI flag must be referenced.
     assert "--publish-mode" in spec_text
-    # The Tag-41 PR #265 anchor is referenced (closure stamp).
+    # the PR #265 anchor is referenced (closure stamp).
     assert "PR #265" in spec_text
 
 
@@ -248,8 +248,8 @@ def test_t9_nats_subjects_audit_baseline(spec_text: str) -> None:
 # -------------------------------------------------------------------------
 def test_t10_brand_guide_section_9(spec_text: str) -> None:
     # Clear-name appearances are only allowed in §11 historical-author
-    # attribution context. The two allow-listed names are "Reza Tehrani"
-    # and "Selin Çelik" (file-author metadata for ADR-prep docs).
+    # attribution context. The two allow-listed names are "the protocol zone Tehrani"
+    # and "the engine zone Çelik" (file-author metadata for ADR-prep docs).
     # No other clear-name strings should appear in the spec body.
     allow_list = {"Reza Tehrani", "Selin Çelik"}
     # Common Wakir clear-name patterns we explicitly check are absent.
@@ -345,12 +345,12 @@ def test_t13_env_flag_value_space(spec_text: str) -> None:
     # Each value must be listed at the start of a bullet in §4.2.
     for value in ("`python`", "`rust`", "`parity`"):
         assert value in block, f"ENV-flag value {value} missing in §4.2"
-    # The default-by-welle-state rule is the explicit closure.
+    # The default-by-wave-state rule is the explicit closure.
     assert "default-by-welle-state" in spec_text
 
 
 # -------------------------------------------------------------------------
-# T-14 / Welle-substrate heptad (§5.2): exactly seven elements per welle.
+# T-14 / wave-substrate heptad (§5.2): exactly seven elements per wave.
 # -------------------------------------------------------------------------
 def test_t14_welle_substrate_heptad(spec_text: str) -> None:
     section_marker = "### 5.2 Per-welle substrate elements"

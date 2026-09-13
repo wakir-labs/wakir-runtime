@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic test pack for ``wakir-persona inspect-heartbeat``.
 
-Anchored by Sprint-Wirelang-Persona-Inspect-CLI-MINI
-(Amara PR #116 §5 + ADR-0058 V-907-Hash-Drift Risk §156).
+Anchored by -Wirelang-Persona-Inspect-CLI-MINI
+
 
 Distinct from ``wirelang/tests/test_persona_inspect_cli.py``
 (top-level), which covers the file-based ``inspect`` subcommand
@@ -11,7 +11,7 @@ on persona-definition specifications. This pack covers the
 state (the running engine's per-tick JSON state files) and is
 therefore conceptually disjoint:
 
-- ``inspect``           = static spec inspection (file-based)
+- ``inspect`` = static spec inspection (file-based)
 - ``inspect-heartbeat`` = runtime state inspection (state-dir-based)
 
 Hermetic posture

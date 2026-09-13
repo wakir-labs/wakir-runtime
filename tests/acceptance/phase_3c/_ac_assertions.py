@@ -4,9 +4,9 @@
 test-suite skeleton.
 
 The five acceptance-criteria from ADR-0065 §Verifikations-Plan apply
-welle-for-welle. Encoding the assertion-shape in a shared helper keeps
-the seven welle-test files lean (each welle-file specialises only the
-welle-specific behavioural fixtures + the modul-name binding) and
+wave-for-wave. Encoding the assertion-shape in a shared helper keeps
+the seven wave-test files lean (each wave-file specialises only the
+wave-specific behavioural fixtures + the modul-name binding) and
 makes contract-drift surface in *one* place when the Phase-3c-trigger
 sprint wires the real engine.
 
@@ -76,7 +76,7 @@ def assert_ac_1_bridge_audit_consistency(
     observed_days = sorted(by_day.keys())
     expected_days = list(range(CONSISTENCY_REPORT_WINDOW_DAYS))
     assert observed_days == expected_days, (
-        f"AC-1[{welle}]: must observe all {CONSISTENCY_REPORT_WINDOW_DAYS} "
+        f"AC-1[{wave}]: must observe all {CONSISTENCY_REPORT_WINDOW_DAYS} "
         f"days of the consistency-report window; got {observed_days}"
     )
 
@@ -97,7 +97,7 @@ def assert_ac_1_bridge_audit_consistency(
                     )
 
     assert green_days >= CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS, (
-        f"AC-1[{welle}]: Bridge-Audit-Writer-Konsistenz-Report requires "
+        f"AC-1[{wave}]: Bridge-Audit-Writer-Konsistenz-Report requires "
         f"{CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS}/{CONSISTENCY_REPORT_WINDOW_DAYS} "
         f"green days; got {green_days}. Drift records: {drift_records}"
     )
@@ -110,13 +110,13 @@ def assert_ac_2_performance_headroom(
 ) -> None:
     """AC-2 — Performance: P95-Latency ≤ Python-Baseline × headroom-factor.
 
-    Mock-values pre-Welle-Start. Phase-3c-trigger sprint replaces with
-    real Noa-Prometheus-Gauge readings (p95 over the 5-day Beobachtungs-
+    Mock-values pre-wave-Start. Phase-3c-trigger sprint replaces with
+    real the observability zone-Prometheus-Gauge readings (p95 over the 5-day Beobachtungs-
     Fenster window).
     """
     budget_ms = python_baseline_p95_ms * PERFORMANCE_HEADROOM_FACTOR
     assert rust_observed_p95_ms <= budget_ms, (
-        f"AC-2[{welle}]: Rust-backend P95-Latency {rust_observed_p95_ms:.2f}ms "
+        f"AC-2[{wave}]: Rust-backend P95-Latency {rust_observed_p95_ms:.2f}ms "
         f"exceeds Python-baseline+20% headroom budget {budget_ms:.2f}ms "
         f"(python-baseline {python_baseline_p95_ms:.2f}ms × "
         f"{PERFORMANCE_HEADROOM_FACTOR})"
@@ -133,7 +133,7 @@ def assert_ac_3_bug_rate(
     """
     total = s0_count + s1_count
     assert total <= BUG_RATE_S0_S1_THRESHOLD, (
-        f"AC-3[{welle}]: S0/S1 bug-count {total} exceeds threshold "
+        f"AC-3[{wave}]: S0/S1 bug-count {total} exceeds threshold "
         f"{BUG_RATE_S0_S1_THRESHOLD} (S0={s0_count}, S1={s1_count})"
     )
 
@@ -143,7 +143,7 @@ def assert_ac_4_cross_review_consensus(
     welle: str,
 ) -> None:
     """AC-4 — Cross-Review-Session-Konsensus: alle Engineering-Personas
-    zustimmend (Aisha-Protokoll).
+    zustimmend.
     """
     missing = tuple(
         p
@@ -151,12 +151,12 @@ def assert_ac_4_cross_review_consensus(
         if p not in record.consenting_personas
     )
     assert not missing, (
-        f"AC-4[{welle}]: Cross-Review-Session missing persona-consent: "
+        f"AC-4[{wave}]: Cross-Review-Session missing persona-consent: "
         f"{missing}. Required: {CROSS_REVIEW_REQUIRED_PERSONAS}, "
         f"observed: {record.consenting_personas}"
     )
     assert record.moderator == "aisha", (
-        f"AC-4[{welle}]: Cross-Review-Session-Moderator must be Aisha "
+        f"AC-4[{wave}]: Cross-Review-Session-Moderator must be the org zone "
         f"(HR-Protokoll); got {record.moderator!r}"
     )
 
@@ -170,31 +170,31 @@ def assert_ac_5_v907_pin_validation(
     (Cache-Konflikt-Free, ADR-0064 §Risiken).
     """
     assert persona_def_count > 0, (
-        f"AC-5[{welle}]: must validate against a non-empty Persona-Def set"
+        f"AC-5[{wave}]: must validate against a non-empty Persona-Def set"
     )
     pass_rate = pin_validation_pass_count / persona_def_count
     assert pass_rate >= V907_PIN_VALIDATION_REQUIRED_RATE, (
-        f"AC-5[{welle}]: V-907 Pin-Validation pass-rate {pass_rate:.4f} "
+        f"AC-5[{wave}]: V-907 Pin-Validation pass-rate {pass_rate:.4f} "
         f"below required {V907_PIN_VALIDATION_REQUIRED_RATE} "
         f"({pin_validation_pass_count}/{persona_def_count})"
     )
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle Acceptance-Kriterien — DW-AC-1 ... DW-AC-5
+# dual-run wave Acceptance-Kriterien — DW-AC-1... DW-AC-5
 #
 # Anchor: ADR-0066 §Beschluss + §Mitigations. Five criteria specialise
-# the per-welle AC-1 ... AC-5 to the parallel-cutover context:
+# the per-wave AC-1... AC-5 to the parallel-cutover context:
 #
 # * DW-AC-1: both moduln boot with rust-backend in same boot-cycle.
 # * DW-AC-2: cross-modul schema-byte-parity across the touchpoints.
 # * DW-AC-3: asymmetric rollback works (one rolls back, other stays
-#   rust) under the ≤10min ENV-Flag-Switch SLA.
+# rust) under the ≤10min ENV-Flag-Switch SLA.
 # * DW-AC-4: cross-modul-stress-test green (Phase-2-Acceptance-Gate-
-#   Erweiterung per ADR-0066 §Mitigation 1, references Tomás Tag-29
-#   substrate).
+# Erweiterung per ADR-0066 §Mitigation 1, references the engineering zone
+# substrate).
 # * DW-AC-5: Backend-Decision-Audit emits exactly 2 records, same
-#   cutover-cycle-id, both target rust.
+# cutover-cycle-id, both target rust.
 # ---------------------------------------------------------------------------
 
 
@@ -204,23 +204,23 @@ def assert_dw_ac_1_both_moduln_boot_rust(
     modul_b: str,
     welle_pair_label: str,
 ) -> None:
-    """DW-AC-1 — Both Doppel-Welle moduln boot with rust-backend in the
+    """DW-AC-1 — Both dual-run wave moduln boot with rust-backend in the
     same engine-boot-cycle.
 
     Asserts:
     * Boot succeeded.
     * Both pair-moduln resolved to ``rust``.
-    * No third modul accidentally flipped to ``rust`` (Cutover-
-      Mittwoch-Doppel-Cutover discipline — exactly the pair, no extras).
+    * No third modul accidentally flipped to ``rust`` (cutover-
+      Mittwoch-Doppel-cutover discipline — exactly the pair, no extras).
     """
     assert boot.boot_succeeded, (
         f"DW-AC-1[{welle_pair_label}]: engine-boot must succeed under "
-        f"Doppel-Welle cutover; got failure-record {boot}"
+        f"dual-run wave cutover; got failure-record {boot}"
     )
     for modul in (modul_a, modul_b):
         observed = boot.backend_per_modul.get(modul)
         assert observed == "rust", (
-            f"DW-AC-1[{welle_pair_label}]: Doppel-Welle modul {modul!r} "
+            f"DW-AC-1[{welle_pair_label}]: dual-run wave modul {modul!r} "
             f"must boot on rust-backend; got {observed!r}"
         )
     extra_rust = [
@@ -229,7 +229,7 @@ def assert_dw_ac_1_both_moduln_boot_rust(
         if b == "rust" and m not in (modul_a, modul_b)
     ]
     assert not extra_rust, (
-        f"DW-AC-1[{welle_pair_label}]: Doppel-Welle must flip ONLY the "
+        f"DW-AC-1[{welle_pair_label}]: dual-run wave must flip ONLY the "
         f"pair ({modul_a!r}, {modul_b!r}); extra rust-flipped moduln: "
         f"{extra_rust}"
     )
@@ -284,7 +284,7 @@ def assert_dw_ac_3_asymmetric_rollback(
     rolled = rollback.rolled_back_modul
     assert rolled in (modul_a, modul_b), (
         f"DW-AC-3[{welle_pair_label}]: rolled_back_modul {rolled!r} must "
-        f"be a member of the welle-pair ({modul_a!r}, {modul_b!r})"
+        f"be a member of the wave-pair ({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if rolled == modul_a else modul_a
 
@@ -311,7 +311,7 @@ def assert_dw_ac_4_cross_modul_stress_test_green(
     welle_pair_label: str,
 ) -> None:
     """DW-AC-4 — Cross-Modul-Stress-Test grün (Phase-2-Acceptance-Gate-
-    Erweiterung per ADR-0066 §Mitigation 1, Tomás Tag-29 substrate).
+    Erweiterung per ADR-0066 §Mitigation 1, the engineering zone substrate).
 
     Three sub-gates: zero failures, zero p99-latency-excursions, zero
     cross-modul-schema-drifts over the stress-window.
@@ -347,12 +347,12 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
 
     Asymmetric-rollback paths emit different audit-trails — DW-AC-5
     is the *cutover-flip* audit-trail. The rollback-trail is covered
-    by DW-AC-3 plus Henrik's audit-sample (Zone-N).
+    by DW-AC-3 plus internal audit's audit-sample (Zone-N).
     """
     records_list = list(records)
     assert len(records_list) == 2, (
         f"DW-AC-5[{welle_pair_label}]: Backend-Decision-Audit must emit "
-        f"exactly 2 records on Doppel-Welle cutover; got "
+        f"exactly 2 records on dual-run wave cutover; got "
         f"{len(records_list)}: {records_list}"
     )
     observed_moduln = {r.modul for r in records_list}
@@ -376,14 +376,14 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1 ...
+# dual-run wave-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1...
 # CMD-AC-4
 #
-# Anchor: ADR-0066 §Beschluss §"Doppel-Welle-4+5 Cross-Modul-Drift-
-# Focus" + Priya CTO-Coordination-Plan v2 (Tag-32 Mini-Welle). These
+# Anchor: ADR-0066 §Beschluss §"dual-run wave-4+5 Cross-Modul-Drift-
+# Focus" + the CTO CTO-Coordination-Plan v2 (Mini-wave). These
 # four criteria are layered atop DW-AC-1...DW-AC-5 specifically for
-# the KW 26 Doppel-Welle-4+5 cutover (state_backing × lifecycle_state_
-# machine) — the highest cross-modul-drift-risk Doppel-Welle slot.
+# the calendar week 26 dual-run wave-4+5 cutover (state_backing × lifecycle_state_
+# machine) — the highest cross-modul-drift-risk dual-run wave slot.
 #
 # DW-AC-2 covers single-touchpoint byte-parity on the producer side;
 # DW-AC-4 covers aggregate stress-test zero-failure. CMD-AC drills
@@ -391,11 +391,11 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
 #
 # * CMD-AC-1 — Producer→Consumer deserialization round-trip parity.
 # * CMD-AC-2 — Consumer-triggered Producer write-back wire-form
-#   parity vs. Python-baseline oracles.
+# parity vs. Python-baseline oracles.
 # * CMD-AC-3 — Per-Komponente joint-consistency ≥99.5% (tighter
-#   than DW-AC-4's zero-failure-floor).
+# than DW-AC-4's zero-failure-floor).
 # * CMD-AC-4 — Drift-triggered atomic single-Komponente rollback
-#   when drift > 0.5pp; partner stays rust-Default.
+# when drift > 0.5pp; partner stays rust-Default.
 # ---------------------------------------------------------------------------
 
 
@@ -416,7 +416,7 @@ def assert_cross_modul_drift_ac_1_deserialization_round_trip(
       mutates state (Unicode-normalisation drift, float-formatting
       drift, field-ordering drift).
     * ``schema_version_round_trip_ok == False`` — schema-version
-      field dropped or rewritten on round-trip (a Welle-5-into-Welle-7-
+      field dropped or rewritten on round-trip (a wave 5 into-wave 7
       recovery-workflow-blocker since recovery reads terminal records
       to compute restart-points).
     """
@@ -460,16 +460,16 @@ def assert_cross_modul_drift_ac_2_write_back_wire_form_parity(
     a wire-form byte-identical to *every* reference oracle in
     ``CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES``:
 
-    * ``python-python-baseline`` — pre-Welle-4 cutover wire-form
+    * ``python-python-baseline`` — pre-wave 4 cutover wire-form
       (the long-standing production state).
-    * ``python-rust-welle-4-only`` — mid-Doppel-Welle hypothetical
+    * ``python-rust-welle-4-only`` — mid-dual-run wave hypothetical
       (state_backing rust, lifecycle still python). Never observed
-      in production under the Doppel-Welle cutover-plan but a
+      in production under the dual-run wave cutover-plan but a
       synthetic reference that catches Rust-side state_backing
       regressions independently of Rust-side lifecycle regressions.
 
     Asymmetric oracle drift (e.g. matches python-python but diverges
-    from python-rust-welle-4-only) localises the bug to the Rust-
+    from python-rust-wave 4 only) localises the bug to the Rust-
     side lifecycle modul. CMD-AC-2 fails on *any* oracle divergence.
     """
     records_list = list(records)
@@ -509,7 +509,7 @@ def assert_cross_modul_drift_ac_3_per_komponente_consistency(
 
     The joint-consistency-rate (computed as ``min(rate_a, rate_b)``)
     is the gate-evaluation surface; a failure here means at least
-    one of the two Doppel-Welle moduln has below-floor consistency
+    one of the two dual-run wave moduln has below-floor consistency
     even when the other is green.
     """
     modul_a, modul_b = record.welle_pair
@@ -559,7 +559,7 @@ def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
     high_drift = record.high_drift_modul
     assert high_drift in (modul_a, modul_b), (
         f"CMD-AC-4[{welle_pair_label}]: high_drift_modul {high_drift!r} "
-        f"must be a member of the welle-pair ({modul_a!r}, {modul_b!r})"
+        f"must be a member of the wave-pair ({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if high_drift == modul_a else modul_a
 
@@ -604,21 +604,21 @@ def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
 
 
 # ---------------------------------------------------------------------------
-# Welle-3 Henrik-Caution Acceptance-Kriterien — HC-AC-1 ... HC-AC-3
+# wave 3 internal audit-Caution Acceptance-Kriterien — HC-AC-1... HC-AC-3
 #
-# Anchor: ADR-0066 §Beschluss — Welle-3 (bridge_audit_writer) is the
-# only Solo-Welle in the Doppel-Welle-Cadence because the writer *is*
-# the consistency-oracle substrate. Three Henrik-Caution-Acceptance
-# criteria layer on top of the per-welle AC-1...AC-5 baseline for KW
-# 25 Solo-Welle-3 (Tag-31 Mini-Welle, ADR-0066-Folge):
+# Anchor: ADR-0066 §Beschluss — wave 3 (bridge_audit_writer) is the
+# only Solo-wave in the dual-run wave-Cadence because the writer *is*
+# the consistency-oracle substrate. Three internal audit-Caution-Acceptance
+# criteria layer on top of the per-wave AC-1...AC-5 baseline for KW
+# 25 Solo-wave 3 (Mini-wave, ADR-0066-Folge):
 #
 # * HC-AC-1 — Independent-Oracle-Validation via PR #197 Cross-Modul-
-#   Stress-Test substrate (or Operator-Hand-deployed hold-out Python-
-#   writer-instance); bridge_audit_writer self-output rejected.
+# Stress-Test substrate (or Operator-Hand-deployed hold-out Python-
+# writer-instance); bridge_audit_writer self-output rejected.
 # * HC-AC-2 — Atomic ENV-Flag-Switch rollback ≤600s SLA, symmetric
-#   gates for missed-rollback and spurious-rollback.
-# * HC-AC-3 — Pre-Cutover-Observability-Window 7-day per-day
-#   consistency ≥99.5%.
+# gates for missed-rollback and spurious-rollback.
+# * HC-AC-3 — pre-cutover-Observability-Window 7-day per-day
+# consistency ≥99.5%.
 # ---------------------------------------------------------------------------
 
 
@@ -629,7 +629,7 @@ def assert_henrik_caution_ac_1_independent_oracle_validation(
     """HC-AC-1 — Independent-Oracle cross-validates Rust-writer output.
 
     The bridge_audit_writer is the consistency-oracle for *other*
-    Wellen, so it cannot self-validate during its own Solo-cutover.
+    waves, so it cannot self-validate during its own Solo-cutover.
     HC-AC-1 enforces that:
 
     * The ``oracle_source`` field references an entry in
@@ -649,7 +649,7 @@ def assert_henrik_caution_ac_1_independent_oracle_validation(
     """
     records_list = list(records)
     assert records_list, (
-        f"HC-AC-1[{welle}]: must observe at least one independent-"
+        f"HC-AC-1[{wave}]: must observe at least one independent-"
         f"oracle validation record; got empty set"
     )
 
@@ -671,17 +671,17 @@ def assert_henrik_caution_ac_1_independent_oracle_validation(
             )
 
     assert not self_referential, (
-        f"HC-AC-1[{welle}]: bridge_audit_writer self-validation "
+        f"HC-AC-1[{wave}]: bridge_audit_writer self-validation "
         f"rejected — oracle must be independent; self-referential "
         f"records: {self_referential}"
     )
     assert not invalid_oracle_sources, (
-        f"HC-AC-1[{welle}]: oracle-source must be one of "
+        f"HC-AC-1[{wave}]: oracle-source must be one of "
         f"{list(HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES)}; got "
         f"invalid sources: {invalid_oracle_sources}"
     )
     assert not drift, (
-        f"HC-AC-1[{welle}]: Rust-writer/independent-oracle drift "
+        f"HC-AC-1[{wave}]: Rust-writer/independent-oracle drift "
         f"at requests: {drift}"
     )
 
@@ -732,31 +732,31 @@ def assert_henrik_caution_ac_2_atomic_rollback(
         record.threshold_divergence_pct
         == HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
     ), (
-        f"HC-AC-2[{welle}]: threshold_divergence_pct must equal the "
+        f"HC-AC-2[{wave}]: threshold_divergence_pct must equal the "
         f"ADR-0066-fixed {HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}pp; "
         f"got {record.threshold_divergence_pct}"
     )
 
     if record.rollback_fired:
         assert record.flip_was_atomic, (
-            f"HC-AC-2[{welle}]: rollback fired but flip was non-atomic "
+            f"HC-AC-2[{wave}]: rollback fired but flip was non-atomic "
             f"(multi-restart-cycle); atomic-flip discipline broken"
         )
         assert (
             record.flip_elapsed_seconds <= HENRIK_CAUTION_ROLLBACK_SLA_SECONDS
         ), (
-            f"HC-AC-2[{welle}]: rollback elapsed "
+            f"HC-AC-2[{wave}]: rollback elapsed "
             f"{record.flip_elapsed_seconds:.1f}s exceeds "
             f"{HENRIK_CAUTION_ROLLBACK_SLA_SECONDS:.0f}s SLA"
         )
         assert record.post_flip_backend == "python", (
-            f"HC-AC-2[{welle}]: post-rollback backend must be python; "
+            f"HC-AC-2[{wave}]: post-rollback backend must be python; "
             f"got {record.post_flip_backend!r}"
         )
     else:
         # No-trigger steady-state: backend stays rust.
         assert record.post_flip_backend == "rust", (
-            f"HC-AC-2[{welle}]: no-trigger steady-state must keep "
+            f"HC-AC-2[{wave}]: no-trigger steady-state must keep "
             f"backend=rust; got {record.post_flip_backend!r}"
         )
 
@@ -765,7 +765,7 @@ def assert_henrik_caution_ac_3_pre_cutover_window(
     records: Iterable[HenrikCautionPreCutoverWindowRecord],
     welle: str,
 ) -> None:
-    """HC-AC-3 — Pre-Cutover-Observability-Window 7-day consistency.
+    """HC-AC-3 — pre-cutover-Observability-Window 7-day consistency.
 
     Gates:
 
@@ -778,14 +778,14 @@ def assert_henrik_caution_ac_3_pre_cutover_window(
     """
     records_list = list(records)
     assert records_list, (
-        f"HC-AC-3[{welle}]: must observe at least one pre-cutover "
+        f"HC-AC-3[{wave}]: must observe at least one pre-cutover "
         f"window day; got empty set"
     )
 
     observed_days = sorted({rec.day_index for rec in records_list})
     expected_days = list(range(HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS))
     assert observed_days == expected_days, (
-        f"HC-AC-3[{welle}]: pre-cutover-window must observe all "
+        f"HC-AC-3[{wave}]: pre-cutover-window must observe all "
         f"{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS} days (0..{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS - 1}); "
         f"got {observed_days}"
     )
@@ -802,21 +802,21 @@ def assert_henrik_caution_ac_3_pre_cutover_window(
             )
 
     assert not empty_days, (
-        f"HC-AC-3[{welle}]: pre-cutover-window observed empty days "
+        f"HC-AC-3[{wave}]: pre-cutover-window observed empty days "
         f"(total_request_count=0): {empty_days}"
     )
     assert not below_floor, (
-        f"HC-AC-3[{welle}]: pre-cutover per-day consistency-rate "
+        f"HC-AC-3[{wave}]: pre-cutover per-day consistency-rate "
         f"below {floor:.4f} floor: {below_floor}"
     )
 
 
 # ---------------------------------------------------------------------------
-# Welle-6+7 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-6-7-1 ...
+# wave 6+7 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-6-7-1...
 # CMD-AC-6-7-4
 #
-# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
-# Mini-Welle Welle-6+7-Extension). Mirrors the Welle-4+5 CMD-AC layer
+# Anchor: ADR-0066 §Beschluss + the CTO CTO-Coordination-Plan v3 (
+# Mini-wave wave 6+7-Extension). Mirrors the wave 4+5 CMD-AC layer
 # shape but specialised for the stateful-loop-paar bidirectional
 # contract (subscribe_loop ack-records → recovery_workflow consume;
 # recovery_workflow R1..R4 → subscribe_loop Re-subscribe).
@@ -874,7 +874,7 @@ def assert_cross_modul_drift_welle_6_7_ac_2_resubscribe_trigger_wire_form(
     python-python-baseline oracle.
 
     Singleton oracle-set (``python-python-baseline`` only). The
-    mid-Doppel-Welle ``python-rust-welle-6-only`` hypothetical
+    mid-dual-run wave ``python-rust-welle-6-only`` hypothetical
     state is operationally unreachable because the subscribe/
     recovery contract crosses no bisectable schema touchpoint.
 
@@ -909,7 +909,7 @@ def assert_cross_modul_drift_welle_6_7_ac_3_per_komponente_consistency(
     record: CrossModulDriftWelle6_7PerKomponenteConsistencyRecord,
     welle_pair_label: str,
 ) -> None:
-    """CMD-AC-6-7-3 — per-Komponente consistency ≥99.5% on Welle-6+7
+    """CMD-AC-6-7-3 — per-Komponente consistency ≥99.5% on wave 6+7
     joint stress-load (subscribe-event-flood + simultaneous recovery-
     restart-points profile).
     """
@@ -942,9 +942,9 @@ def assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
     """CMD-AC-6-7-4 — Drift-triggered atomic-flip rollback with
     Phase-3c-Ende-delay impact-classification.
 
-    Same gate-shape as CMD-AC-4 plus the Welle-6+7-specific risk
+    Same gate-shape as CMD-AC-4 plus the wave 6+7-specific risk
     surface: a ``recovery_workflow`` rollback delays Phase-3c-Ende
-    by +1 week (Welle-7 is the closing welle). The delay-classification
+    by +1 week (wave 7 is the closing wave). The delay-classification
     is surfaced in the error message but does not block the gate (a
     correctly-fired recovery_workflow atomic-flip is still a valid
     cutover-recovery, just with operational delay).
@@ -953,7 +953,7 @@ def assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
     high_drift = record.high_drift_modul
     assert high_drift in (modul_a, modul_b), (
         f"CMD-AC-6-7-4[{welle_pair_label}]: high_drift_modul "
-        f"{high_drift!r} must be a member of the welle-pair "
+        f"{high_drift!r} must be a member of the wave-pair "
         f"({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if high_drift == modul_a else modul_a

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic invariants for the Failure-Mode A6 cosign-drift coverage
-extension (Tag-46, Kai).
+extension (the infrastructure zone).
 
 Context
 -------
-Amara's Tag-45 Pre-Mortem Coverage-Audit (PR #293,
+The QA zone's Pre-Mortem Coverage-Audit (PR #293,
 the historical pre-mortem coverage audit (git history, tag ``archive/pre-phase-4``) §2 A6)
 classified failure-mode **A6 — Cosign-Verification-Drift (Image-Re-Bake
 mid-Marathon)** as **PARTIAL**. The two existing pinning-tests
@@ -13,15 +13,15 @@ mid-Marathon)** as **PARTIAL**. The two existing pinning-tests
 ``test_cosign_login_runs_before_sign`` in
 ``tests/ci/test_build_wakir_provisioner_workflow.py``) verify the
 CI-workflow shape, but no infra-side test pins the substrate-level
-cosign-drift invariants per binary across the Tag-45 15-binary
+cosign-drift invariants per binary across the 15-binary
 inventory.
 
-The Tag-46+ follow-up table in §4 names
+The+ follow-up table in §4 names
 ``test_cosign_chain_marathon_image_hash_stability.py`` as the
-Layer-5 Phase-3c-marathon-level closer (Amara owner, Kai cross-review).
+Layer-5 Phase-3c-marathon-level closer.
 This file is the **infra-side companion** to that planned Layer-5
 test: it closes the A6 PARTIAL gap from the Container-Image-Pipeline
-substrate (Zone-C owner: Kai) by enforcing 15-binary-by-binary
+substrate (Zone-C owner: the infrastructure zone) by enforcing 15-binary-by-binary
 cosign-drift detection invariants, image-digest-mismatch recovery
 posture, cosign verification-timeout handling, keyless-OIDC-identity
 drift detection and Sigstore-trust-root-update-race semantics.
@@ -30,7 +30,7 @@ Scope (substrate-level)
 -----------------------
 This test file ships 17 hermetic invariants:
 
-  * **TV-A6-01 .. TV-A6-15** — per-binary cosign-drift detection
+  * **TV-A6-01.. TV-A6-15** — per-binary cosign-drift detection
     invariant: each of the 15 binaries in
     ``policies/cosign-policy-phase-3b.yaml`` MUST carry a
     cosign-verifiable digest slot AND an Operator-Hand on-mismatch
@@ -39,7 +39,7 @@ This test file ships 17 hermetic invariants:
     ``anchor-emitter``, ``svid-workload-identity``,
     ``bridge-audit-writer``, ``state-backing-welle4``, ``fsm-welle5``,
     ``subscribe-loop-welle6``, ``recovery-welle7``,
-    ``bridge-audit-replay``, ``migrate-version`` (Tag-45 closeout).
+    ``bridge-audit-replay``, ``migrate-version`` (closeout).
   * **TV-A6-16** — image-digest-mismatch recovery posture: the
     policy ships an ``on_digest_mismatch`` recipe AND the
     ``cosign-verify-images.yml`` workflow exits non-zero on
@@ -57,8 +57,8 @@ This test file ships 17 hermetic invariants:
     (Sigstore-maintained, transparency-log-pinned), NOT a third-party
     fork.
   * **TV-A6-20** — A6 coverage-classification consistency:
-    the historical pre-mortem coverage audit (git history, tag ``archive/pre-phase-4``) §2 A6
-    state-tag MUST be ``COVERED`` AND the Tag-45+ follow-up footer
+    The historical pre-mortem coverage audit (git history, tag ``archive/pre-phase-4``) §2 A6
+    state-tag MUST be ``COVERED`` AND the+ follow-up footer
     must list this test file by name.
 
 Sibling tests
@@ -66,12 +66,12 @@ Sibling tests
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — full-shape
     invariants for the cosign-policy YAML (the substrate this file
     asserts drift-detection on).
-  * ``tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py``
-    — Tag-45 13->15-binary inventory closeout invariants.
+  * ``tests/infra/test_quadlet_cosign_15_binary_substrate.py``
+    — 13->15-binary inventory closeout invariants.
   * ``tests/ci/test_build_wakir_provisioner_workflow.py`` — the
-    CI-workflow-shape cosign-login pin Amara's Tag-45 audit cited.
+    CI-workflow-shape cosign-login pin the QA zone's audit cited.
   * (planned) ``tests/phase_3c/test_cosign_chain_marathon_image_hash_
-    stability.py`` — Amara's Tag-46+ Layer-5 marathon-level closer.
+    stability.py`` — the QA zone's + Layer-5 marathon-level closer.
 
 Sandbox boundary
 ----------------
@@ -81,7 +81,7 @@ crane, skopeo, or podman against ``ghcr.io``. Live verification
 (cosign verify ghcr.io/wakir-labs/wakir-persona-engine@<digest>) is
 Operator-Hand per ``docs/operations/cosign-policy-phase-3b.md`` §3.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -105,10 +105,10 @@ A6_COVERAGE_DOC = (
     / "failure-mode-a6-coverage.md"
 )
 
-# Canonical 15-binary inventory (Tag-45 closeout). Each name maps to
+# Canonical 15-binary inventory (closeout). Each name maps to
 # the policy.binaries[].name slot in cosign-policy-phase-3b.yaml.
 EXPECTED_A6_BINARIES = (
-    # Tag-17..Tag-31 — first 9 carrier-image entries.
+    #..— first 9 carrier-image entries.
     "recovery",
     "state-backing",
     "fsm",
@@ -118,12 +118,12 @@ EXPECTED_A6_BINARIES = (
     "anchor-emitter",
     "svid-workload-identity",
     "bridge-audit-writer",
-    # Tag-33 Mini-Welle — Welle-4..7 dedicated single-binary images.
+    # Mini-wave — wave 4..7 dedicated single-binary images.
     "state-backing-welle4",
     "fsm-welle5",
     "subscribe-loop-welle6",
     "recovery-welle7",
-    # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+    # Mini-wave — Phase-3a-Foundation 14 + 15 closeout.
     "bridge-audit-replay",
     "migrate-version",
 )
@@ -356,7 +356,7 @@ def test_a6_keyless_oidc_identity_drift_detection(policy: dict) -> None:
         "missing or empty."
     )
     # The regexp must anchor the wakir-labs/wakir-runtime repo, not
-    # widen to .*/wakir-runtime or .*github.com.*.
+    # widen to.*/wakir-runtime or.*github.com.*.
     assert "wakir-labs/wakir-runtime" in ident_re, (
         f"A6 OIDC-identity drift: policy.certificate_identity_regexp "
         f"{ident_re!r} does not anchor wakir-labs/wakir-runtime — "
@@ -444,7 +444,7 @@ def test_a6_coverage_matrix_doc_exists_and_named(
         "classification it closes."
     )
     assert "COVERED" in a6_coverage_doc_text, (
-        "A6 coverage matrix doc must declare the post-Tag-46 COVERED "
+        "A6 coverage matrix doc must declare the post-COVERED "
         "classification."
     )
     # All 15 binaries named in the matrix.

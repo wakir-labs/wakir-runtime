@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang schema-registry replication layer.
 
-Phase-1b Sprint-3 Tag-6 (S3-6). Tests the replication layer that
-composes Tag-3 CAS-pin, Tag-4 watch-stream, and Tag-1 LWW into a
+Phase-1b (S3-6). Tests the replication layer that
+composes CAS-pin, watch-stream, and LWW into a
 single one-way (source → target) replicator:
 
-- :class:`SchemaReplicator` (run / bootstrap / event loop)
-- :func:`bootstrap_target_from_source`
-- :class:`ReplicationFilter` (curated-subset replication)
-- :class:`ReplicationConflictPolicy` (SOURCE_WINS vs CAS_PIN)
-- :class:`ReplicationMetrics` (per-run counters)
+-:class:`SchemaReplicator` (run / bootstrap / event loop)
+-:func:`bootstrap_target_from_source`
+-:class:`ReplicationFilter` (curated-subset replication)
+-:class:`ReplicationConflictPolicy` (SOURCE_WINS vs CAS_PIN)
+-:class:`ReplicationMetrics` (per-run counters)
 
 The replication layer is the OI-7-Phase-1c-replication slot landing
 for the schema-registry backend; it is the last Phase-1c slot. The
-Tag-1 LWW path (``put`` / ``get`` / ``snapshot``), the Tag-3 CAS-pin
-path (``put_with_revision`` / ``get_with_revision``), and the Tag-4
+LWW path (``put`` / ``get`` / ``snapshot``), the CAS-pin
+path (``put_with_revision`` / ``get_with_revision``), and the
 watch-stream path (``watch`` / ``WatchEvent`` / ``LiveSchemaSnapshot``)
-are unaffected; Tag-6 surfaces are purely additive.
+are unaffected; surfaces are purely additive.
 
-Pattern source: there is no V-908 replication module to mirror; Tag-6
+Pattern source: there is no V-908 replication module to mirror;
 is the canonical Wakir-internal replication template. The mock KV
-shape mirrors the Tag-4 watch-stream test pattern (Shape-2 watcher
+shape mirrors the watch-stream test pattern (Shape-2 watcher
 with ``await updates()`` + sentinel-None close).
 
 Test inventory (T-SR-REP-01..12):
@@ -44,7 +44,7 @@ Test inventory (T-SR-REP-01..12):
 - T-SR-REP-07: ``halt_on_conflict=True`` re-raises on the first
   CAS conflict; metrics counter is incremented before re-raise.
 - T-SR-REP-08: a poisoned envelope on the source watch-stream
-  raises :class:`SchemaRegistryEnvelopeError` from ``run`` (default
+  raises:class:`SchemaRegistryEnvelopeError` from ``run`` (default
   halt policy); counter ``envelope_errors`` is 1.
 - T-SR-REP-09: a filter that skips a live event (PUT) does NOT
   apply it to the target; counter ``events_skipped_by_filter``
@@ -90,7 +90,7 @@ from wirelang.schemas.replication import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV with watch + CAS surfaces (mirror of Tag-4 watch test pattern)
+# Mock KV with watch + CAS surfaces (mirror of watch test pattern)
 # ---------------------------------------------------------------------------
 
 
@@ -408,12 +408,12 @@ def test_t_sr_rep_04_live_put_events_mirrored_to_target():
         # the watcher is listening so it lands on the tail.
         watcher = await source_kv.watchall()
         run_task = asyncio.create_task(replicator.run())
-        # Yield once so run() opens its own watcher (uses the same
+        # Yield once so run opens its own watcher (uses the same
         # singleton _MockKv._watcher under the hood) and starts.
         await asyncio.sleep(0)
         # Emit live PUT for e2.
         await source.put(e2)
-        # Close the stream so run() returns.
+        # Close the stream so run returns.
         watcher._close()
         await run_task
         return replicator.metrics, await target.snapshot()
@@ -543,7 +543,7 @@ def test_t_sr_rep_07_halt_on_conflict_reraises_first_conflict():
 
     Same race-window simulation as T-SR-REP-06, but with
     ``halt_on_conflict=True`` so that the run loop terminates with
-    a re-raised :class:`SchemaRegistryConflictError`.
+    a re-raised:class:`SchemaRegistryConflictError`.
     """
     source_kv = _MockKv()
     target_kv = _MockKv()
@@ -601,7 +601,7 @@ def test_t_sr_rep_07_halt_on_conflict_reraises_first_conflict():
 
 def test_t_sr_rep_08_poisoned_envelope_halts_run_with_envelope_error():
     """T-SR-REP-08: a poisoned envelope on the source watch-stream
-    halts ``run`` with :class:`SchemaRegistryEnvelopeError`;
+    halts ``run`` with:class:`SchemaRegistryEnvelopeError`;
     ``envelope_errors`` counter is 1.
     """
     source_kv = _MockKv()

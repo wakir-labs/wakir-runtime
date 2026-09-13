@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-Tag-8 Bug-35-Folge-Item: production-
+"""Hermetic tests for -Bug-35-Folge-Item: production-
 Quadlet for wakir-persona-tomas (install-persona-quadlet.sh)
 and the Quadlet-content invariants the install-script depends on.
 
-Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-35 (Sprint-10 Tag-6)
+Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-35
 fixed the Quadlet bind-mount-Path-Drift; the production install-path
 was never codified. This test surface anchors:
 
@@ -321,7 +321,7 @@ def test_quadlet_dryrun_smoke() -> None:
         # missing sibling Quadlets we did not copy).
         if rc.returncode != 0:
             # Pass if the error message does not mention persona-tomas
-            # (i.e. the persona-tomas Quadlet parsed cleanly).
+            # (i.e. The persona-tomas Quadlet parsed cleanly).
             err = rc.stderr.lower()
             assert "persona-tomas" not in err, (
                 f"persona-tomas Quadlet caused a generator error: {rc.stderr!r}"

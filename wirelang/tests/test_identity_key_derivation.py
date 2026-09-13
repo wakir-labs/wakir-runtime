@@ -26,8 +26,8 @@ from wirelang.identity.key_derivation import (
 # ---------------------------------------------------------------------------
 # Canonical test vector 1 ("seed1") shared by BIP-32 and SLIP-0010.
 # Source URLs (URL-200-verified 2026-05-06):
-#   - https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
-#   - https://github.com/satoshilabs/slips/blob/master/slip-0010.md
+# - https://github.com/bitcoin/bips/blob/master/bip-0032.mediawiki
+# - https://github.com/satoshilabs/slips/blob/master/slip-0010.md
 # ---------------------------------------------------------------------------
 SEED1 = bytes.fromhex("000102030405060708090a0b0c0d0e0f")
 

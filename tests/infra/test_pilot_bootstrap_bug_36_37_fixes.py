@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-10 Tag-7 Bug-36 + Bug-37 substance fixes
+"""Hermetic tests for Bug-36 + Bug-37 substance fixes
 in ``infra/spire/federation/wakir-pilot-bootstrap.sh``.
 
 Anlass — Live-VM-Acceptance against wakir-orbit 2026-05-15 ~20:10
-CEST (Mira-Hand-Live-Run via AR-Approval after Kai-Subagent
-classifier-block). Two new substance bugs surfaced post Bug-30..33-
+CEST. Two new substance bugs surfaced post Bug-30..33-
 validation:
 
 * **Bug-36 — Resolver-skip-cosign-mode-Lücke für SPIRE-Images.**
-  Sprint-10 Tag-5 Bug-33 fix narrowed the skip-cosign-mode resolver
+   Bug-33 fix narrowed the skip-cosign-mode resolver
   call to ``--provisioner-only``, leaving the three SPIRE/python
   ``@sha256:DIGEST_PENDING_TOMAS_REVIEW`` placeholders in place.
   SPIRE-server-federation + spire-agent-federation Quadlets refused
@@ -21,7 +20,7 @@ validation:
   re-runs that only need to rotate the provisioner pin.
 
 * **Bug-37 — SPIRE-Agent NodeAttestor join_token config-coherency
-  drift in federation-mode.** Sprint-10 Tag-3 federation-mode-switch
+  drift in federation-mode.** federation-mode-switch
   stripped the ``-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER`` arg from
   the agent Quadlet's ExecStart line in step-6j, but left the
   agent-config (spire-agent-<side>.conf) declaring ``NodeAttestor
@@ -73,8 +72,7 @@ Bug-37 config-coherency (4 vectors):
 * ``TV-BUG-37-03`` The token-generate log message is mode-aware
   (mentions WAKIR_PILOT_MODE for diagnose).
 * ``TV-BUG-37-04`` Bug-37 disagree-note is documented in the source
-  (Mira's Bug-37 brief recommended Option A x509pop; Kai's Option B
-  rationale is captured in-line for Reza-Zone-B-Cross-Review).
+
 
 Config-coherency invariants (2 vectors):
 
@@ -162,11 +160,11 @@ def _extract_step_5_skip_cosign_branch(source: str) -> str:
     391, one in step-5 around line 767. We need the step-5 one.
     """
     step_5_start = source.find("step_5_image_pins()")
-    assert step_5_start > 0, "step_5_image_pins() function not found"
+    assert step_5_start > 0, "step_5_image_pins function not found"
     step_5_end = source.find("\n# ---", step_5_start + 10)
     if step_5_end < 0:
         step_5_end = source.find("step_6", step_5_start + 10)
-    assert step_5_end > step_5_start, "step_5_image_pins() end not found"
+    assert step_5_end > step_5_start, "step_5_image_pins end not found"
 
     step_5_body = source[step_5_start:step_5_end]
 
@@ -214,7 +212,7 @@ def test_bootstrap_bash_syntax_clean() -> None:
 
 
 def test_skip_cosign_resolves_all_four_images(bootstrap_source: str) -> None:
-    """Sprint-10 Tag-7 Bug-36 fix: the skip-cosign branch enumerates
+    """ Bug-36 fix: the skip-cosign branch enumerates
     the SAME four images as the cosign+skopeo cross-check branch."""
     branch = _extract_step_5_skip_cosign_branch(bootstrap_source)
 
@@ -276,7 +274,7 @@ def test_skip_cosign_provisioner_optional_when_unpublished(
     bootstrap_source: str,
 ) -> None:
     """The wakir-provisioner image may not yet be published on first
-    bring-up (Sprint-9 Tag-4 baseline). The skip-cosign branch must
+    bring-up ( baseline). The skip-cosign branch must
     treat a provisioner skopeo-failure as non-fatal (log + continue)
     while still hard-failing on the three mandatory SPIRE/python
     images."""
@@ -291,7 +289,7 @@ def test_skip_cosign_provisioner_optional_when_unpublished(
         r"image may not be published yet", branch, re.IGNORECASE
     ), (
         "Bug-36 fix: skip-cosign branch must log a not-yet-published "
-        "fallback for wakir-provisioner (Sprint-9 Tag-4 baseline parity)"
+        "fallback for wakir-provisioner ( baseline parity)"
     )
 
 
@@ -350,7 +348,7 @@ def test_skip_cosign_hard_fail_on_spire_skopeo_failure(
 
 
 def test_step_6i_token_generate_mode_agnostic(bootstrap_source: str) -> None:
-    """Sprint-10 Tag-7 Bug-37 fix: step-6i token-generate must run for
+    """ Bug-37 fix: step-6i token-generate must run for
     BOTH single-org AND federation mode. The prior single-org-only
     gate is removed.
 
@@ -400,7 +398,7 @@ def test_step_6i_token_generate_mode_agnostic(bootstrap_source: str) -> None:
 
 
 def test_step_6j_no_federation_mode_strip(bootstrap_source: str) -> None:
-    """Sprint-10 Tag-7 Bug-37 fix: step-6j must NOT sed-delete the
+    """ Bug-37 fix: step-6j must NOT sed-delete the
     ``-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER`` segment from the
     agent Quadlet ExecStart in federation-mode. The token is now
     injected by step-6i for BOTH modes."""
@@ -444,19 +442,19 @@ def test_token_generate_log_is_mode_aware(bootstrap_source: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-BUG-37-04: Disagree-note documented inline for Reza-Cross-Review.
+# TV-BUG-37-04: Disagree-note documented inline for the protocol zone-Cross-Review.
 # ---------------------------------------------------------------------------
 
 
 def test_bug_37_disagree_note_documented(bootstrap_source: str) -> None:
-    """Mira's Bug-37 brief recommended Option A (x509pop). Kai's
+    """the CEO's Bug-37 brief recommended Option A (x509pop). The infrastructure zone's
     Option B (mode-symmetric join-token) is the implemented fix.
     The disagree-note must be documented inline in the bootstrap
-    source for Reza-Zone-B-Cross-Review."""
+    source for the protocol zone-Zone-B-Cross-Review."""
     # Mention of x509pop must exist with explicit rationale.
     assert "x509pop" in bootstrap_source, (
         "Bug-37 disagree-note: the x509pop alternative must be named "
-        "in the source comment for Reza-Cross-Review context"
+        "in the source comment for the protocol zone-Cross-Review context"
     )
     # The rationale must mention that join-token is the existing-
     # pattern with minimal delta.
@@ -466,11 +464,11 @@ def test_bug_37_disagree_note_documented(bootstrap_source: str) -> None:
         "Bug-37 disagree-note: the rationale must explicitly state "
         "join-token is the existing-pattern + minimal-delta choice"
     )
-    # The disagree-note must explicitly mention Reza-Cross-Review.
+    # The disagree-note must explicitly mention the protocol zone-Cross-Review.
     assert re.search(
         r"Reza-Cross-Review", bootstrap_source, re.IGNORECASE
     ), (
-        "Bug-37 disagree-note: Reza-Cross-Review must be named so the "
+        "Bug-37 disagree-note: the protocol zone-Cross-Review must be named so the "
         "review-trail is discoverable from the source"
     )
 

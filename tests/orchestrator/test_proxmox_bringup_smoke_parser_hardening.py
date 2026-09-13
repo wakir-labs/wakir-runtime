@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-9 Tag-6 smoke-script parser hardening.
+"""Hermetic tests for the smoke-script parser hardening.
 
-Two bug-vectors closed in Sprint-9 Tag-6 (Pilot-VM live-bring-up #2,
+Two bug-vectors closed in (Pilot-VM live-bring-up #2,
 2026-05-14):
 
 * **Bug 13** — `nats kv ls` box-table output broke the exact-line
@@ -50,7 +50,7 @@ _SMOKE = _REPO_ROOT / "bin" / "proxmox-bringup-smoke"
 
 
 # ---------------------------------------------------------------------------
-# Mock-builder helpers (shared shape with the Tag-1 baseline)
+# Mock-builder helpers (shared shape with the baseline)
 # ---------------------------------------------------------------------------
 
 
@@ -90,8 +90,8 @@ def _run_smoke(env_overrides: dict, args: list[str]) -> subprocess.CompletedProc
     assert bash is not None
     env = os.environ.copy()
     env.update(env_overrides)
-    # Single-shot retry semantics for deterministic Tag-6 parser tests
-    # (the parser fixes are orthogonal to the Tag-5 retry layer).
+    # Single-shot retry semantics for deterministic parser tests
+    # (the parser fixes are orthogonal to the retry layer).
     env.setdefault("WAKIR_SMOKE_RETRY_MAX", "0")
     return subprocess.run(
         [bash, str(_SMOKE), *args],

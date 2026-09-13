@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Determinism tests for the V-908 N2 federation predicate evaluator.
 
-Phase-1b Sprint-2 Tag-3 (S2-2). Tests the live evaluator for
+Phase-1b (S2-2). Tests the live evaluator for
 ``peer_org`` and ``federation_route`` Datalog caveat predicates
 specified in
 ``wirelang/specs/datalog-caveat-vocabulary-phase-2-skizze.md``
 section 3.2 and implemented in
 :mod:`wirelang.federation.n2_evaluator`.
 
-The tests construct a :class:`FederatedResolveResult` directly
+The tests construct a:class:`FederatedResolveResult` directly
 rather than running the full FTD/AIP pipeline, because:
 
 1. The N2 evaluator is a pure layer over an already-verified
    resolve result (the freshness invariants are an upstream
    concern); and
 2. The Phase-1b federation pipeline is exercised end-to-end by
-   :mod:`wirelang.tests.test_dns_anchor` and the Tag-6 / Tag-7
+   :mod:`wirelang.tests.test_dns_anchor` and the /
    tests; this test module concentrates on the N2 evaluator's
    own determinism contract.
 
@@ -84,7 +84,7 @@ _HEX_FTD_FP = "12" * 32
 
 
 def _make_resolve(ftd_id: str = _FTD_ID, *, verified_at: datetime = _VERIFIED_AT) -> FederatedResolveResult:
-    """Construct a :class:`FederatedResolveResult` directly for tests."""
+    """Construct a:class:`FederatedResolveResult` directly for tests."""
     return FederatedResolveResult(
         aip_id=_AIP_ID,
         ftd_id=ftd_id,
@@ -217,11 +217,11 @@ def test_t_n2_07_federation_route_expired_rejected():
 
 
 def test_t_n2_08_federation_route_registry_protocol_pluggability():
-    """T-N2-08: a custom :class:`RouteRegistry` impl is honoured.
+    """T-N2-08: a custom:class:`RouteRegistry` impl is honoured.
 
     Demonstrates the Protocol contract: any object with a
     ``lookup(str) -> Optional[RouteRegistryEntry]`` method works,
-    not just :class:`InMemoryRouteRegistry`.
+    not just:class:`InMemoryRouteRegistry`.
     """
 
     class _CustomRegistry:

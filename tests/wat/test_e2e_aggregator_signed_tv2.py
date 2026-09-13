@@ -1,13 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""End-to-end loop-closure tests for the Sprint-6-Tag-3 aggregator
+"""End-to-end loop-closure tests for the aggregator
 signing path against the TV-2 real-manifest fixture cohort.
 
 These tests are the CI-side counterpart to ``scripts/wat-e2e-
-aggregator-signed-tv2.py``. The Tag-3 follow-up Item-4 (Mira Sprint-6
-Tag-4 Multi-Item-Box Item 3) asked for a demonstrated end-to-end with
+aggregator-signed-tv2.py``. The follow-up Item-4 asked for a demonstrated end-to-end with
 production-signed manifests; this test file pins the demonstration so
-it does not silently regress between Sprint-6 and Sprint-7.
+it does not silently regress between and.
 
 What is being asserted
 ----------------------
@@ -15,7 +14,7 @@ What is being asserted
 1. The production aggregator (``wat.cmd.aggregator_cli.build_command``)
    produces a manifest whose ``merkle_root`` matches the TV-2 fixture's
    when given the same B1-fields -- the deterministic-sort contract
-   from Sprint-6 Tag-3.
+
 2. With ``--sign-key`` / ``--sign-kid`` supplied, the manifest carries
    a well-formed ``signature`` slot.
 3. ``verify_real_manifest_file(verify_signature=True, ...)`` returns
@@ -23,7 +22,7 @@ What is being asserted
    manifest paired with the byte-identical original ``root.bin`` /
    ``root.bin.ots`` side-files.
 
-This is the loop-closure proof Mira called out in the Sprint-6 Tag-3
+This is the loop-closure proof the CEO called out in the
 Folge-Items list (item 4).
 """
 from __future__ import annotations
@@ -131,7 +130,7 @@ def test_e2e_aggregator_signed_tv2_hour_verifies(
 ) -> None:
     """Each TV-2 hour: aggregator-sign -> verifier signature_status=verified.
 
-    Pins the production-loop closure for the Sprint-5-Tag-5 open-item.
+    Pins the production-loop closure for the open-item.
     """
     from wat.verify.manifest_v2 import VerifyMode, verify_real_manifest_file
 

@@ -7,8 +7,8 @@ Coverage targets the pure-function core (make_event, validate_event,
 derive_event_id, NotifyEvent.to_dict/to_jsonl_line) plus the
 single-process emit_notify + CLI emit/validate paths.
 
-Anchor: Tag-46 Mira-Notify substance; companion to Tag-45 catalog PR.
-Author: Noa Bergstroem (SRE)
+Anchor: operator-Notify substance; companion to catalog PR.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations

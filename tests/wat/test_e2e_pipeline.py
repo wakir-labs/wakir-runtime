@@ -271,7 +271,7 @@ def test_build_event_sorting_deterministic(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tag-8 sort-drift fix: cross-module-vertrag with docs/wat-spool-spec.md §4.
+# sort-drift fix: cross-module-vertrag with docs/wat-spool-spec.md §4.
 #
 # The aggregator now sorts on the 2-tuple (time, event_id). The two
 # tests below cover the disambiguation cases where event_id-only sort
@@ -289,7 +289,7 @@ def test_aggregator_sort_time_then_event_id(tmp_path: Path) -> None:
     2. Distinct ``time`` with reversed ``event_id`` order -> ``time``
        wins over ``event_id`` in the sort key.
 
-    A drift back to event_id-only sort (the Tag-7 bug) would flip the
+    A drift back to event_id-only sort (the bug) would flip the
     second case's leaf order and produce a different Merkle root, which
     is the exact cross-module-vertrag-drift this test is designed to
     catch.
@@ -373,7 +373,7 @@ def test_aggregator_sort_invariance_across_input_permutations(
     Stronger sibling of ``test_build_event_sorting_deterministic``:
     walks three permutations (identity, reverse, manual shuffle) and
     asserts byte-equality of the Merkle root across all three. This is
-    the property the Tag-8 fix is supposed to preserve regardless of
+    the property the fix is supposed to preserve regardless of
     which sort key the implementation uses, but is recorded explicitly
     so any future sort-key tweak (e.g. adding a tertiary tiebreaker)
     cannot regress it silently.
@@ -517,7 +517,7 @@ def test_build_with_anchor_e2e(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
             self.stderr = stderr
 
     def fake_run_ots(args, **kwargs):  # type: ignore[no-untyped-def]
-        # Simulate ``ots stamp`` by writing the .ots receipt next to
+        # Simulate ``ots stamp`` by writing the.ots receipt next to
         # the root file. The args list ends with the path to the
         # source file; everything before it is calendar config.
         if args[0] == "stamp":

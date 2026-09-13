@@ -80,10 +80,10 @@ tooling/ots/
   wirelang-spec-freeze-seal-probe.yml    (freeze-seal)
 
 tests/audit/
-  test_wirelang_spec_ots_pre_anchor_probe_tag60.py
-  test_wirelang_spec_freeze_seal_probe_tag58.py
+  test_wirelang_spec_ots_pre_anchor_probe.py
+  test_wirelang_spec_freeze_seal_probe.py
 tests/ci/
-  test_ots_pre_anchor_activation_probe_tag59.py
+  test_ots_pre_anchor_activation_probe.py
 
 docs/operations/
   wirelang-spec-ots-anchor-wiring.md     (this doc)

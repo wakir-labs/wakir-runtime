@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""LICENSING.md state-audit (Tag-31 EXT-AUDIT-FOLGE).
+"""LICENSING.md state-audit (EXT-AUDIT-FOLGE).
 
 The external audit on 2026-05-17 flagged that the per-file license-
 headers had drifted away from the human-readable LICENSING.md path-
@@ -14,7 +14,7 @@ section even listed `wat/` as the *only* BSL sub-tree.
 This test suite enforces that LICENSING.md, REUSE.toml, pyproject.toml
 ``license-files`` and the actual on-disk state of the BSL sub-trees
 stay in lock-step. It is the diligence-ready acceptance gate the
-external audit asked for.
+external audit asked.
 
 Scope of the assertions (10 vectors):
 
@@ -101,7 +101,7 @@ def test_tv_lms_01_every_on_disk_bsl_subtree_listed_in_licensing_md() -> None:
     assert not missing, (
         f"LICENSING.md is missing path-map entries for these on-disk BSL "
         f"sub-trees: {missing}. Update the LICENSING.md table so the human-"
-        f"readable map matches the actual repo state (Tag-31 EXT-AUDIT-"
+        f"readable map matches the actual repo state (EXT-AUDIT-"
         f"FOLGE diligence-ready posture)."
     )
 
@@ -161,7 +161,7 @@ def test_tv_lms_03_every_on_disk_bsl_subtree_annotated_in_reuse_toml() -> None:
         if glob not in reuse_toml:
             missing.append(glob)
     assert not missing, (
-        f"REUSE.toml is missing BSL glob annotations for: {missing}. Each "
+        f"REUSE.toml is missing BSL glob annotations: {missing}. Each "
         f"BSL sub-tree on disk must have a ``[[annotations]] path = "
         f"\"<dir>/**\"`` block with ``SPDX-License-Identifier = "
         f"\"BUSL-1.1\"`` and ``precedence = \"closest\"`` so REUSE scanners "
@@ -194,7 +194,7 @@ def test_tv_lms_04_pyproject_license_files_covers_every_bsl_subtree() -> None:
             continue
         missing.append(license_path)
     assert not missing, (
-        f"pyproject.toml license-files = [...] is missing entries for: "
+        f"pyproject.toml license-files = [...] is missing entries: "
         f"{missing}. Each BSL sub-tree's LICENSE-BSL.md must be in the "
         f"license-files list so PEP-639 wheel metadata surfaces the BUSL "
         f"claim to PyPI consumers."
@@ -319,7 +319,7 @@ def test_tv_lms_08_readme_license_section_named_busl_dominant() -> None:
     missing = [m for m in must_mention if m not in readme]
     assert not missing, (
         f"README.md License section is missing explicit bullet entries "
-        f"for: {missing}. Each BSL sub-tree must be named in the "
+        f": {missing}. Each BSL sub-tree must be named in the "
         f"License section narrative for diligence-ready disclosure."
     )
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-1 tests: async NATS-KV state-backing.
+"""-Pengine-9 OI-PEFR-1 tests: async NATS-KV state-backing.
 
 Hermetic stubs simulate the nats-py 2.6+ surface so the tests run
 without a live NATS server. The stubs cover:
@@ -443,7 +443,7 @@ def test_async_connect_idempotent_no_double_connect():
 
 def test_sync_facade_delegates_to_async_backing():
     """The sync NatsKvPersonaStateBacking facade must produce the
-    same observable behaviour as the async binding (Sprint-Pengine-9
+    same observable behaviour as the async binding (-Pengine-9
     closes the v0.2.0-pilot ``snapshot is deferred`` stubs)."""
 
     async def make_async() -> NatsKvPersonaStateBackingAsync:

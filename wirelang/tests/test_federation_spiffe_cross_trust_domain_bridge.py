@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for the Phase-2 Sprint-7 Tag-3 SPIFFE Cross-Trust-Domain
+"""Tests for the Phase-2 SPIFFE Cross-Trust-Domain
 Bridge (``wirelang.federation.spiffe_cross_trust_domain_bridge``).
 
 Test inventory (T-SCTDB-01..10):
@@ -205,7 +205,7 @@ def _build_bridge(
 
 
 def test_t_sctdb_01_happy_path_peer_and_local_svid() -> None:
-    """Bridge yields a complete :class:`LiveBridgeResolution` for a
+    """Bridge yields a complete:class:`LiveBridgeResolution` for a
     well-formed live attestation, with peer-SVID verified and a
     local-SVID fetched from the mock workload adapter.
     """
@@ -280,7 +280,7 @@ def test_t_sctdb_03_missing_attestation() -> None:
 def test_t_sctdb_04_mock_attestation_rejected() -> None:
     """A mock attestation surfaces as
     :class:`UnknownBridgeRouteError` from step 3 (symmetric reject
-    with :func:`resolve_mock_bridge_route`).
+    with:func:`resolve_mock_bridge_route`).
     """
     mock_att = _mock_attestation()
     mock_route = _route_entry(route_id=mock_att.route_id)
@@ -297,7 +297,7 @@ def test_t_sctdb_04_mock_attestation_rejected() -> None:
 
 def test_t_sctdb_05_missing_peer_trust_bundle_url() -> None:
     """An attestation with ``peer_trust_bundle_url=None`` cannot be
-    resolved live; surfaces as :class:`PeerTrustBundleFetchError`
+    resolved live; surfaces as:class:`PeerTrustBundleFetchError`
     from step 4 with a clear message.
     """
     no_url_attestation = _live_attestation(bundle_url=None)
@@ -315,7 +315,7 @@ def test_t_sctdb_05_missing_peer_trust_bundle_url() -> None:
 def test_t_sctdb_06_fetcher_exception_propagates_as_fetch_error() -> None:
     """A fetcher exception is wrapped as
     :class:`PeerTrustBundleFetchError` with the original exception
-    surfaced on :attr:`PeerTrustBundleFetchError.cause`.
+    surfaced on:attr:`PeerTrustBundleFetchError.cause`.
     """
     # No bundles in the fetcher's canned dict -> KeyError on lookup.
     bridge = _build_bridge(
@@ -331,7 +331,7 @@ def test_t_sctdb_06_fetcher_exception_propagates_as_fetch_error() -> None:
 
 def test_t_sctdb_07_fetched_bundle_trust_domain_mismatch() -> None:
     """A bundle whose trust-domain does not match the attestation
-    is rejected as :class:`PeerTrustBundleFetchError`.
+    is rejected as:class:`PeerTrustBundleFetchError`.
     """
     wrong_bundle = _fresh_bundle(trust_domain="attacker.example")
     bridge = _build_bridge(

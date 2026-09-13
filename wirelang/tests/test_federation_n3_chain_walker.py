@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Determinism tests for the V-908 N3 multi-FTD delegation-chain walker.
 
-Phase-1b Sprint-2 Tag-5 (S2-4). Tests the chain walker for the
+Phase-1b (S2-4). Tests the chain walker for the
 ``peer_org`` predicate's delegation-chain-walking extension specified
 in ``wirelang/specs/datalog-caveat-vocabulary-phase-2.md`` §5.7
-(Phase-1b informative note added in Tag-5) and implemented in
+(Phase-1b informative note added) and implemented in
 :mod:`wirelang.federation.n3_chain_walker`.
 
-Tests construct a :class:`FederatedResolveResult` directly (same
-pattern as the Tag-3 N2 evaluator tests) and assemble an
+Tests construct a:class:`FederatedResolveResult` directly (same
+pattern as the N2 evaluator tests) and assemble an
 :class:`InMemoryRouteRegistry` populated with chain-hop entries
 under the canonical ``derive_chain_hop_route_id`` derivation. The
 walker is exercised against both happy-path and rejection paths.
@@ -68,7 +68,7 @@ from wirelang.identity.federation_resolver import FederatedResolveResult
 
 
 # ---------------------------------------------------------------------------
-# Fixtures (mirror the Tag-3 N2 fixture topology byte-for-byte where
+# Fixtures (mirror the N2 fixture topology byte-for-byte where
 # possible so cross-module determinism contracts share an anchor)
 # ---------------------------------------------------------------------------
 

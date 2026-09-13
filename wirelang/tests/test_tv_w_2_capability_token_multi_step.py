@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""TV-W-2 hermetic Capability-Token Multi-Step Roundtrip (Phase-1b Tag-16).
+"""TV-W-2 hermetic Capability-Token Multi-Step Roundtrip (Phase-1b).
 
 Acceptance criteria (per ``wirelang/specs/wirelang-tv-strategy.md`` §2.4
 plus the TV-W-2 Pin-Stability Guarantee in
@@ -232,7 +232,7 @@ class TestContextAlphaAccept:
     ) -> None:
         """The α-trace caveat-set-hashes match §4-CSC over the pinned caveats.
 
-        Recomputing via :func:`canonical_caveat_set_hash` from the
+        Recomputing via:func:`canonical_caveat_set_hash` from the
         published authority/append-1/append-2 caveat-sets MUST match
         what is in the trace; this is the load-bearing TV-W-2-§4-CSC
         contract.

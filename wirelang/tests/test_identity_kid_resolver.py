@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Determinism tests for the AIP-document kid → public-key resolver.
 
-Phase-2 Sprint-4 Tag-3 inventory: T-KID-RES-01..12.
+Phase-2 inventory: T-KID-RES-01..12.
 
 The tests exercise the resolver as a pure function over hand-crafted
 AIP-document fragments (no transport, no signature-verify on the
@@ -250,7 +250,7 @@ def test_T_KID_RES_05_duplicate_kid_structural() -> None:
 
 def test_T_KID_RES_06_wrong_alg_secp256k1_filtered() -> None:
     """A secp256k1 entry under the requested kid is rejected (Z-1-K-
-    Sprint-4-3 Identity-Document-layer is Ed25519-only)."""
+    -3 Identity-Document-layer is Ed25519-only)."""
     _, pub_a = _keypair(_SEED_A)
     _, pub_b = _keypair(_SEED_B)
     doc = _aip_doc_with_two_keys(pub_a, pub_b)

@@ -12,7 +12,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 | Phase | 3 (closing): Bug-42 silent-drop closure regression-suite |
 | Source | QA engineering (Continuous-Mode, 2026-05-19); PR #265 (persona-engine engineering) Bug-42 fix; PR #278 (persona-engine engineering) NATS-subjects-audit baseline |
 | Date | 2026-05-19 (creation) |
-| Test-File | [`tests/integration/test_bug_42_regression_suite_tag_48.py`](../../tests/integration/test_bug_42_regression_suite_tag_48.py) |
+| Test-File | [`tests/integration/test_bug_42_regression_suite.py`](../../tests/integration/test_bug_42_regression_suite.py) |
 | Companion (contract module) | [`wirelang/persona_engine/publish_mode_contract.py`](../../wirelang/persona_engine/publish_mode_contract.py) |
 | Companion (audit script) | [`scripts/audit/nats-jetstream-subjects-audit.py`](../../scripts/audit/nats-jetstream-subjects-audit.py) |
 | Companion (audit doc) | [`docs/audit/nats-jetstream-subjects-audit.md`](../audit/nats-jetstream-subjects-audit.md) |
@@ -174,7 +174,7 @@ The Bug-42 closure now stands on three layers:
 |---|---|---|---|
 | 1 — Contract unit | `tests/persona_engine/test_publish_mode_contract.py` | persona-engine engineering | Per-function behaviour of contract module (matrix, gate, env resolver). |
 | 2 — Audit hermetic | `tests/audit/test_nats_jetstream_subjects_audit.py` | persona-engine engineering | Audit script classifier behaviour against synthetic fixtures (14 hermetic tests). |
-| 3 — Integration regression | `tests/integration/test_bug_42_regression_suite_tag_48.py` (this gate) | QA engineering | Cross-check that the union of Layer-1 + Layer-2 stays internally consistent and externally pinned against spec / schema SoT. |
+| 3 — Integration regression | `tests/integration/test_bug_42_regression_suite.py` (this gate) | QA engineering | Cross-check that the union of Layer-1 + Layer-2 stays internally consistent and externally pinned against spec / schema SoT. |
 
 Layer 1 and Layer 2 are persona-engine engineering's substantive surface; Layer 3 is the
 QA Zone-M cross-component pin. The three layers are complementary,
@@ -190,7 +190,7 @@ two unpinned against the spec / schema SoT.
 For Phase-3-wave-rollout campaign acceptance the Bug-42 closure must
 satisfy:
 
-1. **G-Bug-42-1:** `tests/integration/test_bug_42_regression_suite_tag_48.py`
+1. **G-Bug-42-1:** `tests/integration/test_bug_42_regression_suite.py`
    passes 25/25 at HEAD on every CI run.
 2. **G-Bug-42-2:** `scripts/audit/nats-jetstream-subjects-audit.py --enforce`
    exits 0 on every CI run (i.e. drift-free repo).

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""End-to-End Live-Bring-up Substanz-Test-Suite (Phase-2 Sprint-9 Tag-4).
+"""End-to-End Live-Bring-up Substanz-Test-Suite (Phase-2).
 
 Context
 -------
@@ -8,7 +8,7 @@ Context
 On 2026-05-13 the AR-Operator-Hand ran the
 ``wakir-pilot-bootstrap.sh`` against a fresh Fedora-CoreOS Pilot-VM
 (Proxmox host). The bootstrap blocked twice mid-flight and the Smoke-
-Test ended at 1/6 PASS. The Mira-Bug-Bilanz
+Test ended at 1/6 PASS. The operator-Bug-Bilanz
 (``agents-workspaces/mira/outbox/2026-05-13-pilot-bringup-bug-bilanz.md``)
 documented seven substance-bugs, NONE of which were caught by the
 existing hermetic test surface (``tests/infra/test_pilot_bootstrap.py``
@@ -51,7 +51,7 @@ that could touch network, podman, or systemd. The companion CI lane
 that DOES drive a privileged container lives in
 ``test_pilot_bringup_e2e_container.py``.
 
-— Amara
+— the QA zone
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ def _bootstrap_text() -> str:
 # ``/etc/containers/systemd``. The source template volume files are
 # named WITHOUT the ``<side>`` middle segment
 # (``wakir-spire-server-federation-data.volume``); the bootstrap
-# Phase 6b-ii (Kai's Sprint-9 Tag-4 Bug 2 fix) renames the destination
+# Phase 6b-ii renames the destination
 # basename via ``sed`` while installing the volume, so the source
 # templates remain side-agnostic on disk.
 #
@@ -211,7 +211,7 @@ def test_tv_bringup_01_server_federation_volume_filename_resolves(
     destination-basename rename)."""
     container_text = _sed_side(SERVER_FED_TPL.read_text(encoding="utf-8"), side)
 
-    # Collect referenced .volume filenames (just the unit name, no path).
+    # Collect referenced.volume filenames (just the unit name, no path).
     referenced = set(
         re.findall(
             r"^Volume=([A-Za-z0-9._-]+\.volume):",
@@ -231,9 +231,9 @@ def test_tv_bringup_01_server_federation_volume_filename_resolves(
     assert not missing, (
         f"server-federation-container for side={side!r} references "
         f"volume unit(s) the bootstrap does NOT install: {sorted(missing)}\n"
-        f"  bootstrap-installed basenames (post-rename): "
+        f" bootstrap-installed basenames (post-rename): "
         f"{sorted(installed)}\n"
-        f"This is Bug 2 from the 2026-05-13 Mira-Bug-Bilanz."
+        f"This is Bug 2 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -245,7 +245,7 @@ def test_tv_bringup_01_bootstrap_installs_volumes_with_side_aware_filename() -> 
     renames the destination basename so the per-side container
     template can resolve ``Volume=wakir-spire-server-federation-${side}-data.volume``.
 
-    Accepted mechanisms (Kai's Sprint-9 Tag-4 Bug 2 fix uses option 1):
+    Accepted mechanisms:
       1. ``dest_base=$(... | sed "s/.../...-${side}-.../")`` — basename
          rewrite via sed before install.
       2. ``base=${base//<SIDE>/${side}}`` — bash parameter substitution
@@ -300,7 +300,7 @@ def test_tv_bringup_01_bootstrap_installs_volumes_with_side_aware_filename() -> 
 
 # ---------------------------------------------------------------------------
 # TV-BRINGUP-02 — Agent-Container Volume-Reference matches Server-Federation
-#                 -Volume names (Bug 3)
+# -Volume names (Bug 3)
 # ---------------------------------------------------------------------------
 #
 # The agent-federation-container template MUST reference the
@@ -336,16 +336,16 @@ def test_tv_bringup_02_agent_references_existing_server_bundles_volume(
 
     # Bootstrap-installed basenames after the Phase-6b destination-
     # rename logic (federation server volumes get the per-side segment
-    # injected). This mirrors Kai's Sprint-9 Tag-4 Bug 2/3 fix surface.
+    # injected). This mirrors the infrastructure zone's Bug 2/3 fix surface.
     installed = _bootstrap_volume_install_basenames(side)
 
     missing = [ref for ref in server_refs if ref not in installed]
     assert not missing, (
         f"agent-federation-container for side={side!r} references "
         f"server volume(s) that the bootstrap does NOT install:\n"
-        f"  missing: {missing}\n"
-        f"  bootstrap-installed (post-rename): {sorted(installed)}\n\n"
-        f"This is Bug 3 from the 2026-05-13 Mira-Bug-Bilanz: agent +\n"
+        f" missing: {missing}\n"
+        f" bootstrap-installed (post-rename): {sorted(installed)}\n\n"
+        f"This is Bug 3 from the 2026-05-13 operator-Bug-Bilanz: agent +\n"
         f"server templates must agree on the per-side volume basename\n"
         f"the bootstrap installs."
     )
@@ -353,7 +353,7 @@ def test_tv_bringup_02_agent_references_existing_server_bundles_volume(
 
 # ---------------------------------------------------------------------------
 # TV-BRINGUP-03 — Agent-Container Requires-Service matches generated
-#                 Server-Federation-Service name (Bug 4)
+# Server-Federation-Service name (Bug 4)
 # ---------------------------------------------------------------------------
 #
 # The bootstrap Phase 6c writes the server unit file as
@@ -399,7 +399,7 @@ def test_tv_bringup_03_agent_requires_match_server_federation_service(
         f"agent-federation-container for side={side!r} requires server "
         f"service(s) {mismatched!r} but the bootstrap installs the\n"
         f"server unit as {expected_server_service!r}.\n\n"
-        f"This is Bug 4 from the 2026-05-13 Mira-Bug-Bilanz."
+        f"This is Bug 4 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -408,11 +408,11 @@ def test_tv_bringup_03_agent_requires_match_server_federation_service(
 # ---------------------------------------------------------------------------
 #
 # Re-running the bootstrap with ``--resume-from 6`` must either:
-#   (a) preserve operator-hand manual fixes on the installed Quadlet
-#       files (i.e. detect "already fixed" content and skip), OR
-#   (b) re-derive the correct substance from-scratch so any manual
-#       fix becomes redundant (i.e. the source template substitution
-#       produces a unit identical to what the operator hand-edited).
+# (a) preserve operator-hand manual fixes on the installed Quadlet
+# files (i.e. detect "already fixed" content and skip), OR
+# (b) re-derive the correct substance from-scratch so any manual
+# fix becomes redundant (i.e. The source template substitution
+# produces a unit identical to what the operator hand-edited).
 #
 # In practice, option (b) is the desired path: every bug 2/3/4 fix
 # upstream means the source template needs no manual-fix at all.
@@ -427,7 +427,7 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
     a file whose content is already equal to the substituted source.
     The acceptable mechanism is ``cmp -s "$<any-src>" "$<any-dst>"``
     before install, regardless of which shell variables hold the two
-    paths (Kai's Sprint-9 Tag-4 Bug 5 fix uses ``$tmp``/``$target``,
+    paths (the infrastructure zone's Bug 5 fix uses ``$tmp``/``$target``,
     ``$f``/``$target``, ``$server_conf``/``$server_conf_dst``, etc.,
     plus a central ``_install_substituted`` helper that owns the
     cmp-then-install guard).
@@ -456,7 +456,7 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
     direct_guard_in_step_6 = bool(cmp_guard_re.search(phase_6))
 
     # Some Phase-6 fixes centralise the guard in a helper function
-    # that ``step_6_quadlet`` calls (e.g. Kai's
+    # that ``step_6_quadlet`` calls (e.g. The infrastructure zone's
     # ``_install_substituted`` helper). Accept the helper-form too:
     # a function defined INSIDE ``step_6_quadlet`` (or its enclosing
     # scope) that itself carries the cmp/diff guard.
@@ -489,7 +489,7 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
         "Reference pattern: Phase 7 (bucket-init) already does\n"
         "``if ! cmp -s \"$src\" \"$dst\" 2>/dev/null; then install -m 644 ...``.\n"
         "Apply the same pattern (any variable names) to 6b/6c/6d/6e.\n\n"
-        "This is Bug 5 from the 2026-05-13 Mira-Bug-Bilanz."
+        "This is Bug 5 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -518,25 +518,25 @@ def test_tv_bringup_04_phase_6_units_idempotent_on_active_units() -> None:
 # provisioner imports modules from the ``wirelang.federation`` package
 # via the repo bind-mount, which transitively can pull
 # ``wirelang.identity.key_derivation`` -> ``cryptography``. The
-# Sprint-9 Tag-4 fix landed as a Resolution-C+A hybrid:
+# fix landed as a Resolution-C+A hybrid:
 #
-#   * Resolution C (Reza, PR #33 ``4562d31``): wirelang.identity
-#     submodules are now lazy-imported, so the static import graph of
-#     ``wirelang.federation`` no longer eagerly pulls ``cryptography``.
-#   * Resolution A (Tomás, PR #34 ``3406407``): the bucket-init unit
-#     pins a dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
-#     that ships the four runtime wheels (``nats-py``, ``cryptography``,
-#     ``rfc8785``, ``jsonschema``) — belt-and-suspenders against
-#     surface drift on the wirelang import chain.
+# * Resolution C: wirelang.identity
+# submodules are now lazy-imported, so the static import graph of
+# ``wirelang.federation`` no longer eagerly pulls ``cryptography``.
+# * Resolution A: the bucket-init unit
+# pins a dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image
+# that ships the four runtime wheels (``nats-py``, ``cryptography``,
+# ``rfc8785``, ``jsonschema``) — belt-and-suspenders against
+# surface drift on the wirelang import chain.
 #
 # This vector accepts ANY of the three resolution paths:
-#   A) The base image is a pre-baked-wheels image (e.g.
-#      ``ghcr.io/wakir-labs/wakir-provisioner``) — image already ships
-#      cryptography.
-#   B) The container Exec runs ``pip install cryptography ...`` before
-#      the provisioner.
-#   C) The provisioner's static import graph keeps clear of
-#      ``cryptography`` (static-source heuristic).
+# A) The base image is a pre-baked-wheels image (e.g.
+# ``ghcr.io/wakir-labs/wakir-provisioner``) — image already ships
+# cryptography.
+# B) The container Exec runs ``pip install cryptography ...`` before
+# the provisioner.
+# C) The provisioner's static import graph keeps clear of
+# ``cryptography`` (static-source heuristic).
 
 
 _PRE_BAKED_PROVISIONER_IMAGE_RE = re.compile(
@@ -554,7 +554,7 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
       Layer 1 (static):
         A) ``Image=`` points at a pre-baked wheels image (e.g.
            ``ghcr.io/wakir-labs/wakir-provisioner``) that ships
-           cryptography in the layer. Tomás's Sprint-9 Tag-4 fix
+           cryptography in the layer. The engineering zone's fix
            (PR #34) takes this path.
         B) Exec= carries a ``pip install cryptography`` step.
         C) Static-source heuristic: the provisioner's source does not
@@ -594,7 +594,7 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
     # Resolution C (static-source heuristic): walk the static import
     # chain from the provisioner module through ``wirelang.federation``
     # and (if eager) ``wirelang.identity`` to confirm no top-level
-    # ``cryptography`` import appears. Reza's PR #33 fix replaces the
+    # ``cryptography`` import appears. The protocol zone's PR #33 fix replaces the
     # eager ``from .key_derivation import ...`` chain in
     # ``wirelang.identity.__init__`` with lazy attribute access — the
     # static source no longer carries the eager edges.
@@ -718,7 +718,7 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
         "The bucket-init container's ``python:3.13-slim`` base image does "
         "not ship cryptography, so the container will crash on start with "
         "``ModuleNotFoundError: No module named 'cryptography'``.\n\n"
-        "Resolution options (Mira-Bug-Bilanz, Bug 6): "
+        "Resolution options: "
         "A) image with cryptography baked in (e.g. "
         "``ghcr.io/wakir-labs/wakir-provisioner``); "
         "B) Exec-time pip install; "
@@ -765,8 +765,8 @@ def test_tv_bringup_06_server_conf_path_matches_bootstrap_install(
     # Confirm the bootstrap installs the conf file at that same path.
     expected = conf_mounts[0]  # e.g. /etc/wakir/spire-federation/spire-server-wakir.conf
     # Bootstrap Phase 6c does:
-    #   install -m 644 "$server_conf"
-    #     "/etc/wakir/spire-federation/spire-server-${side}.conf"
+    # install -m 644 "$server_conf"
+    # "/etc/wakir/spire-federation/spire-server-${side}.conf"
     bootstrap_target_pattern = re.search(
         r'/etc/wakir/spire-federation/spire-server-\$\{side\}\.conf', text
     )
@@ -795,9 +795,9 @@ def test_tv_bringup_06_server_health_start_period_is_generous_enough() -> None:
     actually ready (this was one of the candidate root-causes for the
     crash-loop in Bug 7).
 
-    Sprint-9-Tag-5 substance-fix (Bug 7 H3): raised the threshold to
+     substance-fix (Bug 7 H3): raised the threshold to
     60s on cold Pilot-VM storage. The 30s lower-bound is retained as a
-    must-have; the 60s upper-bound is the Sprint-9-Tag-5 target.
+    must-have; the 60s upper-bound is the target.
     """
     text = SERVER_FED_TPL.read_text(encoding="utf-8")
     m = re.search(r"HealthStartPeriod=(\d+)s", text)
@@ -872,7 +872,7 @@ def test_tv_bringup_07_resume_hint_no_bash_bash_doubling() -> None:
 def test_substance_suite_covers_all_seven_bugs() -> None:
     """Inventory check: the seven test-vector groups exist as named
     test functions in this module. Future Bug-N additions land here so
-    the Mira-Bug-Bilanz and the regression net stay synchronized."""
+    the operator-Bug-Bilanz and the regression net stay synchronized."""
     module_src = Path(__file__).read_text(encoding="utf-8")
     expected_vectors = [
         "test_tv_bringup_01_server_federation_volume_filename_resolves",

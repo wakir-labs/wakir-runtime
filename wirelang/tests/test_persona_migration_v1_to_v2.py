@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
-"""``V1ToV2Step`` migration tests (Phase-1b Sprint-3 Tag-3, V10-Migration-Pfad).
+"""``V1ToV2Step`` migration tests (Phase-1b, V10-Migration-Pfad).
 
-Coverage map (Tag-1-Sketch §3 + §4 + §5)
+Coverage map (-Sketch §3 + §4 + §5)
 ========================================
 
 This pack tests the converter-side V1-to-V2 migration step that the
-Tag-1 sketch (``wirelang/specs/persona-schema-v10-migration-vorbereitung.md``)
-specified as the Sprint-3 implementation surface. Tag-2 authored the
-``persona-v2`` JSON-Schema; Tag-3 lands the converter step itself.
+sketch (``wirelang/specs/persona-schema-v10-migration-vorbereitung.md``)
+specified as the implementation surface. authored the
+``persona-v2`` JSON-Schema; lands the converter step itself.
 
 1. **V1-to-V2 happy-path:** ``migrate_persona(v9, target=persona-v2)``
    produces a v2-shape dict that hashes to
    :data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2`. Determinism anchor.
 
 2. **V1-to-V2 input-unchanged:** the input v9 dict is **not** mutated by
-   the migration call (Tag-1-Sketch §3 step rule 2 / Sprint-2 Tag-2
+   the migration call (-Sketch §3 step rule 2 /
    non-mutation discipline carried forward).
 
 3. **V1-to-V2 source-version-strict:** a dict that already declares
    ``schema_version=persona-v2`` does **not** route through
    ``V1ToV2Step``; the resolver short-circuits with an empty chain
-   and returns the input unchanged. Mirrors Sprint-2 Tag-2's
+   and returns the input unchanged. Mirrors 's
    "no-op identity migration" pattern for the v2 endpoint.
 
 4. **V1-to-V2 run-to-run determinism:** two successive migrations of
@@ -32,21 +32,21 @@ specified as the Sprint-3 implementation surface. Tag-2 authored the
    ``target=persona-v2``, hashes to
    :data:`PERSONA_HASH_PIN_V8_MIGRATED_TO_V2`, which equals
    :data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` by construction. This
-   is the Sprint-3 Tag-1 §3.2 multi-step linear-chain direct-anchor
-   that the Sprint-2 M-Konsens-Marker companion memo flagged as
+   is the §3.2 multi-step linear-chain direct-anchor
+   that the M-Konsens-Marker companion memo flagged as
    currently indirect (M-1).
 
 6. **V2-to-V1 inverse-not-supported (negative):** requesting a
    ``persona-v2 -> persona-v1`` migration raises
    :class:`PersonaMigrationError`. M-3 non-invertibility anchor still
    holds in v2: forward-only, additiv-only, no inverse step is ever
-   registered (Default-Lock A-2). Mirrors the Sprint-2 Tag-2 absence
+   registered (Default-Lock A-2). Mirrors the absence
    of any ``v_n+1 -> v_n`` test.
 
 Each test is hermetic — no network, no shared mutable state. Fixtures
 are file-system reads from
-``wirelang/tests/fixtures/persona_definitions/``, created in Sprint-1
-Tag-2.
+``wirelang/tests/fixtures/persona_definitions/``, created in
+
 """
 
 from __future__ import annotations
@@ -188,10 +188,10 @@ def test_v1_to_v2_is_run_to_run_deterministic() -> None:
 def test_v0_to_v2_full_chain_pin_match() -> None:
     """v8 -> [V0ToV1Step, V1ToV2Step] -> v2 hashes to the chain pin.
 
-    This is the **M-1 (linear-chain) direct-anchor** from Tag-1-Sketch
+    This is the **M-1 (linear-chain) direct-anchor** from -Sketch
     §3.2: a multi-step chain whose endpoints differ in two
-    ``schema_version`` lifts. The Sprint-2 M-Konsens-Marker companion
-    memo flagged this as currently indirect; Sprint-3 Tag-3 lands the
+    ``schema_version`` lifts. The M-Konsens-Marker companion
+    memo flagged this as currently indirect; lands the
     direct test vector.
     """
     migrated = migrate_persona(

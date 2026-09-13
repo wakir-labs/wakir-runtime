@@ -142,7 +142,7 @@ substrate is preserved as historical context here:
   `__version__.py` anchor, stamped rc1 at the four authority
   surfaces (this §0, `__version__.py`, the
   `docs/persona-engine/0-5-3-rc1-release-notes.md` companion, and
-  the `test_engine_0_5_3_rc1_release_notes_tag58.py` hermetic
+  the `test_engine_0_5_3_rc1_release_notes.py` hermetic
   consistency pin).
 * Tag-59 (2026-05-19, Selin/Mira, PR #381) — hot-fix sweep of
   four version-literal drift sites (engine_async.py:96, cli.py:3,
@@ -150,7 +150,7 @@ substrate is preserved as historical context here:
   release-notes test) that escaped the Tag-58 audit. V-907
   baseline sealed at this tag.
 * Tag-60 (2026-05-19, Selin) — drift-scanner +
-  fifteen-test pin (`test_engine_version_drift_full_coverage_tag60.py`)
+  fifteen-test pin (`test_engine_version_drift_full_coverage.py`)
   that closes the Tag-58 audit gap. The scanner's
   `ACTIVE_VERSION` constant is the single authority on which
   literal is never flagged.

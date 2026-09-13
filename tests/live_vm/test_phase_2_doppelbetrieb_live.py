@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Phase-2 Doppelbetrieb — Live-VM Acceptance Test-Suite (skeleton).
 
-Sprint-Live-VM-MINI (2026-05-16, post-Quota-Reset MINI-Welle). This
+-Live-VM-MINI (2026-05-16, post-Quota-Reset MINI-wave). This
 module is the canonical entry point for the Live-VM lane that
 Phase-2 (Doppelbetrieb) requires for Acceptance-Gate enforcement on a
 real Pilot-VM target. It complements the hermetic test surface
@@ -18,10 +18,10 @@ ADR-Anker
 ---------
 
 * **ADR-0058** — Pilot-Persona-Migrations-Plan. §"Phase 4
-  Cutover-Entscheidung" defines the four-axis Doppelbetrieb-Score
+  cutover-Entscheidung" defines the four-axis Doppelbetrieb-Score
   verdict and the cutover gate. This suite is the test-vector
   harness behind that gate.
-* **Sprint-QA-Tag-15 PR #80** — added the hermetic Phase-1b/2/3
+* **-QA-PR #80** — added the hermetic Phase-1b/2/3
   Quality-Gates documentation and the Pilot-Phase-E2E-Smoke
   test-vectors. This module is the live-target sibling of that PR:
   same Quality-Gate matrix, different (skip-by-default) execution
@@ -70,8 +70,8 @@ Test-Vector index
   hour-Merkle-root and the OTS-anchor must be retrievable (or the
   pending-receipt is observed cleanly).
 * **TV-LVD-08..10** — Subscribe-Loop receive. The Bridge-Forward
-  fan-out (Sprint-10 Tag-6 spec §7) must deliver exactly one frame
-  to the wakir-Tomás-Container sink for every Auftrag, with no
+  fan-out ( spec §7) must deliver exactly one frame
+  to the wakir-the engineering zone-Container sink for every assignment, with no
   duplicate-delivery (Bug-42 regression) and no silent drop.
 
 All ten vectors carry ``@pytest.mark.live_vm`` and are skipped by
@@ -102,7 +102,7 @@ The accompanying Test-Plan document (which fixtures, which targets,
 what to do when a vector fails) is intentionally deferred to a
 follow-up sprint per the MINI scope.
 
-— Amara
+— the QA zone
 """
 
 from __future__ import annotations
@@ -136,7 +136,7 @@ SshRunner = Callable[[str, str], tuple[int, str, str]]
 def pilot_vm_host() -> str:
     """The Pilot-VM target host.
 
-    Defaults to the wakir-pilot side per Sprint-10 Tag-6 topology,
+    Defaults to the wakir-pilot side per topology,
     overridable via ``WAKIR_PEER_HOST`` to mirror the operator-script
     invocation. The default is intentionally an RFC1918 address so a
     careless live-run cannot exfiltrate.
@@ -246,7 +246,7 @@ def test_tv_lvd_01_persona_heartbeat_single(
 
     The returned ``transition_utc`` must parse as RFC3339-Z. We do
     **not** assert a freshness window here — that is a
-    runtime-monitoring gate (Noa-Alert). The test asserts only that
+    runtime-monitoring gate. The test asserts only that
     the probe returns a well-formed document.
     """
 
@@ -327,7 +327,7 @@ def test_tv_lvd_04_persona_heartbeat_post_bridge_fanout(
 ) -> None:
     """TV-LVD-04 — heartbeat after Bridge-Forward fan-out is delivered.
 
-    After publishing a synthetic Auftrag to
+    After publishing a synthetic assignment to
     ``wakir.<env>.agent.agent.task.assigned.tomas``, the heartbeat
     must show ``active_log_len`` incremented by at least 1
     (confirming the Container saw and recorded the event). This
@@ -403,7 +403,7 @@ def test_tv_lvd_06_wat_anchor_ots_state_progression(
     ``anchored``. Anything younger MAY still be ``pending`` (Bitcoin
     confirmation latency). This catches the regression class where
     the OTS-upgrade-loop has silently stopped (substance-bug pattern
-    pre-Sprint-10 Tag-6 W-OTS).
+    pre- W-OTS).
     """
 
     rc, stdout, _ = ssh_runner(
@@ -454,9 +454,9 @@ def test_tv_lvd_07_wat_anchor_external_verify(
 def test_tv_lvd_08_subscribe_loop_single_auftrag(
     ssh_runner: SshRunner, pilot_vm_host: str
 ) -> None:
-    """TV-LVD-08 — single Auftrag reaches both sinks exactly once.
+    """TV-LVD-08 — single assignment reaches both sinks exactly once.
 
-    Publishes one synthetic Auftrag and reads the subscribe-loop
+    Publishes one synthetic assignment and reads the subscribe-loop
     summary. The Phase-2 §2.2 invariant is::
 
         pre_framework_sink_count == 1
@@ -489,10 +489,10 @@ def test_tv_lvd_08_subscribe_loop_single_auftrag(
 def test_tv_lvd_09_subscribe_loop_burst_symmetric(
     ssh_runner: SshRunner, pilot_vm_host: str
 ) -> None:
-    """TV-LVD-09 — 100-Auftrag burst keeps fan-out symmetric within ≤0.1% drop.
+    """TV-LVD-09 — 100-assignment burst keeps fan-out symmetric within ≤0.1% drop.
 
     Per ``docs/quality-gates/phase-2-doppelbetrieb.md`` §2.2 the
-    drop-rate is ≤ 0.1% over 24h. For a 100-Auftrag burst (well
+    drop-rate is ≤ 0.1% over 24h. For a 100-assignment burst (well
     under that budget) the tolerated drop is 0. Both sink counts
     must equal ``auftrag_count`` exactly.
     """
@@ -527,7 +527,7 @@ def test_tv_lvd_10_subscribe_loop_bug42_no_duplicate(
     Bug-42 (Subscribe-Loop double-receive, 2026-05 substance-bug
     list, anchored in ``feedback_live_bringup_sandbox_gap.md``):
     under specific reconnect conditions the wakir-Container sink
-    was receiving the same Auftrag twice. This vector publishes
+    was receiving the same assignment twice. This vector publishes
     10 Aufträge, induces a controlled reconnect, and asserts
     ``duplicate_count == 0`` on the summary.
     """

@@ -145,7 +145,7 @@ strict additive artefact.
 ## 5. CI-Side Invariants (Closeout)
 
 The hermetic test-suite at
-`tests/ci/test_k1_k2_containerfile_ots_tag57.py` enforces
+`tests/ci/test_k1_k2_containerfile_ots.py` enforces
 these invariants:
 
 - The emit helper is stdlib-only (no third-party imports).
@@ -240,7 +240,7 @@ The CI workflow
 probe on every pre-cutover manifest (0.5.0, 0.5.1, 0.5.2-final),
 schema-validates each verdict envelope, aggregates a job-summary
 table, and runs the hermetic test-suite
-(``tests/ci/test_ots_pre_anchor_activation_probe_tag59.py``).
+(``tests/ci/test_ots_pre_anchor_activation_probe.py``).
 
 ## 7. Authorisation path
 

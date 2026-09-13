@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic tests for the nats-py manifest pin (Phase-2 Sprint-5 Tag-5,
+# Hermetic tests for the nats-py manifest pin (Phase-2,
 # Option G / OI-5 dependency-hygiene solo-box).
 #
 # Test plan (hermetic — no network, no PyPI hit, no pip invoke):
 #
-#   1. ``pyproject.toml`` has a ``nats`` optional-dependency group
-#      pinning ``nats-py==2.14.0`` byte-precise.
-#   2. ``requirements-nats.txt`` exists and pins ``nats-py==2.14.0``
-#      with both the wheel and sdist sha256 hashes byte-precise.
-#   3. The hashes in ``requirements-nats.txt`` are exactly the two
-#      48-char hex strings recorded as the Sprint-4-Tag-2 first-time
-#      live-smoke validated PyPI payload (cross-verified via the PyPI
-#      JSON metadata endpoint on 2026-05-11 and two independent local
-#      hashing tools on the wheel/sdist payload).
-#   4. ``pyproject.toml`` and ``requirements-nats.txt`` agree on the
-#      pinned version string (no version-drift between the two
-#      surfaces).
+# 1. ``pyproject.toml`` has a ``nats`` optional-dependency group
+# pinning ``nats-py==2.14.0`` byte-precise.
+# 2. ``requirements-nats.txt`` exists and pins ``nats-py==2.14.0``
+# with both the wheel and sdist sha256 hashes byte-precise.
+# 3. The hashes in ``requirements-nats.txt`` are exactly the two
+# 48-char hex strings recorded as the first-time
+# live-smoke validated PyPI payload (cross-verified via the PyPI
+# JSON metadata endpoint on 2026-05-11 and two independent local
+# hashing tools on the wheel/sdist payload).
+# 4. ``pyproject.toml`` and ``requirements-nats.txt`` agree on the
+# pinned version string (no version-drift between the two
+# surfaces).
 #
 # Why hermetic?
 # -------------
@@ -30,7 +30,7 @@
 # A live-install smoke (``pip install --require-hashes -r
 # requirements-nats.txt`` on a Bluefin/Silverblue build host against
 # the live PyPI index) is an operator-hand follow-up, not a hermetic
-# pytest unit. It is captured as OI-5-live in Sprint-5-Tag-5 outbox.
+# pytest unit. It is captured as OI-5-live in outbox.
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 REQUIREMENTS = REPO_ROOT / "requirements-nats.txt"
 
-# Byte-precise expected pin values for this Sprint-5-Tag-5 anchor.
+# Byte-precise expected pin values for this anchor.
 # Drift in either surface is caught by the cross-check test below.
 EXPECTED_VERSION = "2.14.0"
 EXPECTED_WHEEL_HASH = (
@@ -65,7 +65,7 @@ def test_pyproject_pins_nats_py_exactly() -> None:
     entry must be the exact-version pin (``==``, not ``>=``, not
     ``~=``). A loose pin would let a fresh build host install a
     newer-than-validated wheel and silently drift away from the
-    Sprint-4-Tag-2 first-time live-smoke baseline.
+     first-time live-smoke baseline.
     """
     data = _read_pyproject()
     opt = data["project"]["optional-dependencies"]
@@ -131,7 +131,7 @@ def test_hash_format_is_canonical_sha256() -> None:
         f"expected exactly 2 sha256 hash tokens in canonical form "
         f"(64-char hex-lowercase), got {len(matches)}: {matches!r}"
     )
-    # The set must equal the Sprint-4-Tag-2 first-time-validated pair.
+    # The set must equal the first-time-validated pair.
     assert set(matches) == {EXPECTED_WHEEL_HASH, EXPECTED_SDIST_HASH}, (
         f"hash-set drift in requirements-nats.txt; expected "
         f"{{{EXPECTED_WHEEL_HASH!r}, {EXPECTED_SDIST_HASH!r}}}, "

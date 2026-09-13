@@ -2,14 +2,14 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``wirelang.schemas.publisher_cli`` ``unrevoke``.
 
-Phase-2 Sprint-6 Tag-7 — Publisher-CLI ``unrevoke`` subcommand.
+Phase-2 — Publisher-CLI ``unrevoke`` subcommand.
 End-to-end operator-experience: CLI → NATS-KV
-(``wakir-capability-policies``) → LWW write (Sprint-6 Tag-1 backend
+(``wakir-capability-policies``) → LWW write ( backend
 revocation-monotonic invariant is bypassed BY DESIGN; the unrevoke
 gesture is structurally LWW because the CAS-pin path forbids
 ``revoked_at=None`` against a live revoked record) → typed exit codes.
 
-The Sprint-6 Tag-7 test inventory pins eight concerns (T-SR-UREV-01..08):
+The test inventory pins eight concerns (T-SR-UREV-01..08):
 
 - T-SR-UREV-01: happy path — live record is revoked, unrevoke writes
   a record with ``revoked_at=None`` / ``revocation_reason=None`` via
@@ -21,10 +21,10 @@ The Sprint-6 Tag-7 test inventory pins eight concerns (T-SR-UREV-01..08):
   not_before, not_after) is byte-equal on the rewritten unrevoked
   record.
 - T-SR-UREV-03: target-not-revoked — live record exists but is NOT
-  revoked; CLI surfaces :class:`ExitCode.UNREVOKE_TARGET_NOT_REVOKED`
+  revoked; CLI surfaces:class:`ExitCode.UNREVOKE_TARGET_NOT_REVOKED`
   (10), distinct from REVOKE_TARGET_NOT_FOUND. Bucket state unchanged.
 - T-SR-UREV-04: target-not-found — non-existent (registered_by,
-  policy_id) surfaces :class:`ExitCode.REVOKE_TARGET_NOT_FOUND` (9)
+  policy_id) surfaces:class:`ExitCode.REVOKE_TARGET_NOT_FOUND` (9)
   (reused — the "not found" semantics are identical for both subcommands).
 - T-SR-UREV-05: ``--registered-by-publisher`` non-empty — empty string
   surfaces INPUT_ERROR (3).
@@ -46,7 +46,7 @@ Hermetic
 
 - No NATS, no real transport.
 - Reuses the same in-memory ``_MockKvCapability`` shape as the
-  Sprint-6 Tag-2 ``revoke`` tests; the mock tracks revisions across
+   ``revoke`` tests; the mock tracks revisions across
   get/put so LWW vs. CAS-pin distinctions are byte-precisely
   asserted.
 - The capability-bucket factory is injected via the public
@@ -83,7 +83,7 @@ from wirelang.schemas.registered_by_capability import (
 
 
 # ---------------------------------------------------------------------------
-# In-memory KV mock (mirror of Sprint-6 Tag-2 fixture)
+# In-memory KV mock (mirror of fixture)
 # ---------------------------------------------------------------------------
 
 
@@ -105,7 +105,7 @@ class _MockKvEntry:
 
 @dataclass
 class _MockKvCapability:
-    """CAS-aware capability-policy KV mock (Sprint-6 Tag-2 mirror)."""
+    """CAS-aware capability-policy KV mock ( mirror)."""
 
     bucket: str = CAPABILITY_BUCKET_NAME
     store: dict = field(default_factory=dict)
@@ -288,7 +288,7 @@ class TestTSRUREV01HappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["cmd"] == "unrevoke"
         assert receipt["mode"] == "lww"
@@ -355,7 +355,7 @@ class TestTSRUREV02BundlePreservation:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         key = key_for_policy_pair("wirelang-eng", "default")
         live = _envelope_to_record(kv.store[key].value)
@@ -504,7 +504,7 @@ class TestTSRUREV06UnrevokeReasonAuditOnly:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["unrevoke_reason"] == (
             "ticket-12345: revocation rescinded by IR"
@@ -554,8 +554,8 @@ class TestTSRUREV07ArgparseSurfaceNarrow:
 
 
 class TestTSRUREV08RevokeUnrevokeRoundTrip:
-    """T-SR-UREV-08: revoke a policy via the Tag-2 revoke subcommand,
-    then unrevoke it via the Tag-7 unrevoke subcommand; verify the
+    """T-SR-UREV-08: revoke a policy via the revoke subcommand,
+    then unrevoke it via the unrevoke subcommand; verify the
     audit-trail correlation (unrevoke.previous_revoked_at ==
     revoke.revoked_at) and that a subsequent re-revoke succeeds (the
     policy is back in the unrevoked state, so revocation-monotonic
@@ -590,7 +590,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out1,
             stderr=err1,
         )
-        assert code1 == int(ExitCode.OK), err1.getvalue()
+        assert code1 == int(ExitCode.OK), err1.getvalue
         revoke_receipt = json.loads(out1.getvalue())
         assert revoke_receipt["cmd"] == "revoke"
         assert revoke_receipt["revoked_at"] == _REVOKED_AT_STR
@@ -603,7 +603,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out2,
             stderr=err2,
         )
-        assert code2 == int(ExitCode.OK), err2.getvalue()
+        assert code2 == int(ExitCode.OK), err2.getvalue
         unrevoke_receipt = json.loads(out2.getvalue())
         assert unrevoke_receipt["cmd"] == "unrevoke"
         # Audit-trail correlation: unrevoke records the prior revoked_at
@@ -651,7 +651,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out3,
             stderr=err3,
         )
-        assert code3 == int(ExitCode.OK), err3.getvalue()
+        assert code3 == int(ExitCode.OK), err3.getvalue
         revoke2_receipt = json.loads(out3.getvalue())
         assert revoke2_receipt["revoked_at"] == "2026-05-13T12:00:00Z"
         # Final bucket state: re-revoked.
@@ -664,15 +664,15 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
 
 
 # ---------------------------------------------------------------------------
-# T-SR-UREV-09 (Sprint-6 Tag-9): unrevoke writes UnrevokeAuditMarker
+# T-SR-UREV-09: unrevoke writes UnrevokeAuditMarker
 # on the envelope so the watch-side classifier can authenticate the
 # operator-deliberate gesture.
 # ---------------------------------------------------------------------------
 
 
 class TestTSRUREV09UnrevokeAuditMarkerOnWire:
-    """T-SR-UREV-09 (Sprint-6 Tag-9): the ``unrevoke`` subcommand
-    attaches an :class:`UnrevokeAuditMarker` to the rewritten record
+    """T-SR-UREV-09: the ``unrevoke`` subcommand
+    attaches an:class:`UnrevokeAuditMarker` to the rewritten record
     so the watch-side classifier surfaces
     :attr:`RevocationEventKind.EXPLICIT_UNREVOKE` (vs. accidental
     :attr:`RevocationEventKind.REVOCATION_MONOTONIC_BREACH`).
@@ -700,13 +700,13 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         # Decode the rewritten record from the bucket and verify the
         # marker is on the wire with the prior revocation captured.
         key = key_for_policy_pair("wirelang-eng", "default")
         live = _envelope_to_record(kv.store[key].value)
-        # Policy axis: revocation cleared (Tag-7 invariant preserved).
+        # Policy axis: revocation cleared (invariant preserved).
         assert live.policy.revoked_at is None
         assert live.policy.revocation_reason is None
         # Audit axis: marker present and fully populated.
@@ -741,7 +741,7 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         key = key_for_policy_pair("wirelang-eng", "default")
         live = _envelope_to_record(kv.store[key].value)
@@ -784,8 +784,8 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
         post_unrevoke = _envelope_to_record(kv.store[key].value)
         assert post_unrevoke.unrevoke_audit_marker is not None
 
-        # Re-revoke via the revoke subcommand (additive to Sprint-6
-        # Tag-2 — distinct gesture).
+        # Re-revoke via the revoke subcommand (additive to
+        # — distinct gesture).
         out2, err2 = _io_streams()
         new_revoke_argv = [
             "revoke",
@@ -808,7 +808,7 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out2,
             stderr=err2,
         )
-        assert code2 == int(ExitCode.OK), err2.getvalue()
+        assert code2 == int(ExitCode.OK), err2.getvalue
 
         # Marker is GONE after re-revoke (revoke does not carry it;
         # the record constructor would reject a marker on a still-

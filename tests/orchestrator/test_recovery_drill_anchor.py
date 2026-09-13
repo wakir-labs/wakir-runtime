@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``wirelang.persona.recovery_drill_anchor``
-(Sprint-Pengine-7 Tag-5 OI-PILOT-4 + Cross-Pair Reza OI-PEF-11).
+(-Pengine-7 OI-PILOT-4 + Cross-Pair the protocol zone OI-PEF-11).
 
 Coverage axes (T-ANCHOR-01..12):
 
@@ -367,7 +367,7 @@ def test_anchor_report_to_json_carries_summary_block(mod, event_loop):
 
 
 # ---------------------------------------------------------------------------
-# T-ANCHOR-14 — drill_class spec parity (Reza Cross-Review Zone-L L-2)
+# T-ANCHOR-14 — drill_class spec parity
 #
 # The persona-engine-format-spec §3.7.2.1 declares a CLOSED three-class
 # drill registry: DRILL_CONTAINER_CRASH (engine-runtime layer),
@@ -375,7 +375,7 @@ def test_anchor_report_to_json_carries_summary_block(mod, event_loop):
 # DRILL_SPIRE_SVID_EXPIRED (identity layer). The OI-PEF-11 schema-
 # registry entry pins the same enum at the wire boundary. Any
 # silent-extension drift (e.g. a five-class superset like the
-# pre-fix Tag-5 docstring) MUST be caught here so a schema-vs-impl
+# pre-fix docstring) MUST be caught here so a schema-vs-impl
 # mismatch surfaces at the persona-engine unit-test layer rather
 # than at live-anchor schema-validation time.
 # ---------------------------------------------------------------------------
@@ -385,7 +385,7 @@ def test_default_envelope_drill_class_matches_spec_three_class_set(mod):
     """T-ANCHOR-14: the default test fixture's ``drill_class`` MUST be
     one of the three persona-engine-format-spec §3.7.2.1 enum values.
 
-    This guards the Reza Cross-Review Zone-L L-2 contract: the OI-PEF-11
+    This guards the protocol zone Cross-Review Zone-L L-2 contract: the OI-PEF-11
     schema (closed enum) rejects any other value at the wire boundary,
     so silent docstring/impl drift MUST be caught at the persona-
     engine unit-test layer.

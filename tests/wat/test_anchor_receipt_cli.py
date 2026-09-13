@@ -22,7 +22,7 @@ filesystem artefacts to ``verifier_state``.
 Hermetic strategy
 -----------------
 
-No subprocess calls. The CLI is invoked via :func:`wat.cli.main`
+No subprocess calls. The CLI is invoked via:func:`wat.cli.main`
 with ``--no-info-probe`` so the ``ots info`` shell-out path is
 short-circuited; ``build_anchor_receipt`` is exercised directly
 with ``info_probe=False`` for the same reason. The

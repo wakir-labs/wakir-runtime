@@ -268,7 +268,7 @@ class FederationRenderTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------
-# render() top-level + last-run-stamp
+# render top-level + last-run-stamp
 # ---------------------------------------------------------------------
 
 

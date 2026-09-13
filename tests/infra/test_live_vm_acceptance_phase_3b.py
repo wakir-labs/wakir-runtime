@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic tests for the Phase-3b backend-matrix extension of
-``.github/workflows/live-vm-acceptance.yml`` (Tag-18 Mini-Welle).
+``.github/workflows/live-vm-acceptance.yml`` (Mini-wave).
 
-Anlass — Tag-18 Mini-Welle (2026-05-17). PR #167 (Tag-17) wired the
+Anlass — Mini-wave (2026-05-17). PR #167 wired the
 Rust-default-switches into the persona-engine via two ENV-vars
 (``WAKIR_RECOVERY_BACKEND``, ``WAKIR_STATE_BACKING_BACKEND``). The
 hermetic test suite proves the switch is correct; this Phase-3b
@@ -43,7 +43,7 @@ Test-Vector index
   exceeding the budget surfaces as ``status=fail-latency-budget``.
 * ``TV-PH3B-06`` Aggregation verdict-state-machine: every report
   in ``driver-not-present`` state collapses to
-  ``status=skipped-driver-not-present`` (Tag-18 staging posture).
+  ``status=skipped-driver-not-present`` (staging posture).
 * ``TV-PH3B-07`` Doku doc-link integrity — the Phase-3b lane
   references ``docs/operations/live-vm-acceptance-phase-3b.md`` and
   the doc carries the expected anchor sections.
@@ -52,7 +52,7 @@ Sandbox boundary
 ----------------
 
 YAML parse + Python-modelled aggregator logic. No SSH, no real VM,
-no GitHub-Actions runner. Mira-Memory ``feedback_sandbox_host_trennung.md``
+no GitHub-Actions runner. operator-Memory ``feedback_sandbox_host_trennung.md``
 forbids host-podman / live-VM access from the hermetic Sandbox; this
 test surface respects that and exercises the **mocked** seam only.
 """
@@ -374,7 +374,7 @@ def test_aggregate_latency_budget_violation() -> None:
 
 def test_aggregate_driver_not_present_collapses_to_skip() -> None:
     """Every report in driver-not-present state collapses to
-    status=skipped-driver-not-present — the Tag-18 staging posture."""
+    status=skipped-driver-not-present — the staging posture."""
     reports = [
         _stub_report("python", "python"),
         _stub_report("python", "rust_inmemory"),
@@ -420,7 +420,7 @@ def test_doc_companion_anchors_present() -> None:
     # The doc must cite PR #167 by number — the Phase-3b lane exists
     # to validate that PR. A future copy-rename that loses the
     # cross-reference is a documentation regression.
-    assert "PR #167" in body, "doc must cite PR #167 (Tag-17 Rust-default-switches)"
+    assert "PR #167" in body, "doc must cite PR #167 (Rust-default-switches)"
     # The doc must mention the ENV-var names the lane drives.
     assert "WAKIR_RECOVERY_BACKEND" in body
     assert "WAKIR_STATE_BACKING_BACKEND" in body

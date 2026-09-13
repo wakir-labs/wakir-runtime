@@ -124,7 +124,7 @@ gauges the existing Tag-30/31/32 welle-status dashboard does
 populates those gauges from the JSON envelope shipped in Tag-49:
 
 * Script: `scripts/observability/per-welle-heatmap-prom-emitter.py`
-* Tests: `tests/observability/test_per_welle_heatmap_prom_emitter.py`
+* Tests: `tests/observability/test_per_wave_heatmap_prom_emitter.py`
   (23 hermetic tests).
 * Pipeline: the `phase-3c-pre-cutover-daily-probe.yml` workflow
   now renders the Tag-48 envelope, runs the Tag-49 emitter, and
@@ -155,13 +155,13 @@ panel's value-text mapping):
 
 ## Hermetic tests
 
-`tests/observability/test_per_welle_trend_heatmap.py` covers
+`tests/observability/test_per_wave_trend_heatmap.py` covers
 the renderer's pure-function surface (19 tests). The test
 suite is stdlib + pytest only; no network, no podman, no
 live VM. Run with:
 
 ```bash
-python3 -m pytest tests/observability/test_per_welle_trend_heatmap.py -v
+python3 -m pytest tests/observability/test_per_wave_trend_heatmap.py -v
 ```
 
 ---

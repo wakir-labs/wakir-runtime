@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine federation-resolver
-``FederationResolverSnapshot`` JCS canonicalisation surface (Tag-24).
+``FederationResolverSnapshot`` JCS canonicalisation surface.
 
 The Python module under test
-(:mod:`wirelang.identity.federation_resolver_canonical`) is Apache-2.0;
+:mod:`wirelang.identity.federation_resolver_canonical`) is Apache-2.0;
 this test file is Apache-2.0 so downstream re-implementers can re-use
 the same fixture vectors and the cross-lang contract. The Rust sibling
 crate
@@ -48,7 +48,7 @@ total assertions count to ~24)
   ``snapshot_sha256_hex`` / ``snapshot_hash_prefixed`` values. This
   is the core byte-parity test.
 - T12 -- Resolution-probe parity: every fixture carries a
-  ``resolve_probe`` block; the Python :meth:`resolve` output must
+  ``resolve_probe`` block; the Python:meth:`resolve` output must
   match the pinned ``expected_match`` (``null`` for f01 / f05;
   exact dict equality for f02 / f03 / f04).
 
@@ -58,9 +58,9 @@ Pinning procedure
 If a wire-shape change is intentional:
 
 1. Update both sides (Rust ``serialize_resolver_snapshot`` and
-   Python :func:`serialize_resolver_snapshot`).
+   Python:func:`serialize_resolver_snapshot`).
 2. Re-derive the fixture vectors using the derivation snippet at the
-   top of :mod:`wirelang.identity.federation_resolver_canonical`.
+   top of:mod:`wirelang.identity.federation_resolver_canonical`.
 3. Update both Python and Rust test suites in the same PR.
 
 If a wire-shape change is accidental, the cross-lang fixture test
@@ -540,8 +540,8 @@ def test_t11_cross_lang_fixture_byte_parity(
     exp_bytes = base64.b64decode(exp["snapshot_jcs_bytes_b64"])
     assert bytes_ == exp_bytes, (
         f"fixture {fixture_name!r}: canonical JCS bytes drifted.\n"
-        f"got     {bytes_.decode()!r}\n"
-        f"expect  {exp_bytes.decode()!r}"
+        f"got {bytes_.decode!r}\n"
+        f"expect {exp_bytes.decode!r}"
     )
     assert len(bytes_) == exp["snapshot_jcs_bytes_len"]
     assert resolver_snapshot_sha256_hex(snap) == exp["snapshot_sha256_hex"]
@@ -606,7 +606,7 @@ def test_list_entries_returns_defensive_copy() -> None:
     list_1.clear()
     list_3 = r.list_entries()
     assert len(list_3) == 1, (
-        "mutating the returned list_entries() output must not affect the resolver"
+        "mutating the returned list_entries output must not affect the resolver"
     )
 
 

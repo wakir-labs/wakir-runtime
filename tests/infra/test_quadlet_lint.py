@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-9 Bug-23 Quadlet-Lint
+"""Hermetic acceptance tests for the Bug-23 Quadlet-Lint
 substance-fix (``infra/spire/federation/bin/wakir-quadlet-lint.sh``).
 
 Context
@@ -9,9 +9,9 @@ Context
 The Pilot-VM bring-up has hit a "Live-Bring-up-Sandbox-Gap" four
 iterations in a row (Bugs 20/21/22 and counting). Each time the
 hermetic test surface gave green, the live VM reproduced a new
-substance bug that should have been catchable at PR-time. AR Fred
+substance bug that should have been catchable at PR-time. The operator
 rejected ADR-0060 (Live-VM-CI-Gate) for budget reasons ("kein Geld"),
-so the Tag-9 cleanup has to close the gap via cost-free static
+so the cleanup has to close the gap via cost-free static
 analysis.
 
 The Quadlet-Lint script wraps ``/usr/libexec/podman/quadlet --dryrun``
@@ -53,7 +53,7 @@ for mutation cases. The ``podman quadlet`` binary is required and
 discovered via ``/usr/libexec/podman/quadlet``; if absent the suite
 skips with a clear message.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def test_clean_repo_passes_lint() -> None:
 
 def _copy_repo(src: Path, dst: Path) -> None:
     """Copy the relevant subtree (quadlet sources + lint script) into
-    a tmp dir. Faster than copying the whole repo (.git etc.)."""
+    a tmp dir. Faster than copying the whole repo .git etc.)."""
     paths = [
         "quadlet",
         "infra/spire/federation/quadlet",
@@ -148,7 +148,7 @@ def _copy_repo(src: Path, dst: Path) -> None:
 def test_mutation_bogus_volume_reference_caught(tmp_path: Path) -> None:
     """Rewrite one ``Volume=`` line to reference a non-existent
     ``.volume`` and lint must red. This is the exact failure mode the
-    Phase-2.1 dual-side bring-up could produce if a Sprint-N-Tag-M PR
+    Phase-2.1 dual-side bring-up could produce if a -N-Tag-M PR
     introduces a Volume= typo — the live VM would then crash on first
     start. Bug-23's purpose is to fail this case at PR-time."""
     _copy_repo(REPO_ROOT, tmp_path)
@@ -239,25 +239,25 @@ def test_inventory_count_stable() -> None:
     so the next operator updates the expected count consciously rather
     than absorbing the drift.
 
-    Sprint-Pengine-7 Tag-5 OI-PILOT-1 + OI-PILOT-4: 18 → 21 (three new
+    -Pengine-7 OI-PILOT-1 + OI-PILOT-4: 18 → 21 (three new
     Quadlet artefacts on the wakir-side — wakir-persona-tomas.container,
     wakir-persona-tomas-workspace.volume, and
-    wakir-recovery-drill-anchor.container). The .timer sidecar is a
-    plain systemd .timer (installed under /etc/systemd/system/) and is
+    wakir-recovery-drill-anchor.container). The.timer sidecar is a
+    plain systemd.timer (installed under /etc/systemd/system/) and is
     not part of the Quadlet-generator inventory the lint walks.
 
-    Tag-22 Mini-Welle Phase-3b Rust-CLI installer: 21 → 23 (two new
+    Mini-wave Phase-3b Rust-CLI installer: 21 → 23 (two new
     top-level Quadlet artefacts — wakir-rust-cli.container and
     wakir-rust-cli-bin.volume; the installer is a oneshot that copies
     five Rust-CLI binaries from the carrier image into /opt/wakir/bin/
     on the host).
 
-    Tag-55 Cosign-Strict-Mode G5 substanz-vollendung: 23 → 27 (four new
+    Cosign-Strict-Mode G5 substanz-vollendung: 23 → 27 (four new
     top-level Quadlet artefacts — wakir-rust-cli-welle4.container,
     wakir-rust-cli-welle5.container, wakir-rust-cli-welle6.container,
-    wakir-rust-cli-welle7.container; each installs one welle-suffix
-    Rust-CLI binary from a dedicated single-binary image per the Tag-33
-    Mini-Welle policy inventory convention).
+    wakir-rust-cli-welle7.container; each installs one wave-suffix
+    Rust-CLI binary from a dedicated single-binary image per the
+    Mini-wave policy inventory convention).
     """
     proc = _run_lint(REPO_ROOT)
     assert proc.returncode == 0, proc.stderr

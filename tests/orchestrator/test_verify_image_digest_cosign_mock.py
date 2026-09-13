@@ -2,23 +2,23 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Hermetic Mock-cosign-binary coverage for the ``--with-cosign``
-# codepath in ``scripts/verify-image-digest.sh`` (Phase-2 Sprint-6
-# Tag-4, cosign-sign-activation-skizze sibling artefact).
+# codepath in ``scripts/verify-image-digest.sh`` (Phase-2
+#, cosign-sign-activation-skizze sibling artefact).
 #
 # Test plan (hermetic — no network, no real cosign, no container
 # engine):
 #
-#   1. ``--with-cosign`` on a digest-pinned compose with a mock cosign
-#      that exits 0 -> script exits 0, JSON summary
-#      ``cosign_status: ok``.
-#   2. ``--with-cosign`` on a digest-pinned compose with a mock cosign
-#      that exits 1 -> script exits 1, JSON not emitted (script bails
-#      with FAIL before the summary block).
-#   3. ``--with-cosign`` with NO cosign on PATH at all -> script exits
-#      1 with FAIL "cosign on PATH" diagnostic.
-#   4. ``--with-cosign`` on a tag-only compose -> script exits 1 with
-#      FAIL "digest-pinned image form" diagnostic; mock cosign is
-#      never invoked.
+# 1. ``--with-cosign`` on a digest-pinned compose with a mock cosign
+# that exits 0 -> script exits 0, JSON summary
+# ``cosign_status: ok``.
+# 2. ``--with-cosign`` on a digest-pinned compose with a mock cosign
+# that exits 1 -> script exits 1, JSON not emitted (script bails
+# with FAIL before the summary block).
+# 3. ``--with-cosign`` with NO cosign on PATH at all -> script exits
+# 1 with FAIL "cosign on PATH" diagnostic.
+# 4. ``--with-cosign`` on a tag-only compose -> script exits 1 with
+# FAIL "digest-pinned image form" diagnostic; mock cosign is
+# never invoked.
 #
 # All four cases are hermetic. The mock-cosign-binary is a tiny shell
 # script in ``tmp_path / "bin" / "cosign"`` that the test PATH-shims

@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic image-pin syntax invariants for the
 ``ghcr.io/wakir-labs/wakir-provisioner`` image referenced from the
-Phase-2 Sprint-9 Tag-4 per-org NATS-KV bucket-init Quadlet.
+Phase-2 per-org NATS-KV bucket-init Quadlet.
 
 Sibling to ``tests/infra/test_python_image_pin_form.py`` (the python
 base layer pin asserted on the Containerfile) and to
@@ -12,9 +12,9 @@ SYNTAX invariants; this file targets the published-image surface:
 
   * The Quadlet pins
     ``ghcr.io/wakir-labs/wakir-provisioner:<tag>@sha256:<digest>``.
-  * ``<tag>`` matches the documented Sprint-9 Tag-4 baseline
+  * ``<tag>`` matches the documented baseline
     (``0.1.2`` — v0.1.0 carried four transitive-import-satisfying
-    wheels; v0.1.1 was the post Reza-PR #33 lean variant with
+    wheels; v0.1.1 was the post the protocol zone-PR #33 lean variant with
     ``nats-py`` only; v0.1.2 is the AR-Decision 2026-05-13 BSL-1.1
     relicense, functionally identical to v0.1.1).
   * ``<digest>`` is EITHER the placeholder token
@@ -84,7 +84,7 @@ def test_provisioner_pin_uses_canonical_form() -> None:
 
 
 def test_provisioner_pin_tag_matches_baseline() -> None:
-    """The pinned tag is ``0.1.2`` per the Sprint-9 Tag-4 BSL-relicense
+    """The pinned tag is ``0.1.2`` per the BSL-relicense
     baseline (AR-Decision 2026-05-13, Apache-2.0 -> BSL 1.1). Drift to
     a different tag must be reflected here AND in IMAGE_PINS.md before
     it lands."""
@@ -172,7 +172,7 @@ def test_quadlet_active_image_is_wakir_provisioner() -> None:
     A regression that re-points the ``Image=`` directive at
     ``docker.io/library/python`` (or any other image that does not
     carry the four runtime wheels the provisioner needs) re-opens
-    the Tag-1 wheel-availability gap that Bug 6 exposed on the
+    the wheel-availability gap that Bug 6 exposed on the
     Pilot-VM bring-up.
     """
     text = _read(QUADLET_FILE)

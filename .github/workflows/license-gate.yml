@@ -247,6 +247,18 @@ jobs:
           print("license-gate: no Apache-Shim-um-BUSL violations")
           PY
 
+      - name: Stage 6 — Archaeology lint (ADR-0072 4d)
+        # Keeps the public-surface cleanup of ADR-0072 sub-item 4d from
+        # eroding: development-day counters, sprint anchors and internal
+        # persona names may not re-enter the tree outside
+        # `.archaeology-allowlist.yaml`, and every allowlist entry has to
+        # name either the pin that holds the literal or the zone that owns
+        # it. Hosted here rather than in a workflow of its own so it takes
+        # effect without a branch-protection change: this job already
+        # reports a required status context on every pull request.
+        run: |
+          python tooling/ci/archaeology_lint.py
+
       - name: Stage 1 result enforcement (post-wave)
         # Post-wave invariant: every file MUST have both copyright
         # and license info. REUSE 3.3 also reports "Invalid SPDX

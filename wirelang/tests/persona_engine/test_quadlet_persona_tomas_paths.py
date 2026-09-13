@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 Bug-Quadlet-Drift tests.
+"""-Pengine-9 Bug-Quadlet-Drift tests.
 
 The Quadlet bind-mount paths must reference operator-staged
 ``/etc/wakir/persona/<slug>.{md,json}`` host paths, NOT
@@ -103,7 +103,7 @@ def test_quadlet_preserves_org_id_env():
 
 def test_quadlet_preserves_image_tag_form():
     """The image-tag form is still ``0.1.0-pilot@sha256:DIGEST_PENDING_*``
-    pending Cross-Review Zone-J digest resolution. Sprint-Pengine-9
+    pending Cross-Review Zone-J digest resolution. -Pengine-9
     keeps the tag-form anchor so the resolve-image-pins-ci workflow
     fills it in idempotently."""
     text = _quadlet_text()

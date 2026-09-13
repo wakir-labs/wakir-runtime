@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for wakir-mira-dispatch (Sprint-Pengine-10 OI-PEFR-7).
+"""Hermetic tests for wakir-mira-dispatch (-Pengine-10 OI-PEFR-7).
 
 The CLI orchestrates the Pre-Framework dispatch (operator-supplied
 subprocess) and the Bridge-Forward-Pipe publish on NATS. The hermetic
@@ -197,7 +197,7 @@ async def test_dispatch_dry_run_writes_canonical_envelope(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------
-# CLI main()
+# CLI main
 # ---------------------------------------------------------------------
 
 

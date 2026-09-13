@@ -11,7 +11,7 @@ These tests exercise the Phase-1b FTD-doc verify pipeline end-to-end:
   (FTDSchemaError, FTDIDMismatchError, FTDSignatureError,
   FTDAnchorError, FTDExpiredError, FTDIssuerKeyError) plus the
   DNS-NXDOMAIN failure mode surfaced through the resolver.
-* :class:`FTDCache` behaviour: hit, miss, expiry / refresh-margin
+*:class:`FTDCache` behaviour: hit, miss, expiry / refresh-margin
   clamp, pin-poison eviction.
 
 Hermetic boundaries:
@@ -28,7 +28,7 @@ Hermetic boundaries:
   to spot-check that the structural validator and the JSON Schema
   agree on the test vectors.
 
-The test loader follows the Tag-5 two-path strategy
+The test loader follows the two-path strategy
 (see ``test_dns_anchor.py`` for the rationale): try the package
 import first, fall back to a direct file load when the eager
 ``wirelang/identity/__init__.py`` fails on a missing optional
@@ -730,7 +730,7 @@ class FtdCacheTests(unittest.TestCase):
 
     def test_refresh_margin_skip_when_cutoff_in_past(self) -> None:
         # If refresh-margin pushes cache_until into the past relative to
-        # ``now``, put() refuses the entry.
+        # ``now``, put refuses the entry.
         cache = FTDCache(
             clock=lambda: self.now,
             refresh_margin_s=10**9,  # 31 years

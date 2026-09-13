@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-45 manifest-integrity tests for the 0.5.0-pre-cutover engine.
+"""Hermetic manifest-integrity tests for the 0.5.0-pre-cutover engine.
 
-These tests pin the byte-shape of the Tag-45 Persona-Engine
+These tests pin the byte-shape of the Persona-Engine
 consolidation as a historical anchor for the Phase-3a Doppelbetrieb
 regression-comparison baseline:
 
@@ -12,12 +12,12 @@ regression-comparison baseline:
 * `infra/persona-engine/pin-pack-0.5.0-pre-cutover.yaml` — the
   machine-readable counterpart.
 
-Tag-48 supersedes the Tag-45 anchor — the live Containerfile now
+supersedes the anchor — the live Containerfile now
 references the 0.5.1-pre-cutover manifest (10 BackendDecision
-records, bridge-audit-writer wired in). The 0.5.0 manifest + pin
+records, bridge-audit-writer wired). The 0.5.0 manifest + pin
 pack remain in-tree byte-stable as the regression-comparison
 baseline; the Containerfile-related tests below were retired with
-Tag-48 (the live Containerfile is gated by
+(the live Containerfile is gated by
 ``test_manifest_0_5_1_pre_cutover.py``).
 
 Why this matters
@@ -149,14 +149,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-45 manifest missing at {MANIFEST_PATH}; cutover gate "
+        f"manifest missing at {MANIFEST_PATH}; cutover gate "
         "cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-45 pin pack missing at {PIN_PACK_PATH}; "
+        f"pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 
@@ -319,11 +319,11 @@ def test_18_pin_pack_invariants_block_matches_reality(pin_pack: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. Containerfile.real version-bump tests — retired by Tag-48.
+# 4. Containerfile.real version-bump tests — retired.
 # ---------------------------------------------------------------------------
 #
 # The live Containerfile now references 0.5.1-pre-cutover (10 records,
-# bridge-audit-writer wired in). Containerfile assertions moved to
+# bridge-audit-writer wired). Containerfile assertions moved to
 # ``test_manifest_0_5_1_pre_cutover.py``. The 0.5.0 manifest + pin
 # pack remain in-tree as historical anchors but no longer claim
 # ownership of the live container image tag.

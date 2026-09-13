@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic YAML validation for `e2e-vm-acceptance-gate.yml` (Tag-6).
+"""Hermetic YAML validation for `e2e-vm-acceptance-gate.yml`.
 
 Background
 ----------
-The Sprint-9 Tag-5 workflow ``e2e-vm-acceptance-gate.yml`` was
+The workflow ``e2e-vm-acceptance-gate.yml`` was
 introduced via PR #38 and then surfaced a 0-job-instant-failure
 pattern on every push and PR. The GitHub Actions validator annotation
-identified two distinct problems we close in this Tag-6 patch:
+identified two distinct problems we close in this patch:
 
 1. **Real bug** — ``${{ runner.temp }}`` was referenced inside the
    ``real-vm`` job's job-level ``env:`` block (line 138). The
@@ -112,15 +112,15 @@ def test_pr_trigger_paths_match_push_trigger_paths() -> None:
     pr_paths = set(doc["on"]["pull_request"].get("paths", []))
     assert push_paths == pr_paths, (
         f"push vs pull_request path-filter divergence:\n"
-        f"  push-only: {push_paths - pr_paths}\n"
-        f"  pr-only:   {pr_paths - push_paths}"
+        f" push-only: {push_paths - pr_paths}\n"
+        f" pr-only: {pr_paths - push_paths}"
     )
 
 
 def test_jobs_topology_is_harness_logic_then_real_vm() -> None:
     doc = _load()
     jobs = doc["jobs"]
-    assert set(jobs.keys()) == {"harness-logic", "real-vm"}, list(jobs.keys())
+    assert set(jobs.keys()) == {"harness-logic", "real-vm"}, list(jobs.keys)
 
     harness = jobs["harness-logic"]
     assert harness["runs-on"] == "ubuntu-latest"
@@ -149,7 +149,7 @@ def test_real_vm_job_is_dispatch_gated() -> None:
 
     A misconfigured gate that auto-runs the real-vm lane on every
     push would burn the self-hosted runner queue and erode the
-    acceptance-gate signal. The Sprint-9 Tag-5 design says: real-vm
+    acceptance-gate signal. The design says: real-vm
     is Operator-Hand-triggered only.
     """
     doc = _load()

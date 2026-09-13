@@ -72,16 +72,16 @@ def test_script_is_executable() -> None:
 # the aggregator/anchor pipelines are not actually called. The mock
 # python3:
 #
-#   * for ``-m wat.cmd.aggregator_cli build``: writes a stub
-#     manifest.json with a deterministic merkle_root derived from the
-#     hour slot;
-#   * for ``-m wat.cmd.anchor_cli stamp``:   writes a placeholder
-#     root.bin.ots so the file-existence check passes;
-#   * for ``-m wat.verify.cli``:              exits 3 (pending);
-#   * for the inline heredoc (``python3 -``): falls through to the
-#     real interpreter — these are the spool generators and the
-#     small JSON readers, which we want to keep real;
-#   * for ``-c "import json,sys; ..."``:      same fall-through.
+# * for ``-m wat.cmd.aggregator_cli build``: writes a stub
+# manifest.json with a deterministic merkle_root derived from the
+# hour slot;
+# * for ``-m wat.cmd.anchor_cli stamp``: writes a placeholder
+# root.bin.ots so the file-existence check passes;
+# * for ``-m wat.verify.cli``: exits 3 (pending);
+# * for the inline heredoc (``python3 -``): falls through to the
+# real interpreter — these are the spool generators and the
+# small JSON readers, which we want to keep real;
+# * for ``-c "import json,sys; ..."``: same fall-through.
 #
 # The shim is written in bash and selects on argv. Falling through to
 # the real interpreter is achieved by re-exec'ing with ``exec``

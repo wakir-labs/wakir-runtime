@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-10 Tag-9 acceptance-script naming convergence.
+"""Hermetic tests for acceptance-script naming convergence.
 
-Anlass — Sprint-10 Tag-9 substance review (Mira-CEO 2026-05-15
-~23:35 CEST, Tag-9 Welle). After Bug-38 (Tag-8) fixed the
+Anlass — substance review. After Bug-38 fixed the
 acceptance-script service-naming drift for Phase-2 and Phase-3, the
 broader convention across the substrate was reviewed. Two findings:
 
@@ -12,7 +11,7 @@ broader convention across the substrate was reviewed. Two findings:
    ``scripts/federation-live-vm-acceptance.sh``. The hermetic
    substrate convention is ``scripts/<subdir>/<canonical-name>.sh``
    (mirror of ``scripts/systemd/``, ``infra/spire/agent/quadlet/``).
-   Tag-9 introduces ``scripts/acceptance/wakir-pilot-acceptance.sh``
+   introduces ``scripts/acceptance/wakir-pilot-acceptance.sh``
    as the canonical dispatch entry-point: federation forwards to the
    existing federation lane, single-org runs the thin inline probe.
 
@@ -23,13 +22,13 @@ broader convention across the substrate was reviewed. Two findings:
      ``-federation-`` substring because there is **only** a
      federation-mode SPIRE-Server container; single-org uses the
      base ``wakir-spire-server`` unit.
-   * agent:  ``wakir-spire-agent-<SIDE>`` — no ``-federation-``
+   * agent: ``wakir-spire-agent-<SIDE>`` — no ``-federation-``
      substring because the agent runs in both single-org and
      federation mode against the same base name shape.
 
-   This asymmetry was introduced in Sprint-10 Tag-3 and has been
+   This asymmetry was introduced in and has been
    propagated consistently across bootstrap, smoke-CLI, quadlet
-   templates, and the Tag-8 acceptance script. Tag-9 locks it in
+   templates, and the acceptance script. locks it in
    with hermetic tests so it cannot drift silently.
 
 Test-Vector index
@@ -62,10 +61,10 @@ Asymmetric unit-naming convention (5 vectors):
   volumes prefixed ``wakir-spire-agent-${side}-*``).
 * ``TV-NAME-CONV-04`` Smoke CLI uses the asymmetric convention in
   the ``REQUIRED_UNITS`` array.
-* ``TV-NAME-CONV-05`` Tag-8 Bug-38 acceptance script uses the
+* ``TV-NAME-CONV-05`` Bug-38 acceptance script uses the
   asymmetric convention in Phase-2 unit probes.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -247,7 +246,7 @@ def test_tv_acc_conv_05_unknown_mode_rejected_with_clear_error(
     assert default_arm is not None, "default case-arm not found"
     body = default_arm.group(1)
     assert "fail" in body, (
-        "default arm must call fail() — silent fallthrough not allowed"
+        "default arm must call fail — silent fallthrough not allowed"
     )
     assert "unknown" in body.lower(), (
         "default arm error message should mention 'unknown'"
@@ -356,7 +355,7 @@ def test_tv_name_conv_04_smoke_cli_required_units_asymmetric(
 def test_tv_name_conv_05_tag_8_acceptance_script_asymmetric(
     fed_source: str,
 ) -> None:
-    """Tag-8 federation acceptance script uses the asymmetric
+    """federation acceptance script uses the asymmetric
     convention in Phase-2 unit probes (regression-lock)."""
     # Server unit assignment with -federation-.
     assert re.search(

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for the per-anchor pipeline-stage latency emitter (PR Tag-14).
+"""Tests for the per-anchor pipeline-stage latency emitter (PR).
 
 The producer (``wat.anchor.latency_emitter``) is the counterpart to
 PR #145's consumer (``scripts/wat-anchor-pipeline-observability.py``).
@@ -209,7 +209,7 @@ class TestStageEmission:
 
 
 class TestErrorPath:
-    """An exception inside observe() suppresses the emit and re-raises."""
+    """An exception inside observe suppresses the emit and re-raises."""
 
     def test_exception_in_stage_re_raises_and_suppresses_emit(
         self,

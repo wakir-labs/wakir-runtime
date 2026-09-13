@@ -2,24 +2,24 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Bridge-Audit-Writer × WAT-Anchor-Pipeline integration tests.
 
-Phase-2 Sprint-9 Tag-3 (Tomás) — WAT-Production-Hardening.
+Phase-2 — WAT-Production-Hardening.
 
-What Sprint-9 Tag-1 added (PR #19)
+What added (PR #19)
 ----------------------------------
 
 The Doppel-Audit-Trail-Bridge (``wat.anchor.bridge_audit_writer``)
 writes every persona-activity event to BOTH the WAT spool AND the
-Pre-Framework ``activity-log.md`` atomically. The Tag-1 test surface
+Pre-Framework ``activity-log.md`` atomically. The test surface
 proved:
 
   * Per-call atomicity (rollback on either side's failure).
   * Pre-Framework-Linecount EQUALS WAT-Marker-Anzahl over a 1000-
     event 24h mock-trace.
 
-What this Tag-3 module adds
+What this module adds
 ---------------------------
 
-The integration shape neither Tag-1 nor the existing aggregator/anchor
+The integration shape neither nor the existing aggregator/anchor
 test suites cover: a bridge-written WAT spool gets aggregated by the
 production aggregator into a Merkle root, and the root is anchored
 through the (mocked) OTS pipeline. The chain:
@@ -31,14 +31,14 @@ through the (mocked) OTS pipeline. The chain:
       -> wat.anchor.ots_anchor.anchor_root (OTS mocked)
       -> AnchorReceipt
 
-Hardening value: a regression in the LeafRecord schema (e.g. the
+Hardening value: a regression in the LeafRecord schema (e.g. The
 bridge adds a 10th field, the aggregator does not read it) would
 break the chain. So would a hour-slot-derivation drift between the
 bridge and the aggregator. So would a JSONL-line-encoding drift.
 
-This module exercises the chain end-to-end so that the Sprint-9
-Tag-1 substrate stays composable with the Phase-1b/2 anchor pipeline
-that has been the WAT contract since Sprint-4.
+This module exercises the chain end-to-end so that the
+substrate stays composable with the Phase-1b/2 anchor pipeline
+that has been the WAT contract.
 """
 
 from __future__ import annotations
@@ -186,7 +186,7 @@ def test_bridge_writes_compose_with_aggregator_and_anchor(tmp_path: Path) -> Non
 
     Asserts:
       * Each bridge write produces one WAT-spool marker AND one
-        activity-log line (Tag-1 invariant, re-pinned here).
+        activity-log line (invariant, re-pinned here).
       * The aggregator consumes the spool and emits a 64-hex
         Merkle root.
       * The anchor pipeline accepts the root (via mocked OTS) and
@@ -225,7 +225,7 @@ def test_bridge_writes_compose_with_aggregator_and_anchor(tmp_path: Path) -> Non
             )
         )
 
-    # ---- (1) Bridge-side invariants (Tag-1 re-pin) ----
+    # ---- (1) Bridge-side invariants (re-pin) ----
     assert count_wat_markers(spool_root, "tomas") == 3
     assert count_wat_markers(spool_root, "reza") == 3
     assert count_activity_log_lines_for_persona(activity_log, "tomas") == 3
@@ -278,7 +278,7 @@ def test_bridge_partial_failure_does_not_corrupt_aggregator_input(
     a subsequent aggregator run would consume.
 
     The bridge truncates the WAT-side append on a Pre-Framework
-    failure (Tag-1 atomicity). This test proves the truncation leaves
+    failure (atomicity). This test proves the truncation leaves
     the spool BYTE-IDENTICAL to its pre-call state — the aggregator
     must see exactly the events that the bridge reported OK on.
     """

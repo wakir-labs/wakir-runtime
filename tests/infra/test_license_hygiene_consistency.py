@@ -23,10 +23,10 @@ listed at the bottom of ADR-0061:
 Sub-Items the test does *not* touch:
 
 * Full-text content of ``LICENSES/*.txt`` — that is REUSE's job and
-  Reza's PR scope. We only assert existence + a substance marker.
+  the protocol zone's PR scope. We only assert existence + a substance marker.
 * The wording of LICENSE-BSL.md (final or otherwise) beyond the
-  draft-token absence — that is Júlia's PR scope.
-* `bin/`-Shim relicensing — that is Reza's PR scope; the License-
+  draft-token absence — that is the design zone's PR scope.
+* `bin/`-Shim relicensing — that is the protocol zone's PR scope; the License-
   Gate workflow has a Stage-5 generic Apache-Shim-um-BUSL scanner
   for the runtime invariant.
 
@@ -43,10 +43,9 @@ Test-Vector matrix (15 vectors, all hermetic, no live network):
   Hinweis-Block.
 
 The test is written to run on the live repo state. While the
-License-Hygiene-Welle is in flight (Júlia, Tomás, Reza, Selin in
-parallel), individual vectors will be RED — that is by design; the
+License-Hygiene-wave is in flight, individual vectors will be RED — that is by design; the
 test surfaces the missing items for the merge-coordination loop.
-Once all four parallel PRs (and this Kai-PR) are merged, the full
+Once all four parallel PRs (and this the infrastructure zone-PR) are merged, the full
 set must turn green.
 """
 
@@ -59,7 +58,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # ---------------------------------------------------------------------------
-# TV-LH-01..03  LICENSING.md (ADR-0061 Schritt 1)
+# TV-LH-01..03 LICENSING.md (ADR-0061 Schritt 1)
 # ---------------------------------------------------------------------------
 
 # Every path listed in the ADR-0061 §1 table must appear (literally or
@@ -127,7 +126,7 @@ def test_tv_lh_03_licensing_md_path_map_complete() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-04..06  LICENSES/ full-text directory (ADR-0061 Schritt 2)
+# TV-LH-04..06 LICENSES/ full-text directory (ADR-0061 Schritt 2)
 # ---------------------------------------------------------------------------
 
 # Each license full-text must contain at least its license name in
@@ -157,7 +156,7 @@ def test_tv_lh_04_06_licenses_dir_carries_fulltext(rel: str, marker: str) -> Non
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-07..10  BSL-Subtree LICENSE-BSL.md without entwurfs-wording
+# TV-LH-07..10 BSL-Subtree LICENSE-BSL.md without entwurfs-wording
 # ---------------------------------------------------------------------------
 
 # All six BSL-Subtrees per ADR-0059 + ADR-0061. The provisioner unit
@@ -209,7 +208,7 @@ def test_tv_lh_07_10_bsl_subtree_license_no_entwurfs_wording(rel: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-11..12  pyproject.toml license-files completeness
+# TV-LH-11..12 pyproject.toml license-files completeness
 # ---------------------------------------------------------------------------
 
 # ADR-0061 Schritt 6 mandates the exact license-files list.
@@ -257,7 +256,7 @@ def test_tv_lh_12_pyproject_license_files_complete() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-13  WAT-Change-Date konkret = 2030-05-07
+# TV-LH-13 WAT-Change-Date konkret = 2030-05-07
 # ---------------------------------------------------------------------------
 
 
@@ -276,13 +275,13 @@ def test_tv_lh_13_wat_change_date_concrete() -> None:
     # also be gone — concretely-dated, not formula-dated.
     assert "Four (4) years from" not in text, (
         "wat/LICENSE-BSL.md still carries the legacy formula-form "
-        "Change-Date wording 'Four (4) years from ...'. ADR-0061 §4 "
+        "Change-Date wording 'Four (4) years...'. ADR-0061 §4 "
         "requires the concrete date string instead."
     )
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-14  NOTICE schlank
+# TV-LH-14 NOTICE schlank
 # ---------------------------------------------------------------------------
 
 # ADR-0061 Schritt 9 mandates a schlank NOTICE: project name +
@@ -315,7 +314,7 @@ def test_tv_lh_14_notice_schlank() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-LH-15  README references LICENSING.md + Mix-License-Hinweis
+# TV-LH-15 README references LICENSING.md + Mix-License-Hinweis
 # ---------------------------------------------------------------------------
 
 README_EXPECTED_MARKERS: tuple[str, ...] = (

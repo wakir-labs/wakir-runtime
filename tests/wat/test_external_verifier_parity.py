@@ -16,9 +16,9 @@ The Node.js side is skipped (not failed) when:
 - ``tooling/external-verifier-ajv/node_modules`` does not exist (i.e.
   no one has run ``npm install`` in that directory yet).
 
-Skipping rather than failing matches Sprint-3's posture: the
+Skipping rather than failing matches 's posture: the
 parity-check is **substrate** that external implementers can reach
-for, not a CI gate. Once the Node.js side is wired into a CI job (a
+not a CI gate. Once the Node.js side is wired into a CI job (a
 follow-up Open-Item), the test gets ``--require-node`` semantics. For
 now developers without Node still see the Python-side validation in
 ``tests/wat/test_manifest_v1_schema_smoke.py``.
@@ -170,7 +170,7 @@ def test_python_and_node_verdicts_agree_per_vector():
     assert node_report is not None
 
     parity_ok, diffs = mod.compare_reports(py_report, node_report)
-    assert parity_ok, "cross-tool parity violation:\n  " + "\n  ".join(diffs)
+    assert parity_ok, "cross-tool parity violation:\n " + "\n ".join(diffs)
 
 
 @pytest.mark.skipif(
@@ -201,7 +201,7 @@ def test_node_report_schema_id_matches_python():
 
 
 # ===========================================================================
-# fastjsonschema third-pole parity (Sprint-6 Tag-1)
+# fastjsonschema third-pole parity
 # ===========================================================================
 
 
@@ -258,7 +258,7 @@ def test_python_and_fastjsonschema_verdicts_agree_per_vector():
     assert fjs_report is not None
 
     parity_ok, diffs = mod.compare_reports_multi([py_report, fjs_report])
-    assert parity_ok, "python-vs-fastjsonschema parity violation:\n  " + "\n  ".join(diffs)
+    assert parity_ok, "python-vs-fastjsonschema parity violation:\n " + "\n ".join(diffs)
 
 
 @pytest.mark.skipif(
@@ -268,7 +268,7 @@ def test_python_and_fastjsonschema_verdicts_agree_per_vector():
 def test_three_way_parity_python_node_fastjsonschema():
     """Full three-way parity check: python-jsonschema, ajv, fastjsonschema.
 
-    This is the Sprint-6 substrate for external-verifier adoption: any
+    This is the substrate for external-verifier adoption: any
     third party picking one of the three libraries inherits a verdict-
     set that two other independent implementations agree with.
     """
@@ -289,12 +289,12 @@ def test_three_way_parity_python_node_fastjsonschema():
         [py_report, node_report, fjs_report]
     )
     assert parity_ok, (
-        "three-way parity violation:\n  " + "\n  ".join(diffs)
+        "three-way parity violation:\n " + "\n ".join(diffs)
     )
 
 
 # ===========================================================================
-# Hyperjump fourth-pole parity (Sprint-6 Tag-6)
+# Hyperjump fourth-pole parity
 # ===========================================================================
 
 
@@ -351,7 +351,7 @@ def test_ajv_and_hyperjump_verdicts_agree_per_vector():
         [node_report, hyperjump_report]
     )
     assert parity_ok, (
-        "ajv-vs-hyperjump parity violation:\n  " + "\n  ".join(diffs)
+        "ajv-vs-hyperjump parity violation:\n " + "\n ".join(diffs)
     )
 
 
@@ -369,7 +369,7 @@ def test_ajv_and_hyperjump_verdicts_agree_per_vector():
 def test_four_way_parity_python_node_fastjsonschema_hyperjump():
     """Full four-way parity check across all configured validators.
 
-    This is the Sprint-6 Tag-6 substrate-extension: any third party
+    This is the substrate-extension: any third party
     picking ANY of the four reference libraries inherits a verdict-
     set that three other independent implementations agree with. The
     JS-family witness is now two-deep (ajv + hyperjump) and the
@@ -395,7 +395,7 @@ def test_four_way_parity_python_node_fastjsonschema_hyperjump():
         [py_report, node_report, fjs_report, hyperjump_report]
     )
     assert parity_ok, (
-        "four-way parity violation:\n  " + "\n  ".join(diffs)
+        "four-way parity violation:\n " + "\n ".join(diffs)
     )
 
 

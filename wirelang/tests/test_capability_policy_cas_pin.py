@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang capability-policy CAS-pin path.
 
-Phase-2 Sprint-5 Tag-4 (S5-4). Tests the additive CAS-pin surface
-on :mod:`wirelang.schemas.capability_policy_nats_kv_backend`:
+Phase-2 (S5-4). Tests the additive CAS-pin surface
+on:mod:`wirelang.schemas.capability_policy_nats_kv_backend`:
 
-- :meth:`NatsKvCapabilityPolicyBackend.get_with_revision`
-- :meth:`NatsKvCapabilityPolicyBackend.get_with_revision_by_pair`
-- :meth:`NatsKvCapabilityPolicyBackend.put_with_revision`
-- :class:`CapabilityPolicyConflictError`
+-:meth:`NatsKvCapabilityPolicyBackend.get_with_revision`
+-:meth:`NatsKvCapabilityPolicyBackend.get_with_revision_by_pair`
+-:meth:`NatsKvCapabilityPolicyBackend.put_with_revision`
+-:class:`CapabilityPolicyConflictError`
 
 The CAS-pin path is the lost-update protection contract for
-concurrent capability-policy authorship (a Sprint-5 Tag-4 addition).
-The Sprint-5 Tag-2 LWW path (``put`` / ``get`` / ``delete`` /
-``snapshot`` / ``snapshot_registry``) is unaffected; Tag-4 surfaces
+concurrent capability-policy authorship (a addition).
+The LWW path (``put`` / ``get`` / ``delete`` /
+``snapshot`` / ``snapshot_registry``) is unaffected; surfaces
 are purely additive.
 
-Pattern-Mirror source: Phase-1b Sprint-3 Tag-3 schema-registry
+Pattern-Mirror source: Phase-1b schema-registry
 CAS-pin test inventory (``test_schema_registry_cas_pin.py``). The
 CAS-aware mock KV ``_MockKvCas`` mirrors nats-py's KeyValue.update
 contract: ``update(key, value, last=expected_revision)`` raises
@@ -171,7 +171,7 @@ class _MockKvNoCas:
 
 
 # ---------------------------------------------------------------------------
-# Fixtures (mirror Tag-2 fixture shape)
+# Fixtures (mirror fixture shape)
 # ---------------------------------------------------------------------------
 
 
@@ -260,7 +260,7 @@ def test_t_cpp_cas_01_get_with_revision_round_trip():
 
 def test_t_cpp_cas_02_get_with_revision_unknown_key_returns_none():
     """T-CPP-CAS-02: ``get_with_revision`` for an absent key returns
-    ``None``. Mirrors :meth:`get` for absent keys; no exception.
+    ``None``. Mirrors:meth:`get` for absent keys; no exception.
     Same for the ``_by_pair`` convenience wrapper.
     """
     backend = NatsKvCapabilityPolicyBackend(kv=_MockKvCas())
@@ -322,7 +322,7 @@ def test_t_cpp_cas_03_put_with_revision_succeeds_when_expected_matches():
 
 def test_t_cpp_cas_04_put_with_revision_conflict_when_stale():
     """T-CPP-CAS-04: a CAS-pinned upsert with a stale
-    ``expected_revision`` raises :class:`CapabilityPolicyConflictError`.
+    ``expected_revision`` raises:class:`CapabilityPolicyConflictError`.
     The error carries ``key``, ``expected_revision``, and
     ``actual_revision``. The bucket revision does NOT advance from
     the rejected stale write.
@@ -380,7 +380,7 @@ def test_t_cpp_cas_04_put_with_revision_conflict_when_stale():
 def test_t_cpp_cas_05_validation_gate_record_type_runs_before_cas():
     """T-CPP-CAS-05: gate-1 (``record`` must be a
     :class:`CapabilityPolicyRecord`) runs BEFORE the CAS call. A
-    non-record argument raises :class:`TypeError` and the bucket
+    non-record argument raises:class:`TypeError` and the bucket
     revision does NOT advance. Defence in depth.
     """
     kv = _MockKvCas()
@@ -403,7 +403,7 @@ def test_t_cpp_cas_06_validation_gate_pair_key_runs_before_cas():
     CAS call. The record's ``key`` property invokes
     :func:`key_for_policy_pair` which validates the components; a
     record with a malformed ``policy_id`` cannot be constructed in
-    the first place (Sprint-5 Tag-2 ``__post_init__`` invariant),
+    the first place ( ``__post_init__`` invariant),
     and an attempt to build one raises
     :class:`CapabilityPolicyValidationError` before any backend
     interaction. The bucket revision does NOT advance from the
@@ -436,7 +436,7 @@ def test_t_cpp_cas_06_validation_gate_pair_key_runs_before_cas():
 
 def test_t_cpp_cas_07_negative_expected_revision_rejected():
     """T-CPP-CAS-07: ``put_with_revision`` rejects a negative
-    ``expected_revision`` with :class:`ValueError`. Defence in depth.
+    ``expected_revision`` with:class:`ValueError`. Defence in depth.
     """
     backend = NatsKvCapabilityPolicyBackend(kv=_MockKvCas())
     record = _make_record()
@@ -456,7 +456,7 @@ def test_t_cpp_cas_07_negative_expected_revision_rejected():
 def test_t_cpp_cas_08_interleaved_pair_exactly_one_wins():
     """T-CPP-CAS-08: two concurrent CAS-pin loops on the same key
     observe the same starting revision; exactly one succeeds, the
-    other receives :class:`CapabilityPolicyConflictError`. The lost-
+    other receives:class:`CapabilityPolicyConflictError`. The lost-
     update protection contract.
     """
     backend = NatsKvCapabilityPolicyBackend(kv=_MockKvCas())
@@ -498,8 +498,8 @@ def test_t_cpp_cas_08_interleaved_pair_exactly_one_wins():
 
 def test_t_cpp_cas_09_cas_and_lww_orthogonal():
     """T-CPP-CAS-09: a CAS-pinned put followed by a non-CAS put is
-    observable: the non-CAS put wins (LWW path). Tag-4 CAS-pin and
-    Tag-2 LWW remain orthogonal.
+    observable: the non-CAS put wins (LWW path). CAS-pin and
+    LWW remain orthogonal.
     """
     backend = NatsKvCapabilityPolicyBackend(kv=_MockKvCas())
     r0 = _make_record(policy_id="rollover")
@@ -541,7 +541,7 @@ def test_t_cpp_cas_10_kv_without_cas_surface_raises_backend_error():
     record = _make_record()
 
     async def _go():
-        # Direct put works (LWW path, Tag-2 unchanged).
+        # Direct put works (LWW path, unchanged).
         rev = await backend.put(record)
         # CAS-pin attempt must fail explicitly.
         await backend.put_with_revision(record, rev)
@@ -609,7 +609,7 @@ def test_t_cpp_cas_aux_determinism_5_pair_interleave():
 
 def test_t_cpp_cas_aux_conflict_class_detection():
     """T-CPP-CAS-aux-conflict-class-detection: the class-name marker
-    detection (:func:`_is_conflict_exception`) recognises typical
+    detection :func:`_is_conflict_exception`) recognises typical
     nats-py conflict exception class names (``KeyWrongLastSequenceError``,
     ``KeyValueConflictError``, ``RevisionMismatchError``) and rejects
     unrelated classes (``ValueError``, generic ``Exception``,

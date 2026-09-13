@@ -87,15 +87,15 @@ def persona_role_string(persona_idx: int, spawn_counter: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# JCS resolver indirection (Tag-9)
+# JCS resolver indirection
 # ---------------------------------------------------------------------------
 
 
 def _make_jcs_canonicalize() -> Callable[[object], bytes]:
     """Return the active JCS canonicaliser (rfc8785 if available else pure-Python).
 
-    The pin-pack must be reproducible on both lanes (Tag-11 sandbox
-    without rfc8785 + Tag-12 production with rfc8785). The two
+    The pin-pack must be reproducible on both lanes (sandbox
+    without rfc8785 + production with rfc8785). The two
     backends are byte-equivalent for the document shapes used here;
     that equivalence is itself anchored by
     ``test_pure_python_fallback.py`` and re-verified per pin-pack
@@ -130,8 +130,8 @@ def _build_persona_record(
     ed_pub = ed25519_public_from_private(ed_priv)
 
     # 3. DID document (unsigned body; proof slot is deliberately omitted
-    #    from the pinned record because ECDSA-secp256k1 is non-deterministic;
-    #    the pin-pack hashes the unsigned body instead).
+    # from the pinned record because ECDSA-secp256k1 is non-deterministic;
+    # the pin-pack hashes the unsigned body instead).
     did_doc = generate_persona_did_document(
         role,
         secp_pub,
@@ -148,7 +148,7 @@ def _build_persona_record(
     did_doc_hash = hashlib.sha256(did_doc_canonical).hexdigest()
 
     # 4. AIP document with the persona's Ed25519 public key as
-    #    biscuit-root. Pin valid_after/expires for byte-stability.
+    # biscuit-root. Pin valid_after/expires for byte-stability.
     aip_doc = generate_aip_document(
         role,
         ed_pub,
@@ -161,7 +161,7 @@ def _build_persona_record(
     )
 
     # 5. Sign AIP document. Ed25519 is deterministic, so the
-    #    signature is byte-stable and can be pinned.
+    # signature is byte-stable and can be pinned.
     aip_signature_block = sign_aip_document(aip_doc, ed_priv)
     aip_doc_signed = copy.deepcopy(aip_doc)
     aip_doc_signed["document_signature"] = aip_signature_block
@@ -188,7 +188,7 @@ def build_pin_pack(*, seed_hex: str = TV_W_1_TEST_SEED_HEX) -> dict:
 
     Returns the pin-pack as a Python dict whose JCS canonical form is
     SHA-256-hashable to produce the top-level pin. Callers that want
-    the hash should call :func:`pin_pack_hash`.
+    the hash should call:func:`pin_pack_hash`.
     """
     seed = bytes.fromhex(seed_hex)
     jcs = _make_jcs_canonicalize()

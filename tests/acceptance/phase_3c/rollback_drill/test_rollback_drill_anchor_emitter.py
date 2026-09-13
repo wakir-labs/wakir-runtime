@@ -6,11 +6,11 @@ Anchors
 -------
 
 - ADR-0065 §Rollback-Strategie (additional Phase-3c-Komponente, not
-  in the seven-welle sequence but shares the ENV-Flag-Switch substrate
+  in the seven-wave sequence but shares the ENV-Flag-Switch substrate
   ``WAKIR_ENGINE_ANCHOR_EMITTER_BACKEND=rust|python``).
-- Phase-3c additional Komponente per the runtime PR-series Tag-18+
+- Phase-3c additional Komponente per the runtime PR-series +
   ``feat(persona-engine): rust anchor-emitter`` and bridge-side fan-
-  out integration (PR #143 / Tag-18 family).
+  out integration (PR #143 / family).
 
 Komponente character
 --------------------
@@ -22,8 +22,8 @@ mid** — write-path, but every emit is idempotent because anchors are
 content-addressed; duplicate-emits are observable but harmless under
 client-side deduplication.
 
-This Komponente is part of Phase-3c-Cutover (default Python →
-default Rust flip) but does not occupy a numbered welle-slot; it is
+This Komponente is part of Phase-3c-cutover (default Python →
+default Rust flip) but does not occupy a numbered wave-slot; it is
 included in the rollback-drill suite because the same 10-minute SLA
 applies to its ENV-Flag-Switch surface.
 """
@@ -63,7 +63,7 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     Anchor-emitter rollbacks emit a Backend-Decision-Audit-Record
     naming the modul, targeting ``python``, and tying the rollback to
     a cutover-cycle-id. Because anchor-emitter is the broadcast-side
-    of the bridge-audit-writer Komponente-pair, Henrik-Zone-N
+    of the bridge-audit-writer Komponente-pair, internal audit-Zone-N
     correlates the audit-trail across both Komponenten when both
     are rolled back in close temporal proximity.
     """

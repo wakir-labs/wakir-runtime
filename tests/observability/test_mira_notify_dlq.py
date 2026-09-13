@@ -3,18 +3,18 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for scripts/observability/mira-notify-dlq.py.
 
-Coverage targets (Tag-51 substance):
+Coverage targets (substance):
 
-1.  ``read_dead_letter_file`` -- empty / non-existent / multi-record /
+1. ``read_dead_letter_file`` -- empty / non-existent / multi-record /
     corrupted-envelope-line surfaces.
-2.  ``classify_error`` -- each of the bounded categories.
-3.  ``build_inspect_report`` -- totals, histograms, earliest/latest.
-4.  ``apply_patches`` -- each patch rule + idempotency.
-5.  ``try_construct_event`` -- success path + missing-event_id branch.
-6.  ``run_replay`` dry-run -- counts only, no inbox writes, no DLQ mutation.
-7.  ``run_replay`` apply -- inbox files created, dedupe-set appended.
-8.  ``run_replay`` apply -- patches required to recover a real failure.
-9.  ``run_replay`` apply -- dedupe-skip path (already materialised).
+2. ``classify_error`` -- each of the bounded categories.
+3. ``build_inspect_report`` -- totals, histograms, earliest/latest.
+4. ``apply_patches`` -- each patch rule + idempotency.
+5. ``try_construct_event`` -- success path + missing-event_id branch.
+6. ``run_replay`` dry-run -- counts only, no inbox writes, no DLQ mutation.
+7. ``run_replay`` apply -- inbox files created, dedupe-set appended.
+8. ``run_replay`` apply -- patches required to recover a real failure.
+9. ``run_replay`` apply -- dedupe-skip path (already materialised).
 10. ``run_prune`` -- drops resolved entries only.
 11. CLI ``inspect`` markdown + JSON output.
 12. CLI ``replay --apply`` end-to-end with dead-letter eviction.
@@ -23,9 +23,9 @@ Coverage targets (Tag-51 substance):
 
 Sandbox posture: stdlib + pytest only; ``tmp_path`` for isolation.
 
-Anchor: Tag-51 substance.  Producer side: Tag-46 emitter/receiver.
+Anchor: substance. Producer side: emitter/receiver.
 
-Author: Noa Bergstroem (SRE)
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations

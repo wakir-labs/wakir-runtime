@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hardening tests for the 3-Way-Mode bridge-audit triangle.
 
-Sprint-Pengine-15-Folge (ADR-0063 §Folgeartefakte Item 3, follow-on
+-Pengine-15-Folge (ADR-0063 §Folgeartefakte Item 3, follow-on
 to PR #106).
 
 100% hermetic: no filesystem, no network, no time sources. Every test
-fabricates :class:`DiffInput` and :class:`Implementation` adapter
+fabricates:class:`DiffInput` and:class:`Implementation` adapter
 callables in-process so the triangle's pure-comparison behaviour is
 exercised without dragging in the Pre-Framework sink, the NATS-KV
 substrate, or any real Rust subprocess.
@@ -13,17 +13,17 @@ substrate, or any real Rust subprocess.
 Coverage map (12 vectors, additional to the 10 in
 test_bridge_audit_diff_engine.py):
 
-1.  ``resolve_bridge_mode`` defaults to ``"2way"`` when env is empty.
-2.  ``resolve_bridge_mode`` reads ``WAKIR_BRIDGE_MODE`` from explicit env.
-3.  ``resolve_bridge_mode`` rejects unknown values (Quadlet-typo guard).
-4.  2-way mode: triangle degenerates to a single pairwise diff.
-5.  2-way mode: ``impl_c`` is accepted but ignored.
-6.  3-way mode requires ``impl_c`` — missing adapter raises.
-7.  3-way happy path: stub adapter byte-identical to Python sinks ⇒
+1. ``resolve_bridge_mode`` defaults to ``"2way"`` when env is empty.
+2. ``resolve_bridge_mode`` reads ``WAKIR_BRIDGE_MODE`` from explicit env.
+3. ``resolve_bridge_mode`` rejects unknown values (Quadlet-typo guard).
+4. 2-way mode: triangle degenerates to a single pairwise diff.
+5. 2-way mode: ``impl_c`` is accepted but ignored.
+6. 3-way mode requires ``impl_c`` — missing adapter raises.
+7. 3-way happy path: stub adapter byte-identical to Python sinks ⇒
     ``all_consistent=True`` across all three pairs.
-8.  3-way drift in C only: A↔B identical, B↔C + A↔C drift ⇒
+8. 3-way drift in C only: A↔B identical, B↔C + A↔C drift ⇒
     ``all_consistent=False`` with ``schema_version_drift=False``.
-9.  3-way transitivity failure: A=B byte-identical, A↔C and B↔C both
+9. 3-way transitivity failure: A=B byte-identical, A↔C and B↔C both
     differ on a non-schema field ⇒ ``all_consistent=False``.
 10. 3-way schema-version drift detection (``/schema`` field-diff
     surfaces as ``schema_version_drift=True``).
@@ -263,7 +263,7 @@ def test_3way_rust_stub_engine_version_drift_surfaces():
 
 # ---------------------------------------------------------------------------
 # 9. Transitivity failure (A=B byte-identical, both differ from C
-#    on a non-schema field)
+# on a non-schema field)
 # ---------------------------------------------------------------------------
 
 
@@ -417,7 +417,7 @@ def test_recovery_trigger_drift_surfaces_at_expected_path():
     ac_paths = [fd.path for fd in report.report_ac.field_diffs]
     assert "/recovery_trigger" in bc_paths
     assert "/recovery_trigger" in ac_paths
-    # Verify the drift is VALUE_MISMATCH, not type/only-in.
+    # Verify the drift is VALUE_MISMATCH, not type/only-.
     bc_trigger_diff = next(
         fd for fd in report.report_bc.field_diffs
         if fd.path == "/recovery_trigger"

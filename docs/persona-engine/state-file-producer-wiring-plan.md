@@ -15,7 +15,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 | Companion (Schema-Pin) | `docs/quality-gates/welle-n-state-file-conventions.md` (Amara Tag-67) |
 | Companion (Verifier) | `tooling/ci/verify_welle_state_file_conventions.py` (Amara Tag-67) |
 | Companion (Helper Stub) | `tooling/ci/render_engine_state_file_stub.py` (Tag-68, audit-only) |
-| Companion (Test-Suite) | `wirelang/tests/persona_engine/test_state_file_producer_plan_tag68.py` (Tag-68, ≥12 tests) |
+| Companion (Test-Suite) | `wirelang/tests/persona_engine/test_state_file_producer_plan.py` (Tag-68, ≥12 tests) |
 | Audit-Boundary | Zone-N (Henrik): plan-doc is reviewable as Audit-Evidence-Index. Zone-K (Tomás): OTS-anchor field semantics. Zone-J (Kai): container-side write-mount path. Zone-M (Aisha): governance grain over persona definitions remains untouched. |
 
 ## §1 Scope (post-Cutover-T0 Producer-Wiring)
@@ -401,7 +401,7 @@ This plan-doc + helper-stub are hermetic-by-construction:
   imports anything outside the stdlib. The plan-doc is pure
   Markdown.
 - The Tag-68 test-suite
-  (`wirelang/tests/persona_engine/test_state_file_producer_plan_tag68.py`)
+  (`wirelang/tests/persona_engine/test_state_file_producer_plan.py`)
   is hermetic: no NATS, no SPIRE, no gRPC, no subprocess outside
   in-process stdlib calls. It validates the plan-doc structure
   and the helper-stub render-contract.

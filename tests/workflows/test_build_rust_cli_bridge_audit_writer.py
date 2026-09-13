@@ -3,7 +3,7 @@
 """Hermetic workflow-structure tests for
 ``.github/workflows/build-rust-cli-bridge-audit-writer.yml``.
 
-Tag-31 Mini-Welle, ADR-0066 Welle-3 pre-cutover image. The workflow
+Mini-wave, ADR-0066 wave 3 pre-cutover image. The workflow
 is the substrate that publishes the
 ``wakir-persona-engine-bridge-audit-writer`` Rust-CLI container
 image. These tests assert the workflow STRUCTURE remains correct,
@@ -15,8 +15,8 @@ Sandbox boundary
 ----------------
 Tests parse YAML on disk only. No actions runner, no GHCR egress,
 no cargo exec, no cosign exec. Compatible with the claude-dev
-sandbox (no podman-socket needed). Parity with the Tag-26 V907-
-verify test surface (PR #194) and Tag-29 SVID-workload-identity
+sandbox (no podman-socket needed). Parity with the V907-
+verify test surface (PR #194) and SVID-workload-identity
 test surface (PR #201).
 
 Scope of invariants
@@ -125,8 +125,8 @@ def test_workflow_name(workflow_yaml: dict) -> None:
 
 def test_trigger_has_push_and_workflow_dispatch(on_block: dict) -> None:
     # Hybrid trigger: push-to-main (substrate-CI dry-run) +
-    # workflow_dispatch (Operator-Hand publish). Parity with Tag-29
-    # SVID-workload-identity (PR #201) and Tag-26 V907-verify (PR #194).
+    # workflow_dispatch (Operator-Hand publish). Parity with
+    # SVID-workload-identity (PR #201) and V907-verify (PR #194).
     assert "push" in on_block, "missing push trigger"
     assert "workflow_dispatch" in on_block, "missing workflow_dispatch trigger"
 
@@ -166,7 +166,7 @@ def test_workflow_dispatch_push_default_false(on_block: dict) -> None:
     # Default MUST be 'false' — keep the publish path explicit.
     assert inputs["push"].get("default") == "false", (
         "workflow_dispatch push input default must be 'false' "
-        "(Operator-Hand opt-in; parity with Tag-29 SVID image-build)"
+        "(Operator-Hand opt-; parity with SVID image-build)"
     )
 
 
@@ -178,7 +178,7 @@ def test_workflow_dispatch_push_default_false(on_block: dict) -> None:
 def test_permissions_least_privilege(workflow_yaml: dict) -> None:
     # Least-privilege regression guard: refuse drift to broader
     # scopes (actions:write, security-events:write, etc.). Parity
-    # with Tag-29 SVID + Tag-26 V907-verify least-privilege contract.
+    # with SVID + V907-verify least-privilege contract.
     perms = workflow_yaml.get("permissions")
     assert isinstance(perms, dict), (
         "workflow must declare top-level permissions"
@@ -241,7 +241,7 @@ def test_buildah_after_cargo(build_steps: list[dict]) -> None:
 
 def test_cosign_signing_order(build_steps: list[dict]) -> None:
     # Order MUST be: Push → Cosign login → Sigstore sign. The
-    # earlier Sprint-9 Tag-5 UNAUTHORIZED regressions came from
+    # earlier UNAUTHORIZED regressions came from
     # reordering these.
     push_idx = _step_index(build_steps, "Push to GHCR")
     login_idx = _step_index(build_steps, "Cosign login to GHCR")
@@ -263,7 +263,7 @@ def test_cosign_installer_present(build_steps: list[dict]) -> None:
 def test_version_tag_format_fence_present(workflow_text: str) -> None:
     # The "Resolve effective version_tag + push-flag" step must
     # validate workflow_dispatch version_tag against the
-    # ``MAJOR.MINOR.PATCH-pilot`` regex (Sprint-Pengine-13 substrate-
+    # ``MAJOR.MINOR.PATCH-pilot`` regex (-Pengine-13 substrate-
     # fence pattern). Searching the raw workflow text is robust
     # against minor YAML reformatting.
     assert (
@@ -332,7 +332,7 @@ def test_digest_artifact_upload_conditional(build_steps: list[dict]) -> None:
 def test_digest_artifact_name_matches_image_name(
     build_steps: list[dict],
 ) -> None:
-    # The artefact name must match the image basename so the Welle-3
+    # The artefact name must match the image basename so the wave 3
     # cutover step's resolver can find it by convention.
     idx = _step_index(build_steps, "Upload digest artifact")
     name = build_steps[idx].get("with", {}).get("name", "")
@@ -363,7 +363,7 @@ def test_skopeo_crane_cross_check_in_rust_resolver(
 ) -> None:
     # The rust base-layer resolver must cross-check skopeo vs crane
     # digests and refuse to proceed if they disagree (registry-
-    # inconsistency guard, parity with Tag-29 SVID + Tag-26 V907-verify).
+    # inconsistency guard, parity with SVID + V907-verify).
     idx = _step_index(
         build_steps, "Resolve rust:1.85-slim-bookworm base-layer digest"
     )
@@ -382,8 +382,8 @@ def test_placeholder_substitution_step_refuses_residue(
 ) -> None:
     # The "Materialise pinned base-layer digests" step must refuse
     # to proceed if any DIGEST_PENDING_KAI_REVIEW placeholder is
-    # left after substitution (substrate-fence parity with Tag-29
-    # SVID + Tag-26 V907-verify).
+    # left after substitution (substrate-fence parity with
+    # SVID + V907-verify).
     idx = _step_index(
         build_steps,
         "Materialise pinned base-layer digests in Containerfile",
@@ -443,7 +443,7 @@ def test_containerfile_entrypoint_targets_writer_binary() -> None:
 def test_containerfile_busl_licence_header() -> None:
     # Cross-substrate licence-discipline parity with the V907-verify
     # and SVID-workload-identity Containerfiles. The shared BUSL
-    # licence file lives under ../persona-engine/LICENSE-BSL.md; the
+    # licence file lives under../persona-engine/LICENSE-BSL.md; the
     # Containerfile must reference it so an operator chasing the
     # licence chain finds the canonical anchor.
     txt = CONTAINERFILE.read_text(encoding="utf-8")

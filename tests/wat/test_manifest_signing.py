@@ -2,13 +2,13 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
 # Part of the Wakir Audit Trail (WAT) module. Licensed under
-# Business Source License 1.1; see ../../wat/LICENSE-BSL.md.
+# Business Source License 1.1; see../../wat/LICENSE-BSL.md.
 
-"""Tests for wat.identity.manifest_signing (Phase-1b Sprint-4 Tag-6).
+"""Tests for wat.identity.manifest_signing (Phase-1b).
 
 WAT-manifest signing layer parallel to the Identity-Substrate-
 engineering schema-registry-entry-signing layer
-(``wirelang.schemas.entry_signing``, Phase-2 Sprint-4 Tag-1). The
+(``wirelang.schemas.entry_signing``, Phase-2). The
 signing primitive is shape-byte-identical to AIP-document signing
 and schema-registry-entry signing: JCS + SHA-256 + Ed25519 over the
 manifest payload minus the ``signature`` slot.

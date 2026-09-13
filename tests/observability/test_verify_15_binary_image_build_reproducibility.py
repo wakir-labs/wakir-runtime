@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic invariants for the Tag-53 Image-Build-Reproducibility-Live-Test.
+"""Hermetic invariants for the Image-Build-Reproducibility-Live-Test.
 
-Tag-53 closes the gap left by Tag-51 (PR #328): Tag-51 covers the
+closes the gap left by PR #328: covers the
 Cargo.lock derivation axis (two in-process derivations of the
-build-graph produce byte-equal output). Tag-53 covers the
+build-graph produce byte-equal output). covers the
 image-build axis (two ``cargo build --release`` invocations against
 the same Cargo.lock produce byte-equal ELF binaries). The default
 operation mode in CI is ``--mode=sandbox-stub`` -- a hermetic
@@ -17,44 +17,44 @@ Sibling tests
 -------------
 
   * ``tests/observability/test_verify_15_binary_build_reproducibility.py``
-    -- Tag-51 Cargo.lock-derivation invariants (18 tests).
+    -- Cargo.lock-derivation invariants (18 tests).
   * ``tests/observability/test_quadlet_15_binary_live_boot_test.py``
-    -- Tag-52 quadlet-live-boot invariants.
+    -- quadlet-live-boot invariants.
   * ``tests/observability/test_generate_15_binary_sbom.py``
-    -- Tag-48 SBOM-generator invariants.
+    -- SBOM-generator invariants.
 
 Test-Vector index
 -----------------
 
-  * ``TV-T53-01``  Tag-45 binary inventory mirrored byte-for-byte
+  * ``TV-T53-01`` binary inventory mirrored byte-for-byte
                    (15 entries, exact order).
-  * ``TV-T53-02``  POLICY_NAME_TO_CRATE mapping is total (every
+  * ``TV-T53-02`` POLICY_NAME_TO_CRATE mapping is total (every
                    inventory binary has a root-crate).
-  * ``TV-T53-03``  Sandbox-stub GREEN by default for all 15 binaries.
-  * ``TV-T53-04``  Pass-1 hash deterministic across re-evaluation.
-  * ``TV-T53-05``  Pass-2 hash equals pass-1 in undriven case
+  * ``TV-T53-03`` Sandbox-stub GREEN by default for all 15 binaries.
+  * ``TV-T53-04`` Pass-1 hash deterministic across re-evaluation.
+  * ``TV-T53-05`` Pass-2 hash equals pass-1 in undriven case
                    (byte-equality is the GREEN-invariant).
-  * ``TV-T53-06``  Pass-1 fingerprints distinct across binaries.
-  * ``TV-T53-07``  Pass-1 fingerprint changes when Cargo.lock SHA
+  * ``TV-T53-06`` Pass-1 fingerprints distinct across binaries.
+  * ``TV-T53-07`` Pass-1 fingerprint changes when Cargo.lock SHA
                    changes (the audit anchors on lock-file content).
-  * ``TV-T53-08``  Induced-drift surfaces RED for the named binary
+  * ``TV-T53-08`` Induced-drift surfaces RED for the named binary
                    only (other 14 stay GREEN).
-  * ``TV-T53-09``  Induced-drift unknown-binary raises KeyError.
-  * ``TV-T53-10``  Malformed Cargo.lock raises ValueError.
-  * ``TV-T53-11``  Live-mode raises NotImplementedError with the
+  * ``TV-T53-09`` Induced-drift unknown-binary raises KeyError.
+  * ``TV-T53-10`` Malformed Cargo.lock raises ValueError.
+  * ``TV-T53-11`` Live-mode raises NotImplementedError with the
                    sandbox-host-trennung pointer.
-  * ``TV-T53-12``  JSON envelope schema-shape canonical.
-  * ``TV-T53-13``  Prometheus textfile carries all required gauges.
-  * ``TV-T53-14``  Markdown summary shape canonical.
-  * ``TV-T53-15``  Mira-Notify payload empty on GREEN aggregate.
-  * ``TV-T53-16``  Mira-Notify payload populated on drift, lists
+  * ``TV-T53-12`` JSON envelope schema-shape canonical.
+  * ``TV-T53-13`` Prometheus textfile carries all required gauges.
+  * ``TV-T53-14`` Markdown summary shape canonical.
+  * ``TV-T53-15`` operator-Notify payload empty on GREEN aggregate.
+  * ``TV-T53-16`` operator-Notify payload populated on drift, lists
                    exactly the drifted binaries.
-  * ``TV-T53-17``  CLI smoke: --mode=sandbox-stub against the real
+  * ``TV-T53-17`` CLI smoke: --mode=sandbox-stub against the real
                    workspace Cargo.lock exits 0.
 
 Total: 17 hermetic invariants -- comfortably above the >=12 target.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -392,7 +392,7 @@ def test_tv_t53_14_markdown_summary_shape_canonical():
 
 
 # ---------------------------------------------------------------------------
-# TV-T53-15: Mira-Notify payload empty on GREEN aggregate.
+# TV-T53-15: operator-Notify payload empty on GREEN aggregate.
 # ---------------------------------------------------------------------------
 
 
@@ -403,7 +403,7 @@ def test_tv_t53_15_mira_notify_empty_on_green():
 
 
 # ---------------------------------------------------------------------------
-# TV-T53-16: Mira-Notify populated on drift; lists drifted binaries.
+# TV-T53-16: operator-Notify populated on drift; lists drifted binaries.
 # ---------------------------------------------------------------------------
 
 

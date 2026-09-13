@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-2 tests: full SVID-fetch over gRPC.
+"""-Pengine-9 OI-PEFR-2 tests: full SVID-fetch over gRPC.
 
 Hermetic stubs replace the grpcio surface so the tests run without
 the grpcio wheel. The stubs cover:
@@ -424,9 +424,9 @@ def test_workload_api_client_fetch_before_connect_raises():
 
 def test_workload_api_client_fetch_timeout():
     """A stream that never yields a reply within the timeout should
-    raise :class:`SvidFetchError`.
+    raise:class:`SvidFetchError`.
 
-    Sprint-Pengine-11 Bug-40 update: the raw ``asyncio.TimeoutError``
+    -Pengine-11 Bug-40 update: the raw ``asyncio.TimeoutError``
     is now converted to ``SvidFetchError`` inside ``fetch_x509_svid``
     so the engine boot path catches it under the single graceful-
     fallback exception class. The wrapped exception preserves the

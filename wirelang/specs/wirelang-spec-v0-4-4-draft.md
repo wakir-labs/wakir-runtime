@@ -81,21 +81,21 @@ been merged pre-cutover*:
 | RES-D4 | schema-registry-v2-prep | Schema registry (`wirelang/specs/schema-registry-spec.md`): the current schema-registry is a single-author single-anchor design. Post-cutover, an OTS-anchored multi-author registry is wanted so federation peers can publish their own schema extensions without consuming Wakir-Labs anchor capacity. The reserve-draft codifies the v2 registry-frame layout, the anchor-cost-attribution rule (the publishing peer pays the OTS-anchor cost on its own side; Wakir-Labs registry-side anchor cost is a small registry-pointer only), and the verifier-conformance bit. | Add §8.5 covering the registry-v2 frame layout (a thin `registry-pointer` frame referencing an externally-anchored schema document), the federation-side discovery contract (peer publishes its registry URL via a `registry-pointer-record` in the `route_registry_nats_kv_backend`), and the verifier-conformance bit for accepting a peer-anchored schema as binding. |
 | RES-D5 | recovery-drill-leaf-projection-v2 | Recovery drill leaf-projection (`wirelang/specs/recovery-drill-leaf-projection.md`): the current leaf-projection contract assumes a single-shard recovery-drill (Phase-3 substrate). Post-cutover Phase-4 sequence-promotion will introduce sharded recovery-drills; the reserve-draft codifies the multi-shard leaf-projection invariant so the sharding step does not require a wire-format-bump. | Add §6.4 covering the multi-shard leaf-projection envelope, the shard-id encoding, the cross-shard merge invariant (a verifier observing shards `0..n-1` MUST be able to reconstruct a single canonical projection), and the operator-contract for the sharding-day transition. |
 
-**Source-of-truth direction (Reza-Hand 2026-05-19):** v0.4.3
+**Source-of-truth direction (2026-05-19):** v0.4.3
 (`pre-cutover-freeze`) is the conformance anchor; v0.4.4-draft is the
 post-cutover reserve substrate. A reserve item is a candidate, not a
 contract. The post-cutover sequence-promotion step (Phase-4
 governance, TBD) will decide which RES-Dn items get folded into the
 v0.4.4 or v0.5 final document.
 
-**coverage extension (Reza-Hand 2026-05-19):** Each RES-Dn
+**Sample-block coverage extension (2026-05-19):** Each RES-Dn
 sub-section in §6 carries a `§6.n.1 Sample` block with a
 canonical-form-shape pin (one block per reserve item). The sample
 blocks are **non-normative** under the same draft-isolation
 invariant as the rest of §6 (see §2). They exist so that the
 promotion PR has a shape-anchor to render normative — not so that
 verifiers or producers act on them today. The audit suite
-(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`) pins
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage.py`) pins
 per-RES-Dn sample-block existence, canonical-form-validity, and
 reference-integrity to the parent v0.4.3 anchor.
 
@@ -515,12 +515,12 @@ A spec document v0.4.4-draft is audit-conformant if and only if:
   and §6 is annotated as non-normative.
 
 The hermetic test suite that accompanies this draft
-(`tests/audit/test_wirelang_spec_v0_4_4_draft_tag63.py`,
+(`tests/audit/test_wirelang_spec_v0_4_4_draft.py`,
 twelve or more tests) enforces these invariants statically (no
 NATS, no engine boot, no Rust build, no network import).
 
 The coverage-extension suite
-(`tests/audit/test_wirelang_spec_v0_4_4_coverage_tag64.py`,
+(`tests/audit/test_wirelang_spec_v0_4_4_coverage.py`,
 fifteen or more tests) extends the invariant set with one
 sample-block-pin per RES-Dn item: existence, canonical-form
 validity (YAML block + RES-Dn anchor string), and

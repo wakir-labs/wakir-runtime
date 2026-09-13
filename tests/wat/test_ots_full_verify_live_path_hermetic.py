@@ -2,11 +2,11 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic live-path coverage for ``ots verify``-Voll-Integration.
 
-Sprint-4 Tag-2. The Tag-4 hermetic suite in
+The hermetic suite in
 ``test_ots_full_verify.py`` monkey-patches
 :func:`wat.anchor.ots_anchor.verify_receipt` directly. That pins the
-verifier-contract surface of :mod:`wat.verify.manifest_v2` but it does
-**not** pin :func:`verify_receipt` itself: the subprocess plumbing
+verifier-contract surface of:mod:`wat.verify.manifest_v2` but it does
+**not** pin:func:`verify_receipt` itself: the subprocess plumbing
 that shells out to the ``ots`` CLI, the parsing of the local-node
 ``Success!`` line, the Esplora HTTP fallback chain that consumes
 ``ots info`` output and resolves block heights to confirmed block
@@ -17,11 +17,11 @@ hashes. All of those branches were only covered by the live-gated
 This module covers the same branches hermetically by mocking the two
 boundaries that ``verify_receipt`` reaches out to:
 
-1. ``subprocess.run`` (used by :func:`wat.anchor.ots_anchor._run_ots`
+1. ``subprocess.run`` (used :func:`wat.anchor.ots_anchor._run_ots`
    to invoke ``ots verify`` / ``ots info``) — replaced with a fake
-   that returns a fixture :class:`subprocess.CompletedProcess`.
-2. :func:`wat.anchor.esplora.lookup_block_with_cache` — replaced with
-   a fake that returns a fixture :class:`BlockLookupResult` or raises
+   that returns a fixture:class:`subprocess.CompletedProcess`.
+2.:func:`wat.anchor.esplora.lookup_block_with_cache` — replaced with
+   a fake that returns a fixture:class:`BlockLookupResult` or raises
    :class:`EsploraError`, so the fallback path can be exercised
    without ever opening a socket.
 
@@ -58,15 +58,15 @@ Test inventory (5 hermetic tests, all default-enabled):
    pin still authoritative).
 
 Why not pin the cohort-level ``ok`` only? The discriminator fields
-on :class:`OtsAnchorCheck` (``full_verify_attempted``,
+on:class:`OtsAnchorCheck` (``full_verify_attempted``,
 ``full_verify_ok``, ``full_verify_skipped_reason``) distinguish the
-three Tag-4 verdict shapes (local-node green, hard-reject, soft-skip)
+three verdict shapes (local-node green, hard-reject, soft-skip)
 and the verifier promises each shape semantically. Pinning the
 discriminators — not just ``ok`` — means a future refactor that
 silently reclassifies a hard reject as a soft skip breaks the test.
 """
 
-# ruff: noqa: S101  — pytest's assert idiom is the whole point.
+# ruff: noqa: S101 — pytest's assert idiom is the whole point.
 
 from __future__ import annotations
 

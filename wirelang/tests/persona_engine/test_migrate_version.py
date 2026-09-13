@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-5 tests: migrate-version mechanic.
+"""-Pengine-9 OI-PEFR-5 tests: migrate-version mechanic.
 
 Coverage:
 
@@ -319,7 +319,7 @@ def test_read_engine_version_returns_none_when_no_reader():
 
 def test_v0_envelope_byte_equal_across_versions():
     """The PersonaStateSnapshot JCS bytes are version-agnostic for the
-    v0 envelope — Sprint-Pengine-9 OI-PEFR-5 invariant."""
+    v0 envelope — -Pengine-9 OI-PEFR-5 invariant."""
     s = _snap(7)
     blob = snapshot_to_jcs_bytes(s)
     # Round-trip through the inverse helper.
@@ -328,7 +328,7 @@ def test_v0_envelope_byte_equal_across_versions():
 
 
 def test_v0_envelope_unchanged_field_set():
-    """Sprint-Pengine-9 0.3.0-pilot MUST not change the v0 envelope
+    """-Pengine-9 0.3.0-pilot MUST not change the v0 envelope
     field set. If a future engine adds a field, this test forces a
     deliberate spec update."""
     expected_fields = {

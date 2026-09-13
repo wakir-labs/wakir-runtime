@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """TV-3 real-manifest live-run validation.
 
-Sprint-3 Tag-3 substance: the single hour-receipt produced by the
+ substance: the single hour-receipt produced by the
 TV-3 close-out run on 2026-05-07 is committed under
 ``tests/fixtures/wat-tv3-real/`` and is exercised here as a second
 real-world-anchored reference cohort alongside the TV-2 multi-hour
@@ -42,7 +42,7 @@ Driver-script smoke:
 Why TV-3 in addition to TV-2
 ----------------------------
 
-TV-2 (Tag-2) gave us a four-hour multi-hop chain. TV-3 (Tag-3)
+TV-2 gave us a four-hour multi-hop chain. TV-3
 gives us a single-hour run-genesis: the schema-file plumbing is
 exercised against a *second* real Bitcoin-anchored production
 manifest with a different shape (single hop, different submit-run
@@ -51,8 +51,8 @@ verifier path is not coincidentally tuned to the TV-2 four-hour
 specifics.
 
 The receipt-persistence edge-case cluster (8-10) is hardening
-substance for Tag-3 specifically: not just "does the verifier
-accept the production manifest" (already proven Tag-2) but "does
+substance for specifically: not just "does the verifier
+accept the production manifest" (already proven) but "does
 the verifier reject realistic on-disk corruptions of the
 side-files" (root.bin truncation, ots-side-file truncation,
 side-file lying about the root).
@@ -76,7 +76,7 @@ from wat.verify.manifest_v2 import (
 # ---------------------------------------------------------------------------
 
 #: Repository-relative path to the TV-3 real-manifest fixture cohort
-#: (committed to the repo as Sprint-3 Tag-3 close-out source).
+#: (committed to the repo as close-out source).
 TV3_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "wat-tv3-real"
 
 #: The single hour-slot that comprises the TV-3 close-out run.
@@ -350,7 +350,7 @@ def test_tv3_t17_root_bin_does_not_match_merkle_root_rejected(tmp_path):
 def test_tv3_driver_real_tv3_mode_runs_clean():
     """``scripts/external_verifier_validation.py --real-tv3`` exits 0.
 
-    Sprint-6-Tag-7 (F-5 fix family): see the matching test in
+     (F-5 fix family): see the matching test in
     ``test_tv2_real_manifest_live_run.py`` for the worktree-clone
     rationale behind the explicit ``PYTHONPATH`` hand-off.
     """

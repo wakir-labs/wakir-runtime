@@ -295,7 +295,7 @@ def test_evaluate_all_gates_short_circuits_on_time(cutover):
 
 
 # ---------------------------------------------------------------------------
-# Cutover plan + patch payload
+# cutover plan + patch payload
 # ---------------------------------------------------------------------------
 
 
@@ -374,7 +374,7 @@ def test_build_rollback_payload_rejects_empty_contexts(cutover):
 
 
 # ---------------------------------------------------------------------------
-# End-to-end main() via fixtures
+# End-to-end main via fixtures
 # ---------------------------------------------------------------------------
 
 
@@ -705,7 +705,7 @@ def test_write_backup_creates_parent_and_atomic(cutover, tmp_path):
     doc = {"schema_version": 1, "x": 1}
     cutover.write_backup(target, doc)
     assert target.exists()
-    # The .tmp staging file should NOT exist after the rename.
+    # The.tmp staging file should NOT exist after the rename.
     assert not (target.with_suffix(target.suffix + ".tmp")).exists()
     loaded = json.loads(target.read_text())
     assert loaded == doc

@@ -4,7 +4,7 @@
 """Hermetic tests for
 ``scripts/observability/generate-15-binary-sbom.py``.
 
-Tag-48 Kai — 15-Binary SBOM generator.
+The infrastructure zone — 15-Binary SBOM generator.
 
 Coverage targets the pure-function core (no live cargo / network).
 The tests in this file cover:
@@ -28,7 +28,7 @@ NEVER call cargo / cosign / podman / network. They construct
 synthetic Cargo.lock-shaped fixtures inline and assert the
 expected SBOM shape, PURL encoding, and dependency graph.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations
@@ -355,7 +355,7 @@ def test_TV_SPDX_02_spdx_describes_root(synthetic_packages):
 
 
 def test_TV_BU_01_bundle_has_fifteen_binaries(synthetic_packages):
-    """TV-BU-01: bundle contains one SBOM per Tag-45 binary name."""
+    """TV-BU-01: bundle contains one SBOM per binary name."""
     bundle = gen.build_full_bundle(
         packages=synthetic_packages,
         cargo_lock_sha256="deadbeef",
@@ -462,7 +462,7 @@ def test_TV_AN_01_inventory_matches_cosign_policy():
     extracts the ``- name:`` entries. Asserts byte-identical match
     against the generator's inventory constant — if the policy ever
     drifts, this test fires and the generator must be updated in
-    lock-step (per Tag-45 cross-substrate parity contract).
+    lock-step (per cross-substrate parity contract).
     """
     policy_path = _REPO_ROOT / "policies" / "cosign-policy-phase-3b.yaml"
     text = policy_path.read_text(encoding="utf-8")

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for the subscribe-loop observability integration — Sprint-SRE Tag-15.
+"""Tests for the subscribe-loop observability integration — -SRE.
 
-Drives :class:`NatsSubscribeLoop` with an injected in-memory
+Drives:class:`NatsSubscribeLoop` with an injected in-memory
 :class:`PersonaEngineObservability` and an in-memory message
 iterator, then asserts the loop emits the right subscribe-lag
 metric and span per inbound message.

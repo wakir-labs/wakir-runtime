@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-10 Tag-1 side-aware extensions of
+"""Hermetic tests for the side-aware extensions of
 ``bin/proxmox-bringup-smoke``.
 
-Sprint-10 Tag-1 adds three substance items to the smoke skript:
+ adds three substance items to the smoke skript:
 
 1. ``--side <SIDE>`` argument (default: wakir; alt: orbit, partner).
    The skript parametrises Quadlet unit names + container names so the
@@ -18,7 +18,7 @@ Sprint-10 Tag-1 adds three substance items to the smoke skript:
    emit ``SKIP`` (not ``FAIL``); summary line carries the skip count.
 
 This test file covers the side-awareness substance — the existing
-Sprint-9 Tag-1 tests (test_proxmox_bringup_smoke.py) keep covering
+ tests (test_proxmox_bringup_smoke.py) keep covering
 the baseline single-side smoke shape.
 
 All tests are hermetic: bash-mock wrappers for systemctl/podman/curl
@@ -75,7 +75,7 @@ def _write_mock_podman_for_side(
         side: ``wakir`` or ``orbit``; drives the expected container name
             ``wakir-spire-server-federation-<side>``.
         bundle_list_has_peer_td: if non-None, ``spire-server bundle list``
-            output includes a "Trust Domain : <td>" header line for the
+            output includes a "Trust Domain: <td>" header line for the
             given trust-domain (activates the federation-cross-trust-
             domain-verify happy path).
     """
@@ -174,7 +174,7 @@ def _run_smoke(env_overrides: dict, args: list[str]) -> subprocess.CompletedProc
 
 
 # ---------------------------------------------------------------------------
-# A. --side default is "wakir" (backwards-compat with Sprint-9 Tag-1)
+# A. --side default is "wakir" (backwards-compat with)
 # ---------------------------------------------------------------------------
 
 

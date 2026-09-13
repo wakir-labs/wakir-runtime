@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-Tag-8 Bug-36-Härtung: resolver trust-mode
+"""Hermetic tests for -Bug-36-Härtung: resolver trust-mode
 selector in ``infra/spire/federation/wakir-pilot-bootstrap.sh``.
 
-Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-36 (Sprint-10 Tag-7)
+Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-36
 collapsed the bootstrap's skip-cosign-verify branch into a
 skopeo-only-all-4 resolve path. The fix unblocked the Live-VM run at
-the cost of broadening the trust-base. Sprint-Tag-8 makes the trust-
+the cost of broadening the trust-base. -makes the trust-
 base explicit via ``WAKIR_RESOLVER_TRUST_MODE`` so the Pilot-Phase
 tolerance and the Production requirement are runtime-selectable from
 a single bootstrap.
@@ -74,7 +74,7 @@ def _eval_env_block(extra_env: dict[str, str]) -> subprocess.CompletedProcess:
     env_kv = " ".join(f"{k}={v!s}" for k, v in extra_env.items())
     # Source-up-to-line gate: read the script, slice off everything from
     # ``# Test-injection hooks.`` onwards (line ~250) so the file does
-    # NOT auto-run main() but the trust-mode validation block at line
+    # NOT auto-run main but the trust-mode validation block at line
     # ~169-241 still executes.
     src = _BOOTSTRAP.read_text(encoding="utf-8")
     # Find the cutoff anchor — the test-injection-hooks comment header.
@@ -201,9 +201,9 @@ def test_step_5_logs_trust_mode_banner(bootstrap_source: str) -> None:
     """The step-5 image-pin function logs the resolved trust-mode so
     the bring-up log records which trust-base was used.
     """
-    # Anchor inside step_5_image_pins().
+    # Anchor inside step_5_image_pins.
     s5_start = bootstrap_source.find("step_5_image_pins()")
-    assert s5_start > 0, "step_5_image_pins() not found"
+    assert s5_start > 0, "step_5_image_pins not found"
     s5_end = bootstrap_source.find("step_6_quadlet()", s5_start)
     s5 = bootstrap_source[s5_start:s5_end]
     assert "resolver trust-mode:" in s5, (
@@ -261,7 +261,7 @@ def test_doc_exists_and_declares_all_three_modes() -> None:
 
 
 def test_skopeo_only_branch_still_resolves_all_four(bootstrap_source: str) -> None:
-    """Sprint-10 Tag-7 Bug-36 fix invariant must remain unchanged: the
+    """ Bug-36 fix invariant must remain unchanged: the
     skip-cosign branch still resolves all 4 image pins via skopeo. The
     trust-mode patch must not regress that fix.
     """

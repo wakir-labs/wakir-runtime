@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the multi-org-attestation NATS-KV backend.
 
-Phase-2 Sprint-7 Tag-2. Pattern-mirror on the Sprint-3 Tag-6
+Phase-2. Pattern-mirror on the
 route-registry backend test suite (test_federation_route_registry_
 nats_kv_backend.py).
 
@@ -73,7 +73,7 @@ from wirelang.federation.multi_org_attestation_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors Sprint-3 Tag-6 _MockKv with CAS-pin support added)
+# Mock KV (mirrors _MockKv with CAS-pin support added)
 # ---------------------------------------------------------------------------
 
 
@@ -477,9 +477,9 @@ def test_t_moa_nkv_10_watch_yields_delete_event():
 
 
 def test_t_moa_nkv_11_live_snapshot_bootstraps_and_applies_put():
-    """T-MOA-NKV-11: LiveSnapshot.from_backend bootstraps; apply()
+    """T-MOA-NKV-11: LiveSnapshot.from_backend bootstraps; apply
     of a PUT event updates the live state; as_registry returns a
-    frozen copy that is not mutated by subsequent apply()."""
+    frozen copy that is not mutated by subsequent apply."""
     backend = NatsKvMultiOrgAttestationRegistry(kv=_MockKv())
     a1 = _make_live_att(route_id="r-1")
     a2 = _make_live_att(route_id="r-2")

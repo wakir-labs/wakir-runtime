@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic Phase-2-Doppelbetrieb Acceptance-Gate tests (Sprint-Phase-2-Gates-Mini).
+"""Hermetic Phase-2-Doppelbetrieb Acceptance-Gate tests (-Phase-2-Gates-Mini).
 
 Anchors
 -------
 
 - ADR-0058 §"Phase 2 — Doppelbetrieb (Wochen 1-4)" — the four-week
-  Doppelbetrieb-Vergleich plan with 4-axis Score and Henrik-Audit-
+  Doppelbetrieb-Vergleich plan with 4-axis Score and internal-audit-
   Sample pflicht.
-- ``docs/quality-gates/phase-2-doppelbetrieb.md`` (Amara, PR #80) — the
+- ``docs/quality-gates/phase-2-doppelbetrieb.md`` — the
   five acceptance-gates that QA enforces before promotion to Phase 3.
-- ``wirelang.persona_engine.bridge_audit_diff_engine`` (Selin, PR #106)
+- ``wirelang.persona_engine.bridge_audit_diff_engine``
   — the deterministic-diff oracle used by Gate-2-2 to compute the
   consistency-score over a mock bridge-trace.
 
 Scope
 -----
 
-ONE test per Phase-2-Acceptance-Gate as named in the Sprint-Phase-2-
+ONE test per Phase-2-Acceptance-Gate as named in the -Phase-2-
 Gates-Mini brief, plus one aggregator that walks all five back-to-back
 to surface cross-gate interactions. All tests are hermetic: no podman,
 no NATS, no live VM — pure in-memory mocks (see
@@ -28,14 +28,14 @@ remains the Operator-Hand-lane responsibility.
 Gate naming
 -----------
 
-The brief's gate labels map onto the Amara-spec gates as follows:
+The brief's gate labels map onto the QA zone-spec gates as follows:
 
 * **Gate-2-1 Bridge-Forward-Symmetry** ⇔ phase-2-doppelbetrieb.md §2.2
   (Bridge-Forward fan-out symmetric, drop-rate ≤ 0.1%).
 * **Gate-2-2 Konsistenz-Score ≥ Threshold** ⇔ §2.3 (Doppelbetrieb-
-  Score four-axis verdict — here the consistency-score from Selin's
+  Score four-axis verdict — here the consistency-score from the engine zone's
   diff-engine, used as the test-time proxy for the runtime 6h-rollup
-  Henrik samples).
+  internal audit samples).
 * **Gate-2-3 V907-Hash-Stabilität-Marker** ⇔ §2.4 (Zero
   ``PersonaHashDriftError`` events, ``axis-a-pin`` matches build-time
   pin).
@@ -191,7 +191,7 @@ def test_gate_2_1_bridge_forward_symmetry():
 
     Anchor: phase-2-doppelbetrieb.md §2.2. The hermetic mock runs a
     1000-event window — the same magnitude the bridge-audit
-    reconciliation report aggregates (Sprint-10 Tag-6 spec §7).
+    reconciliation report aggregates ( spec §7).
     """
     # Symmetric window: 1000 auftraege, no drops.
     events = _build_symmetric_fanout(1000)
@@ -221,7 +221,7 @@ def test_gate_2_1_bridge_forward_symmetry():
 
 
 # ---------------------------------------------------------------------------
-# Gate-2-2: Konsistenz-Score ≥ Threshold (via Selin diff-engine).
+# Gate-2-2: Konsistenz-Score ≥ Threshold (via the engine zone diff-engine).
 # ---------------------------------------------------------------------------
 
 
@@ -265,13 +265,13 @@ def _drifting_impl(input_: DiffInput) -> dict:
 
 
 def test_gate_2_2_konsistenz_score_threshold():
-    """Selin diff-engine yields ``consistency_score >= 0.95`` over a
+    """the engine zone diff-engine yields ``consistency_score >= 0.95`` over a
     mock 100-event trace where 99/100 are byte-identical and 1/100
     carries a single-field drift.
 
     Anchor: phase-2-doppelbetrieb.md §2.3
     (``functional_equivalence >= 0.95`` axis of the four-axis verdict).
-    Uses Selin's ``compare_implementations`` + ``consistency_score`` so
+    Uses the engine zone's ``compare_implementations`` + ``consistency_score`` so
     this test breaks symmetrically with the runtime CLI.
     """
     reports = []
@@ -543,7 +543,7 @@ def test_gate_2_5_subscribe_loop_lag_mock():
     Anchor: phase-2-doppelbetrieb.md §3 SLO row (Output-reply timeliness
     p99 ≤ 45s, rolling 1h). The mock substitutes a deterministic
     histogram for the live NATS-replay subscribe-loop; the live SLI is
-    Noa's domain.
+    the observability zone's domain.
     """
     samples = _mock_subscribe_loop_lag_histogram()
     assert len(samples) == 200
@@ -581,7 +581,7 @@ def test_gate_aggregator_phase_2_acceptance_all_green(tmp_path):
     event on Gate-2-2 SHOULD NOT cascade into a V-907-pin-drift on
     Gate-2-3, and a subscribe-loop excursion on Gate-2-5 SHOULD NOT
     silently flip Bridge-Forward symmetry on Gate-2-1. This is the
-    test-time proxy for the weekly rollup Henrik samples
+    test-time proxy for the weekly rollup internal audit samples
     (phase-2-doppelbetrieb.md §4 Audit-Punkt E).
     """
     verdicts: dict[str, bool] = {}
@@ -644,7 +644,7 @@ def test_gate_aggregator_phase_2_acceptance_all_green(tmp_path):
     )
 
     # Audit-friendly rollup: the aggregator emits a JSON-serialisable
-    # verdict-map that Henrik's weekly Audit-Sample (§4 Audit-Punkt E)
+    # verdict-map that internal audit's weekly Audit-Sample (§4 Audit-Punkt E)
     # consumes. The shape is stable across runs.
     rollup = json.dumps(verdicts, sort_keys=True)
     assert "gate-2-1-symmetry" in rollup

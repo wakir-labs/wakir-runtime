@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang capability-policy explicit-revocation
-surface (Phase-2 Sprint-6 Tag-1, S6-1).
+surface (Phase-2, S6-1).
 
-This is the Sprint-6 follow-on to Sprint-5 Tag-2..5 (capability-policy
-NATS-KV backend, CAS-pin, watch-stream). Sprint-6 Tag-1 adds an
-*explicit revocation* axis to :class:`CapabilityPolicy` that is
-distinct from the Sprint-4 Tag-6 ``disabled`` soft kill-switch:
+This is the follow-on to..5 (capability-policy
+NATS-KV backend, CAS-pin, watch-stream). adds an
+*explicit revocation* axis to:class:`CapabilityPolicy` that is
+distinct from the ``disabled`` soft kill-switch:
 
 - ``revoked_at: Optional[datetime]`` — wall-clock instant at which the
   policy becomes categorically revoked (gate denies any ``as_of >=
@@ -21,7 +21,7 @@ distinct from the Sprint-4 Tag-6 ``disabled`` soft kill-switch:
   policy cannot be un-revoked, nor can its revocation instant be
   advanced; equal-instant idempotent rewrites are permitted (so a
   ``revocation_reason`` refresh remains legal). LWW ``put`` does NOT
-  enforce — consistent with the Sprint-5 Tag-4 "LWW is
+  enforce — consistent with the "LWW is
   operator-deliberate, CAS-pin guards safety invariants" rationale.
 
 Test inventory (T-CPP-REV-01..10 + 2 auxiliary probes):
@@ -44,9 +44,9 @@ Test inventory (T-CPP-REV-01..10 + 2 auxiliary probes):
   rewrite (revocation_reason refresh).
 - T-CPP-REV-aux-advance-rejected: put_with_revision rejects an
   attempt to advance revoked_at strictly later.
-- T-CPP-REV-aux-lww-allows-unrevoke: Sprint-5 Tag-2 LWW ``put`` does
-  NOT enforce revocation-monotonicity (consistent with the Sprint-5
-  Tag-4 LWW vs. CAS-pin safety-invariant policy).
+- T-CPP-REV-aux-lww-allows-unrevoke: LWW ``put`` does
+  NOT enforce revocation-monotonicity (consistent with the
+  LWW vs. CAS-pin safety-invariant policy).
 """
 
 from __future__ import annotations
@@ -82,7 +82,7 @@ from wirelang.schemas.registry_nats_kv_backend import SchemaRegistryEntry
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (CAS-aware, mirrors Sprint-5 Tag-4 test fixture shape)
+# Mock KV (CAS-aware, mirrors test fixture shape)
 # ---------------------------------------------------------------------------
 
 
@@ -420,9 +420,9 @@ def test_t_cpp_rev_07_envelope_round_trip_preserves_revocation_fields():
 
 
 def test_t_cpp_rev_08_envelope_back_compat_without_revocation_keys():
-    """T-CPP-REV-08: an envelope from Sprint-5 Tag-2..5 (no
+    """T-CPP-REV-08: an envelope..5 (no
     ``revoked_at`` / ``revocation_reason`` keys) decodes byte-equally
-    via the additive Sprint-6 Tag-1 decoder to an unrevoked policy.
+    via the additive decoder to an unrevoked policy.
     """
     legacy_payload = {
         "schema": VALUE_SCHEMA,
@@ -573,9 +573,9 @@ def test_t_cpp_rev_aux_advance_rejected():
 
 
 def test_t_cpp_rev_aux_lww_does_not_enforce_revocation_monotonic():
-    """T-CPP-REV-aux: the Sprint-5 Tag-2 LWW ``put`` path does NOT
+    """T-CPP-REV-aux: the LWW ``put`` path does NOT
     enforce revocation-monotonicity. This is consistent with the
-    Sprint-5 Tag-4 rationale: LWW writes are operator-deliberate, the
+     rationale: LWW writes are operator-deliberate, the
     CAS-pin path is the safety-invariant guard. An operator who
     deliberately wants to un-revoke must use the LWW path AND accept
     the audit consequences (the revocation event remains in the

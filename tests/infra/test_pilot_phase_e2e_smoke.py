@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic Pilot-Phase E2E-Smoke-Suite (Sprint-QA-Tag-15).
+"""Hermetic Pilot-Phase E2E-Smoke-Suite (-QA-).
 
 This suite extends the disposable-VM E2E-Acceptance-Gate harness
-(``tests/infra/test_vm_e2e_acceptance_gate.py`` — Sprint-9 Tag-5
+(``tests/infra/test_vm_e2e_acceptance_gate.py`` —
 PR #42 baseline) with Pilot-Phase-1b-specific smoke-vectors:
 
-* Tomas-Persona-Container lifecycle (FSM spec §3.3)
+* the engineering zone-Persona-Container lifecycle (FSM spec §3.3)
 * V-907 build-time-pin + runtime-attest roundtrip
 * Doppelbetrieb-Bridge consistency (Pre-Framework + wakir-Container)
 * Bug-42 symptom regression (subscribe-loop receives a published
@@ -25,7 +25,7 @@ artefacts to the ``acceptance-gate.sh`` script.
 
 Test-Plan: ``docs/test-plans/sprint-qa-tag-15-e2e-pilot-smoke.md``.
 
-— Amara
+— the QA zone
 """
 from __future__ import annotations
 
@@ -90,7 +90,7 @@ def test_tv_pil_fsm_01_states_match_spec_six_states() -> None:
 
     A drift here (new state added without ADR, or state removed)
     would silently invalidate the audit-trail's transition-record
-    schema. Audit-trail consumers (Henrik) and the Migration-Playbook
+    schema. Audit-trail consumers and the Migration-Playbook
     §5 comparison-test-set depend on this surface.
     """
     assert STATES == (
@@ -103,7 +103,7 @@ def test_tv_pil_fsm_01_states_match_spec_six_states() -> None:
     ), (
         "lifecycle FSM states drifted from spec §3.3; if intentional, "
         "the changing PR must also bump the audit-trail-schema version "
-        "and update Henrik's audit-sample template."
+        "and update internal audit's audit-sample template."
     )
 
 
@@ -294,7 +294,7 @@ def test_tv_pil_v907_04_frontmatter_drift_raises_drift_error(
     tmp_path: Path,
 ) -> None:
     """TV-PIL-V907-04 — Frontmatter mutations flip the pin AND the
-    runtime-attest path raises :class:`PersonaHashDriftError`.
+    runtime-attest path raises:class:`PersonaHashDriftError`.
 
     The error carries ``expected`` / ``computed`` / ``persona_id``
     fields that the container's exit-code-mapping at
@@ -324,7 +324,7 @@ def test_tv_pil_v907_04_frontmatter_drift_raises_drift_error(
 
 
 def test_tv_pil_dop_01_verdict_total_over_documented_quadrants() -> None:
-    """TV-PIL-DOP-01 — :func:`verdict` returns one of the documented
+    """TV-PIL-DOP-01 —:func:`verdict` returns one of the documented
     enum values over the four-quadrant input space.
 
     Verdict is the Phase-2 cutover gate input; a missing case here
@@ -381,12 +381,12 @@ def test_tv_pil_dop_03_whitespace_only_drift_still_passes() -> None:
 def test_tv_pil_dop_04_score_schema_id_pinned() -> None:
     """TV-PIL-DOP-04 — Score-schema id is pinned exactly.
 
-    A schema-id drift in the CLI would silently break Henrik's
-    Audit-Sample (item E) and Reza's Wirelang-schema-registry view.
+    A schema-id drift in the CLI would silently break internal audit's
+    Audit-Sample (item E) and the protocol zone's Wirelang-schema-registry view.
     """
     assert SCORE_SCHEMA == "wakir.doppelbetrieb.score/1", (
         "Doppelbetrieb-Score schema-id drift; if intentional, the "
-        "wirelang schema-registry entry + Henrik's audit-sample "
+        "wirelang schema-registry entry + internal audit's audit-sample "
         "template + the Phase-2 quality-gate doc must all bump in "
         "the same PR."
     )
@@ -401,7 +401,7 @@ def test_tv_pil_dop_04_score_schema_id_pinned() -> None:
 #
 # Bug-42 symptom: the persona-engine container subscribed to the
 # canonical task-assigned subject but did not actually run the
-# subscribe-loop (Sprint-Pengine-12 Bug-41 fixed by toggling on
+# subscribe-loop (-Pengine-12 Bug-41 fixed by toggling on
 # WAKIR_SUBSCRIBE_ENV). We encode the post-fix invariant as a
 # regression test so a future refactor cannot silently revert it.
 
@@ -515,7 +515,7 @@ def test_tv_pil_bug42_02_accepted_inbound_schema_id_pinned() -> None:
     ``wakir.agent.task-assigned/1``.
 
     A drift on the consumer side would silently drop every
-    Mira-published auftrag — Bug-42 with a different signature.
+    the CEO-published auftrag — Bug-42 with a different signature.
     """
     assert ACCEPTED_INBOUND_SCHEMA == "wakir.agent.task-assigned/1"
     assert OUTBOUND_OUTPUT_SCHEMA == "wakir.agent.task-output/1"
@@ -552,16 +552,16 @@ def test_tv_pil_bug42_03_malformed_envelope_drop_emits_audit() -> None:
         )
         # Audit substrate evidence:
         #
-        #   (a) The TaskProcessingTracker.tasks_malformed counter must
-        #       have incremented (canonical Bug-42 detector surface).
-        #   (b) The bridge-audit sink must have written a record with
-        #       output_kind == "audit_annotation" (the malformed-drop
-        #       audit-annotation path). The audit-record payload is
-        #       opaque (sha256-hashed body in the JSON-line) so we do
-        #       NOT grep for the word "malformed" in the JSON — that
-        #       would couple the test to the bridge-writer's wire format.
-        #       Presence of audit_annotation in the sink is sufficient
-        #       evidence.
+        # (a) The TaskProcessingTracker.tasks_malformed counter must
+        # have incremented (canonical Bug-42 detector surface).
+        # (b) The bridge-audit sink must have written a record with
+        # output_kind == "audit_annotation" (the malformed-drop
+        # audit-annotation path). The audit-record payload is
+        # opaque (sha256-hashed body in the JSON-line) so we do
+        # NOT grep for the word "malformed" in the JSON — that
+        # would couple the test to the bridge-writer's wire format.
+        # Presence of audit_annotation in the sink is sufficient
+        # evidence.
         assert config.tracker.tasks_malformed >= 1, (
             "tracker.tasks_malformed did not increment on malformed envelope; "
             "Bug-42 regression detector dropped"
@@ -596,13 +596,13 @@ def test_tv_pil_bug42_04_subscribe_env_var_name_pinned() -> None:
 #
 # The 7 bug-classes from feedback_live_bringup_sandbox_gap:
 #
-#   Class 1: Bootstrap resume-hint `bash bash` doubling
-#   Class 2: Volume-File-Names per-side substitution missing
-#   Class 3: Agent-Container Bundles-Volume `-federation-` missing
-#   Class 4: Agent-Container Requires-Service-Name `-federation-` missing
-#   Class 5: Bootstrap-phase not idempotent
-#   Class 6: Bucket-Init container ModuleNotFound (cryptography dep)
-#   Class 7: SPIRE-Server HCL syntax-error + federates_with non-existent
+# Class 1: Bootstrap resume-hint `bash bash` doubling
+# Class 2: Volume-File-Names per-side substitution missing
+# Class 3: Agent-Container Bundles-Volume `-federation-` missing
+# Class 4: Agent-Container Requires-Service-Name `-federation-` missing
+# Class 5: Bootstrap-phase not idempotent
+# Class 6: Bucket-Init container ModuleNotFound (cryptography dep)
+# Class 7: SPIRE-Server HCL syntax-error + federates_with non-existent
 #
 # Each class must map to at least one observable signal the
 # acceptance-gate captures. These vectors assert that mapping is

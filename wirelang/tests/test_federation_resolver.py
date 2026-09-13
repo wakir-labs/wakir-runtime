@@ -2,20 +2,20 @@
 """Hermetic tests for ``wirelang.identity.federation_resolver`` (V-908 PS-5).
 
 These tests exercise the Phase-1b federated AIP-resolve pipeline end-
-to-end: FTD verify (Tag-6 PS-4) + AIP resolve (Phase-1a Tag-21 stub
+to-end: FTD verify (PS-4) + AIP resolve (Phase-1a stub
 shape) + V-908 section 4.1 cross-checks (FTDDomainMismatchError,
 FederatedIssuerKeyError) + cache reuse semantics.
 
 Coverage map versus V-908 §4.1 / §4.6:
 
-* §4.1 step 4 (AIP fetch host check)              -> 3 tests
-* §4.1 step 7 (AIP-key vs FTD issuer set)         -> 3 tests
-* §4.1 steps 5/6/8/9 (AIP delegation)             -> reused by happy path
-* §4.6 ``FTDDomainMismatchError`` row             -> 3 tests
-* §4.3 cache reuse (FTD layer)                    -> 2 tests
-* Phase-1a backwards-compat (single-org path)     -> 2 tests
+* §4.1 step 4 (AIP fetch host check) -> 3 tests
+* §4.1 step 7 (AIP-key vs FTD issuer set) -> 3 tests
+* §4.1 steps 5/6/8/9 (AIP delegation) -> reused by happy path
+* §4.6 ``FTDDomainMismatchError`` row -> 3 tests
+* §4.3 cache reuse (FTD layer) -> 2 tests
+* Phase-1a backwards-compat (single-org path) -> 2 tests
 
-Hermetic boundaries (matches Tag-5 / Tag-6 strategy):
+Hermetic boundaries (matches / strategy):
 
 * No real DNS, no HTTPS. The DNS layer uses a fake ``TxtResolver``;
   the AIP layer uses an in-tree fake resolver that satisfies the
@@ -26,7 +26,7 @@ Hermetic boundaries (matches Tag-5 / Tag-6 strategy):
 * No file-system reads; no use of ``cryptography``, ``rfc8785``,
   ``jsonschema``.
 
-The tests are unittest-based (matches Tag-6 ``test_ftd_verifier``
+The tests are unittest-based (matches ``test_ftd_verifier``
 style; the sandbox does not provide ``pytest``).
 """
 

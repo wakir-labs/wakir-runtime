@@ -20,7 +20,7 @@
 #     — hermetic integrity tests verify each crate's Cargo.toml
 #     version matches the pinned version below.
 #
-#   * `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in_tag48.py`
+#   * `wirelang/tests/persona_engine/test_bridge_audit_writer_wire_in.py`
 #     — hermetic wire-in tests verify the boot fan-out
 #     consults the 10th resolver and the pin-pack agrees that record
 #     #10 is wired, not held back.

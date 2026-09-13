@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Determinism tests for ``wirelang.schemas.publisher_cli`` ``--capability-bucket``.
 
-Phase-2 Sprint-5 Tag-3 — Publisher-CLI ``--capability-bucket`` flag
+Phase-2 — Publisher-CLI ``--capability-bucket`` flag
 integration. End-to-end operator-experience: CLI → NATS-KV
 (``wakir-capability-policies``) → in-process ``CapabilityPolicyRegistry``
-→ Sprint-4 Tag-6 ``gate_signed_entry``.
+→ ``gate_signed_entry``.
 
-The Sprint-5 Tag-3 test inventory pins:
+The test inventory pins:
 
 - T-SR-PUB-CB-01: ``--capability-bucket`` bucket loader — happy path
   (single policy on the bucket) round-trips through the connect
@@ -54,8 +54,8 @@ Hermetic
 - No NATS, no real transport, no DNS, no wall-clock dependency for
   receipt determinism (``--registered-at`` is supplied).
 - Both backends use in-memory mocks: ``_MockKvCas`` for the
-  schema-registry path (mirror of Sprint-5 Tag-1) and ``_MockKv`` for
-  the capability-policy path (mirror of Sprint-5 Tag-2).
+  schema-registry path (mirror of) and ``_MockKv`` for
+  the capability-policy path (mirror of).
 - The Ed25519 seed is RFC 8032 test-vector 1 (32-byte known seed).
 """
 
@@ -109,7 +109,7 @@ class _MockKvEntry:
 
 @dataclass
 class _MockKvCas:
-    """CAS-aware schema-registry KV mock (Sprint-5 Tag-1 mirror)."""
+    """CAS-aware schema-registry KV mock ( mirror)."""
 
     bucket: str = SCHEMA_BUCKET_NAME
     store: dict = field(default_factory=dict)
@@ -141,7 +141,7 @@ class _MockKvCas:
 
 @dataclass
 class _MockKvCapability:
-    """Capability-policy-bucket KV mock (Sprint-5 Tag-2 mirror)."""
+    """Capability-policy-bucket KV mock ( mirror)."""
 
     bucket: str = CAPABILITY_BUCKET_NAME
     store: dict = field(default_factory=dict)
@@ -261,7 +261,7 @@ def _seed_bucket(kv: _MockKvCapability, *records: CapabilityPolicyRecord) -> Non
 
     Bypasses ``NatsKvCapabilityPolicyBackend.put`` and writes envelopes
     directly so the test fixture stays decoupled from put-time
-    validation (which is exercised separately in Sprint-5 Tag-2 tests).
+    validation (which is exercised separately in tests).
     """
     for record in records:
         kv.store[record.key] = _MockKvEntry(
@@ -338,7 +338,7 @@ class TestTSRPUBCB01BucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["signed"] is True
         assert receipt["gate_policy_source"] == "bucket"
@@ -372,7 +372,7 @@ class TestTSRPUBCB02SignGateBucketHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "lww"
         assert receipt["revision"] == 1
@@ -625,7 +625,7 @@ class TestTSRPUBCB09DryRunBucket:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "dry-run"
         assert receipt["signed"] is True
@@ -706,7 +706,7 @@ class TestTSRPUBCB10CrossSourceEquality:
             stdout=out_a,
             stderr=err_a,
         )
-        assert code_a == int(ExitCode.OK), err_a.getvalue()
+        assert code_a == int(ExitCode.OK), err_a.getvalue
         receipt_a = json.loads(out_a.getvalue())
 
         # Bucket-path run.
@@ -722,7 +722,7 @@ class TestTSRPUBCB10CrossSourceEquality:
             stdout=out_b,
             stderr=err_b,
         )
-        assert code_b == int(ExitCode.OK), err_b.getvalue()
+        assert code_b == int(ExitCode.OK), err_b.getvalue
         receipt_b = json.loads(out_b.getvalue())
 
         # Only difference is the policy-source axis.
@@ -765,7 +765,7 @@ class TestAuxBucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         assert cleanup_log == ["cleanup"]
 
     def test_cleanup_called_on_poisoned_envelope(self, tmp_path):
@@ -799,7 +799,7 @@ class TestAuxBucketLoader:
     def test_multi_policy_bucket_preserves_sorted_key_order(self, tmp_path):
         """When multiple policies exist on the bucket, snapshot
         materialises them in sorted-key order; the gate evaluates the
-        first matching policy (in policies_for() FIFO order)."""
+        first matching policy (in policies_for FIFO order)."""
         schema_id = "https://wakir.dev/wirelang/schema/layer-1-wire/0.1.0"
         body = _write_schema_body(tmp_path, schema_id)
         schema_kv = _MockKvCas()
@@ -825,7 +825,7 @@ class TestAuxBucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         # The first policy (sorted by key) is "default" with
         # biscuit-root-1; the gate matches there.

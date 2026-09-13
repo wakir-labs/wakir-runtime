@@ -5,11 +5,11 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-7 = ``recovery_workflow``,
+- ADR-0065 §Rollback-Strategie (wave 7 = ``recovery_workflow``,
   komplexester Pfad, zuletzt).
-- ADR-0066 §Rollback + §Beschluss (Welle-7 = Doppel-Welle mit Welle-6
-  = ``subscribe_loop``, Phase-3c-Closing-Cutover).
-- Sister per-welle E2E acceptance file: ``test_welle_7_recovery_
+- ADR-0066 §Rollback + §Beschluss (wave 7 = dual-run wave mit wave 6
+  = ``subscribe_loop``, Phase-3c-Closing-cutover).
+- Sister per-wave E2E acceptance file: ``test_welle_7_recovery_
   workflow_e2e.py``.
 
 Komponente character
@@ -19,12 +19,12 @@ Komponente character
 coordinates recovery-decisions across state_backing, lifecycle_state_
 machine, and subscribe_loop. Rollback risk profile: **highest** —
 ADR-0065 §Verifikations-Plan ranks recovery_workflow last in the
-welle-sequence specifically because its blast-radius touches the
+wave-sequence specifically because its blast-radius touches the
 full Phase-3c-Komponenten-Inventory.
 
 The four RD-1...RD-4 gates verify the ENV-Flag-Switch contract under
-the most demanding cross-modul-load. The Doppel-Welle DW-6+7 test-
-file ``test_doppel_welle_6_7_e2e.py`` covers the paired-rollback
+the most demanding cross-modul-load. The dual-run wave DW-6+7 test-
+file ``test_dual_run_subscribe_recovery_e2e.py`` covers the paired-rollback
 shape; this file covers the single-Komponente rollback in isolation.
 """
 
@@ -60,11 +60,11 @@ def test_rd_1_env_flag_switch_effective(mocked_rollback_event) -> None:
 def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     """RD-2 — BackendDecision-Audit-Record dokumentiert Rollback-Event.
 
-    Recovery-workflow is the **Welle-Ende-handoff** Komponente
-    (ADR-0065 §Welle-Ende-Acceptance WE-1...WE-4). A rollback at this
-    point is the highest-stakes case in the entire Phase-3c-Welle —
-    the audit-trail integrity is non-negotiable for the Welle-Ende
-    Henrik-Audit-Compliance-Check (WE-3).
+    Recovery-workflow is the **wave-Ende-handoff** Komponente
+    (ADR-0065 §wave-Ende-Acceptance WE-1...WE-4). A rollback at this
+    point is the highest-stakes case in the entire Phase-3c-wave —
+    the audit-trail integrity is non-negotiable for the wave-Ende
+    internal-audit-Compliance-Check (WE-3).
     """
     event = mocked_rollback_event(MODUL)
     assert_rd_2_audit_record_documents_rollback(event, MODUL)

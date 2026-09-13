@@ -438,15 +438,15 @@ def test_unknown_bucket_selector_raises_value_error(mod):
 
 
 def test_phase_1_inventory_is_the_documented_seven_buckets(mod):
-    """Phase-1 inventory contract (Sprint-5 Tag-2 onward).
+    """Phase-1 inventory contract ( onward).
 
     The 5th bucket ``wakir-schema-registry-entries`` was registered
-    Sprint-4 Tag-4 as a Phase-2-reserved schema-registry storage
+     as a Phase-2-reserved schema-registry storage
     bucket. The 6th bucket ``wakir-federation-routes`` was registered
-    Sprint-4 Tag-5 as the V-908 federation-route registry consumed by
+     as the V-908 federation-route registry consumed by
     the Wirelang-side ``NatsKvRouteRegistry`` backend, closing the
-    Sprint-2 Tag-7 Z-B inventory-drift open follow-up. The 7th bucket
-    ``wakir-capability-policies`` was registered Sprint-5 Tag-2 as the
+     Z-B inventory-drift open follow-up. The 7th bucket
+    ``wakir-capability-policies`` was registered as the
     Phase-3-reserved capability-policy persistence bucket
     (audit-friendly defaults; no Phase-1b / Phase-2 live consumer; the
     Wirelang-side ``BUCKET_CONFIG`` byte-mirror anchor lands as a
@@ -555,7 +555,7 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
         checks = asyncio.run(_run())
         # We do not assert "ok" — the live cluster may be a stale
         # tear-down or in mid-bring-up. We DO assert the shape:
-        # exactly six checks (Sprint-4 Tag-5 onward), names match
+        # exactly six checks ( onward), names match
         # the inventory, no errors.
         self.assertEqual(len(checks), 6)
         self.assertEqual(
@@ -566,18 +566,18 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
             self.assertNotEqual(c.status, "error", msg=(c.name, c.detail))
 
     def test_smoke_fifth_bucket_present_in_live_inventory(self) -> None:
-        """Sprint-4 Tag-4 gated-live anchor: confirm the 5th bucket
+        """ gated-live anchor: confirm the 5th bucket
         ``wakir-schema-registry-entries`` shows up in the live cluster
         inventory after an init-pass against the running NATS.
 
         Pre-condition: the live cluster has been initialised by
-        ``scripts/init-nats-buckets.py`` against the Sprint-4-Tag-4
-        five-bucket inventory. If the cluster pre-dates Tag-4 and the
+        ``scripts/init-nats-buckets.py`` against the
+        five-bucket inventory. If the cluster pre-dates and the
         operator has not re-run init, the 5th bucket will be
         ``missing`` (not ``error``) — that is a documented
         upgrade-path state, not a failure of this gated probe. The
         test only asserts that the inventory-check **produced a check**
-        for the 5th bucket (i.e. the inventory in the running script
+        for the 5th bucket (i.e. The inventory in the running script
         contains the new bucket); status semantics are runbook-
         documented.
         """
@@ -610,16 +610,16 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
         )
 
     def test_smoke_sixth_bucket_present_in_live_inventory(self) -> None:
-        """Sprint-4 Tag-5 gated-live anchor: confirm the 6th bucket
+        """ gated-live anchor: confirm the 6th bucket
         ``wakir-federation-routes`` shows up in the live cluster
         inventory after an init-pass against the running NATS.
 
         Pre-condition: the live cluster has been initialised by
-        ``scripts/init-nats-buckets.py`` against the Sprint-4-Tag-5
+        ``scripts/init-nats-buckets.py`` against the
         six-bucket inventory, OR the bucket was pre-created
         out-of-band per the legacy Runbook §6.5 hand-creation recipe
         (Wirelang-side ``NatsKvRouteRegistry`` consumers shipped
-        Sprint-2 Tag-4, before Sprint-4 Tag-5 promoted the bucket
+        before promoted the bucket
         into the routine init pass). The test only asserts that the
         inventory-check **produced a check** for the 6th bucket;
         status semantics are runbook-documented.
@@ -660,16 +660,16 @@ class CheckNatsKvHealthLiveSmokeTests(unittest.TestCase):
         )
 
     def test_smoke_seventh_bucket_present_in_live_inventory(self) -> None:
-        """Sprint-5 Tag-2 gated-live anchor: confirm the 7th bucket
+        """ gated-live anchor: confirm the 7th bucket
         ``wakir-capability-policies`` shows up in the live cluster
         inventory after an init-pass against the running NATS.
 
         Pre-condition: the live cluster has been initialised by
-        ``scripts/init-nats-buckets.py`` against the Sprint-5-Tag-2
+        ``scripts/init-nats-buckets.py`` against the
         seven-bucket inventory. Phase-1b / Phase-2 ships no live
         consumer for this bucket; it is reservation-form for the
         Phase-3 capability-policy persistence promotion (Wirelang-
-        side Sprint-5 Tag-2 paired-update). The test only asserts
+        side paired-update). The test only asserts
         that the inventory-check **produced a check** for the 7th
         bucket; status semantics are runbook-documented (an
         operator-side ``missing`` is the documented Phase-1b-tolerant

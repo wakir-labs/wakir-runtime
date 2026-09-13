@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Cross-lang parity tests for the bridge-audit-writer (Tag-30 Mini-Welle).
+"""Cross-lang parity tests for the bridge-audit-writer (Mini-wave).
 
 The Python module under test
-(:mod:`wirelang.persona_engine.bridge_audit_writer`) is BUSL-1.1; these
+:mod:`wirelang.persona_engine.bridge_audit_writer`) is BUSL-1.1; these
 tests are Apache-2.0 so downstream re-implementers can re-use the same
 vectors.
 
 This file is the **writer-side** parity test (12. Modul,
-Welle-3-Komponente per ADR-0066). The Rust authority lives at
-``wirelang-rust/crates/persona-engine-bridge-audit-writer`` (Tag-30
+wave 3 Komponente per ADR-0066). The Rust authority lives at
+``wirelang-rust/crates/persona-engine-bridge-audit-writer`` (
 deliverable); the cross-lang fixture file at
 ``tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json`` is the
 single source of truth for envelope bytes / record hashes.
 
-Welle-3 Henrik-Audit-Caution context
+wave 3 internal-audit-Caution context
 ------------------------------------
 
-ADR-0066 Welle-3 (KW 25) = Konsistenz-Oracle-Selbst-Cutover. Henrik's
+ADR-0066 wave 3 (calendar week 25) = Konsistenz-Oracle-Selbst-cutover. internal audit's
 audit caution flagged that the cutover needs byte-paritaere cross-lang
-coverage to be COMPLETE before the Welle-3 binding. The writer-side leg
+coverage to be COMPLETE before the wave 3 binding. The writer-side leg
 was the open gap (diff and replay legs were closed in earlier waves);
 these tests close that gap.
 
@@ -30,7 +30,7 @@ Test taxonomy
   hash-prefix match the Rust crate's ``pub const`` items.
 - T02 -- Fixture file shape: schema_version, fixture count, fixture
   name set, per-fixture key set match the documented structure.
-- T03 -- Empty-stream invariant (F01): no emit() calls leaves
+- T03 -- Empty-stream invariant (F01): no emit calls leaves
   step_counter at 0 and the records-list empty.
 - T04 -- Single-record-write byte-pin (F02, parametrised over the one
   record): JCS bytes + hash byte-identical to the fixture pin.
@@ -39,7 +39,7 @@ Test taxonomy
   byte-identical to the fixture pin.
 - T06 -- Error-write-rollback invariant (F04): ValueError on
   output_kind="garbage_kind" does NOT advance the step counter; the
-  post-rollback emit() carries step_index == 2 (not 3); JCS bytes for
+  post-rollback emit carries step_index == 2 (not 3); JCS bytes for
   the three successful records byte-identical to fixture pin.
 - T07 -- Append-only-discipline (F05): two writers run the same
   scripted sequence and produce byte-identical envelopes record-by-
@@ -302,7 +302,7 @@ def test_t06_error_write_rollback_invariant(fixtures_by_name):
     # Three SUCCESSFUL emissions; the failed garbage_kind call was
     # consumed via pytest.raises and did NOT advance the counter.
     assert len(events) == 3
-    # post-rollback emit() carries step_index == 2 (not 3).
+    # post-rollback emit carries step_index == 2 (not 3).
     assert [e.step_index for e in events] == [0, 1, 2]
     assert step_final == 3
     # Byte-pin per record.
@@ -365,7 +365,7 @@ def test_t09_record_hash_byte_identity(fixtures_by_name, fixture_name):
     for evt, pinned in zip(events, pinned_records):
         actual_hash = evt.payload_sha256()
         # Independently re-hash the JCS bytes via hashlib to catch a
-        # rotten payload_sha256() implementation.
+        # rotten payload_sha256 implementation.
         independent_hash = "sha256:" + hashlib.sha256(evt.to_jcs_bytes()).hexdigest()
         assert actual_hash == independent_hash
         assert actual_hash == pinned["hash_prefixed"]
@@ -430,7 +430,7 @@ def test_t13_derivation_idempotence(fixture_doc):
     """Re-derive the fixtures in-process; byte-identical output."""
     # Re-import the derivation module via importlib to avoid polluting
     # sys.path. The script is small and pure; we just call its
-    # build_fixtures() helper.
+    # build_fixtures helper.
     import importlib.util
 
     script_path = (

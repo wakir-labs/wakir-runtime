@@ -7,9 +7,8 @@ shell scripts.
 Context
 -------
 
-Sprint-9-Tag-8 Bug-20 (Federation-Agent crash-loop on FCOS) was caught
-at the **Quadlet** layer by ``test_quadlet_selinux_relabel.py`` (Tomás,
-Tag-8). That test sweeps every ``Volume=`` directive in every
+ Bug-20 (Federation-Agent crash-loop on FCOS) was caught
+at the **Quadlet** layer by ``test_quadlet_selinux_relabel.py``. That test sweeps every ``Volume=`` directive in every
 ``*.container`` unit and asserts ``:Z``/``:z`` discipline.
 
 What that test does NOT catch: direct ``podman run -v`` /
@@ -59,7 +58,7 @@ Test-Vector index
     this test to red with a diagnostic that names the file/line/option
     list (mirrors the
     ``test_quadlet_selinux_relabel.test_every_volume_line_has_selinux_relabel_flag``
-    diagnostic shape so Amara's Zone-X mutation-test methodology
+    diagnostic shape so the QA zone's Zone-X mutation-test methodology
     applies identically).
 
 Sandbox boundary (ADR-0051)
@@ -75,10 +74,10 @@ Cross-Review Zone-X
 This test is the kostenfreie structural alternative to ADR-0060
 (AR-rejected 2026-05-14). It does not require a live-VM or a self-
 hosted runner; it catches the Bug-20 class at source-review time, and
-its mutation-equivalence is auditable by Amara's standard methodology
+its mutation-equivalence is auditable by the QA zone's standard methodology
 (mutate the source, observe red diagnostic, restore).
 
-— Kai
+— the infrastructure zone
 """
 
 from __future__ import annotations
@@ -104,7 +103,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #
 # The allow-list pattern is deliberate: a future shell script that needs
 # podman-volume mounts must be added here in the same PR. This is the
-# same drift-guard pattern Tomás uses in ``test_quadlet_selinux_relabel``
+# same drift-guard pattern the engineering zone uses in ``test_quadlet_selinux_relabel``
 # (``EXPECTED_QUADLET_FILES``).
 
 EXPECTED_PRODUCTION_SCRIPTS: frozenset[str] = frozenset(
@@ -234,13 +233,13 @@ def _extract_podman_invocations(
 # ---------------------------------------------------------------------------
 #
 # A mount string ``src:dst[:opts]`` is classified as:
-#   - HOST_BIND if ``src`` starts with ``/`` (a host path)
-#   - NAMED_VOLUME if ``src`` matches ``[a-zA-Z0-9._-]+(\\.volume)?`` (a
-#     podman-managed named volume; the trailing ``.volume`` is the
-#     Quadlet form and indicates the volume comes from a ``.volume`` unit)
-#   - PARAMETERISED if ``src`` contains ``$`` (variable expansion); we
-#     emit a diagnostic rather than failing — the operator should resolve
-#     this manually in PR review.
+# - HOST_BIND if ``src`` starts with ``/`` (a host path)
+# - NAMED_VOLUME if ``src`` matches ``[a-zA-Z0-9._-]+(\\.volume)?`` (a
+# podman-managed named volume; the trailing ``.volume`` is the
+# Quadlet form and indicates the volume comes from a ``.volume`` unit)
+# - PARAMETERISED if ``src`` contains ``$`` (variable expansion); we
+# emit a diagnostic rather than failing — the operator should resolve
+# this manually in PR review.
 
 _HOST_BIND_RE = re.compile(r"^/")
 _NAMED_VOL_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -277,7 +276,7 @@ def _split_mount(arg: str) -> tuple[str, str, list[str]]:
 # diagnostic surfaces it on regression, and so PR review of a NEW entry
 # requires writing the rationale in code.
 #
-# Sprint-9-Tag-9 baseline: the two entries cover the bootstrap's
+# baseline: the two entries cover the bootstrap's
 # Toolbox-Container fallback path (Step 2 in
 # ``wakir-pilot-bootstrap.sh``), where the operator deliberately shares
 # host paths with the bring-up container WITHOUT a private-relabel
@@ -341,7 +340,7 @@ def production_scripts() -> list[Path]:
 
 
 # ---------------------------------------------------------------------------
-# TV-S9T9-24a — every named-volume mount carries :Z / :z
+# TV-S9T9-24a — every named-volume mount carries:Z /:z
 # ---------------------------------------------------------------------------
 
 
@@ -372,8 +371,8 @@ def test_every_named_volume_mount_has_selinux_relabel_flag(
                     )
     assert not failures, (
         "Bootstrap podman-volume :Z-discipline violations "
-        "(Sprint-9-Tag-9 Bug-24, named-volume class):\n  "
-        + "\n  ".join(failures)
+        "( Bug-24, named-volume class):\n "
+        + "\n ".join(failures)
     )
 
 
@@ -413,8 +412,8 @@ def test_every_host_bind_mount_is_on_allow_list(
                 )
     assert not failures, (
         "Bootstrap host-bind mount allow-list violations "
-        "(Sprint-9-Tag-9 Bug-24, host-bind class):\n  "
-        + "\n  ".join(failures)
+        "( Bug-24, host-bind class):\n "
+        + "\n ".join(failures)
     )
 
 
@@ -444,7 +443,7 @@ def test_parameterised_mounts_surface_as_diagnostic(
                 if _classify(src) == "PARAMETERISED":
                     parametrised.append(f"{rel}:{lineno} podman {kind} -v {arg}")
     # Always pass; this test is a diagnostic surface, not a gate.
-    # The list is empty as of Sprint-9-Tag-9 baseline.
+    # The list is empty as of baseline.
     assert isinstance(parametrised, list)
     # If the count ever grows, the QA review should consider whether to
     # promote these to required-classification.
@@ -467,8 +466,8 @@ def test_production_script_inventory_matches_expected() -> None:
             discovered.add(rel)
     assert discovered == set(EXPECTED_PRODUCTION_SCRIPTS), (
         f"Production-script inventory drift.\n"
-        f"  discovered = {sorted(discovered)}\n"
-        f"  expected   = {sorted(EXPECTED_PRODUCTION_SCRIPTS)}\n"
+        f" discovered = {sorted(discovered)}\n"
+        f" expected = {sorted(EXPECTED_PRODUCTION_SCRIPTS)}\n"
         f"Update EXPECTED_PRODUCTION_SCRIPTS in the same PR that moves "
         f"or renames a production shell script."
     )
@@ -479,9 +478,9 @@ def test_production_script_inventory_matches_expected() -> None:
 # ---------------------------------------------------------------------------
 #
 # Documentation-as-test: this assertion captures the regression-class
-# in code so Henrik's audit-sample can pin to it. The substantive
+# in code so internal audit's audit-sample can pin to it. The substantive
 # mutation experiments are the responsibility of the QA Zone-X handshake
-# (Amara), but the existence of the experiment-classes is asserted here
+#, but the existence of the experiment-classes is asserted here
 # so the mutation-test methodology is not implicit operator knowledge.
 
 
@@ -523,7 +522,7 @@ def test_mutation_vectors_documented() -> None:
     populated so QA's Zone-X handshake has a stable reference.
     """
     assert len(_MUTATION_VECTORS) >= 4, (
-        "mutation-vector index must list ≥4 vectors so Amara's "
+        "mutation-vector index must list ≥4 vectors so the QA zone's "
         "Zone-X mutation-test methodology has full structural coverage"
     )
     seen: set[str] = set()

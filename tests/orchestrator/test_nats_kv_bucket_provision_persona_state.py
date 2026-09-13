@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the persona-state family of
-``bin/nats-kv-bucket-provision`` (Sprint-Pengine-7 Tag-5 OI-PILOT-2).
+``bin/nats-kv-bucket-provision`` (-Pengine-7 OI-PILOT-2).
 
-The persona-state family is a Selin-owned-domain per-persona-per-org
-bucket family added in Sprint-Pengine-7 Tag-5. Unlike the marker-stack
+The persona-state family is a the engine zone-owned-domain per-persona-per-org
+bucket family added in -Pengine-7. Unlike the marker-stack
 and sequence-ledger families (one bucket per ``org_id``), the
 persona-state family carries one bucket per ``(org_id, persona_id)``
 pair. The driver consumes the combined ``"<org_id>-<persona_id>"``
@@ -13,10 +13,10 @@ participate in the per-org fan-out shape.
 
 Coverage axes (T-PERSONA-STATE-01..09):
 
-1. Persona-state family is registered in :data:`BUCKET_FAMILIES`
-   when the Selin-side module is importable.
+1. Persona-state family is registered :data:`BUCKET_FAMILIES`
+   when the engine zone-side module is importable.
 2. Family cross-reference invariant: the registered family's
-   ``bucket_config`` is the Selin-side ``BUCKET_CONFIG`` constant
+   ``bucket_config`` is the engine zone-side ``BUCKET_CONFIG`` constant
    (single source of truth, no re-encoding).
 3. ``plan_and_apply`` with ``persona_state_pairs`` only (empty
    ``org_ids``) emits one ``created`` action per pair.
@@ -76,7 +76,7 @@ def mod():
 
 
 # ---------------------------------------------------------------------------
-# Mock JetStream (shared shape with Tag-1 / Multi-Family tests)
+# Mock JetStream (shared shape with / Multi-Family tests)
 # ---------------------------------------------------------------------------
 
 
@@ -151,7 +151,7 @@ def test_persona_state_family_is_registered_when_module_present(mod):
     assert "persona-state" in family_ids
     # Registry order: persona-state comes after marker-stack and
     # sequence-ledger; the family is the LAST registered entry by
-    # the Tag-5 contract.
+    # the contract.
     assert family_ids[-1] == "persona-state"
 
 
@@ -165,7 +165,7 @@ def test_persona_state_family_re_exports_canonical_constants(mod):
         pytest.skip(
             "wirelang.persona.persona_state_kv* not present on this tip"
         )
-    # Post-Sprint-Pengine-7-Tag-5 B-5 disentanglement: the provisioner
+    # Post--Pengine-7-B-5 disentanglement: the provisioner
     # driver imports the constants-only shim
     # ``wirelang.persona.persona_state_kv_constants`` FIRST and
     # falls back to the full ``wirelang.persona.persona_state_kv``
@@ -199,7 +199,7 @@ def test_persona_state_family_re_exports_canonical_constants(mod):
     )
     assert ps_fam.bucket_config is canonical_config
     assert ps_fam.bucket_name_for_org is canonical_fn
-    # spec_for_org for a combined token carries the Selin-side
+    # spec_for_org for a combined token carries the engine zone-side
     # BUCKET_CONFIG byte-precisely.
     spec = mod.spec_for_org("acme-tomas", family=ps_fam)
     assert spec["bucket"] == "wakir-persona-state-acme-tomas"

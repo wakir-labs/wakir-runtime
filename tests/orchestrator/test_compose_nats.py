@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic tests for ``compose/nats.yaml`` — the Phase-1b Sprint-2
+# Hermetic tests for ``compose/nats.yaml`` — the Phase-1b
 # Box-3 substrate file. These tests are pure compose-parse + invariant
 # assertions; no container engine, no network, no live NATS.
 #
 # Test plan (hermetic):
-#   1. compose-parse: the file is valid YAML and has the expected
-#      top-level shape (``services``, ``volumes``, ``networks``).
-#   2. nats-service-definition: the ``nats`` service points at the
-#      pinned image tag, runs JetStream, exposes ports loopback-only,
-#      mounts the named JetStream volume, and has a health probe.
-#   3. image-pin form: the image tag is one of {tag-only,
-#      digest-pinned}; both are valid Box-3 forms.
-#   4. bucket-init alignment: the four documented Phase-1 bucket
-#      names from ``scripts/init-nats-buckets.py`` are referenced
-#      explicitly somewhere in the compose-file commentary, so a
-#      future operator who reads only the compose file knows what
-#      buckets the substrate is sized for.
-#   5. hardening: cap_drop ALL, no-new-privileges, restart-policy
-#      present.
-#   6. health-check probe shape (CMD-SHELL + JetStream HTTP endpoint).
+# 1. compose-parse: the file is valid YAML and has the expected
+# top-level shape (``services``, ``volumes``, ``networks``).
+# 2. nats-service-definition: the ``nats`` service points at the
+# pinned image tag, runs JetStream, exposes ports loopback-only,
+# mounts the named JetStream volume, and has a health probe.
+# 3. image-pin form: the image tag is one of {tag-only,
+# digest-pinned}; both are valid Box-3 forms.
+# 4. bucket-init alignment: the four documented Phase-1 bucket
+# names from ``scripts/init-nats-buckets.py`` are referenced
+# explicitly somewhere in the compose-file commentary, so a
+# future operator who reads only the compose file knows what
+# buckets the substrate is sized.
+# 5. hardening: cap_drop ALL, no-new-privileges, restart-policy
+# present.
+# 6. health-check probe shape (CMD-SHELL + JetStream HTTP endpoint).
 
 from __future__ import annotations
 
@@ -109,8 +109,8 @@ def test_compose_has_a_single_phase1_service_named_nats(compose_doc: dict) -> No
 def test_nats_service_uses_documented_image_tag(compose_doc: dict) -> None:
     image = compose_doc["services"]["nats"]["image"]
     # Two valid Box-3 forms:
-    #   * tag-only:      ``nats:2.11-alpine``
-    #   * digest-pinned: ``nats:2.11-alpine@sha256:<64-hex>``
+    # * tag-only: ``nats:2.11-alpine``
+    # * digest-pinned: ``nats:2.11-alpine@sha256:<64-hex>``
     tag_only = image == "nats:2.11-alpine"
     digest_pin = re.fullmatch(r"nats:2\.11-alpine@sha256:[0-9a-f]{64}", image)
     assert tag_only or digest_pin, (

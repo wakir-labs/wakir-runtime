@@ -5,11 +5,11 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-4 = ``state_backing``,
+- ADR-0065 §Rollback-Strategie (wave 4 = ``state_backing``,
   persistenter State, höheres Risiko).
-- ADR-0066 §Rollback + §Beschluss (Welle-4 = Doppel-Welle mit
-  Welle-5 = ``lifecycle_state_machine``, Cross-Modul-Drift-Focus).
-- Sister per-welle E2E acceptance file: ``test_welle_4_state_backing_
+- ADR-0066 §Rollback + §Beschluss (wave 4 = dual-run wave mit
+  wave 5 = ``lifecycle_state_machine``, Cross-Modul-Drift-Focus).
+- Sister per-wave E2E acceptance file: ``test_welle_4_state_backing_
   e2e.py``.
 
 Komponente character
@@ -22,7 +22,7 @@ under ADR-0065 §Rollback-Strategie). This drill verifies the
 **non-schema-migration** rollback path: pure ENV-Flag-Switch when no
 schema-evolution is in flight, falling under the 10-minute SLA.
 
-For schema-migration rollback see Reza-Folge-Spawn-Artefakt per
+For schema-migration rollback see the protocol zone-Folge-Spawn-Artefakt per
 ADR-0065 §Folgeartefakte 3 (Schema-Migrations-Rollback-Plan pro
 Komponente, scoped to state_backing + lifecycle_state_machine).
 """
@@ -59,7 +59,7 @@ def test_rd_1_env_flag_switch_effective(mocked_rollback_event) -> None:
 def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     """RD-2 — BackendDecision-Audit-Record dokumentiert Rollback-Event.
 
-    State-backing rollbacks are high-stakes for Henrik-Zone-N because
+    State-backing rollbacks are high-stakes for internal audit-Zone-N because
     persistent-state-touching changes leave a forensic footprint. The
     audit-record must name ``state_backing`` and ``target_backend=
     python`` and carry a non-empty cutover-cycle-id so the audit-
@@ -79,7 +79,7 @@ def test_rd_3_cross_modul_konsistenz_post_rollback(
     lifecycle_state_machine`` (producer → consumer JCS-record-pair).
     Post-rollback, the Phase-2-Acceptance-Gate stresses this
     touchpoint and verifies byte-parity. ADR-0066 §Beschluss flags
-    this Doppel-Welle's Cross-Modul-Drift-Focus as **hoch** — RD-3
+    this dual-run wave's Cross-Modul-Drift-Focus as **hoch** — RD-3
     inherits that priority.
     """
     gate = mocked_phase_2_acceptance_gate(MODUL)

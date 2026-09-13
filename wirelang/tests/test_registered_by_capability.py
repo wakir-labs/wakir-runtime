@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for ``wirelang.schemas.registered_by_capability``.
 
-Phase-2 Sprint-4 Tag-6. Tests cover the capability-policy bundle
+Phase-2. Tests cover the capability-policy bundle
 shape, the registry lookup contract, the gating decision matrix
 (allow / deny by every dimension: kid, triple, validity window,
-disabled), the end-to-end composition with the Sprint-4 Tag-1
+disabled), the end-to-end composition with the
 :class:`SignedSchemaRegistryEntry`, and the structural failure
 contract.
 

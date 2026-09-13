@@ -109,7 +109,7 @@ gh workflow run build-rust-cli-lifecycle-state-machine.yml \
   entry-point + unit-tests.
 - `infra/lifecycle-state-machine-rust-cli/Containerfile` — multi-
   stage build recipe.
-- `tests/workflows/test_build_rust_cli_welle_4_5_6_7.py` —
+- `tests/workflows/test_build_rust_cli_images.py` —
   hermetic workflow-structure tests.
 - `policies/cosign-policy-phase-3b.yaml` — 13-binary inventory
   including this image as `fsm-welle5`.

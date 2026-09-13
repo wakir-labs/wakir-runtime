@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """TV-2 real-manifest live-run validation.
 
-Sprint-3 Tag-2 substance: the four hour-receipts produced by the
+ substance: the four hour-receipts produced by the
 TV-2 multi-hour audit-trail run on 2026-05-06 are committed under
 ``tests/fixtures/wat-tv2-real/`` and are exercised here as the
 real-world-anchored reference cohort for the v1 schema-file +
@@ -22,7 +22,7 @@ Per real on-disk hour-receipt (4 of them, 2026-05-27T00..T03):
    under direct ``jsonschema``-driver validation.
 
 3. ``root.bin`` is exactly 32 bytes equal to ``bytes.fromhex
-   (manifest['merkle_root'])`` — i.e. the file the OpenTimestamps
+   (manifest['merkle_root'])`` — i.e. The file the OpenTimestamps
    anchor signs is the same bytes as the manifest's merkle_root
    field.
 
@@ -41,9 +41,9 @@ Why this is hard substance for Phase-1b→1c
 ------------------------------------------
 
 The schema-file plus ``use_schema_file=True`` plumbing has had
-synthetic-vector coverage since Sprint-2 Tag-6 (smoke tests) and
-Sprint-3 Tag-1 (cross-tool-parity with ajv). What is missing
-until Tag-2 is the assertion that the same plumbing accepts real
+synthetic-vector coverage since (smoke tests) and
+ (cross-tool-parity with ajv). What is missing
+until is the assertion that the same plumbing accepts real
 on-disk manifests produced by the *production aggregator* against
 *real Bitcoin-anchored* root.bin.ots side-files. This is the
 acceptance evidence Phase-1b→1c needs: the verifier pipeline is
@@ -69,7 +69,7 @@ from wat.verify.manifest_v2 import (
 # ---------------------------------------------------------------------------
 
 #: Repository-relative path to the TV-2 real-manifest fixture cohort
-#: (committed to the repo as Sprint-3 Tag-2 Brand-Demo-anchor source).
+#: (committed to the repo as Brand-Demo-anchor source).
 TV2_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "wat-tv2-real"
 
 #: The four hour-slots that comprise the TV-2 run, in chronological
@@ -284,9 +284,9 @@ def test_tv2_driver_real_tv2_mode_runs_clean():
 
     The driver iterates the TV-2 fixture cohort and re-runs the same
     pipeline this test module asserts; this is the CLI surface the
-    Tag-2 outbox quotes.
+    outbox quotes.
 
-    Sprint-6-Tag-7 (F-5 fix family): when the test runs in a worktree
+     (F-5 fix family): when the test runs in a worktree
     clone the editable install's ``__editable__.*.pth`` finder may
     point at a pruned worktree, in which case ``from wat...`` inside
     the driver script raises ``ModuleNotFoundError``. Set

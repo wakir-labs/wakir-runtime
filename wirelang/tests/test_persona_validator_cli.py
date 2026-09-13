@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI test pack for ``wakir-persona validate`` (Phase-1b
-Sprint-6 Tag-2).
+"""Operator CLI test pack for ``wakir-persona validate`` (Phase-1b).
 
 Covers the ``validate`` subcommand declared in
 :mod:`wirelang.persona.cli`. The subcommand is a thin wrapper around
@@ -201,7 +200,7 @@ def test_validate_missing_file_returns_exit_code_3(
 
 
 # Rust-fixture-tree relative to this test file. Walking up via
-# resolve().parents[N] avoids assumptions about cwd at pytest invocation.
+# resolve.parents[N] avoids assumptions about cwd at pytest invocation.
 RUST_FIXTURE_DIR = (
     Path(__file__).resolve().parents[2]
     / "wirelang-rust"
@@ -283,7 +282,7 @@ def test_validate_v8_idempotent_stdout(
 def test_migrate_subcommand_still_works_after_validate_added(
     capsys: pytest.CaptureFixture[str],
 ):
-    """Sprint-6 Tag-2 must not regress the migrate subcommand."""
+    """ must not regress the migrate subcommand."""
     rc = main(["migrate", str(V9_FIXTURE), "--quiet"])
     captured = capsys.readouterr()
     assert rc == 0

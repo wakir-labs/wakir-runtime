@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-Tag-8 CI-Wrapper for Live-VM-Acceptance:
+"""Hermetic tests for -CI-Wrapper for Live-VM-Acceptance:
 ``scripts/ci-live-vm-acceptance-wrapper.sh``.
 
-Anlass — AR-Direktive 2026-05-15 23:35 CEST. Tomás's Tag-6/9 on-VM
+Anlass — AR-Direktive 2026-05-15 23:35 CEST. The engineering zone's /9 on-VM
 acceptance script is source-of-truth; this wrapper adds the
 SSH-driven CI-callable half (operator-host pre-check, repo-pull,
 federation-config reset, on-VM acceptance invocation, summary-JSON

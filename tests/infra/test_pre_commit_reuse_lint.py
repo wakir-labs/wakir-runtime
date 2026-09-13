@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the REUSE-Lint pre-commit-hook configuration.
 
-Tag-32 EXT-AUDIT-FOLGE companion. Covers five acceptance-vectors:
+EXT-AUDIT-FOLGE companion. Covers five acceptance-vectors:
 
 1. ``.pre-commit-config.yaml`` shape — file exists, valid YAML,
    declares the three expected hooks with their canonical IDs.
@@ -94,7 +94,7 @@ def test_pre_commit_config_declares_canonical_hook_ids() -> None:
     expected = {"reuse", "spdx-header-check", "reuse-toml-annotation-drift"}
     missing = expected - hook_ids
     assert not missing, (
-        f"missing canonical hook-IDs in .pre-commit-config.yaml: {missing}"
+        f"missing canonical hook-IDs .pre-commit-config.yaml: {missing}"
     )
 
 
@@ -425,7 +425,7 @@ def test_reuse_toml_drift_script_rejects_invalid_toml(tmp_path: Path) -> None:
 
 
 def test_runbook_exists_and_anchors_to_adr_0061() -> None:
-    """Runbook must exist and anchor to ADR-0061 + Tag-32 EXT-AUDIT-FOLGE."""
+    """Runbook must exist and anchor to ADR-0061 + EXT-AUDIT-FOLGE."""
     assert RUNBOOK.is_file(), f"missing runbook: {RUNBOOK}"
     text = RUNBOOK.read_text(encoding="utf-8")
     assert "ADR-0061" in text

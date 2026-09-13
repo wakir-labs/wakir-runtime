@@ -1,11 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the SPIRE-Agent-Sidecar (Phase-2.2,
-Sprint-6 Tag-9).
+"""Hermetic acceptance tests for the SPIRE-Agent-Sidecar (Phase-2.2).
 
 These tests are additive on top of:
   * ``test_compose_spire.py`` (16 Phase-2.1 SPIRE-Server invariants).
-  * ``test_compose_spire_cosign_pin.py`` (9 Tag-8 Cosign-Digest-Pin
+  * ``test_compose_spire_cosign_pin.py`` (9 Cosign-Digest-Pin
     additions, all SPIRE-Server-targeted).
 
 The Phase-2.2 substrate adds a paired ``spire-agent`` service block to
@@ -54,18 +53,15 @@ the agent's NodeAttestor away from ``join_token`` (e.g. to
 convention, these tests will fail loudly and force a co-edit — which
 is the intended drift-gate.
 
-Cross-reference (Reza-track, not imported here):
+Cross-reference:
   * SPIFFE-ID-Binding spec: ``wirelang/specs/identity-substrate.md``
-    §5 (Reza Sprint-6 Tag-4, commit ``ece8f45``; not in the Tag-9
-    baseline — referenced by path only).
+    §5.
   * Workload-API adapter surface:
-    ``wirelang/adapters/spiffe_workload_api.py`` (Reza Sprint-6 Tag-4
-    skeleton; ``MockSpiffeWorkloadApiAdapter`` in Reza Sprint-6
-    Tag-5, commit ``9c94517``). The Tag-9 hermetic substrate does not
+    ``wirelang/adapters/spiffe_workload_api.py``. The hermetic substrate does not
     import this adapter; persona-container Workload-API consumers
     will (Phase-2.3+).
-  * Real-adapter ``real_spiffe_workload_api.py`` is a Reza Tag-7+
-    slot; not present in the Tag-9 baseline.
+  * Real-adapter ``real_spiffe_workload_api.py`` is a the protocol zone +
+    slot; not present in the baseline.
 """
 
 from __future__ import annotations
@@ -131,13 +127,13 @@ def test_compose_has_exactly_two_spire_services_phase_2_2(
     compose_doc: dict,
 ) -> None:
     """Phase-2.2 nails the substrate to exactly two services:
-    spire-server (Tag-6) and spire-agent (Tag-9). No additional
+    spire-server and spire-agent. No additional
     services land in the same compose file — persona-containers go
     into their own compose file (Phase-2.3+ Operator-Hand)."""
     services = compose_doc["services"]
     assert set(services.keys()) == {"spire-server", "spire-agent"}, (
         f"Phase-2.2 must declare exactly {{'spire-server', 'spire-agent'}}; "
-        f"got {set(services.keys())!r}"
+        f"got {set(services.keys)!r}"
     )
 
 
@@ -175,13 +171,13 @@ def test_agent_image_has_cosign_digest_pin_form(
     agent_service: dict,
 ) -> None:
     """Agent image MUST be ``tag@sha256:<digest-or-placeholder>`` —
-    parity with the SPIRE-Server Tag-8 form. Operator-Hand
+    parity with the SPIRE-Server form. Operator-Hand
     substitutes the canonical digest after ``cosign verify`` +
     ``skopeo inspect``."""
     image = agent_service["image"]
     tag_part, sep, digest_part = image.partition("@")
     assert sep == "@", (
-        f"Tag-9 agent image-pin must be digest-pinned 'tag@sha256:<digest>'; "
+        f"agent image-pin must be digest-pinned 'tag@sha256:<digest>'; "
         f"got: {image!r}"
     )
     assert digest_part.startswith("sha256:"), (
@@ -211,7 +207,7 @@ def test_agent_pinned_tag_matches_server_version(
     """Agent and server MUST be the same SPIRE version. A version
     skew between server and agent is a Phase-2 operability hazard
     (workload-API protocol drift on minor-version mismatch). The
-    Tag-9 substrate pins both to 1.14.6 (the SPIRE briefing version)."""
+    substrate pins both to 1.14.6 (the SPIRE briefing version)."""
     agent_tag = agent_service["image"].partition("@")[0]
     server_tag = server_service["image"].partition("@")[0]
     agent_ver = agent_tag.rpartition(":")[2]
@@ -221,7 +217,7 @@ def test_agent_pinned_tag_matches_server_version(
         f"must use the same version"
     )
     assert agent_ver == "1.14.6", (
-        f"Phase-2.2 pins SPIRE to 1.14.6 (Sprint-6 box-briefing); "
+        f"Phase-2.2 pins SPIRE to 1.14.6 ( box-briefing); "
         f"got: {agent_ver!r}"
     )
 
@@ -237,7 +233,7 @@ def test_agent_has_hardening_parity_with_server(
     """The agent must mirror the server's hardening posture
     (cap_drop ALL, no-new-privileges, read_only, non-root user,
     restart unless-stopped). Drift here is a security regression
-    that the Tag-9 substrate must catch loudly."""
+    that the substrate must catch loudly."""
     # cap_drop parity.
     assert agent_service.get("cap_drop") == server_service.get("cap_drop") == ["ALL"]
     # no-new-privileges parity.
@@ -281,7 +277,7 @@ def test_agent_mounts_server_admin_sockets_volume(
     the same volume at the same path (``/run/spire/sockets``).
     Drift here breaks the Server↔Agent attestation channel.
 
-    Per Mira-Box-Brief Tag-9: "Workload-API-Unix-Socket via shared
+    Per operator-Box-Brief: "Workload-API-Unix-Socket via shared
     named-Volume ``spire_server_sockets``" — this is the server-side
     socket-share volume; the Workload-API itself lives on the
     separate ``spire_agent_sockets`` volume (see next test) per the
@@ -519,17 +515,17 @@ def test_agent_conf_uses_insecure_bootstrap_phase_2(
 
 
 # ---------------------------------------------------------------------
-# 8 — Test-count contract self-check (Tag-9 contributes 17 tests)
+# 8 — Test-count contract self-check (contributes 17 tests)
 # ---------------------------------------------------------------------
 
 
 def test_tag_9_contributes_twenty_tests_to_spire_compose_suite() -> None:
     """Pure-contract self-check: this file MUST contribute exactly
-    20 tests to the SPIRE-Compose suite. Tag-6 contributed 16,
-    Tag-8 contributed 9, Tag-9 contributes 20. Total SPIRE-Compose:
+    20 tests to the SPIRE-Compose suite. contributed 16,
+    contributed 9, contributes 20. Total SPIRE-Compose:
     16 + 9 + 20 = 45 (collected from these three files).
 
-    The 20 Tag-9 additions are:
+    The 20 additions are:
       * 2 service-shape (two services; agent depends_on server-health)
       * 3 image-pin (cosign-digest form, ghcr.io/spiffe org,
         version-parity with server)
@@ -561,6 +557,6 @@ def test_tag_9_contributes_twenty_tests_to_spire_compose_suite() -> None:
         if name.startswith("test_")
     ]
     assert len(test_fns) == 20, (
-        f"Tag-9 spire-agent file must contribute exactly 20 tests; "
+        f"spire-agent file must contribute exactly 20 tests; "
         f"got {len(test_fns)}: {test_fns!r}"
     )

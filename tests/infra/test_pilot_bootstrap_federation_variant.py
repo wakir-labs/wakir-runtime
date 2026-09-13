@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-10 Tag-3 federation-variant Quadlet
+"""Hermetic tests for the federation-variant Quadlet
 substance in ``infra/spire/federation/wakir-pilot-bootstrap.sh``.
 
-Sprint-10 Tag-3 closes the last substance gap for the M-3 Live-
+ closes the last substance gap for the M-3 Live-
 Federation-Trial-Gate: the bundle-endpoint host bind must be reachable
 cross-VM in federation-mode (HOST_BUNDLE_BIND=0.0.0.0). In single-org
 mode the bundle-endpoint stays loopback-only (no peer exists). The
 gRPC API stays loopback-only in BOTH modes (security invariant — it
 is the privileged control plane).
 
-Additionally Sprint-10 Tag-3 adds two new env-vars for federation-
+Additionally adds two new env-vars for federation-
 mode operator-hand convenience:
 
 * ``WAKIR_PEER_SIDE`` — peer trust-domain side literal (mirror of
@@ -118,7 +118,7 @@ def test_peer_side_documented_in_usage_banner(bootstrap_source: str) -> None:
     m = re.search(
         r"usage\(\)\s*\{(.*?)^\}", bootstrap_source, re.DOTALL | re.MULTILINE
     )
-    assert m, "usage() function not found"
+    assert m, "usage function not found"
     assert "WAKIR_PEER_SIDE" in m.group(1)
     assert "WAKIR_PEER_HOST" in m.group(1)
 
@@ -276,7 +276,7 @@ def test_peer_side_accepts_valid_literals_in_help() -> None:
 # /etc/hosts wiring behaviour via the _install_peer_host_entry function.
 #
 # We extract the function body via ``bash -c 'source bootstrap; declare -f
-# _install_peer_host_entry; ... run it'`` so it executes in isolation
+# _install_peer_host_entry;... run it'`` so it executes in isolation
 # against a fixture hosts file.
 # ---------------------------------------------------------------------------
 

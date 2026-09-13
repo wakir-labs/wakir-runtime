@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Auftrag-literal-path re-export of the federation-frame parser tests.
+"""assignment-literal-path re-export of the federation-frame parser tests.
 
-The Tag-14 Mini-Welle Auftrag named this path explicitly:
+The Mini-wave assignment named this path explicitly:
 
     "10+ Python-Tests in `tests/federation/test_federation_frame_parser.py`"
 

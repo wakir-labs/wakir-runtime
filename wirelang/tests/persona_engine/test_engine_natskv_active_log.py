@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 OI-PEFR-1 engine-side tests.
+"""-Pengine-9 OI-PEFR-1 engine-side tests.
 
 Verifies that the engine boot path emits ``state-backing-natskv-active``
 INFO (instead of the v0.2.0-pilot ``state-backing-fence-to-in-memory``
@@ -76,7 +76,7 @@ def _capture_log(sink: io.StringIO) -> List[dict]:
 
 
 def test_engine_version_constant_bumped_to_0_4_1_pilot():
-    # Sprint-Pengine-11 bump: 0.4.0-pilot -> 0.4.2-pilot for the
+    # -Pengine-11 bump: 0.4.0-pilot -> 0.4.2-pilot for the
     # Bug-40 SVID-fetch graceful-fallback pattern.
     assert ENGINE_VERSION == "0.5.3"
 

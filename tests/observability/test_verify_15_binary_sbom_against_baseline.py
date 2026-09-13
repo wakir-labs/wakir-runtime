@@ -4,7 +4,7 @@
 """Hermetic tests for
 ``scripts/observability/verify-15-binary-sbom-against-baseline.py``.
 
-Tag-49 Kai -- 15-Binary SBOM-vs-Baseline verifier.
+The infrastructure zone -- 15-Binary SBOM-vs-Baseline verifier.
 
 Coverage targets the pure-function core (no live cargo / network).
 The tests in this file cover:
@@ -26,7 +26,7 @@ NEVER call cargo / cosign / podman / network. They construct
 synthetic per-binary SBOM dicts inline and assert the verifier's
 drift classification, per-binary verdict, and aggregate verdict.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations
@@ -440,7 +440,7 @@ def test_TV_RD_02_markdown_contains_verdict_and_per_binary_table():
 
 
 def test_TV_CLI_01_cli_drives_full_pipeline_against_synthetic_dirs(tmp_path):
-    """TV-CLI-01: full main() pipeline run with synthetic SBOM dirs.
+    """TV-CLI-01: full main pipeline run with synthetic SBOM dirs.
 
     Exercises:
       * file-loading from disk,
@@ -450,7 +450,7 @@ def test_TV_CLI_01_cli_drives_full_pipeline_against_synthetic_dirs(tmp_path):
       * textfile + markdown rendering,
       * stdout digest line.
 
-    Uses the real Tag-48 generator's TAG45_BINARY_INVENTORY by
+    Uses the real generator's TAG45_BINARY_INVENTORY by
     looking the constant up via the verifier's loader path. The
     test writes synthetic per-binary SBOMs covering every name in
     the inventory.
@@ -585,7 +585,7 @@ def test_TV_CLI_02_exit_non_zero_on_drift_flag_returns_1(tmp_path):
 def test_TV_BL_01_baseline_state_dir_contains_15_files():
     """TV-BL-01: ``tooling/baselines/sbom-baseline/`` has fifteen baseline JSON files.
 
-    Substrate invariant -- the Tag-49 baseline-freeze is captured.
+    Substrate invariant -- the baseline-freeze is captured.
     Without this guard a future deletion of one of the fifteen
     baselines silently regresses the substrate to MISSING-BASELINE.
     """
@@ -600,7 +600,7 @@ def test_TV_BL_01_baseline_state_dir_contains_15_files():
 
 
 def test_TV_BL_02_baseline_inventory_matches_tag45():
-    """TV-BL-02: baseline filenames cover the Tag-45 15-binary inventory.
+    """TV-BL-02: baseline filenames cover the 15-binary inventory.
 
     Substrate invariant -- the baseline directory's filenames must
     match the inventory the verifier iterates. A mismatch surfaces

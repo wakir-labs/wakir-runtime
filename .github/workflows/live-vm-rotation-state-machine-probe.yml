@@ -52,13 +52,13 @@ on:
       - main
     paths:
       - 'tooling/ci/simulate_live_vm_rotation_state_machine.py'
-      - 'tests/ci/test_live_vm_rotation_state_machine_tag60.py'
+      - 'tests/ci/test_live_vm_rotation_state_machine.py'
       - 'docs/operations/live-vm-rotation-state-machine.md'
       - '.github/workflows/live-vm-rotation-state-machine-probe.yml'
   pull_request:
     paths:
       - 'tooling/ci/simulate_live_vm_rotation_state_machine.py'
-      - 'tests/ci/test_live_vm_rotation_state_machine_tag60.py'
+      - 'tests/ci/test_live_vm_rotation_state_machine.py'
       - 'docs/operations/live-vm-rotation-state-machine.md'
       - '.github/workflows/live-vm-rotation-state-machine-probe.yml'
   workflow_dispatch:
@@ -167,7 +167,7 @@ jobs:
       - name: Run hermetic test-suite
         run: |
           set -eu
-          python3 -m pytest tests/ci/test_live_vm_rotation_state_machine_tag60.py -v
+          python3 -m pytest tests/ci/test_live_vm_rotation_state_machine.py -v
 
       - name: Stage 4 — Enforce aggregate verdict
         shell: bash

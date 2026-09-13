@@ -38,13 +38,13 @@ captured in the welle-fokus column.
 
 | Welle | Modul | Test-File | Risiko-Klasse | Welle-Fokus |
 |---|---|---|---|---|
-| 1 | `v907_verify` | `test_welle_1_v907_verify_e2e.py` | Niedrigste (read-only) | V-907-pin-attest payload parity |
-| 2 | `svid_workload_identity` | `test_welle_2_svid_workload_identity_e2e.py` | Niedrig (deterministic lookup) | SPIRE-SVID-payload hash parity |
-| 3 | `bridge_audit_writer` | `test_welle_3_bridge_audit_writer_e2e.py` | Mittel (write, idempotent) | WAT-anchor idempotency + hold-out python writer |
-| 4 | `state_backing` | `test_welle_4_state_backing_e2e.py` | Erhöht (persistent state) | JCS-byte-parity + schema-migration-rollback |
-| 5 | `lifecycle_state_machine` | `test_welle_5_lifecycle_state_machine_e2e.py` | Erhöht (cross-modul state) | Transition-table cross-lang parity + Welle-4 contract |
-| 6 | `subscribe_loop` | `test_welle_6_subscribe_loop_e2e.py` | Hoch (NATS state) | Subscription-cursor parity + Bug-42-replay |
-| 7 | `recovery_workflow` | `test_welle_7_recovery_workflow_e2e.py` | Höchste (cross-modul orchestration) | Recovery-decision parity + Welle-Ende WE-1...WE-4 |
+| 1 | `v907_verify` | `test_v907_verify_e2e.py` | Niedrigste (read-only) | V-907-pin-attest payload parity |
+| 2 | `svid_workload_identity` | `test_svid_workload_identity_e2e.py` | Niedrig (deterministic lookup) | SPIRE-SVID-payload hash parity |
+| 3 | `bridge_audit_writer` | `test_bridge_audit_writer_e2e.py` | Mittel (write, idempotent) | WAT-anchor idempotency + hold-out python writer |
+| 4 | `state_backing` | `test_state_backing_e2e.py` | Erhöht (persistent state) | JCS-byte-parity + schema-migration-rollback |
+| 5 | `lifecycle_state_machine` | `test_lifecycle_state_machine_e2e.py` | Erhöht (cross-modul state) | Transition-table cross-lang parity + Welle-4 contract |
+| 6 | `subscribe_loop` | `test_subscribe_loop_e2e.py` | Hoch (NATS state) | Subscription-cursor parity + Bug-42-replay |
+| 7 | `recovery_workflow` | `test_recovery_workflow_e2e.py` | Höchste (cross-modul orchestration) | Recovery-decision parity + Welle-Ende WE-1...WE-4 |
 
 ## 2. AC-1 ... AC-5 contract surface
 
@@ -182,9 +182,9 @@ Wellen + one Solo-Welle (Welle-3, Henrik-Caution carve-out).
 
 | Doppel-Welle | KW | Modul-A | Modul-B | Charakter | Cross-Modul-Drift-Focus | Test-File |
 |---|---|---|---|---|---|---|
-| DW-1+2 | KW 24 | `v907_verify` | `svid_workload_identity` | Read-only-paar | Niedrig (kein gemeinsamer Schema-Touchpoint) | `test_doppel_welle_1_2_e2e.py` |
-| DW-4+5 | KW 26 | `state_backing` | `lifecycle_state_machine` | Cross-modul-state-paar | **Hoch** (Producer/Consumer JCS-Schema-Contract, beidseitig Rust) | `test_doppel_welle_4_5_e2e.py` |
-| DW-6+7 | KW 27 | `subscribe_loop` | `recovery_workflow` | Stateful-loop-paar | Mittel (Subscription-Cursor + Recovery-Readback) | `test_doppel_welle_6_7_e2e.py` |
+| DW-1+2 | KW 24 | `v907_verify` | `svid_workload_identity` | Read-only-paar | Niedrig (kein gemeinsamer Schema-Touchpoint) | `test_dual_run_v907_svid_e2e.py` |
+| DW-4+5 | KW 26 | `state_backing` | `lifecycle_state_machine` | Cross-modul-state-paar | **Hoch** (Producer/Consumer JCS-Schema-Contract, beidseitig Rust) | `test_dual_run_state_backing_lifecycle_e2e.py` |
+| DW-6+7 | KW 27 | `subscribe_loop` | `recovery_workflow` | Stateful-loop-paar | Mittel (Subscription-Cursor + Recovery-Readback) | `test_dual_run_subscribe_recovery_e2e.py` |
 
 ### 9.2 DW-AC-1 ... DW-AC-5 Acceptance-Kriterien
 
@@ -249,7 +249,7 @@ asymmetric-rollback audit-trail when DW-AC-3 fires in the field.
 * The Rollback-SLA (`ROLLBACK_SLA_SECONDS = 600`) is ADR-0065/-0066-
   fixed (10min ENV-Flag-Switch); the Welle-4-specific 2h Schema-
   Migrations-Rollback drill is covered by a `@pytest.mark.skip`
-  placeholder in `test_doppel_welle_4_5_e2e.py`.
+  placeholder in `test_dual_run_state_backing_lifecycle_e2e.py`.
 
 ## 10. Welle-3 Henrik-Caution-Extension (ADR-0066 §Beschluss Solo-Welle-Carve-out)
 

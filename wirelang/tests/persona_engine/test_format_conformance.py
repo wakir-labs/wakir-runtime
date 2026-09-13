@@ -154,8 +154,8 @@ def test_schema_carries_container_bridge_field():
 def test_engine_version_format_semver_pilot():
     """Engine __version__ format invariant.
 
-    Pre-Tag-62 the engine version carried an ``-rc<N>`` pre-release
-    suffix. Tag-62 promoted to the rc-suffix-drop final; the format
+    Pre-the engine version carried an ``-rc<N>`` pre-release
+    suffix. promoted to the rc-suffix-drop final; the format
     invariant now accepts either:
 
     * a bare three-dotted semver ``MAJOR.MINOR.PATCH`` (final tag), or

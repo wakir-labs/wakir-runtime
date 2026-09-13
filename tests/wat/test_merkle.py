@@ -231,7 +231,7 @@ def test_odd_at_intermediate_level_duplicates() -> None:
 
 
 def test_proof_round_trip_for_odd_tree() -> None:
-    """Inclusion proof must hold even when intermediate padding kicks in."""
+    """Inclusion proof must hold even when intermediate padding kicks."""
     leaves = _make_leaves(5)
     root, _ = build_merkle_tree(leaves)
     for idx in range(len(leaves)):

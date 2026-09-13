@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Determinism and rule-conformance tests for
-:mod:`wirelang.nats.subject_mapping` (Phase-1b Sprint-2 Tag-1, S2-Item I-1).
+:mod:`wirelang.nats.subject_mapping` (Phase-1b, S2-Item I-1).
 
 Test-IDs map to the determinism invariants T-NSM-01..T-NSM-10 documented
 in ``specs/nats-subject-mapping-v1.md`` §10. Six negative-control tests
@@ -162,7 +162,7 @@ def test_nsm_09_schema_for_subject_advisory():
          "https://wakir.dev/wirelang/schema/federation-trust-document/0.1.0"),
         ("wakir.prod.agent.agent.task.assigned",
          "https://wakir.dev/wirelang/schema/layer-2-semantic/0.1.0"),
-        ("wakir.prod.wat.wat.audit.anchor.created", None),  # Tomás-owner
+        ("wakir.prod.wat.wat.audit.anchor.created", None),  # the engineering zone-owner
     ]
     for subject, expected in cases:
         assert schema_for_subject(subject) == expected, f"{subject!r}"
@@ -247,7 +247,7 @@ def test_negative_cross_env_stream_pattern_rejected():
 
 
 def test_subject_v1_to_string_matches_build():
-    """SubjectV1.to_string() agrees with build_subject."""
+    """SubjectV1.to_string agrees with build_subject."""
     sv = SubjectV1(env="prod", domain="cap", event_type="cap.token.issued",
                    sub_id="reza")
     assert sv.to_string() == "wakir.prod.cap.cap.token.issued.reza"

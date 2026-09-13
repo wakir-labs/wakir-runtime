@@ -2,22 +2,22 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # Hermetic tests for ``scripts/verify-image-digest.sh`` (Phase-2
-# Sprint-4 Tag-3, Cross-Review Zone-C digest-pin upgrade).
+#, Cross-Review Zone-C digest-pin upgrade).
 #
 # Test plan (hermetic — no network, no container engine, no cosign):
 #
-#   1. Repo-compose default-mode parses cleanly and reports digest-pin.
-#   2. Tag-only synthetic compose fixture passes in default (warn) mode
-#      and exit-2 fails under ``--strict``.
-#   3. Malformed image-pin (no tag, no digest) exits 1.
-#   4. Wrong digest-format (shorter than 64 hex) exits 1.
-#   5. ``--expected-digest`` mismatch exits 1; match exits 0.
-#   6. ``--expected-tag`` mismatch exits 1.
+# 1. Repo-compose default-mode parses cleanly and reports digest-pin.
+# 2. Tag-only synthetic compose fixture passes in default (warn) mode
+# and exit-2 fails under ``--strict``.
+# 3. Malformed image-pin (no tag, no digest) exits 1.
+# 4. Wrong digest-format (shorter than 64 hex) exits 1.
+# 5. ``--expected-digest`` mismatch exits 1; match exits 0.
+# 6. ``--expected-tag`` mismatch exits 1.
 #
 # All tests synthesise tiny compose fixtures in tmpdir and pass them
 # via ``--compose-file``. The repo-default test pulls the real
 # ``compose/nats.yaml`` to assert that the script and the file are in
-# agreement on the digest-pin form post-Sprint-4-Tag-3.
+# agreement on the digest-pin form post-.
 #
 # The script's network-touching modes (``--with-registry`` and
 # ``--with-cosign``) are deliberately NOT exercised here. They are
@@ -37,7 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "verify-image-digest.sh"
 COMPOSE_FILE = REPO_ROOT / "compose" / "nats.yaml"
 
-# Real (Sprint-4-Tag-3) digest for nats:2.11-alpine, manifest-list form
+# Real digest for nats:2.11-alpine, manifest-list form
 # (multi-arch-stable). Resolved 2026-05-11 via Docker Hub public
 # registry API. The same value is hard-coded in compose/nats.yaml and
 # in this test file deliberately, so a drift in either surface is
@@ -85,7 +85,7 @@ def _compose_fixture(tmp_path: Path, image_line: str) -> Path:
 
 
 def test_verify_image_digest_repo_compose_passes_default() -> None:
-    """The real ``compose/nats.yaml`` post-Tag-3 must be digest-pinned
+    """The real ``compose/nats.yaml`` post-must be digest-pinned
     and the script must report exit 0.
 
     This is the contract anchor between the script and the file: if

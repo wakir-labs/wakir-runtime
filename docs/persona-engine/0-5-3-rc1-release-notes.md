@@ -49,7 +49,7 @@ schema, and the Quadlet `Exec=` line are all byte-stable vs.
    public-facing companion to the manifest §0 header.
 
 4. **Hermetic version-consistency test.**
-   `wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes_tag58.py`
+   `wirelang/tests/persona_engine/test_engine_0_5_3_rc1_release_notes.py`
    pins the four-file consistency relation: `__version__.py` ↔
    manifest §0 ↔ release-notes header ↔ `engine.py` `ENGINE_VERSION`.
    Any future bump that touches one surface but not the others fails

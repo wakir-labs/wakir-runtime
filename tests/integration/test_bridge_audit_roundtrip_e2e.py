@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Phase-2 Doppelbetrieb-Bridge cross-language roundtrip E2E.
 
-Sprint-Tag-14 Mini-Welle (Bridge-Audit-Roundtrip-E2E).
+-Mini-wave (Bridge-Audit-Roundtrip-E2E).
 
 Purpose
 -------
@@ -19,8 +19,8 @@ side. Until this test, the two halves shipped independently:
 
 This test is the **roundtrip wire-test**: Python emits a real
 :class:`~wirelang.persona_engine.bridge_audit_writer.EngineeringOutputEvent`
-sequence via :class:`~wirelang.persona_engine.bridge_audit_writer.BridgeAuditWriter`
-into a hermetic :class:`io.StringIO` sink, serialises it as JSONL, hands
+sequence via:class:`~wirelang.persona_engine.bridge_audit_writer.BridgeAuditWriter`
+into a hermetic:class:`io.StringIO` sink, serialises it as JSONL, hands
 it to the Rust ``replay_cli`` binary via subprocess, parses the Rust
 JSON report, and asserts:
 
@@ -34,7 +34,7 @@ Hermetic envelope
 -----------------
 
 * No live network, no live NATS, no container runtime.
-* No filesystem writes outside :func:`tempfile.TemporaryDirectory` /
+* No filesystem writes outside:func:`tempfile.TemporaryDirectory` /
   ``tmp_path``.
 * No Pre-Framework Markdown sink (the writer's parent-dir mkdir falls
   through to a no-op when the sandbox path is unwritable; we pin the
@@ -110,7 +110,7 @@ F3_STREAM_PIN = (
 
 def _repo_root() -> Path:
     # tests/integration/test_bridge_audit_roundtrip_e2e.py
-    #   -> tests/integration -> tests -> <repo-root>
+    # -> tests/integration -> tests -> <repo-root>
     return Path(__file__).resolve().parent.parent.parent
 
 
@@ -159,7 +159,7 @@ def _run_replay_cli(
 
     The CLI returns exit-code 0 on success, 1 on divergence, 2 on
     usage error. We accept 0 and 1 (both produce a JSON report);
-    exit-code 2 raises :class:`AssertionError` with the stderr text
+    exit-code 2 raises:class:`AssertionError` with the stderr text
     so the test failure is informative.
     """
     assert REPLAY_CLI is not None, "test should be skipped without CLI"
@@ -206,7 +206,7 @@ def _f3_stream() -> List[EngineeringOutputEvent]:
 
 
 def _emit_five_via_writer(tmp_path: Path) -> List[EngineeringOutputEvent]:
-    """Emit a 5-record sequence via :class:`BridgeAuditWriter`.
+    """Emit a 5-record sequence via:class:`BridgeAuditWriter`.
 
     The writer is the production-side emit path (PR #19); the
     integration test exercises it end-to-end rather than constructing

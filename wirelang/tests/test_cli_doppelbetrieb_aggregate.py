@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for wakir-doppelbetrieb-aggregate (Sprint-Pengine-10 OI-PEFR-9).
+"""Hermetic tests for wakir-doppelbetrieb-aggregate (-Pengine-10 OI-PEFR-9).
 
 Tests cover:
 - Empty input shape.
@@ -74,7 +74,7 @@ def _write_score(
 
 
 # ---------------------------------------------------------------------
-# aggregate() core
+# aggregate core
 # ---------------------------------------------------------------------
 
 
@@ -231,7 +231,7 @@ def test_aggregate_rejects_unknown_verdict(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------
-# CLI main()
+# CLI main
 # ---------------------------------------------------------------------
 
 

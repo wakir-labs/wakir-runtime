@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""A2 FSM-Phantom-Transition Coverage (Tag-46 follow-up to Amara-Tag-45).
+"""A2 FSM-Phantom-Transition Coverage (follow-up to the QA zone-).
 
-The Amara-Tag-45 Pre-Mortem-Failure-Mode Coverage-Audit
+The the QA zone-Pre-Mortem-Failure-Mode Coverage-Audit
 (``docs/quality-gates/pre-mortem-failure-mode-coverage.md`` §A2)
 classified A2 — "FSM-Phantom-Transitions (illegal state-transitions
 post-cutover)" — as **PARTIAL**.
 
 Existing partial coverage:
 
-- Tag-44 AP-4 (`tests/phase_3c/test_marathon_anti_patterns.py`) pins
+- AP-4 (`tests/phase_3c/test_marathon_anti_patterns.py`) pins
   the namespace-prefix discipline as a structural arm but does NOT
   exercise the transition-legality oracle directly.
-- Tag-37 Rust FSM-Replay-Engine covers transition-legality at the
+- Rust FSM-Replay-Engine covers transition-legality at the
   Rust-crate-test layer in ``bridge-audit/``. Out-of-scope for the
   Python suite.
 
 This file closes the Python-side gap. It exercises four structural
-sub-pathways named by the Tag-45 audit (§A2 follow-up scope):
+sub-pathways named by the audit (§A2 follow-up scope):
 
 1. **state-machine-edge-cases** — every non-edge in
    :data:`VALID_TRANSITIONS` is rejected by ``transition_to``; the
@@ -26,7 +26,7 @@ sub-pathways named by the Tag-45 audit (§A2 follow-up scope):
    ``transition_to`` calls under a single-writer-per-instance
    contract preserve history-determinism; the FSM rejects edges
    that became invalid mid-sequence.
-3. **snapshot-corruption-recovery** — :meth:`LifecycleStateMachine.replay`
+3. **snapshot-corruption-recovery** —:meth:`LifecycleStateMachine.replay`
    over a corrupted history (accepted-edge that is not in
    :data:`VALID_TRANSITIONS`, or accepted-edge whose ``from_state``
    does not match the running cursor) raises
@@ -40,10 +40,10 @@ The 15 tests are hermetic (no live NATS, no live workload-API)
 and run under the default ``pytest -q`` lane (no opt-in marker).
 
 Coverage-Matrix-Update: see
-``docs/quality-gates/failure-mode-a2-coverage.md`` (Tag-46) which
+``docs/quality-gates/failure-mode-a2-coverage.md`` which
 re-classifies A2 PARTIAL -> COVERED on the strength of this suite.
 
-— Reza, Tag-46 A2 FSM-Phantom-Transition Coverage, 2026-05-18
+— the protocol zone, A2 FSM-Phantom-Transition Coverage, 2026-05-18
 """
 
 from __future__ import annotations
@@ -73,9 +73,9 @@ from wirelang.persona_engine.state_backing import (
 # Section 1 — state-machine-edge-cases
 # ---------------------------------------------------------------------------
 #
-# Cartesian-product oracle: for every (from, to) pair in STATES x STATES,
-# the transition is accepted iff (from, to) in VALID_TRANSITIONS. The
-# Tag-45 PARTIAL classification noted that namespace-prefix discipline
+# Cartesian-product oracle: for every, to) pair in STATES x STATES,
+# the transition is accepted iff, to) in VALID_TRANSITIONS. The
+# PARTIAL classification noted that namespace-prefix discipline
 # (AP-4) is a structural arm but not a legality oracle. These tests are
 # the missing legality oracle.
 
@@ -85,7 +85,7 @@ def _all_pairs() -> List[Tuple[str, str]]:
 
 
 def test_a2_legality_oracle_every_invalid_edge_is_rejected():
-    """For every (from, to) NOT in VALID_TRANSITIONS, transition_to
+    """For every, to) NOT in VALID_TRANSITIONS, transition_to
     raises InvalidTransitionError and appends an accepted=False
     record. STATES x STATES = 36; VALID_TRANSITIONS = 9; invalid = 27."""
     invalid_pairs = [p for p in _all_pairs() if p not in VALID_TRANSITIONS]
@@ -107,7 +107,7 @@ def test_a2_legality_oracle_every_invalid_edge_is_rejected():
 
 
 def test_a2_legality_oracle_every_valid_edge_advances():
-    """For every (from, to) IN VALID_TRANSITIONS, transition_to
+    """For every, to) IN VALID_TRANSITIONS, transition_to
     accepts the edge, advances state, and appends accepted=True."""
     for from_state, to_state in VALID_TRANSITIONS:
         m = LifecycleStateMachine("reza", "wakir", initial_state=from_state)
@@ -167,7 +167,7 @@ def test_a2_terminal_state_rejects_all_outgoing_phantoms():
 def test_a2_rapid_fire_legal_sequence_history_determinism():
     """uninstantiated -> spawning -> running -> despawning ->
     uninstantiated -> recovered -> running -> migrated ->
-    uninstantiated  (all nine edges exercised, history-deterministic).
+    uninstantiated (all nine edges exercised, history-deterministic).
     """
     m = LifecycleStateMachine("reza", "wakir")
     sequence = [
@@ -265,7 +265,7 @@ def test_a2_serialised_writer_lock_emit_under_threading_lock():
 
 
 def test_a2_replay_rejects_accepted_edge_not_in_valid_transitions():
-    """Corrupted history: an accepted record with (from, to) not in
+    """Corrupted history: an accepted record with, to) not in
     VALID_TRANSITIONS MUST raise on replay."""
     corrupt = [
         TransitionRecord(
@@ -358,7 +358,7 @@ def test_a2_replay_empty_history_yields_initial_state():
 # leak into another persona's state_backing keyspace, and a
 # state_backing snapshot under one persona MUST NOT affect another
 # persona's FSM. This pins the Zone-1 Identity-Substrate-Konsens
-# (Reza/Tomás) at the cross-module boundary.
+# at the cross-module boundary.
 
 
 def _make_snapshot(offset: int, persona_label: str) -> PersonaStateSnapshot:
@@ -375,7 +375,7 @@ def test_a2_no_leak_fsm_transition_to_other_persona_state_backing():
     """Persona-A FSM transition does NOT create snapshots in
     persona-B's state_backing keyspace, and vice-versa.
 
-    This is the structural arm Tag-44 AP-4 pins via namespace-prefix
+    This is the structural arm AP-4 pins via namespace-prefix
     discipline; we additionally pin it across the FSM <-> state_backing
     seam.
     """

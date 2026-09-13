@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for :mod:`wirelang.federation.federation_frame` — Python pendant
+"""Tests :mod:`wirelang.federation.federation_frame` — Python pendant
 of the Rust crate ``persona-engine-federation-frame-parser`` (Phase-3a
 Item 9, PR #148).
 
@@ -9,14 +9,14 @@ Test discovery note
 
 The Wakir CI lane (``.github/workflows/tests.yml``) invokes pytest as
 ``python -m pytest wirelang/`` — so the canonical home for the suite
-is here under ``wirelang/tests/``. The Tag-14 Mini-Welle Auftrag
+is here under ``wirelang/tests/``. The Mini-wave assignment
 *literal* path was ``tests/federation/test_federation_frame_parser.py``;
 a thin re-export module lives at that path and re-exports everything
 from this file (so a developer running ``pytest tests/`` from the
 repo root also hits the same 17 tests). The auftrag-literal path is
 the secondary surface; this file is the primary one.
 
-Test coverage (17 tests; >= 10 required by Auftrag)
+Test coverage (17 tests; >= 10 required by assignment)
 ---------------------------------------------------
 
 Round-trip per payload kind (4):
@@ -115,7 +115,7 @@ def _load_pin_fixtures() -> list[dict]:
 
 
 def _frame_from_fixture_input(input_obj: dict) -> FederationFrame:
-    """Construct a :class:`FederationFrame` from a fixture-file `input` dict."""
+    """Construct a:class:`FederationFrame` from a fixture-file `input` dict."""
     header = FrameHeader(**input_obj["header"])
     payload = FederationPayload(
         kind=input_obj["payload_kind"],

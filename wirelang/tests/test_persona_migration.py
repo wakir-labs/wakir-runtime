@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Self-migration converter test pack (Phase-1b Sprint-2 Tag-1, S2-T1-02).
+"""Self-migration converter test pack (Phase-1b, S2-T1-02).
 
-Coverage map (Tag-4-Skizze §3.4 edge-cases + V-907 pin-stability)
+Coverage map (-sketch §3.4 edge-cases + V-907 pin-stability)
 ================================================================
 
 1. **Happy-path v0 -> v1:** the v8 fixture migrates and the resulting
@@ -20,7 +20,7 @@ Coverage map (Tag-4-Skizze §3.4 edge-cases + V-907 pin-stability)
 
 Each test is hermetic — no network, no shared mutable state. Fixtures
 are file-system reads from ``wirelang/tests/fixtures/persona_definitions/``,
-created in Sprint-1 Tag-2.
+created.
 """
 
 from __future__ import annotations

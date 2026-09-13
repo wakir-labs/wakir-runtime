@@ -52,7 +52,7 @@ on:
       - 'wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md'
       - 'wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md'
       - 'wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md'
-      - 'tests/ci/test_ots_pre_anchor_activation_probe_tag59.py'
+      - 'tests/ci/test_ots_pre_anchor_activation_probe.py'
       - 'docs/operations/manifest-hash-ots-anchor-wiring.md'
       - '.github/workflows/ots-pre-anchor-activation-probe.yml'
   pull_request:
@@ -62,7 +62,7 @@ on:
       - 'wirelang/persona_engine/MANIFEST-0.5.0-pre-cutover.md'
       - 'wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md'
       - 'wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md'
-      - 'tests/ci/test_ots_pre_anchor_activation_probe_tag59.py'
+      - 'tests/ci/test_ots_pre_anchor_activation_probe.py'
       - 'docs/operations/manifest-hash-ots-anchor-wiring.md'
       - '.github/workflows/ots-pre-anchor-activation-probe.yml'
   workflow_dispatch:
@@ -222,10 +222,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           echo "ots-pre-anchor-activation-probe: aggregate=${aggregate}"
 
-      - name: Run hermetic Tag-59 test-suite  # step name pinned by tests/observability/test_ots_probe_workflow_hygiene_tag70.py
+      - name: Run hermetic Tag-59 test-suite  # step name pinned by tests/observability/test_ots_probe_workflow_hygiene.py
         run: |
           set -eu
-          python3 -m pytest tests/ci/test_ots_pre_anchor_activation_probe_tag59.py -v
+          python3 -m pytest tests/ci/test_ots_pre_anchor_activation_probe.py -v
 
       - name: Stage 3 — Enforce aggregate verdict
         shell: bash

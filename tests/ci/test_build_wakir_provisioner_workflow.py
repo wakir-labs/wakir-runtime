@@ -3,7 +3,7 @@
 """Hermetic workflow-structure tests for
 ``.github/workflows/build-wakir-provisioner.yml``.
 
-Phase-2 Sprint-9 Tag-5 CI-hygiene: three consecutive live Operator-
+Phase-2 CI-hygiene: three consecutive live Operator-
 Hand runs of the build workflow failed at the Sigstore-keyless sign
 step with ``UNAUTHORIZED: unauthenticated``. Root cause: the buildah
 login step authenticated the buildah client only; cosign carried no
@@ -91,7 +91,7 @@ def test_no_extra_permission_scopes(workflow_yaml: dict) -> None:
 
 
 # ----------------------------------------------------------------------
-# Cosign-login step invariants — Sprint-9 Tag-5 fix anchor.
+# Cosign-login step invariants — fix anchor.
 # ----------------------------------------------------------------------
 
 def _step_index(steps: list[dict], name: str) -> int:
@@ -111,7 +111,7 @@ def test_cosign_login_runs_before_sign(build_steps: list[dict]) -> None:
     sign_idx = _step_index(build_steps, "Sigstore-keyless sign")
     assert login_idx < sign_idx, (
         "Cosign login MUST precede Sigstore-keyless sign; reordering "
-        "regresses the Sprint-9 Tag-5 UNAUTHORIZED fix"
+        "regresses the UNAUTHORIZED fix"
     )
 
 

@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""persona-v2 (V10) test-coverage extension (Phase-1b Sprint-4 Tag-3).
+"""persona-v2 (V10) test-coverage extension (Phase-1b).
 
-Coverage map (Tag-3 delta on top of Sprint-3 Tag-2 + Tag-3)
+Coverage map (delta on top of +)
 ==========================================================
 
-Sprint-3 Tag-2 authored ``wirelang/schemas/persona-v2.json`` (5 mandatory
+ authored ``wirelang/schemas/persona-v2.json`` (5 mandatory
 + 3 optional + 3 reserved fields) and ``test_persona_v2_schema.py``
 (6 tests covering minimal-valid, full-additive, reserved-empty, plus
-three negatives). Sprint-3 Tag-3 landed ``V1ToV2Step`` and
-``test_persona_migration_v1_to_v2.py`` (6 tests). Sprint-4 Tag-3 (this
+three negatives). landed ``V1ToV2Step`` and
+``test_persona_migration_v1_to_v2.py`` (6 tests). (this
 file) extends both axes:
 
 A. **Reserved-fields positive-path coverage with non-empty content** —
-   Tag-2 schema-tests only exercise the reserved fields as bare ``{}``
-   maps. Tag-3 anchors each of the three reserved fields independently
+   schema-tests only exercise the reserved fields as bare ``{}``
+   maps. anchors each of the three reserved fields independently
    with non-empty content shapes the future owner-slot may want to
    populate. This catches accidental ``additionalProperties: false``
    regressions inside reserved sub-objects (the v2 schema deliberately
@@ -29,7 +29,7 @@ C. **Full v2 field-union schema test (13 fields)** — every additive
    and reserved field present at once parses cleanly. Top-level:
    5 mandatory + 2 additive-optional + 3 reserved = 10. Nested in
    ``identity_pinned``: 3 mandatory + 3 additive-optional = 6.
-   Total v2-schema-defined fields = 13. Mira's Tag-3 brief mentioned
+   Total v2-schema-defined fields = 13. The CEO's brief mentioned
    "11 fields" by counting top-level mandatory (5) + top-level
    additive-optional (3, including nested-counted-as-top-level
    shorthand) + top-level reserved (3); the test asserts the precise
@@ -38,8 +38,8 @@ C. **Full v2 field-union schema test (13 fields)** — every additive
 D. **V0→V2 multi-step hardening (resolver associativity)** — V10-spec
    §4.2 ``test_v0_to_v2_chain_equals_pairwise``: a single-call v8→v2
    migration is byte-identical to the two-step pairwise composition
-   ``v8 → v1 → v2``. Sprint-3 Tag-3's pack covers the single-call path
-   and the M-1 direct-anchor; Tag-3 here adds the explicit pairwise
+   ``v8 → v1 → v2``. 's pack covers the single-call path
+   and the M-1 direct-anchor; here adds the explicit pairwise
    equality test.
 
 E. **V0→V2 cycle-guard not-exhausted by 2-step chain** — V10-spec §4.2
@@ -104,7 +104,7 @@ def v2_validator() -> jsonschema.Draft202012Validator:
 def _minimal_v2_doc() -> dict:
     """A minimal valid persona-v2 doc, mirrored from
     ``test_persona_v2_schema._minimal_v2_doc``. Inlined here so the
-    Tag-3 pack stays self-contained (no cross-file fixture import)."""
+    pack stays self-contained (no cross-file fixture import)."""
     return {
         "name": "pengine",
         "description": "Persona-engine engineer (Tag-3 coverage fixture).",
@@ -142,9 +142,9 @@ def test_v2_reserved_fields_accept_non_empty_owner_payloads(
     """Each of the three reserved top-level fields admits a non-empty
     payload shape its future owner-slot is anticipated to populate.
 
-    Sprint-3 Tag-2's ``test_v2_reserved_fields_present_but_empty_validates``
+    's ``test_v2_reserved_fields_present_but_empty_validates``
     locked the bare ``{}`` case (Default-Lock A-2 / Option D-A drop-empty
-    discipline). Tag-3 here locks the *non-empty* positive path so that
+    discipline). here locks the *non-empty* positive path so that
     the reserved sub-objects remain free-form (no
     ``additionalProperties: false`` inside them by accident).
 
@@ -185,10 +185,10 @@ def test_v9_migrated_to_v2_dict_validates_against_persona_v2_schema(
     """The dict that ``V1ToV2Step`` produces from a v9 fixture must
     parse cleanly against the persona-v2 JSON Schema.
 
-    This pins the contract between the migration step (Sprint-3 Tag-3)
-    and the schema file (Sprint-3 Tag-2): a v9 lifted via the converter
+    This pins the contract between the migration step
+    and the schema file: a v9 lifted via the converter
     cannot land in a v2-shape that the schema rejects. A regression in
-    either side (e.g. the converter accidentally injecting an unknown
+    either side (e.g. The converter accidentally injecting an unknown
     key, or the schema tightening ``additionalProperties`` somewhere)
     would surface here.
     """
@@ -230,14 +230,14 @@ def test_v2_schema_accepts_full_field_union_simultaneously(
       persona_owner_role, governance_revision) = **6 identity_pinned keys**.
     - Grand total v2 field surface = **13 distinct fields**.
 
-    The Tag-2 schema-test pack covered minimal (5 top-level mandatory)
+    The schema-test pack covered minimal (5 top-level mandatory)
     and full-additive (10 + 6 = 16 paths but with reserved fields as
     bare ``{}``), but never asserted the full-union scenario where all
-    3 reserved fields also carry non-empty payloads. Tag-3 here locks
+    3 reserved fields also carry non-empty payloads. here locks
     the full-surface union so a future ``additionalProperties: false``
     tightening cannot regress the "fully-populated reader" scenario.
 
-    Mira's Tag-3 brief described this as "11 fields" (a top-level-only
+    The CEO's brief described this as "11 fields" (a top-level-only
     rollup that double-counted some optionals); the test below uses
     the per-level precise counts for unambiguity.
     """
@@ -265,13 +265,13 @@ def test_v2_schema_accepts_full_field_union_simultaneously(
     # top-level: 5 mandatory + 2 additive-optional + 3 reserved = 10.
     assert len(doc) == 5 + 2 + 3, (
         f"expected 10 top-level keys, got {len(doc)}: "
-        f"{sorted(doc.keys())}"
+        f"{sorted(doc.keys)}"
     )
     # identity_pinned: 3 mandatory + 3 additive-optional = 6.
     assert len(doc["identity_pinned"]) == 3 + 3, (
         f"expected 6 identity_pinned keys, got "
         f"{len(doc['identity_pinned'])}: "
-        f"{sorted(doc['identity_pinned'].keys())}"
+        f"{sorted(doc['identity_pinned'].keys)}"
     )
     # Total v2-defined field surface = 13 (= 10 top-level + 3 nested-
     # additive; identity_pinned itself is counted as 1 of the 10
@@ -300,9 +300,9 @@ def test_v0_to_v2_chain_equals_pairwise_composition() -> None:
     v8→v2 migration call is byte-identical to a two-step pairwise
     composition v8→v1 then v1→v2.
 
-    This is the resolver-associativity anchor. The Sprint-3 Tag-3 pack
+    This is the resolver-associativity anchor. The pack
     covers the single-call M-1 direct anchor
-    (``test_v0_to_v2_full_chain_pin_match``); Tag-3 here adds the
+    (``test_v0_to_v2_full_chain_pin_match``); here adds the
     explicit pairwise equality that V10-spec §4.2 enumerated as a
     separate test. Anchors the invariant: chain-resolution does not
     depend on whether the caller breaks the migration into N

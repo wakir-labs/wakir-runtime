@@ -5,19 +5,19 @@
 All tests are pure-stdlib — no network, no LLM, no NATS. Test
 coverage matrix:
 
-1.  ``is_llm_classifier_mode``: default env → False
-2.  ``is_llm_classifier_mode``: explicit value → True (whitespace +
+1. ``is_llm_classifier_mode``: default env → False
+2. ``is_llm_classifier_mode``: explicit value → True (whitespace +
     case tolerant)
-3.  ``read_confidence_threshold``: default when unset
-4.  ``read_confidence_threshold``: parses + clamps out-of-range
-5.  ``MockHaikuClassifierBackend``: determinism across repeated calls
-6.  ``MockHaikuClassifierBackend``: audit-persona band → Opus-floor
+3. ``read_confidence_threshold``: default when unset
+4. ``read_confidence_threshold``: parses + clamps out-of-range
+5. ``MockHaikuClassifierBackend``: determinism across repeated calls
+6. ``MockHaikuClassifierBackend``: audit-persona band → Opus-floor
     high-confidence
-7.  ``MockHaikuClassifierBackend``: borderline mid-length prose →
+7. ``MockHaikuClassifierBackend``: borderline mid-length prose →
     sub-threshold confidence
-8.  ``LlmClassifierRouter``: above-threshold classifier verdict is
+8. ``LlmClassifierRouter``: above-threshold classifier verdict is
     honoured (no fallback)
-9.  ``LlmClassifierRouter``: below-threshold classifier verdict falls
+9. ``LlmClassifierRouter``: below-threshold classifier verdict falls
     back to heuristic-router decision
 10. ``LlmClassifierRouter``: sink captures emitted events; broken sink
     does not raise
@@ -339,7 +339,7 @@ def test_call_with_classifier_event_no_router_is_passthrough():
 
 # ---------------------------------------------------------------------------
 # (14) llm_call_shim.call_with_classifier_event: with router emits event,
-#      hook reply unchanged (observation-only Phase-2c contract).
+# hook reply unchanged (observation-only Phase-2c contract).
 # ---------------------------------------------------------------------------
 
 

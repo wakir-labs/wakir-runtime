@@ -9,7 +9,7 @@ Sibling tests:
     wakir-provisioner image pin (Quadlet).
   * ``infra/spire/federation/tests/test_image_pin_digest_form.py`` —
     SPIRE-Server + SPIRE-Agent pins (compose + quadlet).
-  * ``tests/infra/test_quadlets_phase_3b.py`` — Tag-22 Quadlet
+  * ``tests/infra/test_quadlets_phase_3b.py`` — Quadlet
     installer; inventories the same five binaries.
 
 This test surface validates the cosign-policy substrate
@@ -19,38 +19,38 @@ Rust-CLI binaries that
 (recovery, state-backing, fsm, v907-verify, bridge-diff,
 subscribe-loop, anchor-emitter, svid-workload-identity,
 bridge-audit-writer; landed in PRs #167, #169, #171, #175, #181,
-#184, #191 + Tag-29 SVID image-build + Tag-31 bridge-audit-writer
-image-build across Tag-17 through Tag-31 Mini-Welles).
+#184, #191 + SVID image-build + bridge-audit-writer
+image-build across through Mini-Welles).
 
-Tag-23 Mini-Welle update
+Mini-wave update
 ------------------------
-Inventory extended from 4 to 5 binaries; ``bridge-diff`` (Tag-20
-Mini-Welle PR #175) is now a first-class policy entry. The
+Inventory extended from 4 to 5 binaries; ``bridge-diff`` (
+Mini-wave PR #175) is now a first-class policy entry. The
 ``EXPECTED_BINARIES`` tuple grew accordingly and the dropped-binary
 fixture in ``test_mismatch_fixture_rejects`` now drops a different
 binary (still recovers the same SHAPE-rejection invariant).
 
-Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 2)
+Mini-wave update (ADR-0065 Phase-3c Trigger-Gate 2)
 -----------------------------------------------------------
 Inventory extended from 5 to 7 binaries in lock-step with the
-Quadlet installer Tag-24 update (Trigger-Gate 3). Added
-``subscribe-loop`` (Tag-22 Mini-Welle PR #181) and ``anchor-emitter``
-(Tag-23 Mini-Welle PR #184). ``EXPECTED_BINARIES``,
+Quadlet installer update (Trigger-Gate 3). Added
+``subscribe-loop`` (Mini-wave PR #181) and ``anchor-emitter``
+(Mini-wave PR #184). ``EXPECTED_BINARIES``,
 ``EXPECTED_IN_IMAGE_PATHS``, and ``EXPECTED_ENV_SWITCHES`` grew
 together.
 
-Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build)
+Mini-wave update (ADR-0066 wave 2 image-build)
 -------------------------------------------------------
 Inventory extended from 7 to 8 binaries in lock-step with the
-Quadlet installer Tag-29 update. Added ``svid-workload-identity``
-(Tag-25 Mini-Welle PR #191 wired the Python resolver; Tag-29
-Mini-Welle ships the Rust crate skeleton + image-build pipeline).
+Quadlet installer update. Added ``svid-workload-identity``
+(Mini-wave PR #191 wired the Python resolver;
+Mini-wave ships the Rust crate skeleton + image-build pipeline).
 
-Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build)
+Mini-wave update (ADR-0066 wave 3 image-build)
 -------------------------------------------------------
 Inventory extended from 8 to 9 binaries in lock-step with the
-Quadlet installer Tag-31 update. Added ``bridge-audit-writer``
-(Tag-31 Mini-Welle ships the writer-half of the Doppelbetrieb-
+Quadlet installer update. Added ``bridge-audit-writer``
+(Mini-wave ships the writer-half of the Doppelbetrieb-
 Shadow EngineeringOutputEvent envelope substrate alongside the
 existing replay-half from PR #131 bridge-diff + PR #147
 bridge-audit-replay). The dropped-binary fixture now drops
@@ -60,21 +60,21 @@ cross-substrate parity test
 (``test_cross_substrate_parity_with_quadlet_installer``) enforces
 the lock-step agreement with the Quadlet installer.
 
-Tag-45 Mini-Welle update (Phase-3a-Foundation 14 + 15 closeout)
+Mini-wave update (Phase-3a-Foundation 14 + 15 closeout)
 ---------------------------------------------------------------
 Inventory extended from 13 to 15 binaries in lock-step with the
-Quadlet installer Tag-45 update. Two additions in a single
-Mini-Welle bundle — both closing Reza's 15-module Phase-3a-Foundation
+Quadlet installer update. Two additions in a single
+Mini-wave bundle — both closing the protocol zone's 15-module Phase-3a-Foundation
 sweep:
 
-  * ``bridge-audit-replay`` (Tag-37 Mini-Welle PR #246 — 14. Phase-3a
+  * ``bridge-audit-replay`` (Mini-wave PR #246 — 14. Phase-3a
     Modul; deterministic-replay-oracle canonical-trace bridge).
-  * ``migrate-version`` (Tag-38 Mini-Welle PR #250 — 15. Phase-3a
+  * ``migrate-version`` (Mini-wave PR #250 — 15. Phase-3a
     Modul; engine-version migration pre-flight decision canonical-
     trace; closes Phase-3a-Foundation sweep at 15/15).
 
 Both are CANONICAL-only bridges in the carrier image (not dedicated
-single-binary images — the Welle-4..7 convention applies only to
+single-binary images — the wave 4..7 convention applies only to
 the cutover steps that need it). ``EXPECTED_BINARIES``,
 ``EXPECTED_IN_IMAGE_PATHS``, ``EXPECTED_ENV_SWITCHES`` and
 ``CARRIER_IMAGE_BINARIES`` all grew by two in lock-step. The
@@ -123,7 +123,7 @@ OPERATIONS_DOC = (
 
 EXPECTED_SCHEMA_VERSION = "wakir.cosign-policy.phase-3b/1"
 EXPECTED_BINARIES = (
-    # Tag-17..Tag-31 carrier-image inventory — first 9 entries.
+    #..carrier-image inventory — first 9 entries.
     "recovery",
     "state-backing",
     "fsm",
@@ -133,17 +133,17 @@ EXPECTED_BINARIES = (
     "anchor-emitter",
     "svid-workload-identity",
     "bridge-audit-writer",
-    # Tag-33 Mini-Welle — Welle-4..7 dedicated single-binary images.
+    # Mini-wave — wave 4..7 dedicated single-binary images.
     # The "-welleN" suffix distinguishes these dedicated single-binary
     # images from the carrier-image variants of the same binaries;
-    # both ship the same Rust crates but the Tag-33 single-binary
-    # images are pinned by the Welle-4..7 cutover steps independently
+    # both ship the same Rust crates but the single-binary
+    # images are pinned by the wave 4..7 cutover steps independently
     # of the Carrier-Image digest. ADR-0066 anchor.
     "state-backing-welle4",
     "fsm-welle5",
     "subscribe-loop-welle6",
     "recovery-welle7",
-    # Tag-45 Mini-Welle — Phase-3a-Foundation 14. + 15. Modul closeout.
+    # Mini-wave — Phase-3a-Foundation 14. + 15. Modul closeout.
     # Both are CANONICAL-only bridges shipped in the carrier image
     # — NOT dedicated single-binary images. Phase-3a-Foundation sweep
     # closure at 15/15.
@@ -164,7 +164,7 @@ EXPECTED_IN_IMAGE_PATHS = {
     "bridge-audit-writer": (
         "/opt/wakir/bin/wakir-persona-engine-bridge-audit-writer"
     ),
-    # Tag-33 Mini-Welle — Welle-4..7 dedicated single-binary images.
+    # Mini-wave — wave 4..7 dedicated single-binary images.
     "state-backing-welle4": (
         "/opt/wakir/bin/wakir-persona-engine-state-backing-welle4"
     ),
@@ -177,7 +177,7 @@ EXPECTED_IN_IMAGE_PATHS = {
     "recovery-welle7": (
         "/opt/wakir/bin/wakir-persona-engine-recovery-welle7"
     ),
-    # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+    # Mini-wave — Phase-3a-Foundation 14 + 15 closeout.
     "bridge-audit-replay": (
         "/opt/wakir/bin/wakir-persona-engine-bridge-audit-replay"
     ),
@@ -195,27 +195,27 @@ EXPECTED_ENV_SWITCHES = {
     "anchor-emitter": "WAKIR_ANCHOR_EMITTER_BACKEND",
     "svid-workload-identity": "WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND",
     "bridge-audit-writer": "WAKIR_BRIDGE_AUDIT_WRITER_BACKEND",
-    # Tag-33 Mini-Welle — re-use the same env-switches as the
-    # Carrier-Image variants; the Welle-4..7 cutover steps flip the
+    # Mini-wave — re-use the same env-switches as the
+    # Carrier-Image variants; the wave 4..7 cutover steps flip the
     # same `WAKIR_*_BACKEND` flag regardless of which image path
     # actually delivers the binary.
     "state-backing-welle4": "WAKIR_STATE_BACKING_BACKEND",
     "fsm-welle5": "WAKIR_FSM_BACKEND",
     "subscribe-loop-welle6": "WAKIR_SUBSCRIBE_LOOP_BACKEND",
     "recovery-welle7": "WAKIR_RECOVERY_BACKEND",
-    # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+    # Mini-wave — Phase-3a-Foundation 14 + 15 closeout.
     "bridge-audit-replay": "WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND",
     "migrate-version": "WAKIR_MIGRATE_VERSION_BACKEND",
 }
 # Subset of EXPECTED_BINARIES that are Carrier-Image deployments (the
 # nine binaries the persona-engine image installs at the canonical
-# /opt/wakir/bin/wakir-persona-engine-<name> paths via the Tag-22+
-# Quadlet installer). The Tag-33 Mini-Welle adds four dedicated
-# single-binary images for the Welle-4..7 cutover steps; those are
+# /opt/wakir/bin/wakir-persona-engine-<name> paths via the+
+# Quadlet installer). The Mini-wave adds four dedicated
+# single-binary images for the wave 4..7 cutover steps; those are
 # NOT in this set — they have their own dedicated Quadlets and do
 # not consume the rust_backend_switch.py DEFAULT_RUST_*_BIN
 # constants (the cutover step continues to use the existing
-# WAKIR_*_BACKEND env-switch + DEFAULT_RUST_*_BIN path, the Welle-N
+# WAKIR_*_BACKEND env-switch + DEFAULT_RUST_*_BIN path, the wave N
 # image is pinned independently).
 CARRIER_IMAGE_BINARIES = frozenset(
     {
@@ -228,7 +228,7 @@ CARRIER_IMAGE_BINARIES = frozenset(
         "anchor-emitter",
         "svid-workload-identity",
         "bridge-audit-writer",
-        # Tag-45 Mini-Welle — Phase-3a-Foundation 14 + 15 closeout.
+        # Mini-wave — Phase-3a-Foundation 14 + 15 closeout.
         # Both ship inside the carrier image (no dedicated single-binary
         # images). The DEFAULT_RUST_BRIDGE_AUDIT_REPLAY_BIN and
         # DEFAULT_RUST_MIGRATE_VERSION_BIN constants in
@@ -238,8 +238,8 @@ CARRIER_IMAGE_BINARIES = frozenset(
         "migrate-version",
     }
 )
-# Subset of EXPECTED_BINARIES that are Tag-33 dedicated single-binary
-# images (Welle-4..7 cutover-step images). These are validated by
+# Subset of EXPECTED_BINARIES that are dedicated single-binary
+# images (wave 4..7 cutover-step images). These are validated by
 # the cross-substrate parity test against the Quadlet installer (the
 # 13-set must agree byte-for-byte across both files), but they do
 # NOT have their own DEFAULT_RUST_*_BIN constant in
@@ -373,24 +373,24 @@ def test_all_9_phase_3b_binaries_listed(policy: dict) -> None:
         verified by this policy; that grows the trust surface
         without a real consumer.
 
-    Tag-23 update: inventory grew from 4 to 5 (added ``bridge-diff``;
-    Tag-20 Mini-Welle PR #175).
-    Tag-24 update (ADR-0065 Phase-3c Trigger-Gate 2): inventory grew
-    from 5 to 7 (added ``subscribe-loop`` Tag-22 Mini-Welle PR #181
-    and ``anchor-emitter`` Tag-23 Mini-Welle PR #184). The Tag-24
+    update: inventory grew from 4 to 5 (added ``bridge-diff``;
+    Mini-wave PR #175).
+    update (ADR-0065 Phase-3c Trigger-Gate 2): inventory grew
+    from 5 to 7 (added ``subscribe-loop`` Mini-wave PR #181
+    and ``anchor-emitter`` Mini-wave PR #184). The
     Quadlet installer update (Trigger-Gate 3) iterates the same
     seven binaries.
-    Tag-29 update (ADR-0066 Welle-2 image-build): inventory grew from
-    7 to 8 (added ``svid-workload-identity`` — Tag-25 Mini-Welle PR
-    #191 wired the Python resolver, Tag-29 Mini-Welle ships the
-    crate substrate + image-build pipeline). The Tag-29 Quadlet
+    update (ADR-0066 wave 2 image-build): inventory grew from
+    7 to 8 (added ``svid-workload-identity`` — Mini-wave PR
+    #191 wired the Python resolver, Mini-wave ships the
+    crate substrate + image-build pipeline). The Quadlet
     installer update iterates the same eight binaries; this test
     enforces the cross-substrate parity via Test 8 below.
-    Tag-31 update (ADR-0066 Welle-3 image-build): inventory grew from
-    8 to 9 (added ``bridge-audit-writer`` — Tag-31 Mini-Welle ships
+    update (ADR-0066 wave 3 image-build): inventory grew from
+    8 to 9 (added ``bridge-audit-writer`` — Mini-wave ships
     the writer-half of the Doppelbetrieb-Shadow EngineeringOutputEvent
     envelope substrate; PR #131 bridge-diff + PR #147
-    bridge-audit-replay landed the replay-half earlier). The Tag-31
+    bridge-audit-replay landed the replay-half earlier). The
     Quadlet installer update iterates the same nine binaries; the
     cross-substrate parity test below enforces the lock-step.
     """
@@ -476,7 +476,7 @@ def test_sha256_format_correct(policy: dict) -> None:
         f"expected_tag missing or empty: {tag!r}"
     )
     # The tag must follow the wakir-persona-engine pilot-cadence
-    # naming (e.g. 0.1.0-pilot, 0.5.0-pilot, ...). Bare tag refs
+    # naming (e.g. 0.1.0-pilot, 0.5.0-pilot,...). Bare tag refs
     # without a ``-pilot`` suffix are rejected — those are reserved
     # for the post-pilot release line.
     assert re.match(r"^\d+\.\d+\.\d+-pilot$", tag), (
@@ -522,7 +522,7 @@ def test_mismatch_fixture_rejects(policy: dict) -> None:
             return f"rogue-identity-regex: {ident!r}"
         return None
 
-    # Fixture A — drop the ``migrate-version`` entry (the Tag-45
+    # Fixture A — drop the ``migrate-version`` entry (the
     # addition; exercises the rejection logic specifically against
     # the newest inventory member).
     fix_a = copy.deepcopy(policy)
@@ -590,7 +590,7 @@ def test_in_image_paths_match_rust_backend_switch_defaults() -> None:
     # them out (this test deliberately avoids importing the module so
     # it stays hermetic and import-side-effect-free).
     #
-    # Tag-33 Mini-Welle: skip the Welle-4..7 dedicated single-binary
+    # Mini-wave: skip the wave 4..7 dedicated single-binary
     # images. They share the rust_backend_switch.py DEFAULT_RUST_*_BIN
     # constants of their Carrier-Image siblings (e.g.
     # state-backing-welle4 re-uses DEFAULT_RUST_STATE_BACKING_BIN, not
@@ -600,10 +600,10 @@ def test_in_image_paths_match_rust_backend_switch_defaults() -> None:
             continue
         # Match shape: ``DEFAULT_RUST_X_BIN = "<path>"``.
         # The constant name is derived from the binary name:
-        #   recovery       -> DEFAULT_RUST_RECOVERY_BIN
-        #   state-backing  -> DEFAULT_RUST_STATE_BACKING_BIN
-        #   fsm            -> DEFAULT_RUST_FSM_BIN
-        #   v907-verify    -> DEFAULT_RUST_V907_VERIFY_BIN
+        # recovery -> DEFAULT_RUST_RECOVERY_BIN
+        # state-backing -> DEFAULT_RUST_STATE_BACKING_BIN
+        # fsm -> DEFAULT_RUST_FSM_BIN
+        # v907-verify -> DEFAULT_RUST_V907_VERIFY_BIN
         const_name = "DEFAULT_RUST_" + name.upper().replace("-", "_") + "_BIN"
         # The constant may be defined as a single-line string OR as a
         # parenthesised continuation across two lines; match both.
@@ -641,12 +641,12 @@ def test_operations_doc_anchors_policy_file() -> None:
     the prose, the policy YAML is the source-of-truth, and the two
     silently disagree.
 
-    Tag-24 update: anchors now cover all SEVEN canonical in-image
+    update: anchors now cover all SEVEN canonical in-image
     paths and all SEVEN ENV-switches (the loop over
     ``EXPECTED_IN_IMAGE_PATHS`` / ``EXPECTED_ENV_SWITCHES`` picks the
     subscribe-loop + anchor-emitter entries up automatically; the
-    pre-Tag-24 helper text said ``FIVE`` and ``bridge-diff`` after
-    the Tag-23 extension).
+    pre-helper text said ``FIVE`` and ``bridge-diff`` after
+    the extension).
     """
     assert OPERATIONS_DOC.exists(), (
         f"operations doc missing at {OPERATIONS_DOC}"
@@ -671,8 +671,8 @@ def test_operations_doc_anchors_policy_file() -> None:
 
     # Anchor: all canonical Carrier-Image in-image paths are
     # documented in the operator recipe (the binary-presence probe
-    # in §3.3). Tag-33 Mini-Welle: skip the Welle-4..7 dedicated
-    # single-binary image paths — those have their own per-Welle
+    # in §3.3). Mini-wave: skip the wave 4..7 dedicated
+    # single-binary image paths — those have their own per-wave
     # cutover docs and are NOT covered by this Phase-3b cosign-
     # policy operator recipe.
     for name, path in EXPECTED_IN_IMAGE_PATHS.items():
@@ -684,7 +684,7 @@ def test_operations_doc_anchors_policy_file() -> None:
         )
 
     # Anchor: the seven Carrier-Image ENV-switches are listed in the
-    # §5 wiring table. Tag-33 Welle-4..7 dedicated images re-use the
+    # §5 wiring table. wave 4..7 dedicated images re-use the
     # existing ENV-switches, so this loop continues to cover them
     # transitively via the Carrier-Image entries.
     for env in EXPECTED_ENV_SWITCHES.values():
@@ -731,7 +731,7 @@ def test_sandbox_boundary_stamp_present(policy: dict) -> None:
     # And: the policy YAML, when parsed, does NOT contain any field
     # that asks for a sandbox-side cosign invocation. (The check is
     # negative — we assert no top-level ``run_in_sandbox: true``
-    # leaked in.)
+    # leaked.)
     assert "run_in_sandbox" not in policy, (
         "policy must not carry a run_in_sandbox flag — live cosign "
         "is Operator-Hand only"
@@ -747,17 +747,17 @@ QUADLET_INSTALLER = (
 
 
 def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
-    """The Tag-22 Quadlet installer (``quadlet/wakir-rust-cli.container``,
+    """the Quadlet installer (``quadlet/wakir-rust-cli.container``,
     PR #180) and this Cosign-Policy MUST inventory the SAME nine
     binary names. A drift between the two substrates is the worst
-    failure mode in the Tag-22-vs-Tag-20 inventory-gap class — one
+    failure mode in the-vs-inventory-gap class — one
     substrate copies a binary onto the host without a matching
     verification gate, or vice versa.
 
-    Tag-23 Mini-Welle landed this parity-test alongside the
+    Mini-wave landed this parity-test alongside the
     bridge-diff inventory extension. Future inventory grows
-    (e.g. subscribe-loop, PR #181 Tag-22 follow-up) MUST land in
-    BOTH substrates in the same Mini-Welle — this test enforces
+    (e.g. subscribe-loop, PR #181 follow-up) MUST land in
+    BOTH substrates in the same Mini-wave — this test enforces
     that gate at policy-author time.
     """
     assert QUADLET_INSTALLER.exists(), (
@@ -792,7 +792,7 @@ def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
     # And: the agreed-on set must be exactly the five we expect.
     assert policy_basenames == set(EXPECTED_BINARIES), (
         f"Cosign-Policy + Quadlet agree on {sorted(policy_basenames)}, "
-        f"but the canonical Tag-23 inventory is "
+        f"but the canonical inventory is "
         f"{sorted(EXPECTED_BINARIES)} — both substrates have drifted "
         "from the EXPECTED_BINARIES contract in the same direction."
     )

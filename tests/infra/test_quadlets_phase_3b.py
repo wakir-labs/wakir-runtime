@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic format invariants for the Tag-22/24/29/31/45 Phase-3b
-Rust-CLI installer Quadlet bundle (retry after Tag-21 quota-hit;
-identical bytes-shape as the aborted Tag-21 draft; Tag-24 Mini-Welle
-extends the inventory 5->7, Tag-29 7->8, Tag-31 8->9, Tag-45 9->11
+"""Hermetic format invariants for the/24/29/31/45 Phase-3b
+Rust-CLI installer Quadlet bundle (retry after quota-hit;
+identical bytes-shape as the aborted draft; Mini-wave
+extends the inventory 5->7, 7->8, 8->9, 9->11
 in lock-step with the Cosign-Policy update at each step).
 
 Sibling tests
@@ -11,11 +11,11 @@ Sibling tests
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — Cosign-Policy
     (carrier image + 7-binary inventory).
   * ``tests/infra/test_persona_tomas_quadlet_validate.py`` — production
-    Quadlet for the Tomás-Persona pilot (carrier image consumer).
+    Quadlet for the engineering zone-Persona pilot (carrier image consumer).
   * ``tests/infra/test_quadlet_selinux_relabel.py`` — global
     SELinux-relabel discipline (every ``Volume=`` carries ``:Z``/``:z``).
 
-This test surface validates the SHAPE of the Tag-22/24 deliverables:
+This test surface validates the SHAPE of the/24 deliverables:
 
   - ``quadlet/wakir-rust-cli.container``
   - ``quadlet/wakir-rust-cli-bin.volume``
@@ -30,7 +30,7 @@ NOT covered here (intentional sandbox boundary)
 Live verification lives in
 ``docs/operations/quadlets-phase-3b-rust-cli.md`` §4 and is
 Operator-Hand per ``feedback_sandbox_host_trennung.md`` +
-ADR-0051 Mira-Sandbox-vs-Host-Operations-Trennung.
+ADR-0051 operator-Sandbox-vs-Host-Operations-Trennung.
 
 Test-Vector index
 -----------------
@@ -53,7 +53,7 @@ Test-Vector index
   * ``TV-T22-Q-08`` Operator-recipe documentation file present
     and references the Quadlet bundle.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -85,7 +85,7 @@ EXPECTED_BINARIES_SEVEN = (
     "wakir-persona-engine-anchor-emitter",
 )
 
-# Tag-29 + Tag-31 + Tag-45 Mini-Welle additions — the carrier-image
+# + + Mini-wave additions — the carrier-image
 # binary set has grown 7 -> 8 -> 9 -> 11 since the original constant
 # was named EXPECTED_BINARIES_SEVEN. The constant name is kept for
 # backwards-compat reference (downstream tests in this file still
@@ -95,7 +95,7 @@ EXPECTED_BINARIES_SEVEN = (
 EXPECTED_BINARIES_ELEVEN = EXPECTED_BINARIES_SEVEN + (
     "wakir-persona-engine-svid-workload-identity",
     "wakir-persona-engine-bridge-audit-writer",
-    # Tag-45 Mini-Welle (Phase-3a-Foundation 14 + 15 closeout).
+    # Mini-wave (Phase-3a-Foundation 14 + 15 closeout).
     "wakir-persona-engine-bridge-audit-replay",
     "wakir-persona-engine-migrate-version",
 )
@@ -115,20 +115,20 @@ EXPECTED_CARRIER_IMAGE_TAG = "0.5.0-pilot"
 
 @pytest.fixture(scope="module")
 def container_text() -> str:
-    """Read the Tag-22 installer Quadlet (container unit) once
+    """Read the installer Quadlet (container unit) once
     per test-module."""
     assert QUADLET_CONTAINER.exists(), (
-        f"Tag-22 container Quadlet missing at {QUADLET_CONTAINER}"
+        f"container Quadlet missing at {QUADLET_CONTAINER}"
     )
     return QUADLET_CONTAINER.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
 def volume_text() -> str:
-    """Read the Tag-22 host-bin Quadlet (volume unit) once per
+    """Read the host-bin Quadlet (volume unit) once per
     test-module."""
     assert QUADLET_VOLUME.exists(), (
-        f"Tag-22 volume Quadlet missing at {QUADLET_VOLUME}"
+        f"volume Quadlet missing at {QUADLET_VOLUME}"
     )
     return QUADLET_VOLUME.read_text(encoding="utf-8")
 
@@ -202,10 +202,10 @@ def test_all_seven_binaries_listed(container_text: str) -> None:
     installer (the host-side ``/opt/wakir/bin/<missing>`` would
     not be populated). This test red is a hard-stop.
 
-    Tag-24 update (ADR-0065 Phase-3c Trigger-Gate 3): inventory
-    extended from 5 to 7 (added ``subscribe-loop`` Tag-22 PR #181
-    and ``anchor-emitter`` Tag-23 PR #184). Cosign-Policy parity
-    Trigger-Gate 2 landed in lock-step in the same Mini-Welle.
+    update (ADR-0065 Phase-3c Trigger-Gate 3): inventory
+    extended from 5 to 7 (added ``subscribe-loop`` PR #181
+    and ``anchor-emitter`` PR #184). Cosign-Policy parity
+    Trigger-Gate 2 landed in lock-step in the same Mini-wave.
     """
     # Find the Exec= line (single-line in our Quadlet form).
     exec_lines = [
@@ -223,18 +223,18 @@ def test_all_seven_binaries_listed(container_text: str) -> None:
             f"Phase-3b binary {binary!r} missing from Exec= shell loop"
         )
 
-    # And the two Tag-24 additions specifically — both bridges had
+    # And the two additions specifically — both bridges had
     # their Python production-default switches landed in prior
-    # Mini-Welles (subscribe-loop Tag-22 PR #181, anchor-emitter
-    # Tag-23 PR #184); the Tag-24 Quadlet update is the Operations-
+    # Mini-Welles (subscribe-loop PR #181, anchor-emitter
+    # PR #184); the Quadlet update is the Operations-
     # Reife close-out that lets the Pilot-VM host actually consume
     # them.
     assert "wakir-persona-engine-subscribe-loop" in exec_line, (
-        "Tag-22 subscribe-loop binary missing from Tag-24 installer "
+        "subscribe-loop binary missing from installer "
         "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
     )
     assert "wakir-persona-engine-anchor-emitter" in exec_line, (
-        "Tag-23 anchor-emitter binary missing from Tag-24 installer "
+        "anchor-emitter binary missing from installer "
         "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
     )
 
@@ -306,11 +306,11 @@ def test_image_pin_matches_cosign_policy(container_text: str) -> None:
     policy_text = COSIGN_POLICY.read_text(encoding="utf-8")
     assert f"expected_tag: {EXPECTED_CARRIER_IMAGE_TAG}" in policy_text, (
         "Cosign-Policy carrier_image.expected_tag does not match the "
-        "Tag-22 Quadlet Image= tag — Zone-C parity violation"
+        "Quadlet Image= tag — Zone-C parity violation"
     )
     assert EXPECTED_CARRIER_IMAGE_REPO in policy_text, (
         "Cosign-Policy carrier_image.repository does not match the "
-        "Tag-22 Quadlet Image= repository — Zone-C parity violation"
+        "Quadlet Image= repository — Zone-C parity violation"
     )
 
 
@@ -319,7 +319,7 @@ def test_image_pin_matches_cosign_policy(container_text: str) -> None:
 # ---------------------------------------------------------------------------
 def test_selinux_and_uid_remap_flags(container_text: str) -> None:
     """The host-bin Volume= directive MUST carry both ``:Z`` (SELinux
-    relabel-private; Sprint-9-Tag-8 Bug-20 substance-fix) and ``:U``
+    relabel-private; Bug-20 substance-fix) and ``:U``
     (named-volume uid:1000 remap; parity with SPIRE-Agent + NATS
     named volumes).
 
@@ -352,7 +352,7 @@ def test_selinux_and_uid_remap_flags(container_text: str) -> None:
 
     assert "Z" in options_set, (
         f"host-bin Volume= missing :Z SELinux relabel-private flag "
-        f"(Sprint-9-Tag-8 Bug-20 discipline): {volume_line!r}"
+        f"( Bug-20 discipline): {volume_line!r}"
     )
     assert "U" in options_set, (
         f"host-bin Volume= missing :U uid-remap flag "
@@ -455,11 +455,11 @@ def test_operations_doc_present_and_references_quadlets() -> None:
     )
     readme_text = quadlet_readme.read_text(encoding="utf-8")
     assert "wakir-rust-cli.container" in readme_text, (
-        "quadlet/README.md does not reference the Tag-22 installer "
+        "quadlet/README.md does not reference the installer "
         "Quadlet — inventory drift"
     )
     assert "quadlets-phase-3b-rust-cli.md" in readme_text, (
-        "quadlet/README.md does not link to the Tag-22 operations doc"
+        "quadlet/README.md does not link to the operations doc"
     )
 
 
@@ -478,7 +478,7 @@ def test_in_image_paths_match_switch_defaults(container_text: str) -> None:
     inside the carrier image are ``/opt/wakir/bin/<binary>`` per
     the persona-engine Containerfile.real install layout.
 
-    Drift-guard: if Selin renames a crate's binary output name
+    Drift-guard: if the engine zone renames a crate's binary output name
     (e.g. ``wakir-persona-engine-recovery`` -> ``persona-engine-
     recovery``) the switch defaults move and this Quadlet's source
     paths must move in lock-step.

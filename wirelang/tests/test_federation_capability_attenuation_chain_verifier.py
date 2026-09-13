@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Tests for the Phase-2 Sprint-7 Tag-4 Capability-Attenuation-Chain-
+"""Tests for the Phase-2 Capability-Attenuation-Chain-
 Verifier (``wirelang.federation.capability_attenuation_chain_verifier``).
 
 Test inventory (T-CACV-01..09):
@@ -22,7 +22,7 @@ Test inventory (T-CACV-01..09):
 - T-CACV-07 cross-org boundary violation (peer resolver returns
   None for attested pointer) ->
   :class:`CrossOrgBoundaryViolationError`.
-- T-CACV-08 revoked-link denial (Sprint-6 Tag-1 revocation
+- T-CACV-08 revoked-link denial ( revocation
   precedence applied per-hop) ->
   :class:`AttenuationLinkRevokedError`.
 - T-CACV-09 idempotent re-verify produces byte-equal
@@ -272,7 +272,7 @@ def test_t_cacv_01_happy_path_three_hop_local_plus_cross_org() -> None:
 
 def test_t_cacv_02_attenuation_order_violation_index_regress() -> None:
     """A chain whose ``attenuation_index`` regresses (or stalls)
-    surfaces as :class:`AttenuationOrderViolationError` with the
+    surfaces as:class:`AttenuationOrderViolationError` with the
     offending positions carried structurally.
     """
     base = _NOW - timedelta(minutes=30)
@@ -374,7 +374,7 @@ def test_t_cacv_04_stale_link_age_exceeded() -> None:
 
 def test_t_cacv_05_stale_link_expires_at_past() -> None:
     """A link whose ``expires_at`` is at or before ``now`` surfaces
-    as :class:`StaleAttenuationReplayError` with
+    as:class:`StaleAttenuationReplayError` with
     ``cause="expired"`` (even if age is within ceiling).
     """
     base = _NOW - timedelta(minutes=10)
@@ -437,7 +437,7 @@ def test_t_cacv_06_cross_org_boundary_pointer_not_in_either_surface() -> None:
 
 def test_t_cacv_07_cross_org_boundary_peer_resolver_returns_none() -> None:
     """A link whose ``policy_pointer`` matches the attested peer
-    pointer but the peer resolver returns ``None`` (i.e. the
+    pointer but the peer resolver returns ``None`` (i.e. The
     pointer was rotated away on the peer side, or the peer
     rejects the lookup) surfaces as
     :class:`CrossOrgBoundaryViolationError`.
@@ -463,8 +463,8 @@ def test_t_cacv_07_cross_org_boundary_peer_resolver_returns_none() -> None:
 
 
 def test_t_cacv_08_revoked_link_denial() -> None:
-    """A chain whose hop resolves to a revoked policy (Sprint-6
-    Tag-1 revocation precedence) surfaces as
+    """A chain whose hop resolves to a revoked policy (
+    revocation precedence) surfaces as
     :class:`AttenuationLinkRevokedError`.
 
     Scenario: the local policy was revoked in the past relative to

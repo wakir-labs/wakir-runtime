@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang schema-registry NATS-KV backend.
 
-Phase-1b Sprint-3 Tag-1 (S3-1). Tests the production-target backend
+Phase-1b (S3-1). Tests the production-target backend
 :mod:`wirelang.schemas.registry_nats_kv_backend` against an in-memory
-mock that mirrors Kai's Tag-1 mock JetStream surface
+mock that mirrors the infrastructure zone's mock JetStream surface
 (``tests/orchestrator/test_init_nats_buckets.py``) and the V-908
 backend mock pattern
 (``tests/test_federation_route_registry_nats_kv_backend.py``).
@@ -364,7 +364,7 @@ def test_t_sr_10_bucket_config_matches_documented_inventory():
     """T-SR-10: the module-level ``BUCKET_NAME`` and ``BUCKET_CONFIG``
     constants match the Phase-1 documented inventory.
 
-    Cross-reference: this slot is shared with Kai's
+    Cross-reference: this slot is shared with the infrastructure zone's
     :data:`PHASE_1_BUCKETS[0]` in
     ``scripts/init-nats-buckets.py``. A drift here is a contract
     violation between the orchestrator-side init and the wirelang-
@@ -418,8 +418,8 @@ def test_t_sr_aux_determinism_two_snapshots_byte_equal():
 
 
 def test_t_sr_aux_key_derivation_round_trip():
-    """T-SR-aux-key-derivation: :func:`key_for_triple` is bijective
-    against :func:`triple_for_key`; malformed inputs are rejected.
+    """T-SR-aux-key-derivation::func:`key_for_triple` is bijective
+    against:func:`triple_for_key`; malformed inputs are rejected.
     """
     # Round-trip identity for valid triples.
     cases = [

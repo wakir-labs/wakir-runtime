@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Phase-2 Sprint-5 Tag-2 verifier-signature wire-up.
+"""Hermetic tests for the Phase-2 verifier-signature wire-up.
 
 The module under test (``wat/verify/manifest_v2.py``) gained an
-optional ``verify_signature`` opt-in surface in Sprint-5 Tag-2 that
+optional ``verify_signature`` opt-in surface in that
 consumes the optional manifest-level ``signature`` slot landed in
-Sprint-5 Tag-1 (schema 0.2.0). The signing primitive itself
-(``wat/identity/manifest_signing.py``, Sprint-4 Tag-6) stays the
+ (schema 0.2.0). The signing primitive itself
+(``wat/identity/manifest_signing.py``,) stays the
 canonical producer; this wire-up is the consumer side that lets the
 verifier reject a tampered signed manifest, accept a clean signed
 manifest, and (under STRICT mode) reject unsigned manifests.
@@ -194,7 +194,7 @@ def test_t_wat_verify_sig_wire_01_signed_v2_manifest_verifies(
     --verify-signature with the matching public key.
 
     The end-to-end shape: sign_manifest -> envelope_with_signature ->
-    write bytes -> verify_manifest_v2_file(..., verify_signature=True,
+    write bytes -> verify_manifest_v2_file..., verify_signature=True,
     public_key=pub). Schema + integrity already pass on the stripped
     body; the wire-up adds the cryptographic-verdict layer on top.
     """
@@ -233,7 +233,7 @@ def test_t_wat_verify_sig_wire_02_default_off_ignores_slot(
 
     This is the backward-compatibility pin: the 321 pre-existing tests
     must not start running a signature check just because the schema
-    learned an optional slot in Tag-1.
+    learned an optional slot.
     """
     priv, _pub = _fixed_keypair()
     events = [_make_event(1, capref_hash_hex="a" * 64)]

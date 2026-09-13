@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-Bridge-Forward-CLI-MINI subscribe-loop
-snapshot CLI (Amara PR #116 §5 substance-bestaetigung).
+"""Hermetic tests for the -Bridge-Forward-CLI-MINI subscribe-loop
+snapshot CLI.
 
 The CLI is in ``wirelang/bridge/cli.py``. The hermetic test surface uses
 the ``--snapshot-file`` and ``--snapshot-stdin`` paths plus the in-
-process ``snapshot_loader`` keyword on :func:`main`. NATS-mock-fixtures
+process ``snapshot_loader`` keyword on:func:`main`. NATS-mock-fixtures
 in this module emit deterministic snapshot dicts that mirror what a
 JetStream ``stream_info``/``consumer_info`` probe would produce; no
 ``nats-py`` import, no network, no clock skew.
 
 Spec-Anker
 ----------
-- ``wirelang/specs/bridge-forward-pipe-v1.md`` (Sprint-10 Tag-6)
-- Amara PR #116 §5 — five-key snapshot contract
+- ``wirelang/specs/bridge-forward-pipe-v1.md``
+- the QA zone PR #116 §5 — five-key snapshot contract
 - ADR-0058 — Wakir-Runtime + Wirelang protocol-layer
-- Selin Sprint-Pengine-13 Bug-42 — subscribe-loop inventory trigger
+- the engine zone -Pengine-13 Bug-42 — subscribe-loop inventory trigger
 """
 
 from __future__ import annotations
@@ -126,7 +126,7 @@ def test_validate_summary_accepts_quiet_busy_high_lag(
 
 
 def test_validate_summary_rejects_shape_errors(quiet_snapshot):
-    """Every contract-clause in :func:`validate_summary` must reject a
+    """Every contract-clause :func:`validate_summary` must reject a
     minimally-mutated quiet snapshot."""
 
     def mutate(snap, **changes):
@@ -382,7 +382,7 @@ def test_main_returns_rc_1_on_missing_file(tmp_path):
 
 
 def test_output_is_byte_deterministic_across_repeats(busy_snapshot):
-    """Same fixture in, same bytes out — across repeated invocations.
+    """Same fixture, same bytes out — across repeated invocations.
     This is the hermetic-substrate floor that lets PR-bundle merges be
     reproducible across operator hosts."""
     expected_json = format_summary_json(busy_snapshot)
@@ -400,7 +400,7 @@ def test_output_is_byte_deterministic_across_repeats(busy_snapshot):
 
 def test_load_snapshot_from_file_rejects_non_object_root(tmp_path):
     """JSON arrays / strings / numbers at the file root must be
-    rejected by :func:`load_snapshot_from_file`. The contract is a
+    rejected :func:`load_snapshot_from_file`. The contract is a
     JSON *object* with the five required keys; we fail fast at the
     loader so the validator sees only well-typed input."""
     array_path = tmp_path / "array.json"
@@ -417,7 +417,7 @@ def test_load_snapshot_from_file_rejects_non_object_root(tmp_path):
 def test_schema_constants_are_canonical():
     """The schema-id and required-key tuple are the single source of
     truth for this CLI. We assert their exact values so downstream
-    consumers (Operator-Hand-Live-VM smoke harness, Henrik audit, the
+    consumers (Operator-Hand-Live-VM smoke harness, internal audit audit, the
     persona-engine subscribe-loop emitter if/when it grows a Reply-To
     summary endpoint) all agree on the shape."""
     assert SUBSCRIBE_LOOP_SUMMARY_SCHEMA == "wakir.bridge.subscribe-loop-summary/1"

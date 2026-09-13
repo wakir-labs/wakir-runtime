@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """End-to-End live-substrate Bring-up tests in a containerized
-Fedora environment (Phase-2 Sprint-9 Tag-4).
+Fedora environment (Phase-2).
 
 Sister module to ``test_pilot_bringup_substance.py``: where that one
 asserts source-shape, this one runs the bootstrap script logic
@@ -50,7 +50,7 @@ In CI (GitHub-Actions ``ubuntu-latest``, see
 ``.github/workflows/e2e-bringup-ci.yml``), podman is preinstalled, so
 the suite runs in full.
 
-— Amara
+— the QA zone
 """
 
 from __future__ import annotations
@@ -284,7 +284,7 @@ _STUB_SMOKE = textwrap.dedent(
     """
 )
 
-# Tag-34 substance-fix (Tomás, 2026-05-18): the bootstrap's step 5 calls
+# substance-fix: the bootstrap's step 5 calls
 # ``skopeo inspect docker://<image>`` for all 4 images in
 # ``WAKIR_SKIP_COSIGN_VERIFY=1`` mode (Bug-36 substance-fix, PR #71,
 # commit ece69a4, merged 2026-05-15 19:33Z). Before PR #71 only the
@@ -413,8 +413,8 @@ def _run_bootstrap_in_container(
         ("curl", _STUB_CURL),
         ("git", _STUB_GIT),
         ("proxmox-bringup-smoke", _STUB_SMOKE),
-        # Tag-34 substance-fix (Tomás, 2026-05-18): skopeo + cosign
-        # are called by step_5_image_pins(). The fedora:latest
+        # substance-fix: skopeo + cosign
+        # are called by step_5_image_pins. The fedora:latest
         # substrate does not ship them; even if it did, the test is
         # designed to be hermetic and must not make network calls.
         # See _STUB_SKOPEO / _STUB_COSIGN comment for the RCA.
@@ -430,10 +430,10 @@ def _run_bootstrap_in_container(
     osrel.write_text(_STUB_OS_RELEASE)
 
     # Construct the in-container script:
-    #   1. Lay down /etc/os-release (already faked via bind),
-    #   2. Lay down stubs into a directory on PATH,
-    #   3. Maybe pre-run Phase 6 once,
-    #   4. Run the bootstrap with the requested --resume-from.
+    # 1. Lay down /etc/os-release (already faked via bind),
+    # 2. Lay down stubs into a directory on PATH,
+    # 3. Maybe pre-run Phase 6 once,
+    # 4. Run the bootstrap with the requested --resume-.
     pre_phase = ""
     if pre_phase_6_run:
         pre_phase = (
@@ -604,7 +604,7 @@ def test_e2e_full_bringup_reaches_phase_8(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# E2E-02: After Phase 6, all referenced .volume files are installed
+# E2E-02: After Phase 6, all referenced.volume files are installed
 # ---------------------------------------------------------------------------
 
 
@@ -613,10 +613,10 @@ def test_e2e_phase_6_installs_volume_files_matching_container_refs(
     tmp_path: Path,
 ) -> None:
     """After the bootstrap runs Phase 6, the installed /etc/containers/
-    systemd directory MUST contain a .volume file for every Volume=
+    systemd directory MUST contain a.volume file for every Volume=
     reference in the installed server-federation-${side}.container.
 
-    This is the runtime evidence for Bug 2 from the Mira-Bug-Bilanz.
+    This is the runtime evidence for Bug 2 from the operator-Bug-Bilanz.
     """
     proc = _run_bootstrap_in_container(tmp_path, resume_from=4)
     combined = proc.stdout + proc.stderr
@@ -648,8 +648,8 @@ def test_e2e_phase_6_installs_volume_files_matching_container_refs(
 def test_e2e_phase_6_agent_requires_matches_installed_server_service(
     tmp_path: Path,
 ) -> None:
-    """After Phase 6 install, the agent .container file's Requires=
-    line must reference a service derived from a .container file the
+    """After Phase 6 install, the agent.container file's Requires=
+    line must reference a service derived from a.container file the
     bootstrap actually installed.
 
     Runtime evidence for Bugs 3 and 4.
@@ -735,7 +735,7 @@ def test_e2e_phase_6_resume_is_idempotent(tmp_path: Path) -> None:
     assert not deltas, (
         "Phase-6 second run produced state-mutating delta:\n"
         + "\n".join(deltas)
-        + "\n\nThis is Bug 5 from the 2026-05-13 Mira-Bug-Bilanz: "
+        + "\n\nThis is Bug 5 from the 2026-05-13 operator-Bug-Bilanz: "
         "Phase 6 is not idempotent on re-run."
     )
 

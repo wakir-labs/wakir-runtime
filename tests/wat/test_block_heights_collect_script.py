@@ -4,7 +4,7 @@
 
 The script is bash, not python, but its failure modes matter for the
 backfill operator workflow and we want a pytest-runnable regression
-gate so the Tag-14 pending-path bug does not creep back in.
+gate so the pending-path bug does not creep back.
 
 Approach: stand up a temporary archive directory with a single fake
 ``.ots`` receipt and shadow the ``ots`` CLI with a small bash mock on
@@ -118,7 +118,7 @@ def archive_with_receipt(tmp_path: Path) -> Path:
 def test_pending_path_exits_zero_and_writes_report(
     archive_with_receipt: Path, tmp_path: Path
 ) -> None:
-    """Tag-14 regression: pending receipts must not kill the script.
+    """regression: pending receipts must not kill the script.
 
     Before the fix, ``set -euo pipefail`` + an empty ``grep`` for
     ``BitcoinBlockHeaderAttestation`` propagated exit 1 out of the
@@ -177,7 +177,7 @@ def test_missing_archive_returns_exit_2(tmp_path: Path) -> None:
 
 
 def test_empty_archive_returns_exit_1(tmp_path: Path) -> None:
-    """An archive with no .ots receipts is the documented exit-1 case."""
+    """An archive with no.ots receipts is the documented exit-1 case."""
     if shutil.which("bash") is None:  # pragma: no cover
         pytest.skip("bash not on PATH")
     mock_bin = tmp_path / "mock-bin"

@@ -4,15 +4,15 @@
 """Hermetic tests for
 ``scripts/observability/cosign-keyless-oidc-drift-probe.py``.
 
-Tag-47 Kai — Cosign-Keyless-OIDC-Drift-Probe.
+The infrastructure zone — Cosign-Keyless-OIDC-Drift-Probe.
 
 Coverage targets the pure-function core (no live cosign / network).
 The 16 tests in this file cover:
 
-  * 4 trust-root verdict invariants (TV-DR-01 .. TV-DR-04)
-  * 5 per-binary OIDC verdict invariants (TV-OI-01 .. TV-OI-05)
-  * 3 aggregate-verdict invariants (TV-AG-01 .. TV-AG-03)
-  * 3 rendering invariants (TV-RD-01 .. TV-RD-03)
+  * 4 trust-root verdict invariants (TV-DR-01.. TV-DR-04)
+  * 5 per-binary OIDC verdict invariants (TV-OI-01.. TV-OI-05)
+  * 3 aggregate-verdict invariants (TV-AG-01.. TV-AG-03)
+  * 3 rendering invariants (TV-RD-01.. TV-RD-03)
   * 1 substrate-shape invariant (TV-SU-01)
 
 Total: 16 hermetic invariants — comfortably above the >=12 target.
@@ -25,7 +25,7 @@ NEVER call cosign / crane / podman / network. They construct
 in-memory PolicySnapshot + snapshot fixtures and assert the
 verdict-axis transitions.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations
@@ -421,7 +421,7 @@ def test_tv_rd_03_markdown_summary_shows_action_section_only_when_drift():
 
 
 def test_tv_su_01_policy_from_raw_handles_tag45_15_binary_shape():
-    """TV-SU-01: policy_from_raw parses the Tag-45 15-binary inventory."""
+    """TV-SU-01: policy_from_raw parses the 15-binary inventory."""
     raw = {
         "schema_version": "wakir.cosign-policy.phase-3b/1",
         "policy": {

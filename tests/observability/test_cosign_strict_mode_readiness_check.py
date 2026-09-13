@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic invariants for the Cosign-Strict-Mode Readiness Check (Tag-54).
+"""Hermetic invariants for the Cosign-Strict-Mode Readiness Check.
 
 Mirrors the pure-function-vs-IO split of
 ``scripts/observability/cosign-strict-mode-readiness-check.py``: the
@@ -8,47 +8,47 @@ tests target the pure functions ABOVE the I/O boundary; no podman /
 cosign / network egress.
 
 Test-vector naming:
-  TV-SM-NN  — readiness-check substrate test, NN = ordinal.
+  TV-SM-NN — readiness-check substrate test, NN = ordinal.
 
-Invariants (≥12, target 16; Tag-55 closeout: extended to ≥27):
+Invariants (≥12, target 16; closeout: extended to ≥27):
 
-  TV-SM-01  inventory constant matches Tag-45 canonical size (15).
-  TV-SM-02  inventory constant order is deterministic + frozen.
-  TV-SM-03  policy_view_from_raw extracts the 15-binary inventory.
-  TV-SM-04  policy_view_from_raw tolerates malformed dict.
-  TV-SM-05  trust_root_view_from_raw round-trips the four axes.
-  TV-SM-06  probe_envelope_view_from_raw round-trips aggregate_verdict.
-  TV-SM-07  quadlet_installer_binary_names_from_text grep-extracts
+  TV-SM-01 inventory constant matches canonical size (15).
+  TV-SM-02 inventory constant order is deterministic + frozen.
+  TV-SM-03 policy_view_from_raw extracts the 15-binary inventory.
+  TV-SM-04 policy_view_from_raw tolerates malformed dict.
+  TV-SM-05 trust_root_view_from_raw round-trips the four axes.
+  TV-SM-06 probe_envelope_view_from_raw round-trips aggregate_verdict.
+  TV-SM-07 quadlet_installer_binary_names_from_text grep-extracts
             the canonical names from a realistic installer fixture.
-  TV-SM-08  G1 BLOCKED on placeholder digest in policy.
-  TV-SM-09  G1 GREEN on all real sha256 digests.
-  TV-SM-10  G2 BLOCKED on PENDING_OPERATOR_HAND_REFRESH in trust-root.
-  TV-SM-11  G2 GREEN on real Fulcio CA SHA + Rekor shard ID.
-  TV-SM-12  G3 NOT-CHECKED when envelope is None (file missing).
-  TV-SM-13  G3 BLOCKED when last probe verdict is non-GREEN.
-  TV-SM-14  G4 BLOCKED on inventory drift (size mismatch).
-  TV-SM-15  G5 BLOCKED on quadlet-vs-policy set drift.
-  TV-SM-16  G6 GREEN — required-status-check names are non-empty.
-  TV-SM-17  aggregate_run_verdict precedence BLOCKED > NOT-CHECKED > GREEN.
-  TV-SM-18  render_markdown_summary contains all six gate rows.
-  TV-SM-19  envelope_to_json carries schema + run_ts + per-gate rows.
+  TV-SM-08 G1 BLOCKED on placeholder digest in policy.
+  TV-SM-09 G1 GREEN on all real sha256 digests.
+  TV-SM-10 G2 BLOCKED on PENDING_OPERATOR_HAND_REFRESH in trust-root.
+  TV-SM-11 G2 GREEN on real Fulcio CA SHA + Rekor shard ID.
+  TV-SM-12 G3 NOT-CHECKED when envelope is None (file missing).
+  TV-SM-13 G3 BLOCKED when last probe verdict is non-GREEN.
+  TV-SM-14 G4 BLOCKED on inventory drift (size mismatch).
+  TV-SM-15 G5 BLOCKED on quadlet-vs-policy set drift.
+  TV-SM-16 G6 GREEN — required-status-check names are non-empty.
+  TV-SM-17 aggregate_run_verdict precedence BLOCKED > NOT-CHECKED > GREEN.
+  TV-SM-18 render_markdown_summary contains all six gate rows.
+  TV-SM-19 envelope_to_json carries schema + run_ts + per-gate rows.
 
-  Tag-55 closeout additions:
-  TV-SM-20  load_quadlet_installer_glob returns None when no matches.
-  TV-SM-21  load_quadlet_installer_glob unions binary-names across all
+  closeout additions:
+  TV-SM-20 load_quadlet_installer_glob returns None when no matches.
+  TV-SM-21 load_quadlet_installer_glob unions binary-names across all
             matched Quadlet files in deterministic sorted-path order.
-  TV-SM-22  glob loader dedupes names across files.
-  TV-SM-23  on-disk Welle-4..7 Quadlets each declare exactly their
-            single welle-suffix binary name (regression pin).
-  TV-SM-24  on-disk policy YAML has the canonical 15 binaries in the
+  TV-SM-22 glob loader dedupes names across files.
+  TV-SM-23 on-disk wave 4..7 Quadlets each declare exactly their
+            single wave-suffix binary name (regression pin).
+  TV-SM-24 on-disk policy YAML has the canonical 15 binaries in the
             canonical order (G4 substrate-pin).
-  TV-SM-25  on-disk Quadlet glob unions to the canonical 15 binary
-            set (G5 substrate-pin post Tag-55 Welle-4..7 add).
-  TV-SM-26  on-disk last-probe-envelope.json is present and parses to
+  TV-SM-25 on-disk Quadlet glob unions to the canonical 15 binary
+            set (G5 substrate-pin post wave 4..7 add).
+  TV-SM-26 on-disk last-probe-envelope.json is present and parses to
             an aggregate_verdict (G3 substrate-pin).
-  TV-SM-27  G5 GREEN evaluator on a quadlet view that carries the
+  TV-SM-27 G5 GREEN evaluator on a quadlet view that carries the
             canonical 15 set (set-equality, order-insensitive).
-  TV-SM-28  REAL_DIGEST_RE only accepts well-formed sha256 + 64 hex.
+  TV-SM-28 REAL_DIGEST_RE only accepts well-formed sha256 + 64 hex.
 """
 
 from __future__ import annotations
@@ -105,11 +105,11 @@ def test_tv_sm_01_inventory_size_matches_tag45_canonical(smod):
 
 
 def test_tv_sm_02_inventory_order_is_frozen(smod):
-    """TV-SM-02: the canonical order is the Tag-45 chronological order.
+    """TV-SM-02: the canonical order is the chronological order.
 
-    The first nine entries land Tag-17..Tag-31; the Welle-4..7 four
-    entries land Tag-33; the last two (bridge-audit-replay,
-    migrate-version) land Tag-37/Tag-38 (Phase-3a 14./15. Modul).
+    The first nine entries land..; the wave 4..7 four
+    entries land; the last two (bridge-audit-replay,
+    migrate-version) land /(Phase-3a 14./15. Modul).
     """
     expected: Tuple[str, ...] = (
         "recovery",
@@ -395,7 +395,7 @@ def test_tv_sm_19_json_envelope_schema_and_rows(smod):
 
 
 # ---------------------------------------------------------------------------
-# Tag-55 closeout tests (glob loader + on-disk substrate pins)
+# closeout tests (glob loader + on-disk substrate pins)
 # ---------------------------------------------------------------------------
 
 
@@ -443,8 +443,8 @@ def test_tv_sm_22_glob_loader_dedupes_across_files(smod, tmp_path):
 
 
 def test_tv_sm_23_welle_quadlets_declare_single_binary(smod):
-    """TV-SM-23: each on-disk Welle-N Quadlet declares exactly its
-    single welle-suffix binary name (regression pin against accidental
+    """TV-SM-23: each on-disk wave N Quadlet declares exactly its
+    single wave-suffix binary name (regression pin against accidental
     drift where a sibling-shape Quadlet is copy-paste-edited and ends
     up listing a wrong/extra binary).
     """
@@ -459,7 +459,7 @@ def test_tv_sm_23_welle_quadlets_declare_single_binary(smod):
         assert path.exists(), f"Quadlet missing on disk: {path}"
         text = path.read_text(encoding="utf-8")
         names = smod.quadlet_installer_binary_names_from_text(text)
-        # Each welle-Quadlet must reference EXACTLY its single binary
+        # Each wave-Quadlet must reference EXACTLY its single binary
         # (anchor comment + Exec= path both contribute, but dedup
         # collapses to one).
         assert names == (binary,), (
@@ -483,7 +483,7 @@ def test_tv_sm_24_on_disk_policy_carries_canonical_15(smod):
 
 def test_tv_sm_25_on_disk_quadlet_glob_unions_to_canonical_15(smod):
     """TV-SM-25: the on-disk Quadlet glob unions to the canonical 15
-    binary set (G5 substrate-pin post Tag-55 Welle-4..7 add)."""
+    binary set (G5 substrate-pin post wave 4..7 add)."""
     result = smod.load_quadlet_installer_glob(
         _REPO_ROOT, "quadlet/wakir-rust-cli*.container"
     )
@@ -495,7 +495,7 @@ def test_tv_sm_25_on_disk_quadlet_glob_unions_to_canonical_15(smod):
 def test_tv_sm_26_on_disk_last_probe_envelope_present(smod):
     """TV-SM-26: on-disk last-probe-envelope.json parses to a verdict.
 
-    The Tag-55 closeout commits a baseline-mode drift-probe envelope to
+    The closeout commits a baseline-mode drift-probe envelope to
     tooling/baselines/cosign-drift/last-probe-envelope.json so G3 evaluates against
     a real on-disk envelope rather than NOT-CHECKED.
     """
@@ -515,7 +515,7 @@ def test_tv_sm_26_on_disk_last_probe_envelope_present(smod):
         "DRIFT-OIDC-IDENTITY",
         "DRIFT-TRUST-ROOT",
     )
-    # Tag-55 closeout committed a GREEN baseline envelope so G3 flips
+    # closeout committed a GREEN baseline envelope so G3 flips
     # GREEN immediately on a fresh checkout.
     assert raw["aggregate_verdict"] == "GREEN"
 

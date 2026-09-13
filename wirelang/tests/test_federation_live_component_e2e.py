@@ -1,29 +1,29 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Hermetic Live-Component E2E test for the Sprint-7 Multi-Org-Federation
-substrate (Sprint-7 Pfad-B Tag-5).
+"""Hermetic Live-Component E2E test for the Multi-Org-Federation
+substrate ( Pfad-B).
 
-Sprint-7 Tag-1..Tag-6 landed the Wirelang-side federation substrate
+..landed the Wirelang-side federation substrate
 across six modules:
 
-- Tag-1 :mod:`wirelang.federation.multi_org_substrate` (envelope +
+-:mod:`wirelang.federation.multi_org_substrate` (envelope +
   in-memory registry + mock-bridge resolver).
-- Tag-2 :mod:`wirelang.federation.multi_org_attestation_nats_kv_backend`
+-:mod:`wirelang.federation.multi_org_attestation_nats_kv_backend`
   (durable NATS-KV backend; CAS-pin; authority-gesture monotonic
   invariant; watch-stream; bootstrap helper).
-- Tag-3 :mod:`wirelang.federation.spiffe_cross_trust_domain_bridge`
+-:mod:`wirelang.federation.spiffe_cross_trust_domain_bridge`
   (live cross-trust-domain bridge composing fetcher + verifier +
   local-workload adapter).
-- Tag-4 :mod:`wirelang.federation.capability_attenuation_chain_verifier`
+-:mod:`wirelang.federation.capability_attenuation_chain_verifier`
   (cross-org capability-attenuation-chain verifier).
-- Tag-5 (Sprint-7 pre-pfad-B; now lives in
+- ( pre-pfad-B; now lives in
   :mod:`wirelang.federation.unrevoke_audit_marker_cross_org_export`)
   not exercised here — orthogonal Cross-Org export-surface.
-- Tag-6 :mod:`wirelang.federation.multi_org_attestation_live_tail_replicator`
+-:mod:`wirelang.federation.multi_org_attestation_live_tail_replicator`
   (continuous-stream source -> target replicator).
 
-This Pfad-B Tag-5 test deliverable adds the *live-component*
+This Pfad-B test deliverable adds the *live-component*
 acceptance: a hermetic E2E roundtrip wiring all of the above with
-the Sprint-8 Tag-1
+the
 ``infra/spire/federation/bin/spire_fed_bundle`` hermetic-mode CLI
 through the new
 :mod:`wirelang.federation.spire_fed_bundle_peer_fetcher` adapter.
@@ -34,32 +34,32 @@ E2E Roundtrip
 The test simulates two organisations:
 
 - **Org-A** (``wakir.test`` trust-domain): the route source. Writes
-  a :class:`MultiOrgRouteAttestation` into its
+  a:class:`MultiOrgRouteAttestation` into its
   ``wakir-multi-org-attestations`` NATS-KV bucket (the test uses the
-  Tag-2 backend against an in-memory ``_MockKv`` so no live NATS
+  backend against an in-memory ``_MockKv`` so no live NATS
   server is required).
 - **Org-B** (``partner.test`` trust-domain): the route target. Has
-  its own ``wakir-multi-org-attestations`` bucket. The Tag-6 live-
+  its own ``wakir-multi-org-attestations`` bucket. The live-
   tail replicator forwards every Org-A write into Org-B.
 
 After the replicator runs:
 
-1. The :class:`SpiffeCrossTrustDomainBridge` on Org-B's side resolves
+1. The:class:`SpiffeCrossTrustDomainBridge` on Org-B's side resolves
    the route. The bridge consumes the new
    :class:`SpireFedBundlePeerTrustBundleFetcher` adapter, which
-   in turn calls into the Sprint-8 Tag-1 hermetic-mode
+   in turn calls into the hermetic-mode
    ``spire_fed_bundle.export_bundle`` to obtain the Org-A trust-
    bundle JWKS.
 2. The bridge verifies a peer-JWT-SVID supplied by Org-A through a
    stub verifier (the hermetic JWKS fixture lacks real EC keys; a
    live-mode verifier replacement is a Phase-2c follow-up).
-3. The :class:`CapabilityAttenuationChainVerifier` walks a two-hop
+3. The:class:`CapabilityAttenuationChainVerifier` walks a two-hop
    delegation chain (one local hop on Org-B + one cross-org hop
    that resolves against Org-A's capability-policy via a stub
    peer-resolver). The verifier emits a
    :class:`VerifiedAttenuationChain` whose
    :attr:`chain_hash` is anchorable into the WAT-Audit-Federation-
-   Annex (Tomás D-1 follow-up consumer).
+   Annex.
 
 The roundtrip is asserted in three orthogonal ways:
 
@@ -80,7 +80,7 @@ Sandbox-boundary
 The test is **hermetic-only**. It does NOT start a SPIRE-Server, does
 NOT call podman, does NOT touch the network. The
 ``spire_fed_bundle`` CLI is consumed as an in-process Python module
-through the Tag-5 adapter; the JWKS bytes the adapter returns are
+through the adapter; the JWKS bytes the adapter returns are
 the deterministic hermetic fixture per
 ``infra/spire/federation/bin/spire_fed_bundle.py`` documentation.
 
@@ -172,7 +172,7 @@ def _fixed_clock(now: datetime):
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors the Tag-2 backend test pattern; in-process, no NATS)
+# Mock KV (mirrors the backend test pattern; in-process, no NATS)
 # ---------------------------------------------------------------------------
 
 
@@ -216,9 +216,9 @@ class _MockWatcher:
 
 @dataclass
 class _MockKv:
-    """In-memory KV with PUT / GET / keys() / watchall().
+    """In-memory KV with PUT / GET / keys / watchall.
 
-    Mirrors the Sprint-7 Tag-2 backend test's ``_MockKv`` minus the
+    Mirrors the backend test's ``_MockKv`` minus the
     CAS-pin path (the live-tail replicator uses SOURCE_WINS in this
     test, which does not exercise put_with_revision).
     """
@@ -424,7 +424,7 @@ def _build_adapter(clock_now: datetime) -> SpireFedBundlePeerTrustBundleFetcher:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-01: adapter happy-path fetch produces a JWKS bundle whose
-#                _wakir_trust_domain marker matches the request.
+# _wakir_trust_domain marker matches the request.
 # ---------------------------------------------------------------------------
 
 
@@ -491,7 +491,7 @@ def test_adapter_rejects_url_trust_domain_mismatch() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-04: bridge resolves end-to-end using the adapter +
-#                in-memory registries (no replicator yet).
+# in-memory registries (no replicator yet).
 # ---------------------------------------------------------------------------
 
 
@@ -538,7 +538,7 @@ def test_bridge_resolves_endtoend_with_adapter() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-05: bridge wraps adapter UrlTrustDomainMismatch as
-#                PeerTrustBundleFetchError (fail-closed semantics).
+# PeerTrustBundleFetchError (fail-closed semantics).
 # ---------------------------------------------------------------------------
 
 
@@ -584,8 +584,8 @@ def test_bridge_wraps_adapter_url_mismatch_as_fetch_error() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-06: bootstrap replicator copies Org-A attestation to Org-B
-#                bucket byte-equally; the bridge on Org-B's side then
-#                resolves successfully.
+# bucket byte-equally; the bridge on Org-B's side then
+# resolves successfully.
 # ---------------------------------------------------------------------------
 
 
@@ -648,8 +648,8 @@ def test_bootstrap_then_bridge_resolves_on_target() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-07: live-tail replicator forwards a *post-bootstrap* Org-A
-#                write into Org-B's bucket; the bridge then resolves
-#                the new route on Org-B's side.
+# write into Org-B's bucket; the bridge then resolves
+# the new route on Org-B's side.
 # ---------------------------------------------------------------------------
 
 
@@ -751,9 +751,9 @@ def test_live_tail_replicator_then_bridge_resolves() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-08: full cross-module E2E roundtrip — bootstrap +
-#                bridge resolve + capability-attenuation-chain verify
-#                with a cross-org hop that consumes the attestation's
-#                peer_capability_policy_pointer.
+# bridge resolve + capability-attenuation-chain verify
+# with a cross-org hop that consumes the attestation's
+# peer_capability_policy_pointer.
 # ---------------------------------------------------------------------------
 
 
@@ -856,7 +856,7 @@ def test_full_cross_module_e2e_roundtrip() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-09: schema-pin stability — the adapter advertises a stable
-#                schema-URI string.
+# schema-URI string.
 # ---------------------------------------------------------------------------
 
 
@@ -871,7 +871,7 @@ def test_adapter_schema_pin_is_stable() -> None:
 
 # ---------------------------------------------------------------------------
 # T-LIVE-E2E-10: cross-trust-domain bidirectional roundtrip — adapter
-#                fetches BOTH trust-domains successfully.
+# fetches BOTH trust-domains successfully.
 # ---------------------------------------------------------------------------
 
 

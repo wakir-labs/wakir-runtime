@@ -177,7 +177,7 @@ three independent witnesses:
 
 The audit is deterministic and reproducible. The hermetic test
 suite
-`wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py`
+`wirelang/tests/persona_engine/test_production_readiness_audit_0_5_3.py`
 encodes every numeric and string assertion in this report; a
 divergence between this document and the substrate trips the
 suite in the next CI cycle.
@@ -563,7 +563,7 @@ authority.
 ## 5. Hermetic Test Surface (Tag-63 Audit-Companion)
 
 The hermetic test module
-`wirelang/tests/persona_engine/test_tag63_production_readiness_audit.py`
+`wirelang/tests/persona_engine/test_production_readiness_audit_0_5_3.py`
 encodes every numeric and string assertion in §3 as an executable
 test. The module is structured per-dimension with one test class
 per dimension (D1..D7) plus cross-cutting sanity tests, for a
@@ -603,7 +603,7 @@ audit-creation time.
 | Engine version literal `0.5.3` | n/a | `__version__.py`, `engine_async.py`, `cli.py` docstring, `engine.py` import-comment | n/a |
 | Byte-stable vs. `0.5.3-rc1` and `0.5.2-final-pre-cutover` | `invariants.byte_stable_versus` | n/a | All crates pinned 0.1.0 (no bump) |
 | Tag-51 resilience contract (36 tests) pinned by reference | `resilience_contract.pinned_test_count` | `test_tag51_10_decision_engine_resilience.py` | n/a |
-| Tag-57 emit-order pin (state_backing pre-boot) | n/a | `test_state_backing_pre_boot_emit_order_tag57.py` | n/a |
+| Tag-57 emit-order pin (state_backing pre-boot) | n/a | `test_state_backing_pre_boot_emit_order.py` | n/a |
 | Tag-58 0.5.3-rc1 release-notes | n/a | `docs/persona-engine/0-5-3-rc1-release-notes.md` | n/a |
 | Tag-59 V-907 hash-pin baseline | n/a | `v907-hash-baseline.json` | n/a |
 | Tag-61 G5-PRE-CUTOVER-READY compositum | n/a | `test_engine_pre_cutover_final_composite_tag61.py` | n/a |

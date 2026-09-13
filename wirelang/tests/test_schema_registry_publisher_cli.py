@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Determinism tests for ``wirelang.schemas.publisher_cli``.
 
-Phase-1b Sprint-3 Tag-5 — OI-7-Phase-1c-publisher.
+Phase-1b — OI-7-Phase-1c-publisher.
 
 The tests pin the CLI surface (parser shape, exit-code matrix, JSON
 receipt schema, error envelope) and the operator-input gate ordering.
 A test-local connect factory injects an in-memory backend over an
-``_MockKvCas``-flavoured KV mock (mirroring the Tag-3 CAS-pin mock)
+``_MockKvCas``-flavoured KV mock (mirroring the CAS-pin mock)
 so that the publisher CLI is exercised end-to-end without a live
 NATS cluster.
 
@@ -65,7 +65,7 @@ from wirelang.schemas.registry_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# In-memory KV mock (CAS-aware), mirroring the Tag-3 mock pattern.
+# In-memory KV mock (CAS-aware), mirroring the mock pattern.
 # ---------------------------------------------------------------------------
 
 
@@ -293,7 +293,7 @@ def test_t_sr_pub_03_publish_lww(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     assert err.getvalue() == ""
 
     receipt = json.loads(out.getvalue())
@@ -326,7 +326,7 @@ def test_t_sr_pub_04_publish_cas_success(tmp_path):
         stdout=out0,
         stderr=err0,
     )
-    assert code0 == int(ExitCode.OK), err0.getvalue()
+    assert code0 == int(ExitCode.OK), err0.getvalue
     rev0 = json.loads(out0.getvalue())["revision"]
 
     # Second pass: CAS-pin against the observed revision.
@@ -337,7 +337,7 @@ def test_t_sr_pub_04_publish_cas_success(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     receipt = json.loads(out.getvalue())
     assert receipt["mode"] == "cas"
     assert receipt["expected_revision"] == rev0
@@ -409,7 +409,7 @@ def test_t_sr_pub_06_publish_create_only_success(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     receipt = json.loads(out.getvalue())
     assert receipt["mode"] == "create-only"
     assert receipt["expected_revision"] == 0

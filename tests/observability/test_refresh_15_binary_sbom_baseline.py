@@ -4,7 +4,7 @@
 """Hermetic tests for
 ``scripts/observability/refresh-15-binary-sbom-baseline.py``.
 
-Tag-50 Kai -- SBOM-Baseline-Refresh CLI.
+The infrastructure zone -- SBOM-Baseline-Refresh CLI.
 
 Coverage targets:
 
@@ -23,11 +23,11 @@ Sandbox boundary
 
 Per ``feedback_sandbox_host_trennung.md`` + ADR-0051 these tests
 NEVER call cargo / cosign / podman / network. End-to-end tests
-use the live Tag-48 generator + Tag-49 verifier against the
+use the live generator + verifier against the
 repo's pinned ``wirelang-rust/Cargo.lock`` -- the generator is
 already hermetic (stdlib + tomllib only).
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations

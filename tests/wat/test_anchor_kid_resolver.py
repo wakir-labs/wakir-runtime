@@ -3,13 +3,13 @@
 
 """WAT-side anchor-kid resolver bridge — determinism tests.
 
-Phase-1b Sprint-4 Tag-5: WAT-side parallel of the Identity-Substrate
-``kid``-resolver (Identity-Substrate Sprint-4 Tag-3, ``wirelang.identity.kid_resolver``).
+Phase-1b: WAT-side parallel of the Identity-Substrate
+``kid``-resolver (Identity-Substrate, ``wirelang.identity.kid_resolver``).
 These tests exercise the WAT-domain reference shape, the resolver-
 availability probe, and the canonical-resolver bridge under the
 ``purpose == "wat-anchor"`` filter.
 
-Cross-Reference: Identity-Substrate Sprint-4 Tag-3 kid-resolver spec §5.9 (operational
+Cross-Reference: Identity-Substrate kid-resolver spec §5.9 (operational
 contract) — the WAT-side does NOT re-implement the 6-step filter
 chain; it delegates and applies the WAT-domain purpose-filter via
 the canonical resolver's ``require_purpose`` parameter.
@@ -73,7 +73,7 @@ def _aip_doc_with_wat_anchor(
 ) -> dict[str, Any]:
     """Hand-built minimal AIP doc with a single WAT-anchor entry.
 
-    Matches the Identity-Substrate Sprint-4 Tag-3 fixture-builder convention
+    Matches the Identity-Substrate fixture-builder convention
     (``_aip_doc_with_two_keys``) byte-shape so that a hypothetical
     cross-suite consumer reads the same field-layout. The
     ``extra_entries`` knob is for tests that need to vary the
@@ -116,11 +116,11 @@ def _aip_doc_with_wat_anchor(
 def test_T_WAT_ANCHOR_KID_01_ref_shape_validation_happy_and_failure_modes() -> None:
     """WAT-side reference shape: happy path + four failure modes.
 
-    Pins :func:`validate_anchor_kid_ref_shape` as a callable that
-    raises :class:`WatAnchorKidError` on every malformed input and
+    Pins:func:`validate_anchor_kid_ref_shape` as a callable that
+    raises:class:`WatAnchorKidError` on every malformed input and
     returns ``None`` (implicitly) on the happy path. The four
     failure modes mirror the input-validation block of the canonical
-    resolver's :func:`resolve_kid` (mapping-shape and kid-shape) but
+    resolver's:func:`resolve_kid` (mapping-shape and kid-shape) but
     re-surfaced as the WAT-domain error type.
     """
     # Happy path: a well-formed WatAnchorKidRef passes silently.
@@ -152,7 +152,7 @@ def test_T_WAT_ANCHOR_KID_01_ref_shape_validation_happy_and_failure_modes() -> N
 
 
 def test_T_WAT_ANCHOR_KID_02_purpose_constant_matches_aip_schema_enum() -> None:
-    """The :data:`PURPOSE_WAT_ANCHOR` constant is byte-equal to the
+    """The:data:`PURPOSE_WAT_ANCHOR` constant is byte-equal to the
     enum value in the AIP-document schema.
 
     This is a Cross-Review-Zone-1 drift detector: if Identity-
@@ -162,7 +162,7 @@ def test_T_WAT_ANCHOR_KID_02_purpose_constant_matches_aip_schema_enum() -> None:
     ``"wakir-wat-anchor"``), this test fails loud rather than the
     WAT-side resolver silently filtering every entry out.
 
-    The schema-file is read once via :mod:`json` to avoid pulling in
+    The schema-file is read once via:mod:`json` to avoid pulling in
     the jsonschema dependency — this test is hermetic-no-deps.
     """
     import json
@@ -189,7 +189,7 @@ def test_T_WAT_ANCHOR_KID_02_purpose_constant_matches_aip_schema_enum() -> None:
 
 def test_T_WAT_ANCHOR_KID_03_resolver_unavailable_yields_clean_wat_error() -> None:
     """When the canonical resolver is not on the import path,
-    :func:`resolve_wat_anchor_kid` raises :class:`WatAnchorKidError`
+    :func:`resolve_wat_anchor_kid` raises:class:`WatAnchorKidError`
     with a diagnostic that names the missing module.
 
     This test is the *cross-branch merge-gap* contract: the WAT-side
@@ -199,11 +199,11 @@ def test_T_WAT_ANCHOR_KID_03_resolver_unavailable_yields_clean_wat_error() -> No
 
     The test runs in two regimes:
 
-    1. **Resolver absent** (current branch state at Sprint-4 Tag-5
+    1. **Resolver absent** (current branch state at
        publish time): the test exercises the real error path and
        asserts on the diagnostic.
     2. **Resolver present** (post-merge state with Identity-Substrate
-       Sprint-4 Tag-3 on main): the test is skipped to avoid
+        on main): the test is skipped to avoid
        masking the bridge cohort's coverage.
     """
     if is_kid_resolver_available():
@@ -227,7 +227,7 @@ def test_T_WAT_ANCHOR_KID_04_happy_path_resolves_wat_anchor_purpose() -> None:
     """Happy path: a single AIP-document entry with
     ``purpose == "wat-anchor"`` resolves through the bridge.
 
-    The returned :class:`ResolvedAnchorKey` carries the 32-byte raw
+    The returned:class:`ResolvedAnchorKey` carries the 32-byte raw
     public key (decoded from the schema's ``key_hex``), the validity-
     window metadata, and the original kid byte-equal.
     """
@@ -265,7 +265,7 @@ def test_T_WAT_ANCHOR_KID_05_wrong_purpose_entry_rejected() -> None:
     pytest.importorskip("wirelang.identity.kid_resolver")
     from wirelang.identity.kid_resolver import KidResolverError
 
-    # Single entry marked aip-signing (NOT wat-anchor). Identity-Substrate Sprint-4 Tag-3
+    # Single entry marked aip-signing (NOT wat-anchor). Identity-Substrate
     # canonical resolver would resolve this for purpose=aip-signing
     # but our bridge demands purpose=wat-anchor.
     doc = _aip_doc_with_wat_anchor(
@@ -284,7 +284,7 @@ def test_T_WAT_ANCHOR_KID_06_kid_not_found_and_as_of_window_enforcement() -> Non
 
     1. **Kid-not-found:** an AIP-document with a single wat-anchor
        entry under one kid does NOT resolve a different kid; the
-       bridge surfaces a :class:`WatAnchorKidError` with the
+       bridge surfaces a:class:`WatAnchorKidError` with the
        canonical error chained.
     2. **Validity-window enforcement:** the ``as_of`` field of the
        :class:`WatAnchorKidRef` is forwarded to the canonical

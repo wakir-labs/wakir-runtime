@@ -1,20 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Phase-2 Sprint-5 Tag-3 follow-up wire-ups.
+"""Hermetic tests for the Phase-2 follow-up wire-ups.
 
-Two Cross-Review items left explicitly open by Sprint-5 Tag-2 are
+Two Cross-Review items left explicitly open by are
 closed here:
 
 1. **as_audit_trail_entry 11 -> 12 field update** for ``signature_status``
-   (Lena Cross-Review consumption, additive within
-   ``wakir-verify-manifest-v2/0``). The audit-trail-entry export contract
+   The audit-trail-entry export contract
    now carries the signature verdict as the twelfth pinned key so the
    frontend AuditTrailEntry consumer can render a signature posture
    without re-walking ``branches[]``.
 
-2. **Kid-Resolver-Bridge** to Reza Sprint-4 Tag-3
+2. **Kid-Resolver-Bridge** to the protocol zone
    :mod:`wirelang.identity.kid_resolver` via the WAT-side
-   :mod:`wat.identity.anchor_kid` bridge (Sprint-4 Tag-5). The
+   :mod:`wat.identity.anchor_kid` bridge. The
    verifier-stub gains an optional ``verify_signature_aip_doc`` kwarg
    (and ``--verify-signature-aip-doc`` CLI flag) that resolves the
    signature slot's ``kid`` to a public key against an AIP document.
@@ -64,7 +63,7 @@ from wat.verify.manifest_v2 import (
 
 # ---------------------------------------------------------------------------
 # Fixtures: Ed25519 keypair from a fixed seed for byte-stable signatures.
-# Mirrors the Sprint-5 Tag-2 wire-up tests so the two test files share
+# Mirrors the wire-up tests so the two test files share
 # vector-compat by construction.
 # ---------------------------------------------------------------------------
 
@@ -200,10 +199,10 @@ def test_t_wat_at_sig_01_audit_trail_entry_has_signature_status_verified(
     """as_audit_trail_entry includes signature_status='verified' when
     the verifier resolved a signature happy-path.
 
-    Lena Cross-Review-Konsumtion: the frontend AuditTrailEntry
+    The frontend zone Cross-Review-Konsumtion: the frontend AuditTrailEntry
     consumer reads the top-level signature_status to render a posture
     badge. The branches[] entry stays single (manifest-validity);
-    signature does not add a second branch in Tag-3 — that is a
+    signature does not add a second branch in — that is a
     separate paired-update gated on a follow-up Cross-Review.
     """
     priv, pub = _fixed_keypair()
@@ -224,7 +223,7 @@ def test_t_wat_at_sig_01_audit_trail_entry_has_signature_status_verified(
     assert len(entry) == 12, f"expected 12 keys; got {len(entry)}: {sorted(entry)}"
     assert "signature_status" in entry
     assert entry["signature_status"] == "verified"
-    # Mirror invariant: top-level field == as_dict() field.
+    # Mirror invariant: top-level field == as_dict field.
     assert entry["signature_status"] == result.as_dict()["signature_status"]
     # branches[] unchanged — only manifest-validity, no signature branch.
     assert len(entry["branches"]) == 1
@@ -243,13 +242,13 @@ def test_t_wat_at_sig_01_audit_trail_entry_has_signature_status_verified(
 def test_t_wat_at_sig_02_audit_trail_entry_signature_status_empty_by_default(
     tmp_path: Path,
 ) -> None:
-    """Without verify_signature opt-in, audit-trail-entry carries
+    """Without verify_signature opt-, audit-trail-entry carries
     signature_status='' (the 'no verdict requested' empty-string
     sentinel — distinct from the explicit 'unsigned-permissive' /
     'unsigned-strict' values).
 
     Backward-compat pin: a snapshot test in the frontend that pre-dates
-    Tag-3 must see the empty string when no signature verification was
+    must see the empty string when no signature verification was
     requested. Frontends MUST treat empty-string as 'no verdict
     available' rather than 'unsigned'.
     """
@@ -288,10 +287,9 @@ def test_t_wat_kid_resolver_bridge_01_happy_path(
     raw public key. The verifier is asked to verify with the AIP-doc
     bridge (no caller-supplied raw key). The bridge resolves kid ->
     pubkey via the WAT-side wat.identity.anchor_kid, which delegates
-    to wirelang.identity.kid_resolver (Reza Sprint-4 Tag-3,
-    Z-1-Cross-Review-substance).
+    to wirelang.identity.kid_resolver.
 
-    The Tag-5 Tomás bridge module already lives on
+    The engineering zone bridge module already lives on
     tomas/phase-1b-sprint-4-tag-5-wat-anchor-kid. The canonical
     resolver may or may not live on the verifier's branch; the test
     is parameterised on availability and skips with a clear reason if
@@ -345,7 +343,7 @@ def test_t_wat_kid_resolver_bridge_02_missing_bridge_or_wrong_kid_returns_struct
 
     Two failure axes share this pin (single test guards both):
 
-    - **Canonical resolver not importable** (Sprint-4 Tag-3 branch not
+    - **Canonical resolver not importable** ( branch not
       on this verifier's branch). The bridge probe surfaces a
       'cross-branch merge gap' diagnostic.
     - **AIP document does NOT carry the kid**. The canonical resolver

@@ -6,9 +6,9 @@ Anchors
 -------
 
 - ADR-0065 §Rollback-Strategie (additional Phase-3c-Komponente, not
-  in the seven-welle sequence but shares the ENV-Flag-Switch substrate
+  in the seven-wave sequence but shares the ENV-Flag-Switch substrate
   ``WAKIR_ENGINE_FEDERATION_RESOLVER_BACKEND=rust|python``).
-- Phase-3c additional Komponente per the runtime PR-series Tag-14+
+- Phase-3c additional Komponente per the runtime PR-series +
   ``feat(federation): cross-org name resolution``.
 
 Komponente character
@@ -21,8 +21,8 @@ profile: **low-mid** — read-only cache-backed lookup, but the cache-
 invalidation contract is shared between the rust- and python-
 backends, so the post-rollback cache state must be consistent.
 
-This Komponente is part of Phase-3c-Cutover (default Python →
-default Rust flip) but does not occupy a numbered welle-slot; the
+This Komponente is part of Phase-3c-cutover (default Python →
+default Rust flip) but does not occupy a numbered wave-slot; the
 rollback-drill includes it because the same 10-minute SLA applies
 to its ENV-Flag-Switch surface.
 """
@@ -62,7 +62,7 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
 
     Federation-resolver rollback emits a Backend-Decision-Audit-Record
     naming the modul, targeting ``python``, and tying the rollback to
-    a cutover-cycle-id. Henrik-Zone-N correlates this against the
+    a cutover-cycle-id. internal audit-Zone-N correlates this against the
     cross-org-trust-anchor sample because federation_resolver decisions
     feed into the workload-identity-attestation chain.
     """

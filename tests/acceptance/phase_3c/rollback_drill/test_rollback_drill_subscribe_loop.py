@@ -5,11 +5,11 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-6 = ``subscribe_loop``, NATS-
+- ADR-0065 §Rollback-Strategie (wave 6 = ``subscribe_loop``, NATS-
   Subscribe, Bug-42-Lessons-Learned-hot).
-- ADR-0066 §Rollback + §Beschluss (Welle-6 = Doppel-Welle mit Welle-7
+- ADR-0066 §Rollback + §Beschluss (wave 6 = dual-run wave mit wave 7
   = ``recovery_workflow``).
-- Sister per-welle E2E acceptance file: ``test_welle_6_subscribe_
+- Sister per-wave E2E acceptance file: ``test_welle_6_subscribe_
   loop_e2e.py``.
 
 Komponente character
@@ -77,7 +77,7 @@ def test_rd_3_cross_modul_konsistenz_post_rollback(
     """RD-3 — Cross-Modul-Konsistenz nach Rollback grün.
 
     The critical post-rollback verification is replay-correctness:
-    the JetStream cursor must resume at the correct sequence-number
+    The JetStream cursor must resume at the correct sequence-number
     and the python-backend must produce the same downstream events
     as the rust-backend would have. The Phase-2-Acceptance-Gate
     re-run gates this surface.

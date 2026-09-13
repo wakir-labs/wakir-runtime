@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-10 Tag-8 Bug-38 substance fix.
+"""Hermetic tests for Bug-38 substance fix.
 
 Anlass — Live-VM-Acceptance against wakir-orbit 2026-05-15 ~21:45
-CEST (Mira-Hand, Kai-Tag-7 Bug-36+37 deployment). Bootstrap-re-run
+CEST. Bootstrap-re-run
 PASS and the smoke 6/6 PASS, but
 ``scripts/federation-live-vm-acceptance.sh`` Phase-2 FAILed at
 ``wakir-spire-server.service is not active`` because the script
@@ -26,7 +26,7 @@ Bug-38 — TWO sub-bugs in one cleanup PR:
   check is added as Bug-37 substance-acceptance.
 
 * **Bug-38b — Smoke federation-mode-gate not activated.** The smoke
-  CLI gates the two Sprint-10 Tag-1 substance checks
+  CLI gates the two substance checks
   (federation-bundle-sync-reachable, federation-cross-trust-domain-
   verify) on ``WAKIR_FEDERATION_MODE=enabled`` env-var AND
   ``--peer-side`` CLI-arg. Neither was passed by the acceptance
@@ -45,7 +45,7 @@ Source-file inspection only. No podman, no systemctl, no live VM —
 see ``feedback_sandbox_host_trennung.md``. The Live-VM acceptance
 lane that exercises this cleanup remains
 ``scripts/federation-live-vm-acceptance.sh`` (Operator-Hand on the
-Pilot-VM, re-run after merge per the Tag-8 brief).
+Pilot-VM, re-run after merge per the brief).
 
 Test-Vector index
 -----------------
@@ -77,9 +77,9 @@ Bug-38b smoke-federation-mode-gate (5 vectors):
 Bug-38 documentation anchor (1 vector):
 
 * ``TV-BUG-38-DOC-01`` The acceptance script header + summary block
-  document the Sprint-10 Tag-8 Bug-38 lineage.
+  document the Bug-38 lineage.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -136,10 +136,10 @@ def _extract_step_8_smoke(source: str) -> str:
     """Body of ``step_8_smoke()`` in the bootstrap (from the function
     header through the closing brace at column 0)."""
     start = source.find("step_8_smoke()")
-    assert start > 0, "step_8_smoke() function not found"
+    assert start > 0, "step_8_smoke function not found"
     after = source[start:]
     m = re.search(r"\n\}\s*\n", after)
-    assert m, "step_8_smoke() closing brace not found"
+    assert m, "step_8_smoke closing brace not found"
     return after[: m.end()]
 
 
@@ -177,7 +177,7 @@ def test_bootstrap_bash_syntax_clean_tag8() -> None:
 
 
 def test_phase_2_server_unit_is_side_suffixed(acceptance_source: str) -> None:
-    """The Tag-6 hard-coded ``wakir-spire-server.service`` (no side
+    """the hard-coded ``wakir-spire-server.service`` (no side
     suffix) does not exist in federation-mode. Phase-2 must resolve
     the federation-mode unit name via WAKIR_SIDE."""
     phase_2 = _extract_acceptance_phase_2(acceptance_source)
@@ -196,7 +196,7 @@ def test_phase_2_agent_unit_is_side_suffixed_and_checked(
     acceptance_source: str,
 ) -> None:
     """Bug-37 substance-acceptance: the agent unit must be active too.
-    Tag-6's acceptance script never checked the agent unit at all."""
+    's acceptance script never checked the agent unit at all."""
     phase_2 = _extract_acceptance_phase_2(acceptance_source)
     assert "wakir-spire-agent-${WAKIR_SIDE}.service" in phase_2, (
         "Phase 2 must reference the side-suffixed federation agent-unit "
@@ -237,7 +237,7 @@ def _strip_shell_comments(body: str) -> str:
 def test_phase_2_no_hardcoded_single_org_unit_names(
     acceptance_source: str,
 ) -> None:
-    """The Tag-6 bare ``wakir-spire-server.service`` /
+    """the bare ``wakir-spire-server.service`` /
     ``wakir-spire-agent.service`` literals MUST NOT appear in
     EXECUTABLE shell lines of Phase 2 any more — those only exist
     in single-org-mode. Rationale comments that quote the literals
@@ -288,7 +288,7 @@ def test_phase_3_exports_federation_mode_env(
     acceptance_source: str,
 ) -> None:
     """Without WAKIR_FEDERATION_MODE=enabled the smoke CLI SKIPs both
-    Sprint-10 Tag-1 federation-substance checks."""
+     federation-substance checks."""
     phase_3 = _extract_acceptance_phase_3(acceptance_source)
     assert "WAKIR_FEDERATION_MODE=enabled" in phase_3, (
         "Phase 3 must export WAKIR_FEDERATION_MODE=enabled so the "
@@ -358,7 +358,7 @@ def test_step_8_single_org_backwards_compat(bootstrap_source: str) -> None:
     """In single-org mode (WAKIR_PILOT_MODE != federation), step_8_smoke
     must NOT pass --peer-side and must NOT export
     WAKIR_FEDERATION_MODE=enabled in EXECUTABLE shell lines — both
-    were absent in the Sprint-9 baseline. Rationale comments that
+    were absent in the baseline. Rationale comments that
     mention the tokens for context are allowed."""
     step_8 = _extract_step_8_smoke(bootstrap_source)
     guard_idx = step_8.find('WAKIR_PILOT_MODE"')
@@ -400,7 +400,7 @@ def test_acceptance_script_documents_bug_38_lineage(
     archaeology."""
     header = "\n".join(acceptance_source.splitlines()[:60])
     assert "Bug-38" in header or "Tag-8" in header, (
-        "Acceptance script header must reference the Sprint-10 Tag-8 "
+        "Acceptance script header must reference the "
         "Bug-38 cleanup for trace-back."
     )
     assert "Bug-38" in acceptance_source, (

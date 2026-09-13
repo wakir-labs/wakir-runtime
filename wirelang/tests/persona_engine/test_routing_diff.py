@@ -5,17 +5,17 @@
 All tests are pure-stdlib — no network, no LLM, no NATS. Test coverage
 matrix (12 tests):
 
-1.  ``ParsedRoutingRow.from_json_line``: valid RoutingEvent JSON.
-2.  ``ParsedRoutingRow.from_json_line``: valid LlmClassifierEvent JSON.
-3.  ``ParsedRoutingRow.from_json_line``: malformed JSON → None.
-4.  ``ParsedRoutingRow.from_json_line``: missing required fields → None.
-5.  ``compare_routing_logs``: identical logs → 1.0 consistency + PASS.
-6.  ``compare_routing_logs``: one drift row drops the score below
+1. ``ParsedRoutingRow.from_json_line``: valid RoutingEvent JSON.
+2. ``ParsedRoutingRow.from_json_line``: valid LlmClassifierEvent JSON.
+3. ``ParsedRoutingRow.from_json_line``: malformed JSON → None.
+4. ``ParsedRoutingRow.from_json_line``: missing required fields → None.
+5. ``compare_routing_logs``: identical logs → 1.0 consistency + PASS.
+6. ``compare_routing_logs``: one drift row drops the score below
     threshold → FAIL.
-7.  ``compare_routing_logs``: symmetric-difference task-IDs land in
+7. ``compare_routing_logs``: symmetric-difference task-IDs land in
     baseline_only / candidate_only.
-8.  ``compare_routing_logs``: tier-cost-delta = sum of per-row deltas.
-9.  ``compare_routing_logs``: confidence histogram present iff
+8. ``compare_routing_logs``: tier-cost-delta = sum of per-row deltas.
+9. ``compare_routing_logs``: confidence histogram present iff
     LlmClassifierEvent rows exist.
 10. ``compare_routing_logs``: parse_errors recorded for malformed
     lines without raising.

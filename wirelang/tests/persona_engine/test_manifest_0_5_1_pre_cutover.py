@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-48 manifest-integrity tests for the 0.5.1-pre-cutover engine.
+"""Hermetic manifest-integrity tests for the 0.5.1-pre-cutover engine.
 
-These tests pin the byte-shape of the Tag-48 Persona-Engine
-bridge-audit-writer wire-in:
+These tests pin the byte-shape of the Persona-Engine
+bridge-audit-writer wire-:
 
 * `wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md` — the
   human/machine manifest with the 10-component inventory, the
@@ -145,14 +145,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-48 manifest missing at {MANIFEST_PATH}; cutover gate "
+        f"manifest missing at {MANIFEST_PATH}; cutover gate "
         "cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-48 pin pack missing at {PIN_PACK_PATH}; "
+        f"pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 
@@ -324,14 +324,14 @@ def test_19_containerfile_image_version_set(
 ) -> None:
     """The Containerfile must declare an image.version label.
 
-    Note (Tag-52 Pre-KW-24-Final consolidation, 2026-05-19):
+    Note (Pre-calendar week 24-Final consolidation, 2026-05-19):
     The current image.version label tracks the latest pre-cutover
-    marker (0.5.2-final-pre-cutover and onwards), not the Tag-48
+    marker (0.5.2-final-pre-cutover and onwards), not the
     0.5.1-pre-cutover anchor this test-file historically pinned.
     The 0.5.1-pre-cutover manifest + pin-pack stay on-disk as the
     Doppelbetrieb regression-comparison baseline; this test now
     asserts only that some valid image.version label is present.
-    The Tag-52 test-suite asserts the strict-equality bind for the
+    The test-suite asserts the strict-equality bind for the
     current image-tag.
     """
     pattern = re.compile(
@@ -345,17 +345,17 @@ def test_19_containerfile_image_version_set(
 def test_20_manifest_self_identifies_with_image_tag(
     manifest_text: str,
 ) -> None:
-    """The Tag-48 manifest must self-identify with its own image tag.
+    """the manifest must self-identify with its own image tag.
 
-    Note (Tag-52 consolidation): The Containerfile image-version
-    label now tracks the latest pre-cutover marker. The Tag-48
+    Note (consolidation): The Containerfile image-version
+    label now tracks the latest pre-cutover marker. The
     0.5.1-pre-cutover manifest file is preserved on-disk as the
     historical anchor — this test verifies the manifest content
     is internally consistent, not that the Containerfile still
     points at it.
     """
     assert EXPECTED_IMAGE_TAG in manifest_text, (
-        f"Tag-48 manifest must self-reference its own image tag "
+        f"manifest must self-reference its own image tag "
         f"'{EXPECTED_IMAGE_TAG}' for traceability."
     )
 
@@ -363,10 +363,10 @@ def test_20_manifest_self_identifies_with_image_tag(
 def test_21_manifest_references_pin_pack(
     manifest_text: str,
 ) -> None:
-    """The Tag-48 manifest §3 must reference its companion pin pack
+    """the manifest §3 must reference its companion pin pack
     YAML file path for operator traceability."""
     assert "pin-pack-0.5.1-pre-cutover.yaml" in manifest_text, (
-        "Tag-48 manifest must reference its companion pin pack in §3."
+        "manifest must reference its companion pin pack in §3."
     )
 
 
@@ -404,13 +404,13 @@ def test_22_pin_pack_crate_versions_match_cargo_toml(pin_pack: dict) -> None:
 def test_23_manifest_and_pin_pack_internally_consistent(
     manifest_text: str, pin_pack: dict,
 ) -> None:
-    """The Tag-48 manifest and pin pack must agree on their own
+    """the manifest and pin pack must agree on their own
     self-declared image tag.
 
-    Note (Tag-52 consolidation): The Containerfile image-version
+    Note (consolidation): The Containerfile image-version
     label now tracks the latest pre-cutover marker. This test now
     verifies manifest/pin-pack internal consistency only; the
-    Containerfile cross-link is asserted by the Tag-52 test-suite
+    Containerfile cross-link is asserted by the test-suite
     against the current marker.
     """
     assert EXPECTED_IMAGE_TAG in manifest_text

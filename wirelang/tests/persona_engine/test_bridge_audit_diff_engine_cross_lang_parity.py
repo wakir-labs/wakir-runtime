@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine bridge-audit-diff-engine
-canonical-trace (Tag-36 Mini-Welle Phase-3a Python-sync, 13. Modul).
+canonical-trace (Mini-wave Phase-3a Python-sync, 13. Modul).
 
-This file is the Python half of the cross-lang fixture pin pair.  The
+This file is the Python half of the cross-lang fixture pin pair. The
 Rust half lives at
 ``wirelang-rust/crates/persona-engine-bridge-diff/tests/cross_lang_diff_trace_fixture_test.rs``
 and consumes the same authoritative fixture file at
@@ -66,7 +66,7 @@ import pytest
 # uses rfc8785 to match the existing Phase-3a cross-lang-trace pattern).
 # The shadow-CI lane runs without the wheel; skip the entire suite on
 # that lane via the same importorskip pattern already established in
-# the Tag-35 / Tag-34 sibling tests.
+# the / sibling tests.
 pytest.importorskip("rfc8785")
 
 from wirelang.persona_engine.bridge_audit_diff_engine import (
@@ -204,7 +204,7 @@ def test_t05_fixture_file_structure_pin() -> None:
     assert doc["schema_version"] == BRIDGE_DIFF_TRACE_SCHEMA
     fixtures = doc["fixtures"]
     assert len(fixtures) == 6, (
-        "Tag-36 cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
+        "cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
     )
     required_top_keys = {
         "name",
@@ -406,10 +406,10 @@ def _emit_fixture_file() -> pathlib.Path:  # pragma: no cover - manual tool
 
         python -c 'from wirelang.tests.persona_engine.\
 test_bridge_audit_diff_engine_cross_lang_parity import _emit_fixture_file; \
-print(_emit_fixture_file())'
+print(_emit_fixture_file)'
 
     The fixture vectors are mirrored from the inline generation script
-    ``/tmp/gen_bridge_diff_fixtures.py`` (Tag-36 derivation source).
+    ``/tmp/gen_bridge_diff_fixtures.py`` (derivation source).
     """
     raise NotImplementedError(
         "manual regeneration goes through /tmp/gen_bridge_diff_fixtures.py"

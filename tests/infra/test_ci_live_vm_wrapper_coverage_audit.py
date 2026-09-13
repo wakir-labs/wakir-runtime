@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic Test-Coverage-Audit for the CI-Live-VM-Acceptance-Wrapper
-(Sprint-Tag-8 Kai PR #76 item 3).
+(-the infrastructure zone PR #76 item 3).
 
 The existing ``tests/infra/test_ci_live_vm_acceptance_wrapper.py``
 covers TV-CW-01..08 (bash-syntax, --help, missing-flags exit-code,
@@ -9,8 +9,8 @@ invalid federation-mode, --pre-check-only short-circuit, summary-JSON
 shape, tool-precheck loop, federation-mode auto-detect, hardcoded-IP
 ban, bug_regressions enumeration).
 
-This file is the Sprint-QA-Tag-15 **gap-closer**: it adds
-TV-PIL-WRAP-01..05 (per the Sprint-QA-Tag-15 test-plan §3) — five
+This file is the -QA-**gap-closer**: it adds
+TV-PIL-WRAP-01..05 (per the -QA-test-plan §3) — five
 additional failure-mode vectors that the existing suite did not
 exercise:
 
@@ -30,7 +30,7 @@ exercise:
 Sandbox boundary: source-level inspection + argparse exercise only.
 No live target; no SSH; no network.
 
-— Amara
+— the QA zone
 """
 from __future__ import annotations
 
@@ -285,7 +285,7 @@ def test_summary_json_started_finished_utc_emitted(wrapper_source: str) -> None:
 def test_ssh_target_uses_batch_mode_and_strict_hostkey_accept_new(
     wrapper_source: str,
 ) -> None:
-    """The ssh_target() function must use BatchMode=yes (no
+    """The ssh_target function must use BatchMode=yes (no
     interactive password prompt) and StrictHostKeyChecking=accept-new
     (TOFU semantics, not 'no').
 

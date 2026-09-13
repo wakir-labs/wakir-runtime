@@ -2,9 +2,9 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Tests for the off-default ``ots verify``-Voll-Integration.
 
-Sprint-3 Tag-4 lands the ``--ots-full-verify`` flag, the
+ lands the ``--ots-full-verify`` flag, the
 ``WAKIR_OTS_FULL_VERIFY=1`` env var, and the ``ots_full_verify``
-keyword on :func:`wat.verify.manifest_v2.verify_real_manifest_file`.
+keyword on:func:`wat.verify.manifest_v2.verify_real_manifest_file`.
 The default magic-header pin is unchanged; the new path additionally
 shells out to ``wat.anchor.ots_anchor.verify_receipt`` which depends
 on a Bitcoin source (local node OR Esplora HTTP fallback).
@@ -22,14 +22,14 @@ Hermetic (six tests, the default suite):
    skipped_reason populated, ok=True (soft outcome at magic-header).
 5. ``WAKIR_OTS_FULL_VERIFY=1`` env flips full-verify on without
    passing the kwarg.
-6. CLI ``--ots-full-verify`` flag flows through main() into the
+6. CLI ``--ots-full-verify`` flag flows through main into the
    pipeline and the JSON output carries the three new fields.
 
 Live-gated (three tests, opt-in via ``OTS_INTEGRATION_TEST=1``):
 
 7. Real TV-2 hour-receipt + ``ots_full_verify=True`` -> ok=True OR
    skipped_reason populated (network dependent — both outcomes are
-   valid Tag-4 contracts; this test asserts the contract not the
+   valid contracts; this test asserts the contract not the
    verdict).
 8. Real TV-3 hour-receipt + same — single-hour-genesis cohort.
 9. CLI smoke against a real fixture with ``--ots-full-verify`` —
@@ -37,7 +37,7 @@ Live-gated (three tests, opt-in via ``OTS_INTEGRATION_TEST=1``):
    JSON output must always carry the three full-verify keys.
 """
 
-# ruff: noqa: S101  — pytest's assert idiom is the whole point.
+# ruff: noqa: S101 — pytest's assert idiom is the whole point.
 
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ def _pick_tv2_hour() -> Path:
 
 
 def test_default_magic_header_only_unchanged() -> None:
-    """Without the new flag the contract is identical to Sprint-2 Tag-5."""
+    """Without the new flag the contract is identical to."""
     hour_dir = _pick_tv2_hour()
     result = verify_real_manifest_file(hour_dir / "manifest.json")
     assert result.ok is True
@@ -254,7 +254,7 @@ def test_live_tv2_hour_full_verify_contract() -> None:
     ``ok=True`` (verifier confirmed), ``ok=False`` with
     ``full_verify_ok=False`` and no ``skipped_reason`` (verifier hard-
     rejected), or ``ok=True`` with ``skipped_reason`` (network glitch
-    on the Esplora endpoint). All three are valid Tag-4 outcomes; we
+    on the Esplora endpoint). All three are valid outcomes; we
     only assert the response shape, not the verdict.
     """
     if shutil.which("ots") is None:

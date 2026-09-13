@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Operator CLI ``--target persona-v2`` test pack (Phase-1b Sprint-3 Tag-4).
+"""Operator CLI ``--target persona-v2`` test pack (Phase-1b).
 
 Covers the ``wakir-persona migrate --target persona-v2`` surface
-introduced de-facto by Phase-1b Sprint-3 Tag-3 (the
+introduced de-facto by Phase-1b (the
 ``PERSONA_SCHEMA_VERSION_LIST`` extension that wired ``persona-v2``
 into the CLI's ``--target`` choices automatically).
 
-Tag-4 scope (this file):
+scope (this file):
 
 - ``--target persona-v2`` is accepted by argparse (single-step lift
   from a v9 input).
@@ -22,14 +22,14 @@ Tag-4 scope (this file):
 
 Anchors:
 
-- Sprint-3 Tag-1 sketch §3 (V0->V1->V2 forward chain design).
-- Sprint-3 Tag-3 outbox §"Substanz-Bilanz" (V1ToV2Step + chain pins).
-- Tag-4 box: "V0V1Step + V1V2Step Operator-CLI-Erweiterung —
+- sketch §3 (V0->V1->V2 forward chain design).
+- outbox §"Substanz-Bilanz" (V1ToV2Step + chain pins).
+- box: "V0V1Step + V1V2Step Operator-CLI-Erweiterung —
   ``wakir-persona migrate`` jetzt mit ``--target persona-v2`` Option."
 
-The CLI surface itself needed **no Python edit** for Tag-4 — the
+The CLI surface itself needed **no Python edit** for — the
 ``--target`` argparse choice list is sourced from
-``PERSONA_SCHEMA_VERSION_LIST``, which Tag-3 already extended to
+``PERSONA_SCHEMA_VERSION_LIST``, which already extended to
 ``("persona-v0", "persona-v1", "persona-v2")``. This test file is
 therefore the explicit operator-surface contract: any future
 regression that drops v2 from the CLI choices, or that breaks the
@@ -77,9 +77,9 @@ V9_FIXTURE = FIXTURE_DIR / "v9-persona-framework-native.md"
 
 
 def test_build_parser_accepts_target_persona_v2():
-    """argparse must accept ``--target persona-v2`` after Tag-3.
+    """argparse must accept ``--target persona-v2`` after.
 
-    Regression guard for the Tag-3 ``PERSONA_SCHEMA_VERSION_LIST``
+    Regression guard for the ``PERSONA_SCHEMA_VERSION_LIST``
     extension: if a future refactor narrows the list back to
     ``("persona-v0", "persona-v1")``, this assertion fails before
     we even hit the resolver.
@@ -127,7 +127,7 @@ def test_cli_v9_to_v2_emit_hash_matches_v9_migrated_to_v2_pin(
 ):
     """``--emit-hash`` must surface the V9-to-V2 pin on stderr.
 
-    Pinned against :data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` so that
+    Pinned against:data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` so that
     a CLI-dispatch regression (e.g. accidentally re-hashing the v1
     intermediate instead of the v2 endpoint) trips this assertion
     rather than silently emitting the wrong pin.
@@ -187,7 +187,7 @@ def test_cli_v8_to_v2_chain_expect_hash_passes(
     Direct-anchor M-1 assertion through the operator surface:
     chain endpoint hash equals
     :data:`PERSONA_HASH_PIN_V8_MIGRATED_TO_V2`, which by construction
-    equals :data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` (the v8 and v9
+    equals:data:`PERSONA_HASH_PIN_V9_MIGRATED_TO_V2` (the v8 and v9
     fixtures share every canonical-subset key except
     ``schema_version``, and the chain endpoint sets v2 either way).
 
@@ -226,11 +226,11 @@ def test_cli_target_persona_v0_from_v9_input_rejects_with_exit_1(
     ``persona-v0`` is in ``PERSONA_SCHEMA_VERSION_LIST`` (so argparse
     accepts it) but no inverse migration step is registered (Default-
     Lock A-2: forward-only, additive-only). The resolver therefore
-    raises :class:`PersonaMigrationError` and the CLI maps that to
+    raises:class:`PersonaMigrationError` and the CLI maps that to
     exit code 1.
 
     This is the operator-surface counterpart to the converter-level
-    ``test_v2_to_v1_inverse_is_not_supported`` (Sprint-3 Tag-3 §6 of
+    ``test_v2_to_v1_inverse_is_not_supported`` ( §6 of
     the V1V2 test pack).
     """
     rc = main(

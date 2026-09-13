@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Brand-Demo-Verifier Cross-Module byte-coordinated anchor pins.
 
-Sprint-4 Tag-4 — Option A (Brand-Demo-Verifier-Cross-Module-Test).
+ — Option A (Brand-Demo-Verifier-Cross-Module-Test).
 
 This module pins the byte-level Cross-Module contracts that a
 hypothetical Brand-Demo-Snapshot emitter (as specified by
@@ -120,7 +120,7 @@ def test_tv3_merkle_root_byte_identity_across_manifest_and_root_bin() -> None:
     )
     assert manifest["merkle_root"] == root_bin.hex(), (
         "Cross-Module drift: manifest.merkle_root != hex(root.bin). "
-        f"manifest={manifest['merkle_root']!r}, root.bin.hex()={root_bin.hex()!r}"
+        f"manifest={manifest['merkle_root']!r}, root.bin.hex={root_bin.hex!r}"
     )
     # And the regex-pattern constraint from the v1 schema must hold.
     assert _HEX64_PATTERN.match(manifest["merkle_root"]), (

@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for the verify-CLI ``--chain-check`` flag (Phase-1a-Tag-8).
+"""Tests for the verify-CLI ``--chain-check`` flag (Phase-1a-).
 
 Coverage matrix:
 
-| case                                                | exit code | chain_status   |
+| case | exit code | chain_status |
 | --------------------------------------------------- | --------- | -------------- |
-| verify without --chain-check (existing behaviour)   | 0         | "" (empty)     |
-| verify with --chain-check, valid chain              | 0         | chain-verified |
-| verify with --chain-check, mismatched prev_hour_root| 4         | chain-mismatch |
-| verify with --chain-check, prev_hour_root null      | 0         | chain-skipped  |
-| verify with --chain-check, prev manifest missing    | 4         | chain-mismatch |
-| verify with --chain-check, hour_slot first ever     | 0         | chain-skipped  |
+| verify without --chain-check (existing behaviour) | 0 | "" (empty) |
+| verify with --chain-check, valid chain | 0 | chain-verified |
+| verify with --chain-check, mismatched prev_hour_root| 4 | chain-mismatch |
+| verify with --chain-check, prev_hour_root null | 0 | chain-skipped |
+| verify with --chain-check, prev manifest missing | 4 | chain-mismatch |
+| verify with --chain-check, hour_slot first ever | 0 | chain-skipped |
 
 The OTS-receipt verify path is mocked to ``True`` via
 ``mock.patch.object(verify_cli, "verify_receipt", ...)`` because the
@@ -103,11 +103,11 @@ def _seed_anchored_hour(
 
 
 def test_verify_without_chain_check_unchanged_behaviour(tmp_path: Path) -> None:
-    """Dropping the flag preserves the Tag-7 verifier surface byte-for-byte.
+    """Dropping the flag preserves the verifier surface byte-for-byte.
 
     The result keeps ``chain_status`` empty, the verification_status
     is the standard ``verified``, and the exit code from the in-process
-    main() is 0 -- exactly as it was before Tag-8.
+    main is 0 -- exactly as it was before.
     """
     archive = tmp_path / "archive"
     _seed_anchored_hour(archive, "2026-05-06T16")
@@ -231,10 +231,10 @@ def test_chain_check_prev_manifest_missing(tmp_path: Path) -> None:
 
 
 def test_chain_check_legacy_manifest_without_key_skipped(tmp_path: Path) -> None:
-    """Pre-Tag-8 manifests omit the key entirely -> chain-skipped.
+    """Pre-manifests omit the key entirely -> chain-skipped.
 
     The always-emit contract is forward-only; archive directories
-    written by Tag-6/7 builders may still be in flight when a Tag-8
+    written by /7 builders may still be in flight when a
     verifier runs. We treat a missing key the same as null: skip
     rather than fail, so historical hours stay queryable.
     """
@@ -265,7 +265,7 @@ def test_chain_check_legacy_manifest_without_key_skipped(tmp_path: Path) -> None
 def test_main_exit_code_4_on_chain_mismatch(tmp_path: Path) -> None:
     """The ``main()`` entry point returns exit code 4 on chain-mismatch.
 
-    Verifies the Tag-8 exit-code-pattern (0/1/3/4) at the actual CLI
+    Verifies the exit-code-pattern (0/1/3/4) at the actual CLI
     boundary rather than the dataclass surface.
     """
     archive = tmp_path / "archive"

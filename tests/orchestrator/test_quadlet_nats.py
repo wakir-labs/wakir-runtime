@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic parity tests for the Phase-2 Sprint-6 Quadlet dual-track
+# Hermetic parity tests for the Phase-2 Quadlet dual-track
 # unit files (quadlet/wakir-nats.container, wakir-orchestrator.network,
 # wakir-nats-jetstream-data.volume) against the primary compose contract
 # surface compose/nats.yaml.
@@ -15,7 +15,7 @@
 # digest, container name, port publication, volume mount, network
 # attach, capability drop, no-new-privileges, health-probe endpoint).
 # Restart-policy nuance (compose unless-stopped vs systemd on-failure)
-# is documented in the Skizze §3 equivalence-stamps table and not
+# is documented in the sketch §3 equivalence-stamps table and not
 # byte-asserted here — the test only asserts that both surfaces
 # declare *some* restart-on-failure policy.
 
@@ -53,7 +53,7 @@ def _read_ini(path: Path) -> configparser.ConfigParser:
     PublishPort= lines, two WantedBy= entries). ConfigParser's
     ``strict=False`` permits the duplicates; the parsed value of a
     duplicated key is the *last* occurrence, so duplicate-aware fields
-    need a raw-text re-parse via _section_lines() below.
+    need a raw-text re-parse via _section_lines below.
     """
     parser = configparser.ConfigParser(
         strict=False,
@@ -155,7 +155,7 @@ def test_quadlet_image_matches_compose_digest_pin(
     compose_doc: dict, quadlet_container: configparser.ConfigParser
 ) -> None:
     """The Quadlet Image= directive MUST stay byte-precise-aligned with
-    compose services.nats.image. This is the Sprint-4 Tag-3 Cross-Review
+    compose services.nats.image. This is the Cross-Review
     Zone-C digest-pin contract; drift between the two surfaces would
     let an operator on the Quadlet path pull a different image than the
     operator on the compose path.
@@ -281,7 +281,7 @@ def test_quadlet_volume_mount_matches_compose(
 ) -> None:
     quadlet_volume_decl = quadlet_container.get("Container", "Volume")
     # Quadlet form: ``<name>.volume:/mountpoint:Z``.
-    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # Bug-20: ``:Z`` SELinux-relabel flag is mandatory
     # on FCOS-enforced hosts; compose-yaml has no equivalent because
     # docker-compose carries volume-driver options elsewhere. Quadlet
     # is the canonical install path on the pilot.
@@ -416,7 +416,7 @@ def test_quadlet_health_probe_timing_fields_are_present(
 ) -> None:
     """The four timing knobs match the compose healthcheck shape.
     Hermetic check: presence + valid duration string. The exact values
-    are documented in the Skizze §3 equivalence-stamps table.
+    are documented in the sketch §3 equivalence-stamps table.
     """
     duration_re = re.compile(r"^\d+(s|m|h|ms)$")
     for key in ("HealthInterval", "HealthTimeout", "HealthRetries", "HealthStartPeriod"):
@@ -440,9 +440,9 @@ def test_quadlet_declares_restart_policy(
     quadlet_container: configparser.ConfigParser,
 ) -> None:
     """Compose declares ``restart: unless-stopped``; systemd's closest
-    equivalent is ``Restart=on-failure`` (per Skizze §3 nuance note).
+    equivalent is ``Restart=on-failure`` (per sketch §3 nuance note).
     The parity test is intentionally tolerant — both ``on-failure`` and
-    ``always`` are operator-acceptable choices documented in the Skizze.
+    ``always`` are operator-acceptable choices documented in the sketch.
     """
     restart = quadlet_container.get("Service", "Restart")
     assert restart in {"on-failure", "always"}, (
@@ -465,5 +465,5 @@ def test_compose_file_still_exists_alongside_quadlet() -> None:
     assert COMPOSE_FILE.exists(), (
         "compose/nats.yaml is the primary Phase-2 contract surface and "
         "MUST stay alongside the Quadlet dual-track. Removing it requires "
-        "a Phase-3-trigger decision (Scenario C in the Skizze)."
+        "a Phase-3-trigger decision (Scenario C in the sketch)."
     )

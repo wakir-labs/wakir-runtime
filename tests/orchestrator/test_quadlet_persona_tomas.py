@@ -1,38 +1,38 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic Quadlet-unit invariant tests for the Sprint-Pengine-7
-# Tag-5 OI-PILOT-1 Tomás-Persona pilot container (Selin-owned
-# domain, Cross-Review Zone-J with Kai).
+# Hermetic Quadlet-unit invariant tests for the -Pengine-7
+# OI-PILOT-1 the engineering zone-Persona pilot container (the engine zone-owned
+# domain, Cross-Review Zone-J with the infrastructure zone).
 #
-# Unlike the Phase-2 Sprint-6 NATS / SPIRE Quadlet parity tests
+# Unlike the Phase-2 NATS / SPIRE Quadlet parity tests
 # (which assert byte-precise mirror against compose/*.yaml), the
-# Tomás-Persona container has no compose counterpart — the
-# persona-engine pilot is Quadlet-native from Sprint-Pengine-7
-# Tag-5 onward (Phase-1c migration substrate, no Phase-1b compose
+# the engineering zone-Persona container has no compose counterpart — the
+# persona-engine pilot is Quadlet-native from -Pengine-7
+# onward (Phase-1c migration substrate, no Phase-1b compose
 # back-port). The invariants asserted here therefore cover:
 #
 # 1. ADR-0058-Pilot-Phase pre-condition contract:
-#    After= / Requires= encode the dependency chain on
-#    wakir-nats / wakir-spire-agent / wakir-nats-kv-bucket-init.
+# After= / Requires= encode the dependency chain on
+# wakir-nats / wakir-spire-agent / wakir-nats-kv-bucket-init.
 # 2. SPIFFE-Workload-API integration: the Quadlet bind-mounts
-#    the wakir-spire-agent-sockets named volume read-only at
-#    /run/spire/agent-sockets, and the persona-engine's env var
-#    contract points SPIFFE_ENDPOINT_SOCKET at that path.
+# the wakir-spire-agent-sockets named volume read-only at
+# /run/spire/agent-sockets, and the persona-engine's env var
+# contract points SPIFFE_ENDPOINT_SOCKET at that path.
 # 3. Persona-state bucket env var: the Quadlet pins
-#    WAKIR_PERSONA_STATE_BUCKET to the OI-PILOT-2 bucket name
-#    wakir-persona-state-acme-tomas (the bucket that
-#    ``wakir-nats-kv-bucket-init.service`` provisions via the
-#    Tag-5 ``--persona-state-pair`` extension).
+# WAKIR_PERSONA_STATE_BUCKET to the OI-PILOT-2 bucket name
+# wakir-persona-state-acme-tomas (the bucket that
+# ``wakir-nats-kv-bucket-init.service`` provisions via the
+# ``--persona-state-pair`` extension).
 # 4. Hermetic-hardening parity with SPIRE-Agent / NATS Quadlets:
-#    ReadOnly, DropCapability=ALL, NoNewPrivileges, User=1000.
+# ReadOnly, DropCapability=ALL, NoNewPrivileges, User=1000.
 # 5. SELinux relabel discipline: the workspace volume carries
-#    Z,U flags (Bug-20 fix shape from Sprint-9 Tag-8).
-# 6. Restart policy: on-failure with 10s backoff (Tag-4 §3.7.4.2
-#    R4 resume-operation pre-condition).
+# Z,U flags (Bug-20 fix shape).
+# 6. Restart policy: on-failure with 10s backoff (§3.7.4.2
+# R4 resume-operation pre-condition).
 # 7. Health-probe contract: persona-engine healthcheck subcommand
-#    with start-period >= 30s (matches Tag-3 §3.7.2.4
-#    spawn-state-machine cold-start latency).
+# with start-period >= 30s (matches §3.7.2.4
+# spawn-state-machine cold-start latency).
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def test_unit_after_chain_carries_phase_1b_and_2_pre_conditions():
 def test_unit_requires_chain_carries_hard_pre_conditions():
     requires_lines = _section_lines(QUADLET_CONTAINER, "Unit", "Requires")
     flat = " ".join(requires_lines)
-    # NATS and SPIRE-Agent are hard requirements (Tomás-pilot
+    # NATS and SPIRE-Agent are hard requirements (the engineering zone-pilot
     # cannot spawn without them). The bucket-init oneshot is a
     # soft After-only ordering: the bucket may have been
     # provisioned on a prior boot and the oneshot stays inactive
@@ -238,7 +238,7 @@ def test_persona_definition_bind_mounts_are_readonly():
 
 
 # ---------------------------------------------------------------------
-# T-QUADLET-PERSONA-06b — Sprint-10 Tag-6 Bug-35: persona-files source
+# T-QUADLET-PERSONA-06b — Bug-35: persona-files source
 # paths MUST be decoupled from the wakir-runtime repo-topology. The
 # Pilot-VM does NOT carry the AI-Corp main repo, where the axis-A
 # Markdown + axis-C JSON sources live. The operator stages the files
@@ -280,7 +280,7 @@ def test_persona_definition_source_paths_decoupled_from_repo_topology():
 
 
 # ---------------------------------------------------------------------
-# T-QUADLET-PERSONA-07 — restart policy (Tag-4 §3.7.4.2 R4)
+# T-QUADLET-PERSONA-07 — restart policy (§3.7.4.2 R4)
 # ---------------------------------------------------------------------
 
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for scripts/persona-engine/soak-probe-trend-analyzer.py
-(Tag-55).
+
 
 The analyzer is loaded via importlib from its hyphenated path under
 ``scripts/persona-engine/``. No network, no podman, no real time
@@ -12,15 +12,15 @@ ingest+walk+build_trend_report+notify pipeline.
 Scope (15 tests, target was >=10)
 ---------------------------------
 
-1.  test_module_loads_and_exports_public_surface
-2.  test_all_invariant_keys_match_soak_probe_module
-3.  test_parse_soak_report_accepts_raw_probe_shape
-4.  test_parse_soak_report_accepts_persisted_shape_roundtrip
-5.  test_parse_soak_report_rejects_garbage
-6.  test_classify_invariant_change_all_paths
-7.  test_compute_window_dates_basic_and_rejects_zero
-8.  test_compute_consecutive_fail_streak_counts_trailing_only
-9.  test_build_trend_report_clean_history_all_pass
+1. test_module_loads_and_exports_public_surface
+2. test_all_invariant_keys_match_soak_probe_module
+3. test_parse_soak_report_accepts_raw_probe_shape
+4. test_parse_soak_report_accepts_persisted_shape_roundtrip
+5. test_parse_soak_report_rejects_garbage
+6. test_classify_invariant_change_all_paths
+7. test_compute_window_dates_basic_and_rejects_zero
+8. test_compute_consecutive_fail_streak_counts_trailing_only
+9. test_build_trend_report_clean_history_all_pass
 10. test_build_trend_report_detects_pass_to_fail_invariant_degraded
 11. test_build_trend_report_detects_fingerprint_drift
 12. test_build_trend_report_counts_consecutive_fails_streak
@@ -196,7 +196,7 @@ def test_parse_soak_report_accepts_raw_probe_shape(
 def test_parse_soak_report_accepts_persisted_shape_roundtrip(
     analyzer_mod
 ):
-    """A DailyReport.to_envelope() -> parse_soak_report() round-trips."""
+    """A DailyReport.to_envelope -> parse_soak_report round-trips."""
     rep = _make_daily_report(analyzer_mod, date_iso="2026-05-19")
     blob = rep.to_envelope()
     rep2 = analyzer_mod.parse_soak_report(blob)
@@ -553,11 +553,11 @@ def test_e2e_ingest_real_soak_probe_report_and_build_trend(
     Drives the full disk-bound path:
       1. Run a real soak-probe-5-day report.
       2. Write it as a raw-shape JSON to a temp path.
-      3. Call ingest_soak_report() with today=2026-05-19; assert
+      3. Call ingest_soak_report with today=2026-05-19; assert
          the analyzer-shape file lands in the state-dir.
-      4. Call walk_daily_state_dir() and assert today's entry parses.
-      5. Call build_trend_report() and assert overall_ok=True.
-      6. Call build_notify_events() and assert no events fire
+      4. Call walk_daily_state_dir and assert today's entry parses.
+      5. Call build_trend_report and assert overall_ok=True.
+      6. Call build_notify_events and assert no events fire
          (clean tree).
     """
     raw_report = soak_probe_mod.run_soak_probe(days=2).as_dict()

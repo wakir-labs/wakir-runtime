@@ -4,12 +4,12 @@
 
 The schema under test (``wirelang/schemas/wakir-wat-manifest-v1.json``)
 is the formal contract handed to third-party verifier implementers;
-it is the v1 sibling of ``wat-manifest-v2.json``. Sprint-2 Tag-6 landed
-the file; Sprint-2 Tag-7 acceptance-doku flagged "no externally-run
-validator yet" as Sprint-3 Open-Item O-ext-validator. These tests are
+it is the v1 sibling of ``wat-manifest-v2.json``. landed
+the file; acceptance-doku flagged "no externally-run
+validator yet" as Open-Item O-ext-validator. These tests are
 the Python-side half of the cross-tool parity check (the Node.js / ajv
 half lives under ``tooling/external-verifier-ajv/``; the cross-tool
-parity smoke is wired in :mod:`tests.wat.test_external_verifier_parity`).
+parity smoke is wired :mod:`tests.wat.test_external_verifier_parity`).
 
 Test posture
 ------------
@@ -35,7 +35,7 @@ The tests here pin five things:
    as a ``ValidationError`` (negative-path coverage by field).
 4. Both ``leaves`` shapes (hex strings, full-event objects) validate
    under the same schema (the ``oneOf`` branch contract).
-5. The ``version`` enum reserves both v1 and v2 strings (Tag-6
+5. The ``version`` enum reserves both v1 and v2 strings (
    forward-compat decision for the future v2 producer).
 
 Drift between this Python-side validation and the Node.js / ajv side
@@ -51,7 +51,7 @@ from pathlib import Path
 import pytest
 
 jsonschema = pytest.importorskip("jsonschema")
-from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
+from jsonschema import Draft202012Validator  # noqa: E402 (after importorskip)
 from jsonschema.exceptions import ValidationError  # noqa: E402
 
 
@@ -147,9 +147,9 @@ def test_schema_id_pinned(schema: dict) -> None:
     """``$id`` matches the wakir.dev pattern at the pinned version.
 
     Convention: schema $id bumps when the on-wire shape changes.
-    0.1.0 -> 0.2.0 on Sprint-5 Tag-5 with the additive optional
+    0.1.0 -> 0.2.0 on with the additive optional
     ``signature`` top-level slot (byte-for-byte mirror of the
-    wat-manifest-v2 schema 0.2.0 signature slot landed in Tag-1).
+    wat-manifest-v2 schema 0.2.0 signature slot landed).
     """
     assert schema["$id"] == (
         "https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0"
@@ -159,7 +159,7 @@ def test_schema_id_pinned(schema: dict) -> None:
 def test_schema_version_enum_reserves_v2(schema: dict) -> None:
     """The ``version`` enum reserves both v1 and v2 strings.
 
-    Tag-6 forward-compat decision: a single v1 schema accepts both
+    forward-compat decision: a single v1 schema accepts both
     readings so the future v2 producer (multi-cap aggregator branch)
     can emit ``wakir-wat-manifest/v2`` without a separate file split.
     """

@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic Doppelbetrieb-Bridge-Smoke tests (Sprint-10 Tag-9).
+"""Hermetic Doppelbetrieb-Bridge-Smoke tests.
 
-Anlass — Sprint-10 Tag-8 Phase-3 smoke gate (Bug-38b) activated the
+Anlass — Phase-3 smoke gate (Bug-38b) activated the
 two federation-substance checks (federation-bundle-sync-reachable +
-federation-cross-trust-domain-verify) for the **single-Tomás** path
-(wakir-runtime persona-engine 0.4.2-pilot). Tag-9 extends the smoke
-to the **Doppelbetrieb-Bridge** scenario: two Tomás emissions in
+federation-cross-trust-domain-verify) for the **single-the engineering zone** path
+(wakir-runtime persona-engine 0.4.2-pilot). extends the smoke
+to the **Doppelbetrieb-Bridge** scenario: two the engineering zone emissions in
 parallel from two distinct engine binaries hitting the same WAT-
 Anchor pipeline.
 
@@ -16,15 +16,15 @@ Doppelbetrieb-Bridge — what it is
 Two engineering output sources coexist during the Doppelbetrieb-
 Vergleich-4-Wochen-Clock (Spec §3.7-bridge-audit):
 
-1. **Pre-Framework Tomás** — Claude-Code-Subagent spawn from the
-   Operator-Hand (Mira-Sandbox or claude-dev Sandbox). Emits to the
+1. **Pre-Framework the engineering zone** — Claude-Code-Subagent spawn from the
+   Operator-Hand. Emits to the
    Pre-Framework Markdown sink at
    ``/var/lib/wakir/persona/tomas/bridge-audit.md``.
    ``engine_version`` field marks the emission as
    ``"pre-framework-tomas"``.
 
-2. **Wakir-Runtime Tomás** — persona-engine container
-   (``wakir-persona-engine:0.4.2-pilot``, post Sprint-Pengine-12).
+2. **Wakir-Runtime the engineering zone** — persona-engine container
+   (``wakir-persona-engine:0.4.2-pilot``, post -Pengine-12).
    Emits via ``BridgeAuditWriter`` to the same Pre-Framework sink
    AND to the structured-log JSON envelope on stderr (Quadlet
    ``podman logs`` substrate). ``engine_version`` field marks the
@@ -85,7 +85,7 @@ Doppelbetrieb-Bridge-Smoke (8 vectors):
 * ``TV-DB-BRIDGE-08`` Wakir-Runtime sink JSON line parses cleanly
   and round-trips through ``json.loads`` for both engines.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations

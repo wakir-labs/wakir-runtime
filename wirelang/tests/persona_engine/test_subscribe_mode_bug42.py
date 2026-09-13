@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for Bug-42 subscribe-mode substrate (Sprint-Pengine-13).
+"""Hermetic tests for Bug-42 subscribe-mode substrate (-Pengine-13).
 
 Bug-42 root cause
 -----------------
-The pre-Sprint-13 ``NatsSubscribeLoop.run_with_iterator`` polled
+The pre- ``NatsSubscribeLoop.run_with_iterator`` polled
 ``msg_iter.__anext__()`` via ``asyncio.wait_for(..., timeout=0.5)``.
 On every timeout (the common case — no messages arriving in the
 poll window) ``wait_for`` cancelled the underlying ``__anext__``
@@ -16,7 +16,7 @@ already pulled a message off the pending-queue right before the
 cancellation propagated. The message was bound to a cancelled
 future and never delivered to the consumer.
 
-The Sprint-Pengine-13 fix:
+The -Pengine-13 fix:
 1. ``run_with_iterator`` keeps a persistent ``next_msg_task`` across
    poll iterations and races it against a stop-event task via
    ``asyncio.wait(FIRST_COMPLETED)``. The inner task is cancelled
@@ -37,7 +37,7 @@ Tests
 - §5 version-bump assertions
 
 The tests deliberately avoid importing ``nats-py``; the callback
-mode is exercised via :class:`CallbackSubscriber` and the iterator
+mode is exercised via:class:`CallbackSubscriber` and the iterator
 mode via in-memory async iterators.
 """
 
@@ -244,7 +244,7 @@ async def test_iterator_processes_msg_arriving_after_quiet_period():
 
     # Start the loop, then push a message after a short quiet
     # period that would have triggered the pre-fix cancel-on-timeout
-    # race (the iterator would have cancelled __anext__() during
+    # race (the iterator would have cancelled __anext__ during
     # the quiet period).
     runner = asyncio.create_task(
         loop.run_with_iterator(msg_iter, stop_event=stop_event)
@@ -258,7 +258,7 @@ async def test_iterator_processes_msg_arriving_after_quiet_period():
 
     assert loop.processed_count == 1, (
         "Bug-42 regression: a message arriving after a quiet period was lost. "
-        f"loop.processed_count={loop.processed_count}, sink={writer_sink.getvalue()}"
+        f"loop.processed_count={loop.processed_count}, sink={writer_sink.getvalue}"
     )
 
 
@@ -754,26 +754,26 @@ def test_cli_rejects_invalid_subscribe_mode(monkeypatch, tmp_path):
 
 
 def test_engine_version_bumped_to_0_5_0_pilot():
-    """Sprint-Pengine-13 bumps 0.4.2-pilot → 0.5.3 (Tag-62 rc1-drop final)."""
+    """-Pengine-13 bumps 0.4.2-pilot → 0.5.3 (rc1-drop final)."""
     assert ENGINE_VERSION == "0.5.3"
     assert ASYNC_ENGINE_VERSION == "0.5.3"
     assert PKG_VERSION == "0.5.3"
 
 
 def test_containerfile_real_label_bumped():
-    """Containerfile.real LABEL is the Tag-52 Pre-KW-24-Final image tag.
+    """Containerfile.real LABEL is the Pre-calendar week 24-Final image tag.
 
-    Tag-52 (2026-05-19) bumped the container image tag from
+    (2026-05-19) bumped the container image tag from
     ``0.5.1-pre-cutover`` to ``0.5.2-final-pre-cutover`` as the
-    Pre-KW-24-Final consolidation marker (manifest-and-metadata-only;
+    Pre-calendar week 24-Final consolidation marker (manifest-and-metadata-only;
     strict superset of 0.5.1-pre-cutover). The Python
-    ``ENGINE_VERSION`` constant was at ``0.5.3-rc1`` between Tag-58
-    and Tag-62; Tag-62 dropped the rc1-suffix to ``0.5.3`` as the
-    final Pre-Cutover-Sealing bump. The engine code itself is
-    byte-stable relative to Sprint-Pengine-13 — Tag-52 is a
-    consolidation marker layered on top of the Tag-48 manifest, not
-    an engine-code rewrite. Sprint-Pengine-13 / Bug-42 / Tag-45 /
-    Tag-48 references stay in the header comment for history.
+    ``ENGINE_VERSION`` constant was at ``0.5.3-rc1`` between
+    and; dropped the rc1-suffix to ``0.5.3`` as the
+    final pre-cutover-Sealing bump. The engine code itself is
+    byte-stable relative to -Pengine-13 — is a
+    consolidation marker layered on top of the manifest, not
+    an engine-code rewrite. -Pengine-13 / Bug-42 / /
+    references stay in the header comment for history.
     """
     from pathlib import Path
     cf = Path(__file__).resolve().parents[3] / "infra" / "persona-engine" / "Containerfile.real"

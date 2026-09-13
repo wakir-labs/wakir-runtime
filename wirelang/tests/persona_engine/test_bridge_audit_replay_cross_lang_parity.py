@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine bridge-audit-replay
-canonical-trace (Tag-37 Mini-Welle Phase-3a Python-sync, 14. Modul).
+canonical-trace (Mini-wave Phase-3a Python-sync, 14. Modul).
 
-This file is the Python half of the cross-lang fixture pin pair.  The
+This file is the Python half of the cross-lang fixture pin pair. The
 Rust half lives at
 ``wirelang-rust/crates/persona-engine-bridge-audit-replay/tests/cross_lang_replay_trace_fixture_test.rs``
 and consumes the same authoritative fixture file at
@@ -65,9 +65,9 @@ import pytest
 
 # Cross-lang parity needs rfc8785 (the live replay engine uses pure-Python
 # `_jcs_pure` for record hashes, but the trace serialiser uses rfc8785 to
-# match the existing Phase-3a cross-lang-trace pattern).  The shadow-CI
+# match the existing Phase-3a cross-lang-trace pattern). The shadow-CI
 # lane runs without the wheel; skip the entire suite on that lane via the
-# same importorskip pattern already established in Tag-35 / Tag-36
+# same importorskip pattern already established in /
 # sibling tests.
 pytest.importorskip("rfc8785")
 
@@ -125,7 +125,7 @@ def _decode_stream(b64: str) -> list[AuditRecord]:
 
     The wire format is ``{"stream": [<envelope>, ...], "stream_len": N}``;
     each envelope is the 11-field canonical envelope shape and we
-    re-hydrate it back into an :class:`AuditRecord`.
+    re-hydrate it back into an:class:`AuditRecord`.
     """
     raw = json.loads(base64.standard_b64decode(b64.encode("ascii")).decode("utf-8"))
     out: list[AuditRecord] = []

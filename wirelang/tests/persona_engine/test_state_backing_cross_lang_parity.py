@@ -4,7 +4,7 @@
 ``PersonaStateSnapshot`` JCS canonicalisation surface.
 
 The Python module under test
-(:mod:`wirelang.persona_engine.state_backing`) is BUSL-1.1; this test
+:mod:`wirelang.persona_engine.state_backing`) is BUSL-1.1; this test
 file is Apache-2.0 so downstream re-implementers can re-use the same
 fixture vectors and the cross-lang contract. The Rust sibling crate
 (``wirelang-rust/crates/persona-engine-state-backing``) is Apache-2.0
@@ -60,7 +60,7 @@ If a wire-shape change is intentional:
 1. Update both sides (Rust ``snapshot_to_jcs_bytes`` and Python
    :func:`snapshot_to_jcs_bytes`).
 2. Re-derive the fixture vectors using the derivation snippet at the
-   top of :mod:`wirelang.persona_engine.state_backing`.
+   top of:mod:`wirelang.persona_engine.state_backing`.
 3. Update both Python and Rust test suites in the same PR.
 
 If a wire-shape change is accidental, the cross-lang fixture test

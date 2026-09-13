@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Schema-validation tests for the optional `signature` slot.
 
-Phase-2 Sprint-5 Tag-1: the v2-aware WAT-manifest JSON-Schema
+Phase-2: the v2-aware WAT-manifest JSON-Schema
 (``wirelang/schemas/wat-manifest-v2.json``) is bumped from
 ``…/wat-manifest-v2/0.1.0`` to ``…/wat-manifest-v2/0.2.0`` to
 formalise an additive optional top-level ``signature`` slot. The
 slot shape is byte-identical to the signing primitive in
-``wat.identity.manifest_signing`` (Sprint-4 Tag-6); this test cohort
+``wat.identity.manifest_signing``; this test cohort
 pins the schema-side contract so producer/verifier drift is caught
 at validation time, not at signature-verify time.
 
@@ -43,7 +43,7 @@ from pathlib import Path
 import pytest
 
 jsonschema = pytest.importorskip("jsonschema")
-from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
+from jsonschema import Draft202012Validator  # noqa: E402 (after importorskip)
 from jsonschema.exceptions import ValidationError  # noqa: E402
 
 cryptography = pytest.importorskip("cryptography")
@@ -179,7 +179,7 @@ def test_v2_with_signature_slot_validates(
 
     A v2 manifest carrying both the multi-cap sidecar and the
     signature slot validates end-to-end. This is the steady-state
-    target shape post-Sprint-5 (signed v2 manifests in the WAT
+    target shape post- (signed v2 manifests in the WAT
     pipeline).
     """
     m = _v2_minimal()

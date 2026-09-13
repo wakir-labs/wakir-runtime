@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``wirelang.schemas.publisher_cli`` ``revoke``.
 
-Phase-2 Sprint-6 Tag-2 — Publisher-CLI ``revoke`` subcommand.
+Phase-2 — Publisher-CLI ``revoke`` subcommand.
 End-to-end operator-experience: CLI → NATS-KV
 (``wakir-capability-policies``) → backend revocation-monotonic
-invariant (Sprint-6 Tag-1) → typed exit codes.
+invariant → typed exit codes.
 
-The Sprint-6 Tag-2 test inventory pins twelve concerns:
+The test inventory pins twelve concerns:
 
 - T-SR-REV-01: bucket loader happy path — CAS auto-pin (no
   ``--expected-revision``) reads live revision, writes revocation,
@@ -45,8 +45,8 @@ Hermetic
 --------
 
 - No NATS, no real transport.
-- The in-memory ``_MockKvCapability`` mirrors Sprint-5 Tag-2 + Sprint-6
-  Tag-1 mock shapes; it tracks revisions across get/put/update so the
+- The in-memory ``_MockKvCapability`` mirrors +
+  mock shapes; it tracks revisions across get/put/update so the
   CAS-pin invariants can be asserted byte-precisely.
 - The capability-bucket factory is injected via the public
   ``capability_bucket_factory`` argument of ``run()``.
@@ -82,7 +82,7 @@ from wirelang.schemas.registered_by_capability import (
 
 
 # ---------------------------------------------------------------------------
-# In-memory KV mock (mirror of Sprint-6 Tag-1 fixture)
+# In-memory KV mock (mirror of fixture)
 # ---------------------------------------------------------------------------
 
 
@@ -109,7 +109,7 @@ class _MockKvEntry:
 
 @dataclass
 class _MockKvCapability:
-    """CAS-aware capability-policy KV mock (Sprint-6 Tag-1 mirror)."""
+    """CAS-aware capability-policy KV mock ( mirror)."""
 
     bucket: str = CAPABILITY_BUCKET_NAME
     store: dict = field(default_factory=dict)
@@ -234,7 +234,7 @@ def _seed_bucket(
 
     Bypasses ``NatsKvCapabilityPolicyBackend.put`` and writes envelopes
     directly so the test fixture stays decoupled from put-time
-    validation (which is exercised separately in Sprint-5 Tag-2 tests).
+    validation (which is exercised separately in tests).
     """
     for record in records:
         kv.store[record.key] = _MockKvEntry(
@@ -303,7 +303,7 @@ class TestTSRREV01CasAutoPin:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["cmd"] == "revoke"
         assert receipt["mode"] == "cas"
@@ -354,7 +354,7 @@ class TestTSRREV02ExpectedRevisionHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["expected_revision"] == live_revision
         assert receipt["previous_revision"] == live_revision
@@ -417,7 +417,7 @@ class TestTSRREV04LwwHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "lww"
         assert receipt["expected_revision"] is None
@@ -434,12 +434,12 @@ class TestTSRREV05UnrevokeViaCasRejected:
     """T-SR-REV-05: an un-revoke gesture is rejected by the
     revocation-monotonic backend invariant.
 
-    Reza-Note: the CLI does not (and cannot) syntactically refuse this
+    The protocol zone-Note: the CLI does not (and cannot) syntactically refuse this
     case — the operator could (in principle) write
     ``--revoked-at <past instant>``. The CLI ALWAYS sets revoked_at to
     the operator-supplied value, so an attempt to "un-revoke" via this
     subcommand by passing a different revoked_at on a live-revoked
-    policy is structurally the same as the Sprint-6 Tag-1
+    policy is structurally the same as the
     advance-instant case (T-SR-REV-06). The "literal un-revoke"
     (``revoked_at=None``) is impossible through this CLI by design;
     operators who deliberately want to un-revoke MUST use the
@@ -531,7 +531,7 @@ class TestTSRREV06AdvanceRevokedAtRejected:
 class TestTSRREV07IdempotentRewrite:
     """T-SR-REV-07: re-applying the same revoked_at with a different
     revocation_reason is permitted (audit-trail refresh), per the
-    Sprint-6 Tag-1 equal-instant idempotent-rewrite invariant.
+     equal-instant idempotent-rewrite invariant.
     """
 
     def test_idempotent_reason_refresh(self):
@@ -553,7 +553,7 @@ class TestTSRREV07IdempotentRewrite:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "cas"
         assert receipt["revocation_reason"] == (
@@ -611,7 +611,7 @@ class TestTSRREV08TargetNotFound:
 
 class TestTSRREV09RevokedAtRequiresTimezone:
     """T-SR-REV-09: a naive RFC-3339 (no tz suffix) surfaces with
-    INPUT_ERROR (3). Mirror of the Sprint-5 publish path's
+    INPUT_ERROR (3). Mirror of the publish path's
     ``--registered-at`` invariant.
     """
 
@@ -730,7 +730,7 @@ class TestTSRREV12CapabilityBundlePreservation:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         live = _envelope_to_record(
             kv.store[

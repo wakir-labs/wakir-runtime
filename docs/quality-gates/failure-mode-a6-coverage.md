@@ -10,7 +10,7 @@
 | Test-File | `tests/infra/test_cosign_drift_coverage_a6.py` (17 hermetic invariants — 15 parametric + 5 standalone) |
 | Companion (CI-workflow shape) | `tests/ci/test_build_wakir_provisioner_workflow.py` (`test_cosign_login_step_present`, `test_cosign_login_runs_before_sign`) |
 | Companion (policy-substrate shape) | `tests/infra/test_cosign_policy_phase_3b.py` (..inventory invariants) |
-| Companion (Quadlet-installer shape) | `tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py` (13->15 closeout) |
+| Companion (Quadlet-installer shape) | `tests/infra/test_quadlet_cosign_15_binary_substrate.py` (13->15 closeout) |
 | Companion (planned rollout campaign-Layer-5) | `tests/phase_3c/test_cosign_chain_marathon_image_hash_stability.py` (QA engineering owner, follow-up table row 2) |
 
 ## 0. Contract scope

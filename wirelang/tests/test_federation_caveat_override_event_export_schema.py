@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Tests for the OTS-anchored caveat-override-event-export
-schema-registry entry (Phase-2 Sprint-9 Tag-2).
+schema-registry entry (Phase-2).
 
-This test module verifies the **Teil B** substance of Sprint-9
-Tag-2: the JSON-Schema-Registry entry
+This test module verifies the **Teil B** substance of
+the JSON-Schema-Registry entry
 ``wakir.federation.caveat-override-event-export/1`` and its
 OTS-anchor pre-submission manifest. Tests:
 
 - T-COXSR-01: schema file parses as JSON Schema (Draft 2020-12);
-  envelopes produced by the Sprint-9 Tag-1
+  envelopes produced by the
   :class:`~wirelang.federation.caveat_override_export.ExportedCaveatOverrideEvent`
   pseudonymisation pipeline validate against it.
 - T-COXSR-02: defence-in-depth — envelopes carrying raw narrative
@@ -76,7 +76,7 @@ def _load_manifest() -> dict:
 
 def _well_formed_envelope() -> dict:
     """A pseudonymised envelope that MUST validate against the
-    schema. Mirrors the Sprint-9 Tag-1 exporter output shape.
+    schema. Mirrors the exporter output shape.
     """
     return {
         "schema": "wakir.federation.caveat-override-event-export/1",
@@ -114,7 +114,7 @@ def _well_formed_envelope() -> dict:
 
 def test_coxsr_01_schema_validates_well_formed_envelope() -> None:
     """T-COXSR-01: the schema file parses as JSON Schema and a
-    well-formed envelope (mirroring the Sprint-9 Tag-1 exporter
+    well-formed envelope (mirroring the exporter
     output shape) validates against it.
     """
     schema = _load_schema()
@@ -169,7 +169,7 @@ def test_coxsr_03_anchor_manifest_well_formed() -> None:
         == "wakir.federation.caveat-override-event-export/1"
     )
     # schema_file_sha256 must match a recompute of the live schema
-    # file (i.e. the manifest is not stale).
+    # file (i.e. The manifest is not stale).
     with open(SCHEMA_PATH, "rb") as fh:
         live_digest = hashlib.sha256(fh.read()).hexdigest()
     assert manifest["schema_file_sha256"] == live_digest, (

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/per-model-cost-aggregator.py — Sprint-Phase-2b MINI.
+"""Tests for scripts/per-model-cost-aggregator.py — -Phase-2b MINI.
 
 Hermetic — no real persona-engine, no real textfile-collector
 directory. Drives the aggregator's public functions against
@@ -519,7 +519,7 @@ def test_render_textfile_value_format_integer_floats_collapse():
         },
     }
     out = aggregator.render_textfile(buckets, scrape_ts_utc=1715875200)
-    # Token gauge is an integer-valued float -> renders as 1000 (no .0).
+    # Token gauge is an integer-valued float -> renders as 1000 (no.0).
     assert 'persona_engine_cost_input_tokens_total{model="claude-opus-4-7"} 1000' in out
     # Cost gauge is a non-integer float -> renders with decimals.
     assert 'persona_engine_cost_usd{model="claude-opus-4-7"} 0.015' in out

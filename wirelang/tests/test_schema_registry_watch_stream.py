@@ -1,23 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang schema-registry watch-stream surface.
 
-Phase-1b Sprint-3 Tag-4 (S3-4). Tests the additive watch-stream
-surface on :mod:`wirelang.schemas.registry_nats_kv_backend`:
+Phase-1b (S3-4). Tests the additive watch-stream
+surface on:mod:`wirelang.schemas.registry_nats_kv_backend`:
 
-- :class:`WatchOp` / :class:`WatchEvent`
-- :meth:`NatsKvSchemaRegistry.watch`
-- :func:`open_watch_stream`
-- :class:`LiveSchemaSnapshot` (``from_backend`` / ``apply`` /
+-:class:`WatchOp` /:class:`WatchEvent`
+-:meth:`NatsKvSchemaRegistry.watch`
+-:func:`open_watch_stream`
+-:class:`LiveSchemaSnapshot` (``from_backend`` / ``apply`` /
   ``as_registry``)
-- :func:`_decode_watch_update` poison-handling
+-:func:`_decode_watch_update` poison-handling
 
 The watch-stream is the OI-7-Phase-1c-watch slot landing for the
-schema-registry backend. The Tag-1 LWW path
-(``put`` / ``get`` / ``snapshot``) and the Tag-3 CAS-pin path
+schema-registry backend. The LWW path
+(``put`` / ``get`` / ``snapshot``) and the CAS-pin path
 (``put_with_revision`` / ``get_with_revision``) are unaffected;
-Tag-4 surfaces are purely additive.
+surfaces are purely additive.
 
-Pattern source: V-908 Tag-6 watch-stream-snapshot layer in
+Pattern source: V-908 watch-stream-snapshot layer in
 ``wirelang/federation/route_registry_nats_kv_backend.py``. The mock
 shapes mirror the V-908 mock pattern: a manually-fed ``_MockWatcher``
 with ``await updates()`` semantics (Shape 2 of the backend's adapter
@@ -44,7 +44,7 @@ Test inventory (T-SR-WS-01..10 + 2 aux probes):
   revision seen and is monotonic.
 - T-SR-WS-09: a frozen registry from a watch-fed snapshot exposes
   ``lookup`` / ``lookup_by_triple`` consistent with the full-snapshot
-  path (Tag-1 cross-reference).
+  path (cross-reference).
 - T-SR-WS-10: ``open_watch_stream`` rejects a non-backend argument
   with TypeError.
 - T-SR-WS-aux-async-iter: the watch handle is async-iter compatible
@@ -81,7 +81,7 @@ from wirelang.schemas.registry_nats_kv_backend import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV with watch surface (mirrors V-908 Tag-6 mock pattern)
+# Mock KV with watch surface (mirrors V-908 mock pattern)
 # ---------------------------------------------------------------------------
 
 
@@ -472,7 +472,7 @@ def test_t_sr_ws_06_poisoned_put_value_raises():
 
 def test_t_sr_ws_07_unknown_operation_raises():
     """T-SR-WS-07: an update with an unrecognised ``operation`` kind
-    raises :class:`SchemaRegistryEnvelopeError`.
+    raises:class:`SchemaRegistryEnvelopeError`.
     """
     kv = _MockKv()
     backend = NatsKvSchemaRegistry(kv=kv)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Tests for scripts/persona-engine/legacy-env-flag-migration-detector.py
-— Tag-51.
+—.
 
 Hermetic, stdlib-only. The detector is loaded via importlib from its
 hyphenated path under ``scripts/persona-engine/``. Repo-scan tests
@@ -13,15 +13,15 @@ Spec v0.4.2 §6.
 Scope (14 tests, ≥ 12 requested)
 --------------------------------
 
-1.  test_module_loads_and_self_test_passes
-2.  test_mapping_has_nine_entries_matching_spec_v0_4_2_section_6
-3.  test_mapping_canonical_names_have_no_pe_infix
-4.  test_mapping_includes_bridge_audit_multi_target
-5.  test_mapping_canonical_form_is_removed_without_successor
-6.  test_scan_repo_detects_legacy_flag_in_fixture
-7.  test_scan_repo_emits_multi_finding_per_file
-8.  test_scan_repo_detects_unknown_prefix_form
-9.  test_scan_repo_respects_default_excludes
+1. test_module_loads_and_self_test_passes
+2. test_mapping_has_nine_entries_matching_spec_v0_4_2_section_6
+3. test_mapping_canonical_names_have_no_pe_infix
+4. test_mapping_includes_bridge_audit_multi_target
+5. test_mapping_canonical_form_is_removed_without_successor
+6. test_scan_repo_detects_legacy_flag_in_fixture
+7. test_scan_repo_emits_multi_finding_per_file
+8. test_scan_repo_detects_unknown_prefix_form
+9. test_scan_repo_respects_default_excludes
 10. test_scan_repo_include_spec_files_overrides_excludes
 11. test_scan_repo_empty_tree_yields_no_findings
 12. test_build_report_shape_is_stable_and_sorted
@@ -146,7 +146,7 @@ def test_mapping_canonical_form_is_removed_without_successor(detector):
     assert entry["canonical"] is None, (
         "canonical_form must be removed (None) per Spec v0.4.2 §4.1 FN-1"
     )
-    # The classify() function maps None to mapping_status='removed'.
+    # The classify function maps None to mapping_status='removed'.
     status, canonical, _ = detector._classify(
         "WAKIR_PE_CANONICAL_FORM_BACKEND"
     )

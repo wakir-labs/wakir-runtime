@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic acceptance tests for ``compose/spire.yaml`` (SPIFFE Z-A
-Phase-2.1 Sprint-6 Tag-6 hermetic SPIRE-Server-Sidecar).
+Phase-2.1 hermetic SPIRE-Server-Sidecar).
 
 These tests are pure compose-parse + invariant assertions. They do
 NOT:
@@ -15,7 +15,7 @@ They DO assert that:
     declares a single ``spire-server`` service.
   * The image reference is the SPIRE upstream package at the
     documented Phase-2.1 tag form (tag-only acceptable, digest-pin
-    acceptable as a future Cosign-Skizze follow-up).
+    acceptable as a future Cosign-sketch follow-up).
   * The container uses the hermetic-only trust-domain
     ``example.test`` (NOT the production ``wakir.local`` or any
     ``*.wakir.dev`` literal).
@@ -105,15 +105,15 @@ def test_compose_file_is_present_and_parses(compose_doc: dict) -> None:
 def test_compose_has_spire_server_service(
     compose_doc: dict,
 ) -> None:
-    """Phase-2.1 invariant generalised in Sprint-6 Tag-9 (Phase-2.2):
+    """Phase-2.1 invariant generalised in (Phase-2.2):
 
     The compose file MUST declare a service named ``spire-server``. The
-    Tag-6 Phase-2.1 form required this to be the *only* service; the
-    Tag-9 Phase-2.2 form adds a paired ``spire-agent`` service block in
+    Phase-2.1 form required this to be the *only* service; the
+    Phase-2.2 form adds a paired ``spire-agent`` service block in
     the same compose file (see ``test_compose_spire_agent.py``).
     Generalising to "spire-server is present, agent may also be" keeps
     the original invariant intact while letting Phase-2.2 land
-    additively. The exact 2-service shape is asserted in the Tag-9
+    additively. The exact 2-service shape is asserted in the
     suite; here we only require ``spire-server`` to be there.
     """
     services = compose_doc["services"]
@@ -131,11 +131,11 @@ def test_compose_has_spire_server_service(
 
 def test_spire_server_uses_upstream_ghcr_image(compose_doc: dict) -> None:
     image = compose_doc["services"]["spire-server"]["image"]
-    # Three valid forms (Tag-8 rebase: Tag-7 Cosign-Pin-Form merged in):
-    #   * tag-only:                ``ghcr.io/spiffe/spire-server:<semver>``
-    #   * digest-pinned (real):    ``ghcr.io/spiffe/spire-server:<semver>@sha256:<64-hex>``
-    #   * digest-pinned (pending): ``ghcr.io/spiffe/spire-server:<semver>@sha256:DIGEST_PENDING_TOMAS_REVIEW``
-    # The pending-placeholder form is the Tag-8 default; Operator-Hand
+    # Three valid forms (rebase: Cosign-Pin-Form merged):
+    # * tag-only: ``ghcr.io/spiffe/spire-server:<semver>``
+    # * digest-pinned (real): ``ghcr.io/spiffe/spire-server:<semver>@sha256:<64-hex>``
+    # * digest-pinned (pending): ``ghcr.io/spiffe/spire-server:<semver>@sha256:DIGEST_PENDING_TOMAS_REVIEW``
+    # The pending-placeholder form is the default; Operator-Hand
     # substitutes a real 64-hex digest after ``cosign verify`` +
     # ``skopeo inspect`` (see ``docs/spire-server-phase-2-1.md`` §2).
     tag_only = re.fullmatch(

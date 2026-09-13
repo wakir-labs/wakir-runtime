@@ -96,7 +96,7 @@ either mentions only the canonical form or mentions neither.
 
 Pure stdlib. No network, no git invocation, no JSON-schema
 validator dependency. Importable from the hermetic test suite
-under ``tests/audit/test_adr_errata_spec_cross_audit_tag57.py``.
+under ``tests/audit/test_adr_errata_spec_cross_audit.py``.
 
 Protocol-spec owner.
 """

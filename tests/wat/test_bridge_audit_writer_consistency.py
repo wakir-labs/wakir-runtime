@@ -316,8 +316,8 @@ def test_same_timestamp_events_use_stable_persona_action_tie_break(tmp_path: Pat
         if " · " in line
     ]
     # Expected ASCII tie-break order:
-    #   kai < reza < tomas
-    #   tomas/git-commit < tomas/pr-open
+    # kai < reza < tomas
+    # tomas/git-commit < tomas/pr-open
     expected_first_columns = [
         ("kai", "spawn-dispatch"),
         ("reza", "adr-vote"),

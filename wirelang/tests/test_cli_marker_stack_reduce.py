@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the operator-facing marker-stack reducer CLI.
 
-Phase-2 Sprint-9 Tag-3 Teil A. The CLI lives in
+Phase-2 Teil A. The CLI lives in
 :mod:`wirelang.cli.marker_stack_reduce`; the live NATS-JetStream
 connection factory is **never invoked** from this suite. Tests
-construct an :class:`OperatorRunner` with an injected
+construct an:class:`OperatorRunner` with an injected
 ``open_backend_async`` that hands back an in-memory backend stub
-exposing the :meth:`get_marker_stack` shape the CLI consumes.
+exposing the:meth:`get_marker_stack` shape the CLI consumes.
 
 Coverage axes (T-CLI-MSR-01..11):
 
@@ -206,7 +206,7 @@ def _caveat_override_stack() -> MarkerStack:
 def _bridge_revoked_stack() -> MarkerStack:
     """Single-event stack that bridge-blocks an otherwise-active
     token. The bridge marker's ``revoked_at`` precedes the
-    ``minted_at`` so :meth:`bridge_was_revoked_for_mint` fires
+    ``minted_at`` so:meth:`bridge_was_revoked_for_mint` fires
     on the reducer's cross-check."""
     # bridge_was_revoked_for_mint fires when minted_at >= revoked_at:
     # set minted strictly after the bridge revocation.
@@ -233,7 +233,7 @@ def _bridge_revoked_stack() -> MarkerStack:
 def test_t_cli_msr_01_pretty_print_format_stability():
     """T-CLI-MSR-01: a fixed three-marker stack renders to the
     canonical pretty-print text block. This locks the
-    operator-facing surface across Tag-3+ releases.
+    operator-facing surface across + releases.
     """
     stack = _three_marker_revoke_unrevoke_revoke()
     verdict = reduce_marker_stack(stack)
@@ -406,7 +406,7 @@ def test_t_cli_msr_05_not_found_token_exit_code_three():
 
 def test_t_cli_msr_06_marker_symbol_legend_complete():
     """T-CLI-MSR-06: every event-kind the reducer can emit has a
-    non-empty symbol in :data:`MARKER_SYMBOLS`. Adding a new
+    non-empty symbol :data:`MARKER_SYMBOLS`. Adding a new
     event-kind without registering a symbol must be loud.
     """
     expected_kinds = {

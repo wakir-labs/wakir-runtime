@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the Rust persona-engine adapter hook skeleton.
 
-Sprint-Rust-Adapter-Hook-Skeleton-MINI follow-on to PR #113
-(:mod:`wirelang.persona_engine.bridge_audit_triangle`).
+-Rust-Adapter-Hook-Skeleton-MINI follow-on to PR #113
+:mod:`wirelang.persona_engine.bridge_audit_triangle`).
 
 100% hermetic: no real Rust binary, no network, no time sources.
 Subprocess invocations target a temp-dir stub-binary (a sh script
@@ -10,20 +10,20 @@ or a missing path) so the suite runs in any CI sandbox.
 
 Coverage map (12 vectors, all ≥10-vector contract satisfied):
 
-1.  Env-resolution: default binary path when env is empty.
-2.  Env-resolution: ``WAKIR_RUST_ENGINE_BIN`` overrides default.
-3.  Env-resolution: explicit constructor arg overrides env-var.
-4.  Env-resolution: timeout default, env-var override, and
+1. Env-resolution: default binary path when env is empty.
+2. Env-resolution: ``WAKIR_RUST_ENGINE_BIN`` overrides default.
+3. Env-resolution: explicit constructor arg overrides env-var.
+4. Env-resolution: timeout default, env-var override, and
     explicit-arg override paths.
-5.  ``available()`` returns ``False`` for missing path / non-
+5. ``available()`` returns ``False`` for missing path / non-
     executable file / non-existent executable.
-6.  ``available()`` returns ``True`` for a real executable
+6. ``available()`` returns ``True`` for a real executable
     (chmod-+x sh-script in tmpdir).
-7.  ``MockRustAdapterHook`` returns a deterministic CloudEvent
+7. ``MockRustAdapterHook`` returns a deterministic CloudEvent
     envelope shaped identically to the Python-sink projection.
-8.  ``MockRustAdapterHook.raise_on_compute`` raises the configured
+8. ``MockRustAdapterHook.raise_on_compute`` raises the configured
     :class:`RustAdapterError`.
-9.  ``SubprocessRustAdapterHook`` invokes the binary and parses
+9. ``SubprocessRustAdapterHook`` invokes the binary and parses
     JSON stdout into a CloudEventEnvelope (sh-script that echoes
     a canned JSON document).
 10. ``SubprocessRustAdapterHook`` raises ``RustAdapterError`` with
@@ -36,7 +36,7 @@ Coverage map (12 vectors, all ≥10-vector contract satisfied):
     ``reason="timeout"`` when the binary exceeds the deadline
     (sleep-script + tiny timeout).
 14. ``hook_to_implementation`` wraps the hook into a callable that
-    accepts :class:`DiffInput` and forwards to ``compute_output``
+    accepts:class:`DiffInput` and forwards to ``compute_output``
     with base64-encoded payload bytes.
 15. ``build_triangle_impl_c`` in ``2way`` mode returns the stub
     even when the hook is available (stub-only branch).
@@ -172,12 +172,12 @@ def test_env_resolution_bad_timeout_falls_back(monkeypatch, caplog):
 
 
 # ---------------------------------------------------------------------------
-# Vector 5-6: available()
+# Vector 5-6: available
 # ---------------------------------------------------------------------------
 
 
 def test_available_false_when_path_missing(tmp_path):
-    """Vector 5a: missing path ⇒ available() is False."""
+    """Vector 5a: missing path ⇒ available is False."""
     hook = SubprocessRustAdapterHook(
         bin_path=str(tmp_path / "does-not-exist"),
     )
@@ -185,7 +185,7 @@ def test_available_false_when_path_missing(tmp_path):
 
 
 def test_available_false_when_not_executable(tmp_path):
-    """Vector 5b: non-executable file ⇒ available() is False."""
+    """Vector 5b: non-executable file ⇒ available is False."""
     p = tmp_path / "not-exec"
     p.write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
     # Strip execute bits.
@@ -195,13 +195,13 @@ def test_available_false_when_not_executable(tmp_path):
 
 
 def test_available_false_empty_path():
-    """Vector 5c: empty bin_path string ⇒ available() is False."""
+    """Vector 5c: empty bin_path string ⇒ available is False."""
     hook = SubprocessRustAdapterHook(bin_path="")
     assert hook.available() is False
 
 
 def test_available_true_for_executable(tmp_path):
-    """Vector 6: chmod-+x sh-script ⇒ available() is True."""
+    """Vector 6: chmod-+x sh-script ⇒ available is True."""
     p = _write_script(
         tmp_path,
         "rust-engine-stub.sh",

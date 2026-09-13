@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Operator CLI help-text cross-subcommand-consistency test pack
-(Phase-1b Sprint-6 Tag-5).
+(Phase-1b).
 
 Covers ``wakir-persona --help`` and ``wakir-persona <subcommand> --help``
 for all four registered subcommands (``migrate``, ``validate``,
 ``inspect``, ``pin``). Verifies cross-subcommand-consistency contracts
-on the help-text surface that the previous Sprint-5 / Sprint-6 test
+on the help-text surface that the previous / test
 packs did not pin explicitly:
 
 - shared-flag wording uniformity (``persona_file`` positional and
@@ -35,7 +35,7 @@ sister Rust pack ``persona_cli_help_text_consistency`` tests in
 ``wirelang-rust/crates/persona-cli/src/lib.rs`` asserts the same
 soft-match contracts against the Rust-side ``clap::Command`` tree.
 
-V-907-CLI-invariant (Tag-4 anchor) is unchanged: ``pin`` stdout ==
+V-907-CLI-invariant (anchor) is unchanged: ``pin`` stdout ==
 ``inspect --emit-hash --quiet`` stderr-pin == ``migrate --emit-hash``
 stderr-last-line == ``PERSONA_HASH_PIN_V9``. The help-text pack is
 documentation-surface polish, not invariant-deepening.
@@ -63,7 +63,7 @@ from wirelang.persona.cli import build_parser
 # Subcommand inventory — single source of truth for the test pack.
 # ---------------------------------------------------------------------------
 
-# Order matches the ``add_parser`` calls in build_parser(). argparse
+# Order matches the ``add_parser`` calls in build_parser. argparse
 # preserves insertion order in subparsers.choices, so this is the order
 # we expect on the top-level help listing.
 EXPECTED_SUBCOMMANDS = ("migrate", "validate", "inspect", "pin")
@@ -90,7 +90,7 @@ def _subparser(name: str) -> Any:
     """Return the configured subparser for ``name``.
 
     Raises ``KeyError`` if the subcommand is not registered (test
-    failure mode: build_parser() drift relative to EXPECTED_SUBCOMMANDS).
+    failure mode: build_parser drift relative to EXPECTED_SUBCOMMANDS).
     """
     parser = build_parser()
     # subparsers is the only _SubParsersAction in the top-level
@@ -122,7 +122,7 @@ def _arg_help(sub: Any, dest: str) -> str:
 
 def test_top_level_help_lists_all_four_subcommands_in_insertion_order():
     """The top-level help-text must enumerate the four subcommands
-    in insertion-order (matching build_parser()'s add_parser sequence)."""
+    in insertion-order (matching build_parser's add_parser sequence)."""
     parser = build_parser()
     help_text = parser.format_help()
     # Every subcommand name appears as a standalone token in the
@@ -161,9 +161,9 @@ def test_top_level_help_dash_h_equals_double_dash_help():
     parser = build_parser()
     short = parser.format_help()
     # argparse's parse_args(['-h']) raises SystemExit; we instead
-    # call format_help() directly which is what -h / --help invoke
+    # call format_help directly which is what -h / --help invoke
     # behind the scenes. Equivalence at this level is sufficient
-    # because both flags route to the same format_help() callsite.
+    # because both flags route to the same format_help callsite.
     assert "-h, --help" in short, (
         "top-level options must show both -h and --help aliases"
     )

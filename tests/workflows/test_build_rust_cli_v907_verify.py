@@ -3,7 +3,7 @@
 """Hermetic workflow-structure tests for
 ``.github/workflows/build-rust-cli-v907-verify.yml``.
 
-Tag-26 Mini-Welle, ADR-0065 Welle-1 pre-cutover image. The workflow
+Mini-wave, ADR-0065 wave 1 pre-cutover image. The workflow
 is the substrate that publishes the ``wakir-v907-verify`` Rust-CLI
 container image. These tests assert the workflow STRUCTURE remains
 correct, so a future edit that drops a required step (or relaxes
@@ -150,7 +150,7 @@ def test_workflow_dispatch_push_input(on_block: dict) -> None:
     assert "push" in inputs, "workflow_dispatch must accept push input"
     # Default MUST be 'false' — keep the publish path explicit.
     assert inputs["push"].get("default") == "false", (
-        "workflow_dispatch push input default must be 'false' (Operator-Hand opt-in)"
+        "workflow_dispatch push input default must be 'false' (Operator-Hand opt-)"
     )
 
 
@@ -239,7 +239,7 @@ def test_cosign_installer_present(build_steps: list[dict]) -> None:
 
 
 def test_cosign_login_step_present(build_steps: list[dict]) -> None:
-    # Sprint-9 Tag-5 lessons-learned: cosign needs its OWN registry
+    # lessons-learned: cosign needs its OWN registry
     # auth, not buildah's. This step is the fix that keeps Sigstore
     # signature uploads working.
     _step_index(build_steps, "Cosign login to GHCR")
@@ -251,7 +251,7 @@ def test_cosign_sign_step_present(build_steps: list[dict]) -> None:
 
 def test_cosign_signing_order(build_steps: list[dict]) -> None:
     # Order MUST be: Push → Cosign login → Sigstore sign. The
-    # earlier Sprint-9 Tag-5 UNAUTHORIZED regressions came from
+    # earlier UNAUTHORIZED regressions came from
     # reordering these.
     push_idx = _step_index(build_steps, "Push to GHCR")
     login_idx = _step_index(build_steps, "Cosign login to GHCR")
@@ -269,7 +269,7 @@ def test_cosign_signing_order(build_steps: list[dict]) -> None:
 def test_version_tag_format_fence_present(workflow_text: str) -> None:
     # The "Resolve effective version_tag + push-flag" step must
     # validate workflow_dispatch version_tag against the
-    # ``MAJOR.MINOR.PATCH-pilot`` regex (Sprint-Pengine-13 substrate-
+    # ``MAJOR.MINOR.PATCH-pilot`` regex (-Pengine-13 substrate-
     # fence pattern). Searching the raw workflow text is robust
     # against minor YAML reformatting.
     assert (

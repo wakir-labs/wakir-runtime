@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/persona-engine/soak-probe-5-day.py -- Tag-54.
+"""Tests for scripts/persona-engine/soak-probe-5-day.py --.
 
 Hermetic, stdlib-only: the soak-probe module is loaded via
 importlib from its hyphenated path under
@@ -11,21 +11,21 @@ The soak probe is the sandbox-side hermetic witness for the
 Persona-Engine 0.5.2-final-pre-cutover cutover-rehearsal
 expectation that the engine survives a 5-day operational window
 without drift. The Live-VM rehearsal that operator-hand runs in
-KW 24 is the *real* multi-day soak; this probe is the hermetic
+calendar week 24 is the *real* multi-day soak; this probe is the hermetic
 pre-check.
 
 Scope (18 tests)
 ----------------
 
-1.  test_module_loads_and_exports_public_surface
-2.  test_default_days_constant_is_five
-3.  test_expected_boot_order_matches_boot_self_test_v2
-4.  test_soak_fsm_transitions_form_valid_canonical_trace
-5.  test_v907_test_persona_blob_matches_boot_self_test_v2
-6.  test_run_soak_probe_five_days_all_invariants_pass
-7.  test_run_soak_probe_days_one_passes_trivially
-8.  test_run_soak_probe_days_seven_still_stable
-9.  test_run_soak_probe_rejects_zero_or_negative_days
+1. test_module_loads_and_exports_public_surface
+2. test_default_days_constant_is_five
+3. test_expected_boot_order_matches_boot_self_test_v2
+4. test_soak_fsm_transitions_form_valid_canonical_trace
+5. test_v907_test_persona_blob_matches_boot_self_test_v2
+6. test_run_soak_probe_five_days_all_invariants_pass
+7. test_run_soak_probe_days_one_passes_trivially
+8. test_run_soak_probe_days_seven_still_stable
+9. test_run_soak_probe_rejects_zero_or_negative_days
 10. test_report_to_json_is_deterministic_across_runs
 11. test_report_to_json_sorts_keys_and_omits_clock_keyed_fields
 12. test_day_report_as_dict_round_trips_all_fields
@@ -199,7 +199,7 @@ def test_v907_test_persona_blob_matches_boot_self_test_v2(probe_mod):
 
 
 def test_run_soak_probe_five_days_all_invariants_pass(probe_mod):
-    """The headline guarantee of Tag-54: 5 days, 0 drift."""
+    """The headline guarantee of: 5 days, 0 drift."""
     report = probe_mod.run_soak_probe(days=5)
     assert report.summary["days_observed"] == 5
     assert report.summary["overall_ok"] is True
@@ -287,7 +287,7 @@ def test_report_to_json_is_deterministic_across_runs(probe_mod):
         for day in d["days"]:
             del day["object_count"]
         # Invariant detail strings include a per-run object-count
-        # delta -- compare only the (ok, ...) booleans for D.
+        # delta -- compare only the (ok,...) booleans for D.
         for inv_name in (
             "D_resource_object_count_within_budget",
         ):

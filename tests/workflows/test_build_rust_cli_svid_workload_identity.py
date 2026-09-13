@@ -3,7 +3,7 @@
 """Hermetic workflow-structure tests for
 ``.github/workflows/build-rust-cli-svid-workload-identity.yml``.
 
-Tag-29 Mini-Welle, ADR-0066 Welle-2 pre-cutover image. The workflow
+Mini-wave, ADR-0066 wave 2 pre-cutover image. The workflow
 is the substrate that publishes the
 ``wakir-persona-engine-svid-workload-identity`` Rust-CLI container
 image. These tests assert the workflow STRUCTURE remains correct,
@@ -15,7 +15,7 @@ Sandbox boundary
 ----------------
 Tests parse YAML on disk only. No actions runner, no GHCR egress,
 no cargo exec, no cosign exec. Compatible with the claude-dev
-sandbox (no podman-socket needed). Parity with the Tag-26 V907-
+sandbox (no podman-socket needed). Parity with the V907-
 verify test surface (PR #194).
 
 Scope of invariants
@@ -124,7 +124,7 @@ def test_workflow_name(workflow_yaml: dict) -> None:
 
 def test_trigger_has_push_and_workflow_dispatch(on_block: dict) -> None:
     # Hybrid trigger: push-to-main (substrate-CI dry-run) +
-    # workflow_dispatch (Operator-Hand publish). Parity with Tag-26
+    # workflow_dispatch (Operator-Hand publish). Parity with
     # V907-verify (PR #194).
     assert "push" in on_block, "missing push trigger"
     assert "workflow_dispatch" in on_block, "missing workflow_dispatch trigger"
@@ -164,7 +164,7 @@ def test_workflow_dispatch_push_default_false(on_block: dict) -> None:
     # Default MUST be 'false' — keep the publish path explicit.
     assert inputs["push"].get("default") == "false", (
         "workflow_dispatch push input default must be 'false' "
-        "(Operator-Hand opt-in; parity with Tag-26 V907-verify)"
+        "(Operator-Hand opt-; parity with V907-verify)"
     )
 
 
@@ -176,7 +176,7 @@ def test_workflow_dispatch_push_default_false(on_block: dict) -> None:
 def test_permissions_least_privilege(workflow_yaml: dict) -> None:
     # Least-privilege regression guard: refuse drift to broader
     # scopes (actions:write, security-events:write, etc.). Parity
-    # with Tag-26 V907-verify least-privilege contract.
+    # with V907-verify least-privilege contract.
     perms = workflow_yaml.get("permissions")
     assert isinstance(perms, dict), (
         "workflow must declare top-level permissions"
@@ -237,7 +237,7 @@ def test_buildah_after_cargo(build_steps: list[dict]) -> None:
 
 def test_cosign_signing_order(build_steps: list[dict]) -> None:
     # Order MUST be: Push → Cosign login → Sigstore sign. The
-    # earlier Sprint-9 Tag-5 UNAUTHORIZED regressions came from
+    # earlier UNAUTHORIZED regressions came from
     # reordering these.
     push_idx = _step_index(build_steps, "Push to GHCR")
     login_idx = _step_index(build_steps, "Cosign login to GHCR")
@@ -259,7 +259,7 @@ def test_cosign_installer_present(build_steps: list[dict]) -> None:
 def test_version_tag_format_fence_present(workflow_text: str) -> None:
     # The "Resolve effective version_tag + push-flag" step must
     # validate workflow_dispatch version_tag against the
-    # ``MAJOR.MINOR.PATCH-pilot`` regex (Sprint-Pengine-13 substrate-
+    # ``MAJOR.MINOR.PATCH-pilot`` regex (-Pengine-13 substrate-
     # fence pattern). Searching the raw workflow text is robust
     # against minor YAML reformatting.
     assert (
@@ -345,7 +345,7 @@ def test_skopeo_crane_cross_check_in_rust_resolver(
 ) -> None:
     # The rust base-layer resolver must cross-check skopeo vs crane
     # digests and refuse to proceed if they disagree (registry-
-    # inconsistency guard, parity with Tag-26 V907-verify).
+    # inconsistency guard, parity with V907-verify).
     idx = _step_index(
         build_steps, "Resolve rust:1.85-slim-bookworm base-layer digest"
     )
@@ -364,7 +364,7 @@ def test_placeholder_substitution_step_refuses_residue(
 ) -> None:
     # The "Materialise pinned base-layer digests" step must refuse
     # to proceed if any DIGEST_PENDING_KAI_REVIEW placeholder is
-    # left after substitution (substrate-fence parity with Tag-26
+    # left after substitution (substrate-fence parity with
     # V907-verify).
     idx = _step_index(
         build_steps,

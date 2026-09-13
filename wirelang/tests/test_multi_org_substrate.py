@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tests for the Phase-2 Sprint-7 Tag-1 multi-org federation
+"""Tests for the Phase-2 multi-org federation
 substrate (`wirelang.federation.multi_org_substrate`).
 
 Test inventory:
@@ -7,7 +7,7 @@ Test inventory:
 - T-MOS-01 schema-conformance: valid mock attestation round-trips
   through the in-memory registry and reads back byte-equal.
 - T-MOS-02 mock-bridge-route round-trip: a mock route plus its
-  attestation resolves via :func:`resolve_mock_bridge_route` and
+  attestation resolves via:func:`resolve_mock_bridge_route` and
   the returned (entry, attestation) pair matches the originals.
 - T-MOS-03 fail-closed unknown route: resolver raises
   :class:`UnknownBridgeRouteError` for a route absent from the
@@ -29,7 +29,7 @@ Test inventory:
   attestation lookup returns ``None`` from the attestation
   registry, leaving the existing single-org RouteRegistryEntry
   byte-equal-untouched (regression guard against accidental
-  mutation of the Sprint-3 substrate).
+  mutation of the substrate).
 
 ADR-0050 Tool-Surface-Stempel: Read, Edit, Write, Bash. No
 Agent-Tool, no WebFetch within this test file.
@@ -165,7 +165,7 @@ def test_mos_03b_resolver_fails_closed_on_missing_attestation():
 
 def test_mos_03c_resolver_fails_closed_on_bad_prefix():
     """A route_id without the mock prefix raises immediately —
-    callers must use the live bridge for non-mock routes (Tag-3+).
+    callers must use the live bridge for non-mock routes (+).
     """
     route_registry = InMemoryRouteRegistry()
     attestation_registry = InMemoryMultiOrgAttestationRegistry()
@@ -299,7 +299,7 @@ def test_mos_06_idempotent_readd():
 
 def test_mos_06b_conflicting_readd_rejected():
     """Adding a different attestation under the same route_id
-    raises :class:`MultiOrgAttestationConflictError`.
+    raises:class:`MultiOrgAttestationConflictError`.
     """
     first = _mock_attestation()
     second = MultiOrgRouteAttestation(
@@ -345,12 +345,12 @@ def test_mos_07_all_optionals_none():
 
 def test_mos_08_single_org_route_unaffected():
     """A single-org route entry (no attestation) is preserved
-    byte-equal in the existing Sprint-3 route registry; the
+    byte-equal in the existing route registry; the
     multi-org substrate does not silently mutate or shadow it.
 
     Regression guard: protects against accidental coupling
-    between the Sprint-3 Tag-6 substrate and the Sprint-7
-    Tag-1 additive layer.
+    between the substrate and the
+    additive layer.
     """
     single_org_entry = RouteRegistryEntry(
         route_id="wakir-internal-only",
@@ -371,14 +371,14 @@ def test_mos_08_single_org_route_unaffected():
 
 
 # ---------------------------------------------------------------------------
-# Auxiliary: schema-version constant exposed for forthcoming Tag-2
+# Auxiliary: schema-version constant exposed for forthcoming
 # NATS-KV backend
 # ---------------------------------------------------------------------------
 
 
 def test_mos_aux_schema_constant_stable():
     """The schema-URI is a load-bearing constant for the
-    forthcoming Sprint-7 Tag-2 NATS-KV backend envelope; this
+    forthcoming NATS-KV backend envelope; this
     test pins the value so a silent rename triggers a CI break.
     """
     assert (

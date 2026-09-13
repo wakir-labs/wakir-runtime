@@ -60,7 +60,7 @@ def test_bash_syntax_clean() -> None:
         check=False,
     )
     assert result.returncode == 0, (
-        f"bash -n failed:\n  stdout: {result.stdout}\n  stderr: {result.stderr}"
+        f"bash -n failed:\n stdout: {result.stdout}\n stderr: {result.stderr}"
     )
 
 
@@ -107,7 +107,7 @@ def test_env_var_defaults_documented(
     documented behaviour."""
     pattern = rf': "\${{{var}:={re.escape(default)}}}"'
     assert re.search(pattern, script_source), (
-        f"missing default for {var}={default} (looked for: {pattern})"
+        f"missing default for {var}={default} (looked: {pattern})"
     )
 
 
@@ -162,7 +162,7 @@ def test_resume_from_rejects_bad_value(bad_value: str) -> None:
     )
     assert result.returncode != 0, (
         f"--resume-from {bad_value!r} should fail but exit was 0:\n"
-        f"  stdout: {result.stdout}\n  stderr: {result.stderr}"
+        f" stdout: {result.stdout}\n stderr: {result.stderr}"
     )
     assert "resume-from" in (result.stderr + result.stdout).lower()
 
@@ -309,7 +309,7 @@ def test_idempotency_markers_present(script_source: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 11. Sprint-9-Tag-4 Bug 1: resume-hint avoids the ``bash bash`` doubling
+# 11. Bug 1: resume-hint avoids the ``bash bash`` doubling
 # when the script was piped from ``curl ... | sudo bash``.
 # ---------------------------------------------------------------------------
 
@@ -323,24 +323,24 @@ def test_resume_hint_avoids_bash_doubling(script_source: str) -> None:
     documented location."""
     # The naive form must NOT appear in fail_step's resume hint.
     assert "sudo bash ${PROG}" not in script_source, (
-        "Sprint-9-Tag-4 Bug 1: fail_step's resume hint must not "
+        " Bug 1: fail_step's resume hint must not "
         "embed ${PROG} directly (collapses to 'bash' under curl|bash)"
     )
     # The resilient helper must be present.
     assert "_resume_cmd" in script_source, (
-        "Sprint-9-Tag-4 Bug 1: bootstrap must define a _resume_cmd "
+        " Bug 1: bootstrap must define a _resume_cmd "
         "helper that synthesises a stable resume command line"
     )
     # The helper must mention the installed-path fallback.
     assert "WAKIR_REPO_ROOT" in script_source
     assert 'PROG" == "bash"' in script_source, (
-        "Sprint-9-Tag-4 Bug 1: _resume_cmd must explicitly handle the "
+        " Bug 1: _resume_cmd must explicitly handle the "
         "curl-pipe-bash case where PROG collapses to 'bash'"
     )
 
 
 # ---------------------------------------------------------------------------
-# 12. Sprint-9-Tag-4 Bug 2: federation volume install with per-side
+# 12. Bug 2: federation volume install with per-side
 # filename substitution.
 # ---------------------------------------------------------------------------
 
@@ -359,20 +359,20 @@ def test_volume_install_renames_federation_volumes_per_side(
         "wakir-spire-server-federation-${side}-\\1.volume"
         in script_source
     ), (
-        "Sprint-9-Tag-4 Bug 2: bootstrap step 6b must rename federation "
+        " Bug 2: bootstrap step 6b must rename federation "
         "server volume files to embed -${side}- before installing"
     )
     # The agent volume rename is also required (bug 2 sibling for agent).
     assert (
         "wakir-spire-agent-${side}-\\1.volume" in script_source
     ), (
-        "Sprint-9-Tag-4 Bug 2: bootstrap step 6b must rename agent "
+        " Bug 2: bootstrap step 6b must rename agent "
         "volume files to embed ${side} in the destination basename"
     )
 
 
 # ---------------------------------------------------------------------------
-# 13. Sprint-9-Tag-4 Bug 5: Phase 6 idempotency markers.
+# 13. Bug 5: Phase 6 idempotency markers.
 # ---------------------------------------------------------------------------
 
 
@@ -383,15 +383,15 @@ def test_phase_6_idempotent_install_helper(script_source: str) -> None:
     silently overwritten on ``--resume-from 6``.
     """
     assert "_install_substituted" in script_source, (
-        "Sprint-9-Tag-4 Bug 5: bootstrap must use a helper that "
+        " Bug 5: bootstrap must use a helper that "
         "compares rendered content against target before overwriting"
     )
     assert "cmp -s" in script_source, (
-        "Sprint-9-Tag-4 Bug 5: bootstrap must use cmp -s for "
+        " Bug 5: bootstrap must use cmp -s for "
         "byte-precise idempotency comparison"
     )
     assert "reset-failed" in script_source, (
-        "Sprint-9-Tag-4 Bug 5: bootstrap must reset-failed before "
+        " Bug 5: bootstrap must reset-failed before "
         "restart on units in a restart-loop state"
     )
 

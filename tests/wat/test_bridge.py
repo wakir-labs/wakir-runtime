@@ -119,7 +119,7 @@ def test_compute_payload_hash_empty_clause() -> None:
 
 
 def test_extract_capability_first_cap_only() -> None:
-    """Multi-cap frame projects to ``caprefs[0]`` (Tag-7 sync 2)."""
+    """Multi-cap frame projects to ``caprefs[0]`` (sync 2)."""
     h = extract_capability_token_hash(_multi_cap_frame())
     assert h == "a" * 64, "must take first caprefs entry, not lex-min"
 
@@ -201,7 +201,7 @@ def test_l1_frame_absent_data_treated_as_empty() -> None:
 
 
 def test_event_id_namespace_disjoint() -> None:
-    """Tag-7 sync 3: ``recovery-drill-`` prefix is opaque to projection.
+    """sync 3: ``recovery-drill-`` prefix is opaque to projection.
 
     The bridge does not bless or reject the prefix; ``event_id`` is a
     string field copied verbatim. Namespace disjointness is the

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Sprint-Pengine-9 Bug-34c tests: pyproject persona-engine-runtime extra.
+"""-Pengine-9 Bug-34c tests: pyproject persona-engine-runtime extra.
 
 Asserts the structural-fix for the Containerfile.real wheel-layer
 drift: the wheel set is declared in pyproject.toml under
@@ -139,7 +139,7 @@ def test_containerfile_real_uses_persona_engine_runtime_extra():
 
 def test_containerfile_real_no_flat_pip_layer_for_runtime_deps():
     """The flat ``pip install 'rfc8785>=0.1.4' 'PyYAML>=6.0' ...`` RUN-
-    layer that drifted in Sprint-Pengine-8 must be gone."""
+    layer that drifted in -Pengine-8 must be gone."""
     text = CONTAINERFILE_REAL_PATH.read_text(encoding="utf-8")
     # The structural fix uses ``pip install '/opt/wakir-runtime/.
     # [persona-engine-runtime]'`` — the multi-arg flat list must not
@@ -158,10 +158,10 @@ def test_containerfile_real_copies_pyproject_toml():
 
 def test_containerfile_real_image_tag_bumped():
     text = CONTAINERFILE_REAL_PATH.read_text(encoding="utf-8")
-    # Sprint-Pengine-14 / Tag-52 Pre-KW-24-Final consolidation:
+    # -Pengine-14 / Pre-calendar week 24-Final consolidation:
     # 0.5.1-pre-cutover -> 0.5.2-final-pre-cutover (manifest-and-
     # metadata-only marker; strict superset of 0.5.1-pre-cutover).
-    # The Tag-48 0.5.1-pre-cutover tag remains referenced in the
+    # the 0.5.1-pre-cutover tag remains referenced in the
     # header comment as the absorbed-source anchor; the live
     # image.version LABEL is the latest pre-cutover marker.
     assert "0.5.2-final-pre-cutover" in text, (

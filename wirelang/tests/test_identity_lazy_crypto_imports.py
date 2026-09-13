@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic invariant tests for the Sprint-9 Tag-4 lazy-crypto pattern
+"""Hermetic invariant tests for the lazy-crypto pattern
 on ``wirelang.identity``.
 
-Background (see Sprint-9-Tag-4 Mira-bug-bilanz, Bug 6)
+Background (see the CEO-bug-bilanz, Bug 6)
 ------------------------------------------------------
 
 The minimal ``python:3.13-slim`` container image for the Phase-2
 NATS-KV bucket-provisioner (``bin/nats-kv-bucket-provision``) ships
 without the production ``cryptography`` and ``shamir-mnemonic`` PyPI
 deps to keep the image-build dependency-light (no rust-toolchain
-required). Before Tag-4 the provisioner's transitive import chain
+required). Before the provisioner's transitive import chain
 
     bin.nats_kv_bucket_provision
       -> wirelang.federation.marker_stack_kv
@@ -22,7 +22,7 @@ triggered ``wirelang.identity.__init__`` which eagerly imported
 a hard ``ModuleNotFoundError`` at container startup that blocked
 ``wakir-nats-kv-bucket-init`` and crash-looped the Phase-2 bring-up.
 
-Tag-4 fix: ``wirelang/identity/__init__.py`` moves the three crypto-
+fix: ``wirelang/identity/__init__.py`` moves the three crypto-
 bearing surfaces (``key_derivation``, ``aip_signing``,
 ``did_document_signing``), the cache-layer that transitively pulls
 ``aip_signing`` (``aip_signature_verification_cache``), and the
@@ -152,7 +152,7 @@ def test_federation_resolver_import_does_not_load_crypto() -> None:
 
 
 def test_bucket_provisioner_module_imports_crypto_free() -> None:
-    """T-LAZY-CRYPTO-03: the Sprint-9 Tag-1 bucket-provisioner module
+    """T-LAZY-CRYPTO-03: the bucket-provisioner module
     imports cleanly without ``cryptography``.
 
     This is the original Bug-6 surface: the operator-side container
@@ -161,7 +161,7 @@ def test_bucket_provisioner_module_imports_crypto_free() -> None:
 
         bin.nats_kv_bucket_provision
           -> wirelang.federation.marker_stack_kv
-            -> ... -> wirelang.identity.federation_resolver
+            ->... -> wirelang.identity.federation_resolver
 
     The whole chain must be crypto-free at module-init time.
     """
@@ -184,7 +184,7 @@ def test_bucket_provisioner_module_imports_crypto_free() -> None:
     # The bucket-provisioner driver carries a registered-families list
     # whose minimum populated set (under the wakir-provisioner image
     # wheel set: nats-py only) is the marker-stack + sequence-ledger
-    # families. The Sprint-Pengine-7 Tag-5 OI-PILOT-2 persona-state
+    # families. The -Pengine-7 OI-PILOT-2 persona-state
     # family is appended IFF its constants-only-import variant
     # (``wirelang.persona.persona_state_kv_constants``) is resolvable
     # WITHOUT pulling rfc8785 / cryptography. The full
@@ -192,8 +192,8 @@ def test_bucket_provisioner_module_imports_crypto_free() -> None:
     # ``wirelang.persona.__init__`` → ``persona_hash`` → ``rfc8785`` and
     # therefore defensively short-circuits to family-count 2 on the
     # wakir-provisioner image (the persona-state-pair flag silently no-
-    # ops). The follow-up Zone-B disentanglement (Reza-Dev-Engineering-2,
-    # Sprint-Pengine-7 Tag-5 cross-pair) lands a constants-only module
+    # ops). The follow-up Zone-B disentanglement (the protocol zone-Dev-Engineering-2,
+    # -Pengine-7 cross-pair) lands a constants-only module
     # and re-asserts ``bucket_families 3`` from that PR onwards.
     assert "bucket_families " in out, out
     family_count = int(out.split("bucket_families ")[1].split()[0])

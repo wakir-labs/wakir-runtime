@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Self-migration converter edge-case test pack (Phase-1b Sprint-2 Tag-2, S2-T1-03).
+"""Self-migration converter edge-case test pack (Phase-1b, S2-T1-03).
 
-Coverage map (Tag-4-Skizze §3.4 + Sprint-2-Tag-2 auftrag)
+Coverage map (-sketch §3.4 + auftrag)
 ========================================================
 
 This file is the *negative-and-defensive* test belt around
-:func:`wirelang.persona.migrate_persona`. The Tag-1 file
+:func:`wirelang.persona.migrate_persona`. The file
 ``test_persona_migration.py`` already pins the determinism anchor
 (v8 -> v1 reproduces ``PERSONA_HASH_PIN_V8_MIGRATED_TO_V1``) and the
 basic chain-resolution rejection paths; this file exercises:

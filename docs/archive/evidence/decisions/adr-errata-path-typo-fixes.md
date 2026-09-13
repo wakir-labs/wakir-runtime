@@ -100,7 +100,7 @@ the non-existent `wirelang/parser/`.
 ## 4. Verification
 
 Hermetic tests pin every claim in this errata document against the
-runtime working-copy. See `wirelang/tests/test_adr_errata_tag55.py`
+runtime working-copy. See `wirelang/tests/test_adr_errata.py`
 (11 tests).
 
 ## 5. Author Note

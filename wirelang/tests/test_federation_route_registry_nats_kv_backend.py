@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Hermetic tests for the V-908 NATS-KV-backed RouteRegistry backend.
 
-Phase-1b Sprint-2 Tag-4 (S2-3). Tests the production-target backend
+Phase-1b (S2-3). Tests the production-target backend
 :mod:`wirelang.federation.route_registry_nats_kv_backend` against
-an in-memory mock that mirrors Kai's Tag-1 mock JetStream surface
+an in-memory mock that mirrors the infrastructure zone's mock JetStream surface
 (``tests/orchestrator/test_init_nats_buckets.py``).
 
 The mock is intentionally a thin shim over a dict so the tests
@@ -25,7 +25,7 @@ Test inventory (T-NKV-01..10):
 - T-NKV-08: ``active_until=None`` round-trips as an open-ended
   window.
 - T-NKV-09: snapshot result feeds the N2 evaluator and produces
-  the same accept verdict as :class:`InMemoryRouteRegistry`.
+  the same accept verdict as:class:`InMemoryRouteRegistry`.
 - T-NKV-10: bucket-config constants match the documented inventory
   (drift-protection at the test layer; the operator-side drift
   check lives in ``scripts/init-nats-buckets.py``).
@@ -71,7 +71,7 @@ from wirelang.identity.federation_resolver import FederatedResolveResult
 
 
 # ---------------------------------------------------------------------------
-# Mock KV (mirrors Kai-Tag-1 _MockKv shape from
+# Mock KV (mirrors the infrastructure zone-_MockKv shape from
 # tests/orchestrator/test_init_nats_buckets.py)
 # ---------------------------------------------------------------------------
 
@@ -109,9 +109,9 @@ class _MockWatcher:
     """Manually-fed mock watcher.
 
     Exposes the nats-py ``KeyWatcher`` shape we wrap: ``await
-    updates()`` yields the next update or ``None`` for end-of-stream.
-    Tests push updates onto an internal queue with :meth:`_push` and
-    close the stream with :meth:`_close`.
+    updates`` yields the next update or ``None`` for end-of-stream.
+    Tests push updates onto an internal queue with:meth:`_push` and
+    close the stream with:meth:`_close`.
     """
 
     def __init__(self):
@@ -372,7 +372,7 @@ def test_t_nkv_09_snapshot_feeds_n2_evaluator():
     """T-NKV-09: a snapshot of the KV-backed registry feeds the N2
     evaluator and produces the same accept verdict as the in-memory
     reference. This ties the production-target backend to the
-    Tag-3 evaluator's determinism contract.
+    evaluator's determinism contract.
     """
     backend = NatsKvRouteRegistry(kv=_MockKv())
     entry = _make_entry()
@@ -482,37 +482,37 @@ def test_t_nkv_aux_envelope_round_trip_byte_stable():
 
 
 # ---------------------------------------------------------------------------
-# Phase-1b Sprint-2 Tag-6 (S2-5) Watch-Stream-Snapshot Layer
+# Phase-1b (S2-5) Watch-Stream-Snapshot Layer
 # ---------------------------------------------------------------------------
 #
 # Test inventory T-NKV-WS-01..10:
 #
 # - T-NKV-WS-01: ``watch()`` opens a stream and yields decoded
-#   :class:`WatchEvent` PUT events.
+#:class:`WatchEvent` PUT events.
 # - T-NKV-WS-02: a DELETE on the bucket surfaces a DELETE
-#   :class:`WatchEvent`; the ``entry`` is ``None``.
+#:class:`WatchEvent`; the ``entry`` is ``None``.
 # - T-NKV-WS-03: ``LiveSnapshot.from_backend`` bootstraps from a
-#   full snapshot; ``apply()`` of subsequent PUT events updates the
-#   live state.
+# full snapshot; ``apply()`` of subsequent PUT events updates the
+# live state.
 # - T-NKV-WS-04: ``LiveSnapshot.apply`` of DELETE removes the route
-#   from the live state.
+# from the live state.
 # - T-NKV-WS-05: ``LiveSnapshot.as_registry`` returns a frozen copy;
-#   subsequent applies do NOT mutate the returned registry
-#   (determinism contract for evaluator passes).
+# subsequent applies do NOT mutate the returned registry
+# (determinism contract for evaluator passes).
 # - T-NKV-WS-06: a poisoned watch update (non-JSON value on PUT)
-#   raises :class:`RouteRegistryEnvelopeError` and terminates the
-#   iterator.
+# raises:class:`RouteRegistryEnvelopeError` and terminates the
+# iterator.
 # - T-NKV-WS-07: an unknown ``operation`` kind raises
-#   :class:`RouteRegistryEnvelopeError`.
+#:class:`RouteRegistryEnvelopeError`.
 # - T-NKV-WS-08: ``LiveSnapshot.last_revision`` tracks the highest
-#   revision seen and is monotonic.
+# revision seen and is monotonic.
 # - T-NKV-WS-09: a snapshot fed by watch-stream events feeds the N2
-#   evaluator and produces accept verdicts (cross-reference T-NKV-09
-#   for the full-snapshot path).
+# evaluator and produces accept verdicts (cross-reference T-NKV-09
+# for the full-snapshot path).
 # - T-NKV-WS-10: ``open_watch_stream`` rejects a non-backend argument
-#   with ``TypeError``.
+# with ``TypeError``.
 # - T-NKV-WS-aux-async-iter: the watch handle is itself async-iter
-#   compatible (Shape-1 mock path).
+# compatible (Shape-1 mock path).
 
 
 class _ShapeOneMockWatcher:
@@ -683,7 +683,7 @@ def test_t_nkv_ws_05_as_registry_returns_frozen_copy():
 
 def test_t_nkv_ws_06_poisoned_put_value_raises():
     """T-NKV-WS-06: a PUT update carrying non-JSON bytes raises a
-    clean :class:`RouteRegistryEnvelopeError` from the iterator.
+    clean:class:`RouteRegistryEnvelopeError` from the iterator.
     """
     kv = _MockKv()
     backend = NatsKvRouteRegistry(kv=kv)
@@ -707,7 +707,7 @@ def test_t_nkv_ws_06_poisoned_put_value_raises():
 
 def test_t_nkv_ws_07_unknown_operation_raises():
     """T-NKV-WS-07: an update with an unrecognised ``operation``
-    kind raises :class:`RouteRegistryEnvelopeError`.
+    kind raises:class:`RouteRegistryEnvelopeError`.
     """
     kv = _MockKv()
     backend = NatsKvRouteRegistry(kv=kv)

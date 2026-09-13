@@ -7,9 +7,9 @@ exercises:
 
 1. synthetic event generation (100 events, fixed hour slot, varied
    capability_token_hash and agent_did fan-out),
-2. the production aggregator (``python -m wat.cmd.aggregator_cli``),
-3. the ``(time, event_id)`` sort contract from the spool spec sec.4,
-4. the production OTS anchor wrapper (``python -m wat.cmd.anchor_cli``),
+2. The production aggregator (``python -m wat.cmd.aggregator_cli``),
+3. The ``(time, event_id)`` sort contract from the spool spec sec.4,
+4. The production OTS anchor wrapper (``python -m wat.cmd.anchor_cli``),
 5. ``wakir-verify`` against a sample of events from the produced
    manifest in pending-tolerant mode (exit 0 or 3).
 

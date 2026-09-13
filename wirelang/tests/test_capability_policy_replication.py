@@ -1,31 +1,31 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hermetic tests for the Wirelang capability-policy replication layer.
 
-Phase-2 Sprint-6 Tag-6 (S6-6). Tests the cross-bucket replication
+Phase-2 (S6-6). Tests the cross-bucket replication
 layer for the capability-policy backend that composes:
 
-- Sprint-5 Tag-2 LWW (``put`` / ``get`` / ``snapshot``)
-- Sprint-5 Tag-4 CAS-pin (``put_with_revision`` /
-  ``get_with_revision`` / :class:`CapabilityPolicyConflictError`)
-- Sprint-5 Tag-5 watch-stream (``watch`` /
+- LWW (``put`` / ``get`` / ``snapshot``)
+- CAS-pin (``put_with_revision`` /
+  ``get_with_revision`` /:class:`CapabilityPolicyConflictError`)
+- watch-stream (``watch`` /
   :class:`CapabilityPolicyWatchEvent` /
   :class:`CapabilityPolicyWatchOp`)
-- Sprint-6 Tag-1 revocation-monotonic invariant
-  (:class:`CapabilityPolicyRevocationConflict`)
+- revocation-monotonic invariant
+  :class:`CapabilityPolicyRevocationConflict`)
 
 Surfaces under test:
 
-- :class:`CapabilityPolicyReplicator` (run / bootstrap / event loop)
-- :func:`bootstrap_capability_policy_target_from_source`
-- :class:`CapabilityPolicyReplicationFilter`
-- :class:`CapabilityPolicyReplicationConflictPolicy`
-- :class:`CapabilityPolicyReplicationMetrics` (per-run counters,
+-:class:`CapabilityPolicyReplicator` (run / bootstrap / event loop)
+-:func:`bootstrap_capability_policy_target_from_source`
+-:class:`CapabilityPolicyReplicationFilter`
+-:class:`CapabilityPolicyReplicationConflictPolicy`
+-:class:`CapabilityPolicyReplicationMetrics` (per-run counters,
   including ``revocation_breaches`` and
   ``bootstrap_revocation_breaches``)
 
-Pattern source: the Phase-1b Sprint-3 Tag-6 schema-registry
+Pattern source: the Phase-1b schema-registry
 replication tests (``test_schema_registry_replication.py``).
-Tag-6 extends the pattern with revocation-monotonic-invariant
+extends the pattern with revocation-monotonic-invariant
 preservation across the cross-bucket boundary; the schema-
 registry path has no equivalent invariant because schema-registry
 entries are append-only at the ``(layer, name, version)`` triple
@@ -52,7 +52,7 @@ Test inventory (T-CPP-REP-01..14):
 - T-CPP-REP-07: ``halt_on_conflict=True`` re-raises on first
   CAS conflict.
 - T-CPP-REP-08: a poisoned envelope on the source watch-stream
-  raises :class:`CapabilityPolicyEnvelopeError` from ``run``;
+  raises:class:`CapabilityPolicyEnvelopeError` from ``run``;
   ``envelope_errors`` advances.
 - T-CPP-REP-09: a filter that skips a live event does NOT apply
   it to the target; ``events_skipped_by_filter`` advances.
@@ -68,8 +68,8 @@ Test inventory (T-CPP-REP-01..14):
   advances, and the target's revoked record is preserved
   byte-equal.
 - **T-CPP-REP-14:** revocation-monotonic preservation under
-  ``CAS_PIN`` — the target's server-side Sprint-6 Tag-1 gate
-  raises :class:`CapabilityPolicyRevocationConflict`; the
+  ``CAS_PIN`` — the target's server-side gate
+  raises:class:`CapabilityPolicyRevocationConflict`; the
   replicator catches it, advances ``revocation_breaches``, and
   continues by default.
 
@@ -83,7 +83,7 @@ Auxiliary probes:
   refreshed ``revocation_reason`` replicates cleanly (not a
   breach).
 - aux-halt-on-revocation-breach: ``halt_on_revocation_breach=True``
-  re-raises a :class:`CapabilityPolicyRevocationConflict` from
+  re-raises a:class:`CapabilityPolicyRevocationConflict` from
   ``run`` under either policy.
 """
 
@@ -124,7 +124,7 @@ from wirelang.schemas.registered_by_capability import (
 
 
 # ---------------------------------------------------------------------------
-# Mock KV with watch + CAS surfaces (mirrors the Sprint-5 Tag-5 test pattern)
+# Mock KV with watch + CAS surfaces (mirrors the test pattern)
 # ---------------------------------------------------------------------------
 
 
@@ -806,7 +806,7 @@ def test_t_cpp_rep_12_run_without_bootstrap_skips_initial_pass():
 
 
 # ---------------------------------------------------------------------------
-# Revocation-monotonic preservation tests (Tag-6 core deliverable)
+# Revocation-monotonic preservation tests (core deliverable)
 # ---------------------------------------------------------------------------
 
 

@@ -5,10 +5,10 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-2 = ``svid_workload_identity``,
+- ADR-0065 §Rollback-Strategie (wave 2 = ``svid_workload_identity``,
   read-only-Identity-Lookup, deterministisch).
-- ADR-0066 §Rollback (Doppel-Welle-Rollback-Kompatibilität).
-- Sister per-welle E2E acceptance file: ``test_welle_2_svid_workload_
+- ADR-0066 §Rollback (dual-run wave-Rollback-Kompatibilität).
+- Sister per-wave E2E acceptance file: ``test_welle_2_svid_workload_
   identity_e2e.py``.
 
 Komponente character
@@ -58,7 +58,7 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     """RD-2 — BackendDecision-Audit-Record dokumentiert Rollback-Event.
 
     For SVID-workload-identity the audit-record is particularly
-    relevant for Henrik-Zone-N: workload-identity-attestation is the
+    relevant for internal audit-Zone-N: workload-identity-attestation is the
     SPIFFE-SVID-trust-root substrate; any rollback in this
     Komponente must leave a clean audit-trail on the cutover-cycle.
     """
@@ -76,7 +76,7 @@ def test_rd_3_cross_modul_konsistenz_post_rollback(
     pre-cutover-python-baseline. Deterministic lookup makes this gate
     a strong invariant — a drift here implies a SPIRE-agent state
     issue, *not* an engine-backend issue, and the operator-runbook
-    Eskalation pivots to Selin (engine-telemetrie).
+    Eskalation pivots to the engine zone (engine-telemetrie).
     """
     gate = mocked_phase_2_acceptance_gate(MODUL)
     assert_rd_3_cross_modul_konsistenz_post_rollback(gate, MODUL)

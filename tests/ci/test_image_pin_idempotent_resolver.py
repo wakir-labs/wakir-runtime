@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic tests for ``scripts/image-pin-idempotent-resolver.sh``.
 
-Phase-2 Sprint-9 Tag-5 CI-hygiene: the resolver MUST be idempotent.
+Phase-2 CI-hygiene: the resolver MUST be idempotent.
 Concrete contract under test:
 
 * First-run on a placeholder-only repo: drift detected (exit 10),
@@ -39,7 +39,7 @@ RESOLVER = REPO_ROOT / "scripts" / "image-pin-idempotent-resolver.sh"
 # A static, syntactically valid sha256 for the five pin groups. Picked
 # to be deterministic and obviously fake.
 #
-# Sprint-10 Tag-4: ``FORCE_WAKIR_PERSONA_ENGINE_DIGEST`` added for the
+#: ``FORCE_WAKIR_PERSONA_ENGINE_DIGEST`` added for the
 # new ``wakir_persona_engine`` PINS row that closes the ADR-0058
 # Schritt 9 image-availability gap (Quadlet
 # ``quadlet/wakir-persona-tomas.container`` line 86). The
@@ -146,7 +146,7 @@ def test_resolver_help() -> None:
 
 
 # ----------------------------------------------------------------------
-# Idempotency invariants — the core of Sprint-9 Tag-5 Teil 2.
+# Idempotency invariants — the core of Teil 2.
 # ----------------------------------------------------------------------
 
 def test_first_run_resolves_placeholders(repo_copy: Path) -> None:
@@ -177,8 +177,8 @@ def test_second_run_is_noop(repo_copy: Path) -> None:
     )
     state_after_second = _snapshot(repo_copy)
     assert state_after_first == state_after_second, (
-        "idempotent re-run mutated files; this is the bug Sprint-9 "
-        "Tag-5 Teil 2 was meant to close"
+        "idempotent re-run mutated files; this is the bug "
+        "Teil 2 was meant to close"
     )
 
 
@@ -312,13 +312,13 @@ def test_workflow_requires_contents_write() -> None:
 
 
 # ----------------------------------------------------------------------
-# Sprint-9 Tag-6 — tag-tolerant wakir-provisioner row.
+# — tag-tolerant wakir-provisioner row.
 # ----------------------------------------------------------------------
 
 def test_pins_inventory_wakir_provisioner_is_bare_base(repo_copy: Path) -> None:
-    """Sprint-9 Tag-6: the wakir-provisioner PINS row MUST use the
+    """: the wakir-provisioner PINS row MUST use the
     bare image-base (no ``:<tag>`` suffix) so the resolver tolerates
-    the tag drift the BSL-Bulk-Edit-Welle introduced (Bug 3, Live-
+    the tag drift the BSL-Bulk-Edit-wave introduced (Bug 3, Live-
     Bring-up-2-Bilanz 2026-05-14). Tag-pinned SPIRE / python rows
     stay byte-identical."""
     text = RESOLVER.read_text(encoding="utf-8")
@@ -328,14 +328,14 @@ def test_pins_inventory_wakir_provisioner_is_bare_base(repo_copy: Path) -> None:
         in text
     ), (
         "PINS inventory must carry the bare wakir-provisioner base "
-        "(no :<tag> suffix) for tag-tolerant drift detection"
+        "(no:<tag> suffix) for tag-tolerant drift detection"
     )
     # The legacy tag-pinned form must NOT linger.
     assert (
         "ghcr.io/wakir-labs/wakir-provisioner:0.1.2|" not in text
     ), (
         "PINS inventory still carries the legacy tag-pinned "
-        "wakir-provisioner row; Sprint-9 Tag-6 contract requires "
+        "wakir-provisioner row; contract requires "
         "the bare-base form"
     )
 
@@ -396,7 +396,7 @@ def test_resolver_idempotent_on_drifted_tag(repo_copy: Path) -> None:
 
 
 # ----------------------------------------------------------------------
-# Sprint-10 Tag-4 — wakir-persona-engine PINS row + generalised
+# — wakir-persona-engine PINS row + generalised
 # ``DIGEST_PENDING_<ANNOTATION>`` placeholder regex.
 # ----------------------------------------------------------------------
 
@@ -411,11 +411,11 @@ def test_pins_inventory_carries_wakir_persona_engine_row() -> None:
         in text
     ), (
         "PINS inventory must carry the bare wakir-persona-engine row "
-        "(no :<tag> suffix) so the resolver tolerates the "
-        "0.1.0-pilot -> 0.2.0-pilot rotation when the Sprint-Pengine-8 "
+        "(no:<tag> suffix) so the resolver tolerates the "
+        "0.1.0-pilot -> 0.2.0-pilot rotation when the -Pengine-8 "
         "axis lands the full engine"
     )
-    # The row must point at the Tomás-pilot Quadlet (the consumer).
+    # The row must point at the engineering zone-pilot Quadlet (the consumer).
     assert "quadlet/wakir-persona-tomas.container" in text
 
 
@@ -440,7 +440,7 @@ def test_resolver_substitutes_kai_cross_review_placeholder(
     """The generalised placeholder regex MUST recognise
     ``sha256:DIGEST_PENDING_KAI_CROSS_REVIEW`` as a placeholder, not
     only the historical ``_TOMAS_REVIEW`` form. We stage a pin with
-    the Kai-cross-review annotation and confirm the resolver
+    the infrastructure zone-cross-review annotation and confirm the resolver
     substitutes it byte-precisely."""
     quadlet = repo_copy / "quadlet" / "wakir-persona-tomas.container"
     quadlet.parent.mkdir(parents=True, exist_ok=True)
@@ -451,7 +451,7 @@ def test_resolver_substitutes_kai_cross_review_placeholder(
     )
     proc = _run_resolver(repo_copy, FAKE_DIGESTS)
     assert proc.returncode == 10, (
-        f"resolver did not detect drift on Kai-cross-review "
+        f"resolver did not detect drift on the infrastructure zone-cross-review "
         f"placeholder: stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
     text = quadlet.read_text()
@@ -468,7 +468,7 @@ def test_resolver_substitutes_kai_cross_review_placeholder(
 def test_resolver_substitutes_arbitrary_placeholder_annotation(
     repo_copy: Path,
 ) -> None:
-    """The Sprint-10 Tag-4 generalised regex must accept ANY
+    """the generalised regex must accept ANY
     uppercase ``DIGEST_PENDING_<ANNOTATION>`` token — not only the
     two annotations the repo currently uses. We stage a synthetic
     annotation (``_REZA_ZONE_B_REVIEW``) to confirm the regex is
@@ -503,7 +503,7 @@ def test_resolver_idempotent_on_persona_engine_pin(
     state_after_second = _snapshot(repo_copy)
     assert state_after_first == state_after_second, (
         "idempotent re-run mutated files; persona-engine row "
-        "violates the Sprint-9 Tag-5 idempotency contract"
+        "violates the idempotency contract"
     )
 
 
@@ -559,18 +559,18 @@ def test_build_workflow_least_privilege_permissions() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Pengine-8 — Real-engine binary + Containerfile.real coverage.
+# -Pengine-8 — Real-engine binary + Containerfile.real coverage.
 # ---------------------------------------------------------------------------
 
 
 def test_persona_engine_real_containerfile_present() -> None:
-    """Sprint-Pengine-8 ships the real-engine Containerfile alongside
+    """-Pengine-8 ships the real-engine Containerfile alongside
     the stub. Image-tag rotation 0.1.0-pilot -> 0.2.0-pilot picks the
     ``-f infra/persona-engine/Containerfile.real`` build path."""
     cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
     assert cf.is_file(), (
         f"missing persona-engine real Containerfile: {cf}; "
-        f"Sprint-Pengine-8 image swap path is incomplete"
+        f"-Pengine-8 image swap path is incomplete"
     )
 
 
@@ -628,11 +628,11 @@ def test_persona_engine_version_label_in_containerfile_real() -> None:
     """The Containerfile.real must declare the current image version
     so the GHCR tag and the OCI label match (audit-invariant).
 
-    Tag-52 Pre-KW-24-Final-Consolidation bump:
+    Pre-calendar week 24-Final-Consolidation bump:
     0.5.1-pre-cutover -> 0.5.2-final-pre-cutover (manifest-and-
     metadata-only marker; strict superset of 0.5.1-pre-cutover with
     no new BackendDecision record, no flag rename, no flag-default
-    flip, no crate-version bump). The Tag-48 manifest at
+    flip, no crate-version bump). The manifest at
     wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md and its
     pin pack at infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml
     stay on-disk as the regression-comparison baseline; the live

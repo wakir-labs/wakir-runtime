@@ -5,29 +5,28 @@
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan — the welle-for-welle acceptance
-  criteria (AC-1 ... AC-5) that this suite enforces, one test-file
-  per welle (welle-1 ... welle-7).
+- ADR-0065 §Verifikations-Plan — the wave-for-wave acceptance
+  criteria (AC-1... AC-5) that this suite enforces, one test-file
+  per wave (wave 1... wave 7).
 - ADR-0066 §Beschluss — Phase-3c-Beschleunigung Option-A+. Three
-  Doppel-Wellen (KW 24, 26, 27) collapse seven solo-wochen into
-  four. Doppel-Welle-test-files (``test_doppel_welle_<i>_<j>_e2e.py``)
-  extend the per-welle skeleton with cross-modul-parallel-cutover
-  acceptance under the five DW-AC-1 ... DW-AC-5 criteria.
-- ADR-0063 §Phase-3c-Final-Cutover — the wider 7-welle cutover plan
+  Doppel-waves (calendar week 24, 26, 27) collapse seven solo-wochen into
+  four. dual-run wave-test-files (``test_doppel_welle_<i>_<j>_e2e.py``)
+  extend the per-wave skeleton with cross-modul-parallel-cutover
+  acceptance under the five DW-AC-1... DW-AC-5 criteria.
+- ADR-0063 §Phase-3c-Final-cutover — the wider 7-wave cutover plan
   these E2E tests gate.
-- ``docs/quality-gates/phase-3c-acceptance-criteria.md`` (Amara,
-  this PR) — the welle-for-welle acceptance-criteria matrix, with
-  the Doppel-Welle-Tabelle extension (§9 of that doc).
-- ``tests/infra/test_phase_3_acceptance_gates.py`` (Amara, PR #80) —
+- ``docs/quality-gates/phase-3c-acceptance-criteria.md`` — the wave-for-wave acceptance-criteria matrix, with
+  the dual-run wave-Tabelle extension (§9 of that doc).
+- ``tests/infra/test_phase_3_acceptance_gates.py`` —
   the Phase-3-Validation acceptance-gate skeleton this suite extends
-  to the per-welle Phase-3c-Cutover level.
+  to the per-wave Phase-3c-cutover level.
 
 Scope
 -----
 
 The fixtures here are hermetic placeholder oracles for the
-Phase-3c-Cutover-Welle E2E acceptance lane. Each fixture mocks the
-substrate the per-welle E2E tests will interrogate at cutover time:
+Phase-3c-cutover-wave E2E acceptance lane. Each fixture mocks the
+substrate the per-wave E2E tests will interrogate at cutover time:
 
 - ``mocked_bridge_audit_writer`` — Bridge-Audit-Writer roundtrip
   (Python ⇆ Rust envelope-hash parity oracle, ADR-0065 AC-1).
@@ -41,8 +40,8 @@ substrate the per-welle E2E tests will interrogate at cutover time:
 Skip-by-default rationale
 -------------------------
 
-Phase-3c-Cutover is pending Phase-3b-Komplettierung + AR-Approval of
-ADR-0065 (~KW 27-34 by stable schedule; 7-Wochen-Marathon per ADR-0065
+Phase-3c-cutover is pending Phase-3b-Komplettierung + AR-Approval of
+ADR-0065 (~calendar week 27-34 by stable schedule; 7-Wochen-Marathon per ADR-0065
 §Empfehlung). Running the skeletons green-by-construction in CI today
 would (i) waste signal (assertions are placeholder-shaped) and (ii)
 risk false-positive confidence on Phase-3c readiness. Skip-by-default
@@ -54,12 +53,12 @@ The opt-in pattern mirrors ``tests/infra/test_phase_3_acceptance_gates
 flips the gate, plus the ``phase_3c_acceptance`` pytest-marker for
 selector targeting.
 
-The Doppel-Welle skeleton adds a *second* opt-in lane:
+The dual-run wave skeleton adds a *second* opt-in lane:
 ``WAKIR_PHASE_3C_DOPPEL_E2E=1`` env-var with the
 ``phase_3c_doppel_welle_acceptance`` pytest-marker. The two lanes are
-independent: a Phase-3c-trigger sprint may want to run per-welle
-oracles without the parallel-cutover Doppel-Welle extras, or vice-
-versa (e.g. during Welle-3 solo-week per ADR-0066 §Beschluss).
+independent: a Phase-3c-trigger sprint may want to run per-wave
+oracles without the parallel-cutover dual-run wave extras, or vice-
+versa (e.g. during wave 3 solo-week per ADR-0066 §Beschluss).
 
 Sandbox boundary
 ----------------
@@ -72,10 +71,10 @@ test-time *oracles* the live drills will compare against.
 Vermutungs-Kennzeichnung (P2)
 -----------------------------
 
-The 7-welle ordering, the AC-1...AC-5 criteria shape, and the
-per-welle threshold numbers are sourced from ADR-0065 §Verifikations-
-Plan (proposer Tomás, AR-approval pending). They are placeholder
-anchors pending Phase-3c-Welle-Start; the Phase-3c-trigger sprint
+The 7-wave ordering, the AC-1...AC-5 criteria shape, and the
+per-wave threshold numbers are sourced from ADR-0065 §Verifikations-
+Plan (proposer the engineering zone, AR-approval pending). They are placeholder
+anchors pending Phase-3c-wave-Start; the Phase-3c-trigger sprint
 replaces the mock substrate with the real engine + bridge wiring.
 """
 
@@ -96,8 +95,8 @@ import pytest
 PHASE_3C_OPT_IN_ENV = "WAKIR_PHASE_3C_E2E"
 PHASE_3C_OPT_IN = os.environ.get(PHASE_3C_OPT_IN_ENV) == "1"
 
-# Doppel-Welle opt-in (ADR-0066 §Beschluss). Independent of the per-
-# welle opt-in above — a Phase-3c-trigger sprint can flip either or
+# dual-run wave opt-in (ADR-0066 §Beschluss). Independent of the per-
+# wave opt-in above — a Phase-3c-trigger sprint can flip either or
 # both. Default-skip rationale identical (assertions are placeholder-
 # shaped, parity-by-construction; running green-by-construction in
 # CI would waste signal and risk false-positive Phase-3c-readiness).
@@ -117,7 +116,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
        flips this in the Operator-Hand acceptance-lane).
 
     Either path enables the skeleton; module-level pytestmark in each
-    welle-test-file consults both.
+    wave-test-file consults both.
     """
     group = parser.getgroup("wakir-phase-3c", "Wakir Phase-3c Acceptance")
     group.addoption(
@@ -148,10 +147,10 @@ def pytest_collection_modifyitems(
     tests unless the matching opt-in is present.
 
     Either the CLI flag or the env-var enables the matching skeleton.
-    The two opt-in lanes are independent: per-welle and Doppel-Welle
-    can each be enabled in isolation (or both, e.g. Doppel-Welle-trigger
-    sprint runs both per-welle + Doppel-Welle oracles to verify the
-    cross-modul-parallel-cutover doesn't regress the solo-welle
+    The two opt-in lanes are independent: per-wave and dual-run wave
+    can each be enabled in isolation (or both, e.g. dual-run wave-trigger
+    sprint runs both per-wave + dual-run wave oracles to verify the
+    cross-modul-parallel-cutover doesn't regress the solo-wave
     guarantees).
     """
     per_welle_enabled = (
@@ -183,10 +182,10 @@ def pytest_collection_modifyitems(
     for item in items:
         keywords = item.keywords
         if "phase_3c_doppel_welle_acceptance" in keywords:
-            # Doppel-Welle marker dominates: if a test carries both
-            # markers, the Doppel-Welle opt-in alone is sufficient
-            # (per-welle assertions on top of Doppel-Welle context are
-            # part of the Doppel-Welle skeleton's value-add).
+            # dual-run wave marker dominates: if a test carries both
+            # markers, the dual-run wave opt-in alone is sufficient
+            # (per-wave assertions on top of dual-run wave context are
+            # part of the dual-run wave skeleton's value-add).
             if not doppel_enabled:
                 item.add_marker(doppel_skip)
         elif "phase_3c_acceptance" in keywords:
@@ -195,7 +194,7 @@ def pytest_collection_modifyitems(
 
 
 # ---------------------------------------------------------------------------
-# Welle inventory — anchors the 7-welle cutover sequence from ADR-0065
+# wave inventory — anchors the 7-wave cutover sequence from ADR-0065
 # §Verifikations-Plan, Option-B-Reihenfolge (risk-ascending).
 # ---------------------------------------------------------------------------
 
@@ -229,8 +228,8 @@ PERFORMANCE_HEADROOM_FACTOR = 1.20
 BUG_RATE_S0_S1_THRESHOLD = 0
 
 # AC-4 — Cross-Review-Session-Konsensus: alle Engineering-Personas
-# zustimmend (Aisha-Protokoll). Six-persona pool below mirrors the
-# matrix in agents/ (Tomás, Reza, Kai, Lena, Noa, Selin).
+# zustimmend. Six-persona pool below mirrors the
+# matrix in agents/.
 CROSS_REVIEW_REQUIRED_PERSONAS: tuple[str, ...] = (
     "tomas",
     "reza",
@@ -298,7 +297,7 @@ def mocked_bridge_audit_writer() -> Callable[
             assert all(rt.is_consistent for rt in roundtrips)
 
     The builder default produces all-consistent records (parity-by-
-    construction). The welle-test injects drift by passing
+    construction). The wave-test injects drift by passing
     ``drift_request_ids=[...]`` to verify the failure-mode assertion-
     shape (mirrors the Phase-3-Validation skeleton pattern).
     """
@@ -335,7 +334,7 @@ def mocked_bridge_audit_writer() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# Persona-Engine boot mock — per-welle backend-selector oracle.
+# Persona-Engine boot mock — per-wave backend-selector oracle.
 # ---------------------------------------------------------------------------
 
 
@@ -347,9 +346,9 @@ class EngineBootRecord:
     BACKEND=rust|python``). The boot-record captures the resolved
     backend per modul + the boot-result (succeeded | failed).
 
-    Welle-tests use this to verify: (a) the Quadlet-flag default flip
-    from ``python`` to ``rust`` for the welle-modul; (b) other
-    moduln untouched (mixed-backend-substrat sichtbar pre-Welle-Ende);
+    wave-tests use this to verify: (a) the Quadlet-flag default flip
+    from ``python`` to ``rust`` for the wave-modul; (b) other
+    moduln untouched (mixed-backend-substrat sichtbar pre-wave-Ende);
     (c) boot-failure path = Rollback-trigger.
     """
 
@@ -364,7 +363,7 @@ def mocked_engine_boot() -> Callable[..., EngineBootRecord]:
     """Fixture returning a persona-engine boot-builder.
 
     Default builder produces a successful boot with all-Python backends
-    except the welle-modul (which is flipped to ``rust``). The welle-
+    except the wave-modul (which is flipped to ``rust``). The wave-
     test injects failures via ``boot_succeeded=False`` to verify the
     Rollback-trigger assertion-shape (ADR-0065 §Rollback-Strategie).
     """
@@ -374,7 +373,7 @@ def mocked_engine_boot() -> Callable[..., EngineBootRecord]:
         boot_succeeded: bool = True,
         flipped_modul: str | None = None,
     ) -> EngineBootRecord:
-        # By default, the welle-modul is the one flipped to rust.
+        # By default, the wave-modul is the one flipped to rust.
         target_modul = flipped_modul or welle
         backend_per_modul = {modul: "python" for _, modul in WELLE_ORDER}
         if target_modul in backend_per_modul:
@@ -416,7 +415,7 @@ def mocked_wat_anchor_sink() -> Callable[..., list[WATAnchorRecord]]:
     consistency checks.
 
     Default builder produces parity-by-construction (anchor-hash equal
-    across backends on the same request_id). The welle-test injects
+    across backends on the same request_id). The wave-test injects
     pre-cutover-only or post-cutover-only anchors to verify the no-
     Anchor-Diff assertion-shape (AC-1 contributor).
     """
@@ -465,8 +464,8 @@ def mocked_quadlet_env() -> Callable[..., dict[str, str]]:
 
     Mirrors the ENV-flag matrix ``WAKIR_ENGINE_<MODUL>_BACKEND`` per
     ADR-0065 §Rollback-Strategie step 2. Default builder flips only
-    the welle-modul to ``rust``, leaves others at ``python`` (the
-    Phase-3c sequential cutover state pre-Welle-Ende).
+    the wave-modul to ``rust``, leaves others at ``python`` (the
+    Phase-3c sequential cutover state pre-wave-Ende).
     """
 
     def _build(
@@ -492,11 +491,11 @@ def mocked_quadlet_env() -> Callable[..., dict[str, str]]:
 
 @dataclass(frozen=True)
 class CrossReviewRecord:
-    """One Cross-Review-Session record (Donnerstag Aisha-moderated, ADR-0065).
+    """One Cross-Review-Session record (Donnerstag the org zone-moderated, ADR-0065).
 
-    The record carries the consenting persona-set + the welle context.
+    The record carries the consenting persona-set + the wave context.
     AC-4 requires that all Engineering-Personas in
-    ``CROSS_REVIEW_REQUIRED_PERSONAS`` consent (Aisha-Protokoll).
+    ``CROSS_REVIEW_REQUIRED_PERSONAS`` consent.
     """
 
     welle: str
@@ -510,7 +509,7 @@ def mocked_cross_review() -> Callable[..., CrossReviewRecord]:
     """Fixture returning a Cross-Review-Session-builder.
 
     Default builder produces an all-personas-consenting record. The
-    welle-test injects withholding-personas via
+    wave-test injects withholding-personas via
     ``withheld_personas=(...)`` to verify the AC-4 failure path.
     """
 
@@ -532,9 +531,9 @@ def mocked_cross_review() -> Callable[..., CrossReviewRecord]:
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle inventory — anchors the three Doppel-Welle-Kombinationen
-# from ADR-0066 §Beschluss (KW 24, 26, 27). KW 25 = Welle-3 solo, not
-# a Doppel-Welle (Henrik-Caution carve-out).
+# dual-run wave inventory — anchors the three dual-run wave-Kombinationen
+# from ADR-0066 §Beschluss (calendar week 24, 26, 27). calendar week 25 = wave 3 solo, not
+# a dual-run wave.
 # ---------------------------------------------------------------------------
 
 DOPPEL_WELLE_ORDER: tuple[tuple[str, str, str, str], ...] = (
@@ -563,14 +562,14 @@ DOPPEL_WELLE_BY_PAIR: dict[tuple[str, str], str] = {
 class BackendDecisionRecord:
     """One backend-decision-audit record emitted per cutover-flip.
 
-    Each per-welle cutover emits exactly one ``BackendDecisionRecord``:
-    the engine logs which modul flipped to which backend at which
-    boot-time. Under Doppel-Welle conditions, *two* records must be
+    Each per-wave cutover emits exactly one ``BackendDecisionRecord``:
+    The engine logs which modul flipped to which backend at which
+    boot-time. Under dual-run wave conditions, *two* records must be
     emitted in a single cutover event and they must be timestamp-
-    consistent (same Cutover-Mittwoch, same engine-boot-cycle).
+    consistent (same cutover-Mittwoch, same engine-boot-cycle).
 
     DW-AC-5 enforces: two records present, both modul-names match the
-    Doppel-Welle pair, both target ``rust``, both share the same
+    dual-run wave pair, both target ``rust``, both share the same
     cutover-cycle-id.
     """
 
@@ -587,11 +586,11 @@ def mocked_backend_decision_audit() -> Callable[
 ]:
     """Fixture returning a Backend-Decision-Audit-record builder.
 
-    Default builder emits two consistent records for a Doppel-Welle
-    pair (DW-AC-5 happy-path). Doppel-Welle-tests inject:
+    Default builder emits two consistent records for a dual-run wave
+    pair (DW-AC-5 happy-path). dual-run wave-tests inject:
 
     * ``drift_cycle_id``: one record's cutover-cycle-id differs, i.e.
-      the two flips happened in different boot-cycles → consistency
+      The two flips happened in different boot-cycles → consistency
       violation.
     * ``missing_modul``: one of the two moduln has no record at all
       → DW-AC-5 emits-2-records gate fails.
@@ -638,9 +637,9 @@ def mocked_backend_decision_audit() -> Callable[
 # ---------------------------------------------------------------------------
 # Cross-Modul-Stress-Test record — DW-AC-4 oracle.
 #
-# References Tomás Tag-29 Cross-Modul-Stress-Test substrate (Phase-2-
+# References the engineering zone Cross-Modul-Stress-Test substrate (Phase-2-
 # Acceptance-Gate-Erweiterung per ADR-0066 §Mitigation 1). The fixture
-# here is the QA-side oracle that Tomás's substrate output is wired
+# here is the QA-side oracle that the engineering zone's substrate output is wired
 # against; pre-trigger-sprint this is a placeholder green-by-construction
 # record.
 # ---------------------------------------------------------------------------
@@ -648,9 +647,9 @@ def mocked_backend_decision_audit() -> Callable[
 
 @dataclass(frozen=True)
 class CrossModulStressTestRecord:
-    """One Cross-Modul-Stress-Test run record (Doppel-Welle-specific).
+    """One Cross-Modul-Stress-Test run record (dual-run wave-specific).
 
-    Captures: which Doppel-Welle pair the run targeted, total request
+    Captures: which dual-run wave pair the run targeted, total request
     count over the stress-window, failure-count, p99-latency-budget
     excursion-count, cross-modul-schema-drift-count.
 
@@ -673,7 +672,7 @@ def mocked_cross_modul_stress_test() -> Callable[
     """Fixture returning a Cross-Modul-Stress-Test record builder.
 
     Default builder produces a green record (zero failures, zero
-    latency-excursions, zero schema-drift). Doppel-Welle-tests inject
+    latency-excursions, zero schema-drift). dual-run wave-tests inject
     failure-modes to verify the DW-AC-4 assertion-shape.
     """
 
@@ -699,7 +698,7 @@ def mocked_cross_modul_stress_test() -> Callable[
 # ---------------------------------------------------------------------------
 # Cross-Modul-Schema-Konsistenz record — DW-AC-2 oracle.
 #
-# Byte-paritäre Schema-Verifikation zwischen den beiden Doppel-Welle-
+# Byte-paritäre Schema-Verifikation zwischen den beiden dual-run wave-
 # Moduln auf gemeinsamer Cross-Modul-Schnittstelle (z.B. state_backing
 # schreibt JCS-record, lifecycle_state_machine liest ihn). DW-AC-2
 # erzwingt byte-exakte Konsistenz across the pair.
@@ -737,7 +736,7 @@ def mocked_cross_modul_schema() -> Callable[
     """Fixture returning a Cross-Modul-Schema-Record builder.
 
     Default builder emits a list of touchpoint-records with byte-parity-
-    by-construction. Doppel-Welle-tests inject drift via the
+    by-construction. dual-run wave-tests inject drift via the
     ``drift_touchpoint_ids`` knob.
     """
 
@@ -781,24 +780,24 @@ def mocked_cross_modul_schema() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle Engine-Boot mock — DW-AC-1 oracle.
+# dual-run wave Engine-Boot mock — DW-AC-1 oracle.
 #
 # Extends ``mocked_engine_boot`` to flip *two* moduln to rust in a single
-# boot, modelling the Cutover-Mittwoch-Doppel-Cutover (ADR-0066
+# boot, modelling the cutover-Mittwoch-Doppel-cutover (ADR-0066
 # §Mitigation 3).
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
 def mocked_engine_boot_doppel() -> Callable[..., EngineBootRecord]:
-    """Fixture returning a Doppel-Welle persona-engine boot-builder.
+    """Fixture returning a dual-run wave persona-engine boot-builder.
 
-    Default builder produces a successful boot with both Doppel-Welle
+    Default builder produces a successful boot with both dual-run wave
     moduln flipped to ``rust`` and the remaining five moduln on
     ``python``. Tests inject:
 
     * ``boot_succeeded=False`` — Rollback-trigger assertion-shape
-      (both moduln rolled back when boot fails under Doppel-Welle
+      (both moduln rolled back when boot fails under dual-run wave
       conditions per ADR-0066 §Rollback-Strategie).
     * ``flipped_modul_a`` / ``flipped_modul_b`` — override pair shape.
     """
@@ -812,8 +811,8 @@ def mocked_engine_boot_doppel() -> Callable[..., EngineBootRecord]:
         for m in (modul_a, modul_b):
             if m in backend_per_modul:
                 backend_per_modul[m] = "rust"
-        # The welle-tag uses the modul_a-name (alphabetical-stable
-        # for the Doppel-Welle pair identity in the test-output).
+        # The wave-tag uses the modul_a-name (alphabetical-stable
+        # for the dual-run wave pair identity in the test-output).
         return EngineBootRecord(
             welle=f"doppel:{modul_a}+{modul_b}",
             boot_ts_utc="2026-05-17T20:00:00Z",
@@ -827,7 +826,7 @@ def mocked_engine_boot_doppel() -> Callable[..., EngineBootRecord]:
 # ---------------------------------------------------------------------------
 # Single-Komponente-Rollback record — DW-AC-3 oracle.
 #
-# When a bug emerges in one of two Doppel-Welle-Komponenten, rollback
+# When a bug emerges in one of two dual-run wave-Komponenten, rollback
 # *only* the affected one — the other stays on rust. This is the asym-
 # metric rollback discipline (ADR-0066 §Rollback-Strategie nuance).
 # ---------------------------------------------------------------------------
@@ -837,7 +836,7 @@ def mocked_engine_boot_doppel() -> Callable[..., EngineBootRecord]:
 class SingleKomponenteRollbackRecord:
     """One single-Komponente-Rollback record for the asymmetric path.
 
-    Captures the Doppel-Welle pair, which modul rolled back, the rollback-
+    Captures the dual-run wave pair, which modul rolled back, the rollback-
     elapsed-seconds (≤10min SLA per ADR-0065/-0066), and the post-
     rollback backend-state for *both* moduln.
 
@@ -860,11 +859,11 @@ def mocked_single_komponente_rollback() -> Callable[
 
     Default builder produces a successful asymmetric rollback (rolled
     back modul back to python, partner stays rust, elapsed = 240s).
-    Doppel-Welle-tests inject:
+    dual-run wave-tests inject:
 
     * ``elapsed_seconds=700`` — SLA-violation failure-mode.
     * ``partner_also_rolled_back=True`` — wrong-shape failure-mode
-      (Doppel-Welle rollback should be asymmetric by default per
+      (dual-run wave rollback should be asymmetric by default per
       ADR-0066 §Rollback-Strategie unless cross-modul-bug emerges).
     """
 
@@ -890,34 +889,34 @@ def mocked_single_komponente_rollback() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1 ...
+# dual-run wave-4+5 Cross-Modul-Drift Acceptance-Kriterien — CMD-AC-1...
 # CMD-AC-4
 #
-# Anchor: ADR-0066 §Beschluss §"Doppel-Welle-4+5 Cross-Modul-Drift-Focus"
-# + Priya CTO-Coordination-Plan v2 (Tag-32 Mini-Welle) identifying
-# Doppel-Welle-4+5 (``state_backing`` × ``lifecycle_state_machine``) as
-# the highest cross-modul-drift-risk slot of the three Doppel-Wellen.
+# Anchor: ADR-0066 §Beschluss §"dual-run wave-4+5 Cross-Modul-Drift-Focus"
+# + the CTO CTO-Coordination-Plan v2 (Mini-wave) identifying
+# dual-run wave-4+5 (``state_backing`` × ``lifecycle_state_machine``) as
+# the highest cross-modul-drift-risk slot of the three Doppel-waves.
 #
 # These criteria are layered atop DW-AC-1...DW-AC-5 specifically for
-# the KW 26 Doppel-Welle-4+5 cutover. The other two Doppel-Wellen
-# (DW-1+2 KW 24, DW-6+7 KW 27) do not carry the CMD-AC layer — they
+# the calendar week 26 dual-run wave-4+5 cutover. The other two Doppel-waves
+# (DW-1+2 calendar week 24, DW-6+7 calendar week 27) do not carry the CMD-AC layer — they
 # have different drift-surfaces (read-only-paar resp. stateful-loop-
 # paar), addressed by their own DW-AC schwerpunkte.
 #
 # The DW-AC layer already covers byte-parity on a single touchpoint
 # (DW-AC-2) and aggregate stress-test green-rate (DW-AC-4). The CMD-AC
-# layer drills deeper into the Welle-4+5 producer/consumer contract:
+# layer drills deeper into the wave 4+5 producer/consumer contract:
 #
 # * CMD-AC-1 — Producer→Consumer deserialization round-trip parity
-#   under cross-lang Rust-Rust contract.
+# under cross-lang Rust-Rust contract.
 # * CMD-AC-2 — Consumer-triggered Producer write-back wire-form parity
-#   vs. the Python-Python baseline (cross-lang baseline consistency).
+# vs. The Python-Python baseline (cross-lang baseline consistency).
 # * CMD-AC-3 — Cross-Modul-Stress-Test per-Komponente joint-consistency
-#   ≥99.5% (DW-AC-4 sets a zero-failure floor on aggregate; CMD-AC-3
-#   sets a per-Komponente consistency-rate floor).
+# ≥99.5% (DW-AC-4 sets a zero-failure floor on aggregate; CMD-AC-3
+# sets a per-Komponente consistency-rate floor).
 # * CMD-AC-4 — Drift-triggered atomic single-Komponente rollback when
-#   measured cross-modul-drift exceeds 0.5 percentage points; partner
-#   stays rust-Default (atomic-flip-pattern, DW-AC-3 nuance).
+# measured cross-modul-drift exceeds 0.5 percentage points; partner
+# stays rust-Default (atomic-flip-pattern, DW-AC-3 nuance).
 # ---------------------------------------------------------------------------
 
 # CMD-AC-3 — Per-Komponente joint-consistency floor over the stress-
@@ -930,16 +929,16 @@ CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR = 0.995
 # points). Tighter than the 1.0pp soft-warn threshold in the runbook;
 # at 0.5pp the operator-hand-runbook fires an atomic ENV-flag switch
 # on the affected modul only (partner stays rust per DW-AC-3
-# discipline). Mirrors the Welle-3 Henrik-Caution divergence threshold
+# discipline). Mirrors the wave 3 internal audit-Caution divergence threshold
 # numerically but the trigger is per-modul, not whole-bridge-audit-
 # writer.
 CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD = 0.5
 
 # CMD-AC-2 — wire-form parity is checked against the Python-Python
-# baseline (the pre-Welle-4-Cutover state) AND against the
-# Python-Rust mixed-state (the Welle-4-only mid-Doppel-Welle state).
+# baseline (the pre-wave 4 cutover state) AND against the
+# Python-Rust mixed-state (the wave 4 only mid-dual-run wave state).
 # Both reference oracles must agree byte-identically with the new
-# Rust-Rust state under Doppel-Welle.
+# Rust-Rust state under dual-run wave.
 CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES: tuple[str, ...] = (
     "python-python-baseline",
     "python-rust-welle-4-only",
@@ -1060,10 +1059,10 @@ class CrossModulDriftWriteBackRecord:
     Python-Python and Python-Rust reference oracles for the same
     logical transition.
 
-    The ``rust_rust_wire_sha256`` is what Doppel-Welle-4+5 produces.
+    The ``rust_rust_wire_sha256`` is what dual-run wave-4+5 produces.
     The ``oracle_wire_sha256_by_oracle`` carries the reference
-    wire-forms from the pre-Welle-4 baseline (Python-Python) and the
-    mid-Doppel-Welle hypothetical (Python-Rust, where state_backing
+    wire-forms from the pre-wave 4 baseline (Python-Python) and the
+    mid-dual-run wave hypothetical (Python-Rust, where state_backing
     is Rust but lifecycle_state_machine is still Python — never
     observed in production, but available as a synthetic oracle).
     """
@@ -1090,7 +1089,7 @@ def mocked_cross_modul_drift_write_back() -> Callable[
 
     * ``drift_oracle`` — which oracle the rust-rust wire-form
       diverges from (e.g. ``"python-python-baseline"`` for a
-      regression vs. the pre-Welle-4-cutover baseline).
+      regression vs. The pre-wave 4 cutover baseline).
     * ``drift_transition_ids`` — set of transition-ids that show
       drift; others stay parity-by-construction.
     """
@@ -1158,7 +1157,7 @@ class CrossModulDriftPerKomponenteConsistencyRecord:
     AC-3 catches.
 
     Both per-Komponente rates must clear the floor; the joint-pair-rate
-    is computed as the min() of the two for gate-evaluation purposes.
+    is computed as the min of the two for gate-evaluation purposes.
     """
 
     welle_pair: tuple[str, str]
@@ -1250,7 +1249,7 @@ def mocked_cross_modul_drift_atomic_flip() -> Callable[
       spurious and is rejected).
     * ``flip_elapsed_seconds=700`` — SLA-violation failure-mode.
     * ``partner_also_flipped=True`` — non-atomic contagion failure-
-      mode (Doppel-Welle-4+5 discipline forbids this unless the bug
+      mode (dual-run wave-4+5 discipline forbids this unless the bug
       is in the contract, which is covered by DW-AC-3 both-rollback
       path).
     """
@@ -1282,52 +1281,52 @@ def mocked_cross_modul_drift_atomic_flip() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# Welle-3 Henrik-Caution-Extension — HC-AC-1 ... HC-AC-3
+# wave 3 internal audit-Caution-Extension — HC-AC-1... HC-AC-3
 #
-# Anchor: ADR-0066 §Beschluss — Welle-3 (`bridge_audit_writer`) is the
-# only Solo-Welle in the Doppel-Welle-Cadence because the writer *is*
-# the consistency-oracle substrate. Three Henrik-Caution-Acceptance
-# criteria layer on top of the per-welle AC-1..AC-5 baseline for KW 25
-# Solo-Welle-3:
+# Anchor: ADR-0066 §Beschluss — wave 3 (`bridge_audit_writer`) is the
+# only Solo-wave in the dual-run wave-Cadence because the writer *is*
+# the consistency-oracle substrate. Three internal audit-Caution-Acceptance
+# criteria layer on top of the per-wave AC-1..AC-5 baseline for calendar week 25
+# Solo-wave 3:
 #
 # * HC-AC-1 — Independent-Oracle-Validation (PR #197 Cross-Modul-Stress-
-#   Test substrate as hold-out independent oracle; bridge_audit_writer's
-#   own self-output is rejected as the validator).
+# Test substrate as hold-out independent oracle; bridge_audit_writer's
+# own self-output is rejected as the validator).
 # * HC-AC-2 — Atomic ENV-Flag-Switch rollback ≤600s SLA with symmetric
-#   gates for missed-rollback (false-negative) and spurious-rollback
-#   (false-positive).
-# * HC-AC-3 — Pre-Cutover-Observability-Window 7-day per-day consistency
-#   ≥99.5% (longer-baseline than AC-1's 5-day window, layered atop).
+# gates for missed-rollback (false-negative) and spurious-rollback
+# (false-positive).
+# * HC-AC-3 — pre-cutover-Observability-Window 7-day per-day consistency
+# ≥99.5% (longer-baseline than AC-1's 5-day window, layered atop).
 # ---------------------------------------------------------------------------
 
-# HC-AC-2 — Welle-3 divergence threshold for atomic ENV-Flag-Switch
+# HC-AC-2 — wave 3 divergence threshold for atomic ENV-Flag-Switch
 # rollback (percentage points). Numerically equals
 # CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD but applies whole-bridge-
 # audit-writer rather than per-modul.
 HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD = 0.5
 
 # HC-AC-2 — Atomic ENV-Flag-Switch rollback SLA (seconds). Same 10min
-# SLA as ROLLBACK_SLA_SECONDS but listed here as the Henrik-Caution-
+# SLA as ROLLBACK_SLA_SECONDS but listed here as the internal audit-Caution-
 # specific gate-constant for symmetric documentation.
 HENRIK_CAUTION_ROLLBACK_SLA_SECONDS = 600.0
 
-# HC-AC-3 — Pre-Cutover-Observability-Window length (days). Seven days
-# is the ADR-0066-fixed minimum baseline for Welle-3 Solo-cutover —
-# longer than the AC-1 5-day Konsistenz-Report window because Welle-3
+# HC-AC-3 — pre-cutover-Observability-Window length (days). Seven days
+# is the ADR-0066-fixed minimum baseline for wave 3 Solo-cutover —
+# longer than the AC-1 5-day Konsistenz-Report window because wave 3
 # itself is the writer, so the baseline must absorb a full operational
 # week of write-pattern variation before the cutover-Tag.
 HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS = 7
 
 # HC-AC-3 — Per-day consistency-rate floor over the 7-day window.
-# Mirrors the CMD-AC-3 0.995 floor but applied per-day for the Welle-3
-# Pre-Cutover-Baseline rather than per-Komponente for the Welle-4+5
+# Mirrors the CMD-AC-3 0.995 floor but applied per-day for the wave 3
+# pre-cutover-Baseline rather than per-Komponente for the wave 4+5
 # Stress-Window.
 HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR = 0.995
 
 # HC-AC-1 — The set of acceptable independent-oracle-substrate sources
-# for Welle-3 cross-validation. The bridge_audit_writer itself is
+# for wave 3 cross-validation. The bridge_audit_writer itself is
 # explicitly **not** in this set (would be self-referential / oracle-
-# self-validation, which Henrik-Caution rejects per ADR-0066).
+# self-validation, which internal audit-Caution rejects per ADR-0066).
 HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES: tuple[str, ...] = (
     "cross-modul-stress-test-pr-197",
     "holdout-python-writer-instance",
@@ -1341,12 +1340,12 @@ HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class HenrikCautionIndependentOracleRecord:
-    """One Welle-3 Henrik-Caution independent-oracle validation record.
+    """One wave 3 internal audit-Caution independent-oracle validation record.
 
-    HC-AC-1 requires that the Welle-3 Bridge-Audit-Writer output is
+    HC-AC-1 requires that the wave 3 Bridge-Audit-Writer output is
     cross-validated against an **independent** oracle substrate, not
     against itself. The bridge_audit_writer *is* the consistency-
-    oracle for other Wellen; for Welle-3 cutover, that oracle role
+    oracle for other waves; for wave 3 cutover, that oracle role
     falls to the PR #197 Cross-Modul-Stress-Test substrate (or the
     Operator-Hand-deployed hold-out Python-writer-instance per
     ADR-0065 §Empfehlung Footnote).
@@ -1359,8 +1358,8 @@ class HenrikCautionIndependentOracleRecord:
     Fields:
 
     * ``oracle_source`` — name of the independent substrate the
-      cross-validation pulls from.
-    * ``rust_writer_envelope_sha256`` — the Welle-3 Rust-writer's
+      cross-validation pulls.
+    * ``rust_writer_envelope_sha256`` — the wave 3 Rust-writer's
       observed envelope-hash for the validated request.
     * ``independent_oracle_envelope_sha256`` — the independent
       substrate's envelope-hash for the same request.
@@ -1445,10 +1444,10 @@ def mocked_henrik_caution_independent_oracle() -> Callable[
 
 @dataclass(frozen=True)
 class HenrikCautionAtomicRollbackRecord:
-    """One Welle-3 atomic ENV-Flag-Switch rollback record.
+    """One wave 3 atomic ENV-Flag-Switch rollback record.
 
-    HC-AC-2 layers an atomic-flip-discipline atop the per-welle AC
-    baseline for the Solo-Welle-3 case. Gates:
+    HC-AC-2 layers an atomic-flip-discipline atop the per-wave AC
+    baseline for the Solo-wave 3 case. Gates:
 
     * The trigger-precondition: ``measured_divergence_pct >
       HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD`` (0.5pp). Sub-threshold
@@ -1515,14 +1514,14 @@ def mocked_henrik_caution_atomic_rollback() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# HC-AC-3 — Pre-Cutover 7-day Observability-Window Record.
+# HC-AC-3 — pre-cutover 7-day Observability-Window Record.
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class HenrikCautionPreCutoverWindowRecord:
-    """One day's per-day consistency-rate inside the Welle-3 7-day
-    Pre-Cutover-Observability-Window.
+    """One day's per-day consistency-rate inside the wave 3 7-day
+    pre-cutover-Observability-Window.
 
     HC-AC-3 layers a longer-baseline window atop AC-1's 5-day
     Konsistenz-Report window. The 7-day window must observe every
@@ -1591,38 +1590,38 @@ def mocked_henrik_caution_pre_cutover_window() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# Welle-6+7 Cross-Modul-Drift-Extension — CMD-AC-6-7-1 ... CMD-AC-6-7-4
+# wave 6+7 Cross-Modul-Drift-Extension — CMD-AC-6-7-1... CMD-AC-6-7-4
 #
-# Anchor: ADR-0066 §Beschluss + Priya CTO-Coordination-Plan v3 (Tag-32
-# Mini-Welle Welle-6+7-Extension). Mirrors the Welle-4+5 CMD-AC layer
+# Anchor: ADR-0066 §Beschluss + the CTO CTO-Coordination-Plan v3 (
+# Mini-wave wave 6+7-Extension). Mirrors the wave 4+5 CMD-AC layer
 # shape but specialised for the stateful-loop-paar bidirectional
 # contract:
 #
 # * subscribe_loop emits ack-records → recovery_workflow consumes.
 # * recovery_workflow R1..R4 Re-subscribe-triggers → subscribe_loop
-#   re-subscribes.
+# re-subscribes.
 #
-# Differences from Welle-4+5 CMD-AC:
+# Differences from wave 4+5 CMD-AC:
 #
 # * Wire-form oracle set is singleton (``python-python-baseline``
-#   only). The Welle-4+5 mid-Doppel-Welle hypothetical
-#   ``python-rust-welle-4-only`` was meaningful because state_backing
-#   and lifecycle have a JCS-write/JCS-read contract that can be
-#   bisected at the producer side. The Welle-6+7 subscribe/recovery
-#   contract has no such bisectable mid-state — once subscribe_loop is
-#   Python and recovery_workflow is Rust (or vice-versa), the cursor-
-#   readback contract crosses an operationally-unreachable boundary.
+# only). The wave 4+5 mid-dual-run wave hypothetical
+# ``python-rust-welle-4-only`` was meaningful because state_backing
+# and lifecycle have a JCS-write/JCS-read contract that can be
+# bisected at the producer side. The wave 6+7 subscribe/recovery
+# contract has no such bisectable mid-state — once subscribe_loop is
+# Python and recovery_workflow is Rust (or vice-versa), the cursor-
+# readback contract crosses an operationally-unreachable boundary.
 # * CMD-AC-6-7-3 stress-load is the joint subscribe-event-flood +
-#   simultaneous recovery-restart-points profile (2000 requests,
-#   matches DW-AC-4 Welle-6+7 baseline).
+# simultaneous recovery-restart-points profile (2000 requests,
+# matches DW-AC-4 wave 6+7 baseline).
 # * CMD-AC-6-7-4 atomic-flip on recovery_workflow has the
-#   Phase-3c-Ende+1-week-delay risk surface (Welle-7 is the closing
-#   welle).
+# Phase-3c-Ende+1-week-delay risk surface (wave 7 is the closing
+# wave).
 # ---------------------------------------------------------------------------
 
-# CMD-AC-6-7-2 — Wire-form parity oracle set for Welle-6+7. Singleton
-# (python-python-baseline only) by design — the mid-Doppel-Welle
-# python-rust-welle-6-only state is operationally unreachable because
+# CMD-AC-6-7-2 — Wire-form parity oracle set for wave 6+7. Singleton
+# (python-python-baseline only) by design — the mid-dual-run wave
+# python-rust-wave 6 only state is operationally unreachable because
 # the subscribe/recovery contract crosses no bisectable schema
 # touchpoint.
 CROSS_MODUL_DRIFT_WELLE_6_7_WIRE_FORM_ORACLES: tuple[str, ...] = (
@@ -1748,7 +1747,7 @@ class CrossModulDriftWelle6_7ResubscribeRecord:
 
     CMD-AC-6-7-2 enforces that the Rust-Rust trigger wire-form is
     byte-identical to the ``python-python-baseline`` oracle (the pre-
-    Doppel-Welle-6+7 production state). Inverted direction vs Welle-
+    dual-run wave-6+7 production state). Inverted direction vs wave-
     4+5 CMD-AC-2 (which compares state_backing producer-emit).
     Singleton oracle-set per the conftest comment block above.
     """
@@ -1819,16 +1818,16 @@ def mocked_cross_modul_drift_welle_6_7_resubscribe() -> Callable[
 
 
 # ---------------------------------------------------------------------------
-# CMD-AC-6-7-3 — Welle-6+7 joint stress-load per-Komponente consistency.
+# CMD-AC-6-7-3 — wave 6+7 joint stress-load per-Komponente consistency.
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class CrossModulDriftWelle6_7PerKomponenteConsistencyRecord:
-    """One Welle-6+7 joint stress-load per-Komponente consistency record.
+    """One wave 6+7 joint stress-load per-Komponente consistency record.
 
-    Mirrors ``CrossModulDriftPerKomponenteConsistencyRecord`` (Welle-
-    4+5 CMD-AC-3) but specialised for the Welle-6+7 stress profile:
+    Mirrors ``CrossModulDriftPerKomponenteConsistencyRecord`` (wave-
+    4+5 CMD-AC-3) but specialised for the wave 6+7 stress profile:
     subscribe-event-flood + simultaneous recovery-restart-points.
     Both per-Komponente rates must clear the
     ``CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR`` (0.995) floor; the
@@ -1879,18 +1878,18 @@ def mocked_cross_modul_drift_welle_6_7_per_komponente_consistency() -> (
 
 
 # ---------------------------------------------------------------------------
-# CMD-AC-6-7-4 — Welle-6+7 atomic-flip rollback record.
+# CMD-AC-6-7-4 — wave 6+7 atomic-flip rollback record.
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class CrossModulDriftWelle6_7AtomicFlipRecord:
-    """One Welle-6+7 drift-triggered atomic-flip rollback record.
+    """One wave 6+7 drift-triggered atomic-flip rollback record.
 
-    Mirrors ``CrossModulDriftAtomicFlipRecord`` (Welle-4+5 CMD-AC-4)
-    with the Welle-6+7-specific risk surface: a recovery_workflow
-    rollback delays Phase-3c-Ende by +1 week (Welle-7 is the closing
-    welle). The ``phase_3c_ende_delay_weeks`` field carries the
+    Mirrors ``CrossModulDriftAtomicFlipRecord`` (wave 4+5 CMD-AC-4)
+    with the wave 6+7-specific risk surface: a recovery_workflow
+    rollback delays Phase-3c-Ende by +1 week (wave 7 is the closing
+    wave). The ``phase_3c_ende_delay_weeks`` field carries the
     operational-impact-classification for the gate to surface in the
     error message.
 
@@ -1925,7 +1924,7 @@ def mocked_cross_modul_drift_welle_6_7_atomic_flip() -> Callable[
     rust → 0-week Phase-3c-Ende-delay). Tests inject:
 
     * ``high_drift_modul="recovery_workflow"`` to flip the closing
-      welle (delay-weeks=1 surfaces in the gate-error).
+      wave (delay-weeks=1 surfaces in the gate-error).
     * ``measured_drift_pct=0.35`` to exercise the sub-threshold-
       spurious-rollback rejection.
     * ``flip_elapsed_seconds=700`` to exercise the SLA-violation

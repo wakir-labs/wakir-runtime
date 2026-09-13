@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Persona-validator test suite (Phase-1b Sprint-6 Tag-1).
+"""Persona-validator test suite (Phase-1b).
 
 Coverage map
 ------------
