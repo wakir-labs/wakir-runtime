@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bilanz-Output-Schema-Validator (Tag-44, Noa SRE).
+"""Bilanz-Output-Schema-Validator.
 
 Validates the JSON output produced by
 ``scripts/observability/phase-3-final-bilanz-generator.py`` against a
@@ -13,7 +13,7 @@ Why a dedicated validator
 -------------------------
 
 The generator writes ``reports/phase-3-marathon-bilanz.json`` as the
-machine-readable bilanz rollup. Downstream consumers (Henrik Internal
+machine-readable bilanz rollup. Downstream consumers (Internal
 Audit, the Phase-4 pre-substanz-plan generator, the GitHub Actions
 artefact uploader) all read that JSON. Any drift in the shape -- new
 key added without coordination, value type silently flipped, schema
@@ -36,10 +36,10 @@ Anchors
 
   * ADR-0065 (Phase-3c Cutover Plan)
   * ADR-0066 (Phase-3c 4W-Beschleunigung)
-  * Tag-43 Noa PR #280 (Phase-3 Final Bilanz Generator)
-  * Tag-44 Noa task brief (validation-mock-run + schema validation)
+  * PR #280 (Phase-3 Final Bilanz Generator)
+  * task brief (validation-mock-run + schema validation)
 
--- Noa
+
 """
 
 from __future__ import annotations

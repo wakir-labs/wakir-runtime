@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Pre-Cutover-Probe-Failure-Rate-Tracker (Tag-42 Noa-SRE).
+"""Pre-Cutover-Probe-Failure-Rate-Tracker.
 
 Context
 -------
 
-ADR-0066 (Phase-3c Beschleunigung, KW-24..27) bundles seven Welle-
+ADR-0066 (Phase-3c acceleration) bundles seven Welle-
 cutovers from the persona-engine Python-default to the Rust-default.
 Each Welle has a Pre-Cutover-Sanity-Probe driver under
 ``scripts/phase-3c/welle-N-pre-cutover-probe.sh`` (Welle-1 PR #267
-Reza-Tag-41, Welle-2..7 in follow-on tags). Each probe emits one of
+-, Welle-2..7 in follow-on tags). Each probe emits one of
 five verdicts at exit:
 
   - ``GREEN``      — all axes matched, cutover GO.
@@ -25,17 +25,17 @@ the ~3-day Pre-Cutover-window per Welle the operator needs:
   1. **Per-Welle current verdict** — which Wellen are GREEN today?
   2. **Per-Welle verdict-history** — was Welle-N GREEN yesterday too,
      or did it just flip? Stability over the Pre-Cutover-window is
-     the AR-Hand-Sign-Off-Pre-Condition (ADR-0066 §AR-Hand-Gate).
+     the Operator-Hand-Sign-Off-Pre-Condition (ADR-0066 §Operator-Hand-Gate).
   3. **Aggregate Marathon-Readiness-Score** (0-100%) — single
      number for the AR-Sitzung "is the marathon ready to start?"
   4. **Welle-Coupling-Indikatoren** — Welle-3-Sign-Off is the
      pre-condition for Welle-7 R2-replay; Welle-4-Cutover-Done is the
      pre-condition for Welle-7 State-Backing-Read. Surface those
      dependencies as boolean panels.
-  5. **Henrik-Pre-Audit-Sign-Off-Status** per Welle (sourced from
-     Tag-39 + Tag-40 specs; absence == not-yet-signed-off).
+  5. **-Pre-Audit-Sign-Off-Status** per Welle (sourced from
+     specs; absence == not-yet-signed-off).
   6. **Cutover-Day-Window-Empfehlung** — per-Welle date+time slot
-     derived from Kai's Runbook §10 (working-hours-overlap, on-call
+     derived from Runbook §10 (working-hours-overlap, on-call
      coverage, Doppel-Welle-spacing).
 
 This tracker is a read-only roll-up: it consumes the persisted
@@ -62,19 +62,19 @@ function, hermetic-test target. The I/O wrappers
 Anchors
 -------
 
-* ADR-0066 §AR-Hand-Gate — Pre-Cutover-Probe stability over the
-  ~3-day window is a Pre-Condition for AR-Hand-Sign-Off.
+* ADR-0066 §Operator-Hand-Gate — Pre-Cutover-Probe stability over the
+  ~3-day window is a Pre-Condition for Operator-Hand-Sign-Off.
 * ADR-0065 §Cutover-Plan — defines the seven Welle ordering.
-* Tag-41 PR #267 (Reza) — Welle-1 Pre-Cutover-Sanity-Probe reference
+* Welle-1 Pre-Cutover-Sanity-Probe reference
   implementation; the verdict-axis schema this tracker consumes.
-* Tag-39 + Tag-40 Henrik-Pre-Audit-Sign-Off specs — source for
-  the Henrik-Sign-Off-Status panel.
-* Sister-script: ``aggregator-failure-rate-tracker.py`` (PR #251,
-  Tag-38). Tag-42 inherits its Prometheus-textfile format and
+* Pre-audit sign-off specs — source for
+  the sign-off-status panel.
+* Sister-script: ``aggregator-failure-rate-tracker.py``. This
+  tracker inherits its Prometheus-textfile format and
   fixture-mode pattern.
 
-Author: Noa Bergstroem (SRE)
-Tag: 42 (KW-22)
+
+
 """
 
 from __future__ import annotations
@@ -134,7 +134,7 @@ VERDICT_TO_NUMERIC: Mapping[str, float] = {
 #: with verdict GREEN contributes ``(1/7) * 100`` percentage points.
 #:
 #: Penalties: CAUTION halves the contribution, BLOCK zeros it,
-#: PENDING/NOT-EXEC contribute zero. Henrik-Sign-Off is an
+#: PENDING/NOT-EXEC contribute zero. The audit sign-off is an
 #: independent additive bonus capped at 100%.
 MARATHON_READINESS_GREEN_PER_WELLE = (1.0 / 7.0) * 100.0
 MARATHON_READINESS_CAUTION_FRACTION = 0.5
@@ -163,8 +163,8 @@ DEFAULT_PROMETHEUS_TEXTFILE_PATH = (
     "/var/lib/prometheus/node-exporter/wakir_pre_cutover_probe.prom"
 )
 
-#: Cutover-Day-Window-Empfehlung per Welle. ADR-0066 §Marathon-KW-24..27
-#: + Kai-Runbook §10 (working-hours overlap, on-call coverage). The
+#: Cutover-Day-Window-Empfehlung per Welle. ADR-0066 §Marathon-..27
+#: + the operations runbook §10 (working-hours overlap, on-call coverage). The
 #: recommendations are RFC3339 dates in TZ Europe/Berlin; the operator
 #: dashboard renders these as a static table panel.
 CUTOVER_DAY_WINDOWS: Mapping[str, Mapping[str, str]] = {
@@ -196,15 +196,15 @@ class ProbeRun:
     welle: str
     timestamp_unixtime: float
     verdict: str  # one of ALLOWED_VERDICTS
-    operator: str  # who ran the probe (Reza, Selin, ...)
+    operator: str  # who ran the probe ...)
     detail: str  # free-form one-line summary
 
 
 @dataclass(frozen=True)
 class HenrikSignOff:
-    """One Henrik-Pre-Audit-Sign-Off record per Welle.
+    """One pre-audit sign-off record per Welle.
 
-    Source: Tag-39 + Tag-40 audit-spec deliverables. Absence means
+    Source: audit-spec deliverables. Absence means
     "not yet signed off".
     """
 
@@ -216,7 +216,7 @@ class HenrikSignOff:
 
 @dataclass
 class WelleRollup:
-    """Per-Welle roll-up of probe-history + Henrik-Sign-Off.
+    """Per-Welle roll-up of probe-history + audit sign-off.
 
     Mutable on construction so the rollup engine can incrementally
     fill in fields; consumers (renderers) only read.
@@ -235,8 +235,8 @@ class WelleRollup:
     def stability_consecutive_green(self) -> int:
         """Count of consecutive GREEN verdicts from most-recent backward.
 
-        Stability is the AR-Hand-Sign-Off-Pre-Condition: at least
-        three consecutive GREEN probe-runs before AR-Hand. The exact
+        Stability is the Operator-Hand-Sign-Off-Pre-Condition: at least
+        three consecutive GREEN probe-runs before Operator-Hand. The exact
         threshold is operator-configurable; this property exposes the
         raw count and lets the dashboard panel apply the threshold.
         """
@@ -263,7 +263,7 @@ def rollup_per_welle(
     cutover_windows: Mapping[str, Mapping[str, str]] = CUTOVER_DAY_WINDOWS,
     coupling: Mapping[str, Tuple[Tuple[str, str], ...]] = COUPLING,
 ) -> List[WelleRollup]:
-    """Compute per-Welle rollups from raw probe-history + Henrik records.
+    """Compute per-Welle rollups from raw probe-history + records.
 
     Pure function. The hermetic test
     ``test_rollup_per_welle_*`` feeds this with synthetic inputs and
@@ -272,7 +272,7 @@ def rollup_per_welle(
     Args:
         probes: all probe runs in any order. The rollup sorts per-
             Welle most-recent-first internally.
-        henrik_signoffs: Henrik-Pre-Audit-Sign-Off records, one per
+        henrik_signoffs: pre-audit sign-off records, one per
             Welle (or fewer; absence == not-signed-off).
         welle_slugs: Welle ordering (default ``WELLE_SLUGS``).
         cutover_windows: per-Welle window-recommendation map.
@@ -355,16 +355,16 @@ def compute_marathon_readiness_score(
         (henrik_signed_off -> henrik_bonus) | (else -> 0)
       ]
 
-    Capped at 100.0. Henrik-Bonus is a separate axis so the AR can
-    see e.g. "85% verdict-readiness + 15% Henrik = 100%" vs.
-    "100% verdict-readiness + 0% Henrik = 100% but unsigned".
+    Capped at 100.0. The sign-off bonus is a separate axis so a reviewer can
+    see e.g. "85% verdict-readiness + 15% sign-off = 100%" vs.
+    "100% verdict-readiness + 0% = 100% but unsigned".
 
     Args:
         rollups: per-Welle rollups produced by ``rollup_per_welle``.
         green_per_welle: contribution of a single GREEN Welle (default
             14.28pp = 100/7).
         caution_fraction: CAUTION verdict fraction of GREEN-contribution.
-        henrik_bonus: absolute pp per Henrik-Sign-Off (default 5pp).
+        henrik_bonus: absolute pp per audit sign-off (default 5pp).
 
     Returns:
         Float in [0.0, 100.0].
@@ -597,7 +597,7 @@ def render_markdown_summary(
 # ---------------------------------------------------------------------------
 
 #: Regex that extracts the verdict line from the Welle-1 probe report
-#: format (Reza Tag-41). Tolerates leading whitespace and any-case
+#: format. Tolerates leading whitespace and any-case
 #: ``AGGREGATE:``. Anchored to one of the five allowed verdicts.
 _VERDICT_LINE = re.compile(
     r"^\s*\|?\s*AGGREGATE:?\s*\|?\s*(GREEN|CAUTION|BLOCK|NOT-EXEC|PENDING)\b",
@@ -701,14 +701,14 @@ def walk_probe_reports(reports_dir: Path) -> List[ProbeRun]:
 
 
 def load_henrik_signoffs_from_file(path: Path) -> List[HenrikSignOff]:
-    """Load Henrik-Pre-Audit-Sign-Off records from a JSON file.
+    """Load pre-audit sign-off records from a JSON file.
 
     Schema::
 
         [{"welle": "welle-1", "signed_off": true,
           "timestamp_unixtime": 1718000000.0, "detail": "..."}, ...]
 
-    Returns empty list when the file is missing (Henrik has not yet
+    Returns empty list when the file is missing (internal audit has not yet
     published any sign-offs).
     """
     if not path.is_file():

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Pre-Cutover Watch-Day Verdict Computer (Tag-54).
+"""Pre-Cutover Watch-Day Verdict Computer.
 
 Context
 -------
 
-Tag-54 ships ``docs/observability/pre-cutover-watch-day-spec.md``,
+ships ``docs/observability/pre-cutover-watch-day-spec.md``,
 the operator playbook for the calendar day immediately before any
 Welle-Cutover-Mittwoch per ADR-0066 cutover-plan. The spec defines:
 
@@ -25,8 +25,8 @@ The decoupling matters: the verdict-formula is the contract; this
 module is the executable contract; the spec is the human-readable
 contract. Hermetic tests pin all three to the same truth.
 
-Anchor: Tag-54 Noa-SRE Pre-Cutover-Watch-Day-Spec.
-Author: Noa Bergstroem (SRE)
+Anchor: Pre-Cutover-Watch-Day-Spec.
+
 """
 
 from __future__ import annotations
@@ -61,7 +61,7 @@ PROBE_AMBER = "AMBER"
 PROBE_RED = "RED"
 ALL_PROBE_VERDICTS: tuple[str, ...] = (PROBE_GREEN, PROBE_AMBER, PROBE_RED)
 
-# Hard-zero SLO identifiers (Tag-52). Burn-rate alert on any of these
+# Hard-zero SLO identifiers. Burn-rate alert on any of these
 # is an immediate cutover-blocker per spec §5.2.
 HARD_ZERO_SLOS: frozenset[str] = frozenset(
     {"SLO-2", "SLO-5", "SLO-6", "SLO-7"}
@@ -145,7 +145,7 @@ def compute_verdict(inputs: WatchDayInputs) -> str:
 
     Returns one of GREEN / AMBER / RED. No "operator gut-feel"
     override; if the operator wants to override, that is an
-    AR-Hand-Stop conversation per spec §6.1, not a verdict-flip
+    Operator-Hand-Stop conversation per spec §6.1, not a verdict-flip
     via this function.
     """
     red_blockers = _red_blockers(inputs)
@@ -412,7 +412,7 @@ def severity_class_for(trigger: str) -> str:
     """Return ``P`` (page) or ``T`` (ticket) for a known trigger.
 
     Raises ``KeyError`` for unknown triggers — by design; the
-    spec §6 list is the closed set Noa escalates on. Anything
+    spec §6 list is the closed set the SRE on duty escalates on. Anything
     outside that set is anti-eskalations-drift per spec §6.4.
     """
     return ESCALATION_CLASSES[trigger]

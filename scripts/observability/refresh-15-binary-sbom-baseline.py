@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""15-Binary SBOM Baseline Refresh CLI (Tag-50, Kai).
+"""15-Binary SBOM Baseline Refresh CLI.
 
 Context
 -------
 
-Tag-48 PR #310 introduced the 15-binary SBOM generator. Tag-49
+introduced the 15-binary SBOM generator.
 PR #318 introduced the daily verifier which compares freshly-
 generated SBOMs to ``tooling/baselines/sbom-baseline/<binary>.json``. The
 baseline files themselves are Operator-Hand-refreshed when AR
 signs off on a dependency-tree change (see
-``docs/operations/15-binary-sbom-baseline-refresh.md`` Tag-49).
+``docs/operations/15-binary-sbom-baseline-refresh.md``.
 
-What was missing in Tag-49 was a *single* executable that runs
+What was missing in was a *single* executable that runs
 the refresh sequence end-to-end as one atomic operation:
 
   1. Run the generator with ``--generator-ts 0.0`` (deterministic
@@ -38,7 +38,7 @@ Sandbox posture
 ---------------
 
 Strict hermetic: stdlib + tomllib only (delegates SBOM parsing
-to the Tag-48 generator and Tag-49 verifier via importlib.util).
+to the generator and verifier via importlib.util).
 No podman / cargo / cosign / network egress. The script does
 mutate ``tooling/baselines/sbom-baseline/`` -- that is the entire point --
 but only when the approval flag is supplied and the post-refresh
@@ -66,20 +66,20 @@ into the CLI rather than mash an "are-you-sure" prompt.
 
 The token is recorded verbatim in the refresh receipt JSON so
 the receipt is self-anchoring: anyone reading the receipt knows
-which AR-Hand-Gate sign-off the refresh was bound to.
+which Operator-Hand-Gate sign-off the refresh was bound to.
 
 Anchors
 -------
 
-  * Tag-48 PR #310 -- 15-binary SBOM generator.
-  * Tag-49 PR #318 -- daily SBOM-vs-baseline verifier.
-  * Tag-49 docs/operations/15-binary-sbom-baseline-refresh.md --
+  * -- 15-binary SBOM generator.
+  * -- daily SBOM-vs-baseline verifier.
+  * docs/operations/15-binary-sbom-baseline-refresh.md --
     the operator runbook this script automates.
-  * ADR-0066 § AR-Hand-Gate -- pre-cutover sign-off bundle.
+  * ADR-0066 § Operator-Hand-Gate -- pre-cutover sign-off bundle.
   * feedback_sandbox_host_trennung.md -- no live cargo I/O.
 
-Author: Kai Hoffmann (Dev-Engineering-3 / Container-Orchestration)
-Tag: 50 (KW-22)
+
+
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def _load_module(script_path: Path, module_name: str) -> Any:
 # Constants
 # ---------------------------------------------------------------------------
 
-#: Required prefix for the AR-Hand-Gate approval token.
+#: Required prefix for the Operator-Hand-Gate approval token.
 APPROVAL_TOKEN_PREFIX: str = "AR-HAND-GATE-"
 
 #: Regex for the approval-token tail (date stamp + operator initials).
@@ -136,12 +136,12 @@ APPROVAL_TOKEN_PATTERN: re.Pattern[str] = re.compile(
 #: Schema version for the refresh-receipt envelope.
 RECEIPT_ENVELOPE_SCHEMA_VERSION: str = "1"
 
-#: Default location of the Tag-48 generator script (relative to repo root).
+#: Default location of the generator script (relative to repo root).
 DEFAULT_GENERATOR_REL: str = (
     "scripts/observability/generate-15-binary-sbom.py"
 )
 
-#: Default location of the Tag-49 verifier script (relative to repo root).
+#: Default location of the verifier script (relative to repo root).
 DEFAULT_VERIFIER_REL: str = (
     "scripts/observability/verify-15-binary-sbom-against-baseline.py"
 )
@@ -201,7 +201,7 @@ class RefreshOutcome:
 
 
 def is_valid_approval_token(token: str) -> bool:
-    """Return True if ``token`` matches the AR-Hand-Gate format.
+    """Return True if ``token`` matches the Operator-Hand-Gate format.
 
     Pure: no I/O. Trivial regex check. Exposed for the test suite
     so token validation can be exercised independently of the
@@ -266,7 +266,7 @@ def render_receipt(
 
     Pure: assembles a record from in-memory state, no I/O. The
     receipt is the audit-trail anchor for the operation -- it
-    captures the AR-Hand-Gate token, the cargo-lock-sha256 before
+    captures the Operator-Hand-Gate token, the cargo-lock-sha256 before
     and after, the drift summary, and the post-refresh verdict.
     """
     return {
@@ -303,9 +303,9 @@ def enumerate_baseline_writes(
     Exposed for the test suite so the copy plan can be inspected
     without invoking the full CLI.
 
-    The src path is ``<sbom_dir>/<binary>.cdx.json`` (Tag-48
+    The src path is ``<sbom_dir>/<binary>.cdx.json`` (the
     generator output). The dst path is
-    ``<baseline_dir>/<binary>.json`` (Tag-49 baseline filename).
+    ``<baseline_dir>/<binary>.json`` (the baseline filename).
     """
     out = []
     for binary_name in inventory:
@@ -374,7 +374,7 @@ def _generator_main_or_raise(
     out_envelope: Path,
     generator_ts: float,
 ) -> None:
-    """Invoke the Tag-48 generator via its ``main()`` entry point."""
+    """Invoke the generator via its ``main`` entry point."""
     argv = [
         "--cargo-lock", str(cargo_lock),
         "--out-dir", str(out_dir),
@@ -399,7 +399,7 @@ def _verifier_main_or_raise(
     out_markdown: Optional[Path] = None,
     generator_ts: float,
 ) -> Mapping[str, Any]:
-    """Invoke the Tag-49 verifier and return its envelope JSON."""
+    """Invoke the verifier and return its envelope JSON."""
     argv = [
         "--sbom-dir", str(sbom_dir),
         "--baseline-dir", str(baseline_dir),
@@ -634,7 +634,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "Override path to the Tag-48 generator script "
+            "Override path to the generator script "
             f"(default: ./{DEFAULT_GENERATOR_REL})."
         ),
     )
@@ -644,7 +644,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         type=Path,
         default=None,
         help=(
-            "Override path to the Tag-49 verifier script "
+            "Override path to the verifier script "
             f"(default: ./{DEFAULT_VERIFIER_REL})."
         ),
     )
@@ -653,7 +653,7 @@ def _parse_args(argv: Sequence[str]) -> argparse.Namespace:
         required=False,
         default=None,
         help=(
-            "AR-Hand-Gate approval token. REQUIRED unless --dry-run. "
+            "Operator-Hand-Gate approval token. REQUIRED unless --dry-run. "
             "Format: AR-HAND-GATE-YYYY-MM-DD-<initials> "
             "(e.g. AR-HAND-GATE-2026-05-19-fred). The token is "
             "recorded verbatim in the refresh receipt."
