@@ -4,7 +4,7 @@
 //! Engine-version migration pre-flight decision canonical-trace.
 //!
 //! Rust pendant of [`wirelang.persona_engine.migrate_version_canonical`]
-//! (Python). Tag-38 Phase-3a-Foundation 15. Modul — closes the
+//! (Python). Phase-3a-Foundation 15. Modul — closes the
 //! Phase-3a-Foundation sweep.
 //!
 //! The live Python workflow
@@ -17,7 +17,7 @@
 //! The **pre-flight decision** — "is this
 //! `(from_version, to_version, allow_major_bump)` tuple acceptable,
 //! and if not why?" — IS byte-paritätisch and is the cross-engine
-//! determinism anchor called out by the Selin roadmap §1.3
+//! determinism anchor called out by the persona-engine side roadmap §1.3
 //! ("state-pack envelope must be byte-stable across engines").
 //!
 //! This crate provides exactly that pre-flight surface: parse both

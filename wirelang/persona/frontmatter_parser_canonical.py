@@ -25,11 +25,11 @@ canonical-subset shape error, etc. — and a per-call structured trace
 is the right shape for the 3-way triangle.
 
 Keeping the helpers in a separate Apache-2.0 module preserves the
-Sprint-10 Doppelbetrieb-Konsistenz contract (the existing
+Doppelbetrieb-Konsistenz contract (the existing
 ``persona_canonical_form.py`` byte-output does not change) and
-matches the sibling-pattern Reza used for
+matches the sibling-pattern used for
 ``wirelang.persona_engine.lifecycle_state_machine_canonical``
-(Tag-21 sibling of ``persona-engine-fsm``).
+(sibling of ``persona-engine-fsm``).
 
 Schema
 ------

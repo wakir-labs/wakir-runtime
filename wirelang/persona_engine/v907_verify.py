@@ -3,7 +3,7 @@
 """V-907 persona-hash verify (spec §3.7.2.2 #1, §5).
 
 Real implementation of the V-907 pin-verify step that the
-Sprint-10 Tag-4 stub binary only **computes** (stub emits the
+stub binary only **computes** (stub emits the
 SHA-256 of axis-A bytes prefixed ``sha256-stub:``). This module:
 
 1. Reads axis-A bytes (``/etc/wakir/persona/<slug>.md``).
@@ -22,7 +22,7 @@ Spec §5 anchor
 The hash function and canonical subset are unchanged from
 Phase-1b. This module is the **engine-side caller** that wires the
 existing primitive into the spawn-time verification gate. Zone-K
-(Tomás/WAT-bridge) was satisfied by the upstream primitive; this
+(the WAT side/WAT-bridge) was satisfied by the upstream primitive; this
 module only consumes.
 
 Stub vs. real
@@ -108,11 +108,11 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
             split_frontmatter,
         )
     except ImportError as exc:  # pragma: no cover — defensive
-        # Sprint-Stability Tag-2 (2026-05-16): surface the actual
+        # (2026-05-16): surface the actual
         # missing module name in the error message instead of the
-        # pre-Tag-2 misleading "persona_canonical_form missing" text.
+        # earlier misleading "persona_canonical_form missing" text.
         # The module loads fine on minimal-deps hosts after the
-        # Tag-2 lazy-resolver refactor; this branch fires only if the
+        # lazy-resolver refactor; this branch fires only if the
         # wakir-runtime distribution itself is broken (no
         # ``wirelang.persona`` package on sys.path), not for missing
         # transitive deps like PyYAML/rfc8785.
@@ -136,12 +136,12 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
     try:
         mapping = parse_frontmatter(fm)
     except PersonaCanonicalFormDependencyMissingError as exc:
-        # Sprint-Stability Tag-2 (2026-05-16): bubble up the clear
+        # (2026-05-16): bubble up the clear
         # "PyYAML missing" message instead of folding it into the
         # generic "YAML parse failed" wrapper. The dependency-missing
         # case is a packaging/install issue, not a malformed-input
         # issue; conflating them was the root cause of the shadow-
-        # lane 55-failure burst (Tomás-Stability Tag-2 outbox).
+        # lane 55-failure burst (WAT-Stability outbox).
         raise PersonaHashComputeError(
             f"V-907 pin-compute requires the {exc.missing_module!r} "
             f"package, which is not installed in this environment. "
@@ -183,7 +183,7 @@ def compute_v907_pin(axis_a_bytes: bytes) -> str:
         )
     except ImportError as exc:
         # Same posture as the canonical-form import above
-        # (Sprint-Stability Tag-2): surface the real missing module
+        #: surface the real missing module
         # name instead of a generic "mis-built" message. This branch
         # only fires for a broken wakir-runtime distribution, not for
         # missing transitive deps (those raise

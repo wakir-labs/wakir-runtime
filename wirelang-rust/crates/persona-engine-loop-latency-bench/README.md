@@ -55,7 +55,7 @@ non-deterministic; unit-tests assert structural properties only.
 ## Cross-lang comparison
 
 `LatencyReport::to_json_pretty()` emits a stable JSON shape. A future
-Python sibling (Selin Sprint-Pengine-13 follow-up) can byte-match
+Python sibling (the persona-engine side follow-up) can byte-match
 this contract for cross-lang performance-parity audits.
 
 ## Usage
@@ -95,5 +95,5 @@ each at criterion `sample_size = 10` for a ~30-sec total wall-clock.
 
 - ADR-0063 §Folgeartefakte Phase-3a Item 15 (LAST — this crate).
 - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
-- Reza PR #132 — subscribe-loop scaffold (Phase-3a Item 4).
-- Selin PR #79 — Python schema-parity reference.
+- PR #132 — subscribe-loop scaffold (Phase-3a Item 4).
+- PR #79 — Python schema-parity reference.

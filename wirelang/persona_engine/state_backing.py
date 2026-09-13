@@ -9,9 +9,9 @@ Python pendant of the Rust ``PersonaStateBacking`` trait declared in
   the Rust ``InMemoryPersonaStateBacking`` HashMap shape.
 - :class:`NatsKvPersonaStateBacking` — production sync-facade binding
   that wraps an asyncio NATS-KV client in a private event loop
-  (preserves the v0.2.0-pilot synchronous engine contract). Sprint-
-  Pengine-9 closes the v0.2.0-pilot snapshot/restore stubs.
-- :class:`NatsKvPersonaStateBackingAsync` — Sprint-Pengine-9
+  (preserves the v0.2.0-pilot synchronous engine contract). It closes
+  the v0.2.0-pilot snapshot/restore stubs.
+- :class:`NatsKvPersonaStateBackingAsync` —
   asyncio-native binding consumed by the
   :mod:`wirelang.persona_engine.engine_async` orchestrator
   (OI-PEFR-3). Same write semantics as the sync binding; no thread
@@ -219,8 +219,8 @@ class PersonaStateBacking:
 
 
 class PersonaStateBackingAsync:
-    """Async variant of :class:`PersonaStateBacking` (Sprint-Pengine-9
-    OI-PEFR-3 surface).
+    """Async variant of :class:`PersonaStateBacking`
+    (OI-PEFR-3 surface).
 
     Concrete async bindings override the same four operations as the
     sync trait but with ``async def`` signatures. The engine_async
@@ -332,7 +332,7 @@ class InMemoryPersonaStateBacking(PersonaStateBacking):
 
 
 # ---------------------------------------------------------------------------
-# Spec §3.7.5.3 — NatsKvPersonaStateBackingAsync (Sprint-Pengine-9 OI-PEFR-1).
+# Spec §3.7.5.3 — NatsKvPersonaStateBackingAsync (OI-PEFR-1).
 # ---------------------------------------------------------------------------
 
 
@@ -636,7 +636,7 @@ class NatsKvPersonaStateBacking(PersonaStateBacking):
     per-call latency is dominated by NATS round-trip, not the
     inter-thread hop.
 
-    Sprint-Pengine-9 closes the v0.2.0-pilot ``snapshot``/``restore_latest``
+    closes the v0.2.0-pilot ``snapshot``/``restore_latest``
     stubs: this facade now delegates to the real async binding and
     the engine boot-log emits ``state-backing-natskv-active`` INFO
     instead of the v0.2.0-pilot ``state-backing-fence-to-in-memory``

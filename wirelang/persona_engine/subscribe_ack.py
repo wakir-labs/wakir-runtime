@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Subscribe-Loop ack-record helpers (Tag-19 Mini-Welle, Phase-3a Python-sync).
+"""Subscribe-Loop ack-record helpers (Mini-Welle, Phase-3a Python-sync).
 
 This module is the Python sibling of the ack-record substrate that
 lives in the Rust crate ``persona-engine-subscribe-loop`` (PR #132,
@@ -16,14 +16,14 @@ Why a sibling module?
 ``wirelang.persona_engine.nats_subscribe_loop`` is a 1153-line mature
 substrate that already drives the persona-engine's NATS-bound
 behaviour (parse envelopes, dispatch to LLM hook, emit reply on output
-subject, audit-emit through BridgeAuditWriter). The Tag-19 ack-record
+subject, audit-emit through BridgeAuditWriter). The ack-record
 contract is **orthogonal** to that flow: it is a pure-function pair
 ``build_subscribe_ack_record`` / ``serialize_subscribe_ack`` plus a
 small helper that turns a parsed envelope + outcome into a record.
-Keeping the helpers in a separate module preserves the Sprint-10
+Keeping the helpers in a separate module preserves the
 Doppelbetrieb-Konsistenz contract (the existing loop's byte-output
-does not change) and matches the pattern Reza used for
-``wirelang.persona_engine.anchor_emitter`` (Tag-18 sibling of the
+does not change) and matches the pattern used for
+``wirelang.persona_engine.anchor_emitter`` (sibling of the
 ``persona-engine-anchor-emitter`` Rust crate).
 
 The record shape — sorted JSON keys, UTF-8 bytes, JCS-canonical
@@ -67,11 +67,11 @@ ADR anchors
 -----------
 
 - ADR-0063 §Folgeartefakte Phase-3a Item 4 (subscribe-loop Rust
-  scaffold) + Tag-19 Python-sync follow-on.
-- Selin PR #79  (Bug-42 fix; Python subscribe-loop ownership).
-- Selin PR #113 (3-way-triangle Doppelbetrieb).
-- Reza  PR #132 (Rust subscribe-loop crate; ack-record target).
-- Reza  PR #170 (Tag-18 anchor-emitter Python-sync; pattern
+  scaffold) + Python-sync follow-on.
+- PR #79  (Bug-42 fix; Python subscribe-loop ownership).
+- PR #113 (3-way-triangle Doppelbetrieb).
+- PR #132 (Rust subscribe-loop crate; ack-record target).
+- PR #170 (anchor-emitter Python-sync; pattern
   reference for sibling-module + cross-lang fixture).
 """
 

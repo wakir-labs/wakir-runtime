@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """CLI entry points for ``persona-engine`` (v0.5.3).
 
-Matches the CLI surface of the Sprint-10 Tag-4 stub binary
+Matches the CLI surface of the stub binary
 (``spawn`` / ``healthcheck`` / ``version``) so the Quadlet contract
 (``Exec=spawn --persona-slug tomas --pilot-phase doppelbetrieb-shadow``)
 is byte-stable across the stub-to-real engine swap.
@@ -14,13 +14,13 @@ The real ``spawn`` differs from the stub in semantics:
 - Sync-real (default): full boot+spawn+run+despawn cycle, emits
   ``engineering_output`` events into the bridge-audit double-sink;
   no NATS-subscribe-loop activated.
-- Async-real (Sprint-Pengine-12 Bug-41 — when ``WAKIR_SUBSCRIBE_ENV``
+- Async-real (Bug-41 — when ``WAKIR_SUBSCRIBE_ENV``
   is set): boots :class:`AsyncPersonaEngine`, attaches the
   :class:`NatsSubscribeLoop` to the canonical
   ``wakir.<env>.agent.agent.task.assigned.<persona-slug>`` subject,
   and runs until SIGTERM/SIGINT. This is the path the
   ``wakir-persona-tomas`` container needs to actually consume
-  Mira-side bridge-forward auftraege.
+  orchestrator-side bridge-forward auftraege.
 
 The async path is opt-in via env var so the hermetic
 ``--one-shot`` mode and existing single-process containers continue
@@ -64,7 +64,7 @@ EXIT_USAGE_ERROR = 64
 
 # ---------------------------------------------------------------------------
 # Env-var name that toggles the async subscribe-loop path
-# (Sprint-Pengine-12 Bug-41). Value must be a Bridge-Forward-Pipe env
+# (Bug-41). Value must be a Bridge-Forward-Pipe env
 # tag (``dev`` / ``staging`` / ``prod``); empty / unset = sync path.
 # ---------------------------------------------------------------------------
 
@@ -155,7 +155,7 @@ async def _run_spawn_async(
     args: argparse.Namespace,
     subscribe_env: str,
 ) -> int:
-    """Async-engine spawn path (Sprint-Pengine-12 Bug-41).
+    """Async-engine spawn path (Bug-41).
 
     Activated when :data:`SUBSCRIBE_ENV_VAR` is set. Wires:
 
@@ -268,7 +268,7 @@ async def _run_spawn_async(
     # ``subscribe_loop`` property used by the hermetic tests) works.
     engine._attached_subscribe_loop = sub_loop
 
-    # Sprint-Pengine-13 Bug-42 — resolve the subscribe wire-mode.
+    # Bug-42 — resolve the subscribe wire-mode.
     # Default ``core-callback`` avoids the iterator-cancellation
     # surface that produced Bug-42 (silent message-drop when
     # ``asyncio.wait_for(__anext__(), 0.5)`` timed out and cancelled
@@ -279,7 +279,7 @@ async def _run_spawn_async(
         sys.stderr.write(f"env-misconfig: {exc}\n")
         return EXIT_ENV_MISCONFIG
 
-    # Tag-41 Bug-42 — pre-flight surface-compatibility check.
+    # Bug-42 — pre-flight surface-compatibility check.
     # If the operator has declared the producer's publish-mode via
     # WAKIR_NATS_PUBLISH_MODE we verify it against the resolved
     # subscribe-surface (spec wirelang-spec-v0-2 §13.2). A broken
@@ -454,7 +454,7 @@ def run_spawn(args: argparse.Namespace) -> int:
     """``spawn`` subcommand entry.
 
     Dispatches to the sync-engine path (backward-compat) or the
-    async-engine + subscribe-loop path (Sprint-Pengine-12 Bug-41)
+    async-engine + subscribe-loop path (Bug-41)
     based on the :data:`SUBSCRIBE_ENV_VAR` env var. The dispatch
     decision is logged to stderr so live-smoke operators can verify
     which path the container actually took.
@@ -492,12 +492,12 @@ def run_version(_args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the argparse tree (matches the Sprint-10 Tag-4 stub surface)."""
+    """Build the argparse tree (matches the stub surface)."""
     p = argparse.ArgumentParser(
         prog="persona-engine",
         description=(
-            f"wakir-persona-engine v{ENGINE_VERSION} (real implementation; "
-            f"Sprint-Pengine-12). Drives the full spawn-session lifecycle "
+            f"wakir-persona-engine v{ENGINE_VERSION} (real implementation). "
+            f"Drives the full spawn-session lifecycle "
             f"with engineering-output emission, bridge-audit double-sink, "
             f"V-907 pin verify, SPIFFE workload-API probe, and (when "
             f"WAKIR_SUBSCRIBE_ENV is set) auto-activated NATS-subscribe "

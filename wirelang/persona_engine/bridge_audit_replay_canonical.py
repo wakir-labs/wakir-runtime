@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bridge-audit-replay canonical-trace helpers (Tag-37 Phase-3a 14. Modul).
+"""Bridge-audit-replay canonical-trace helpers (Phase-3a 14. Modul).
 
 This module is the **Python sibling** of the Rust canonical sub-module
-``persona_engine_bridge_audit_replay::canonical`` (Tag-37 expansion of
+``persona_engine_bridge_audit_replay::canonical`` (expansion of
 the existing crate ``persona-engine-bridge-audit-replay``).  Where the
 live :mod:`wirelang.persona_engine.bridge_audit_replay` module provides
 the operator-facing :class:`ReplayReport` surface (with the per-step
@@ -30,10 +30,10 @@ stable projection — that is the replay-trace.
 
 Keeping the helpers in a separate Apache-2.0 module preserves the
 existing :mod:`wirelang.persona_engine.bridge_audit_replay` surface
-unchanged and matches the sibling-pattern Reza used for
+unchanged and matches the sibling-pattern used for
 :mod:`wirelang.persona_engine.bridge_audit_diff_engine_canonical`
-(Tag-36 13. Modul) and
-:mod:`wirelang.persona_engine.v907_verify_canonical` (Tag-35 12. Modul).
+(13. Modul) and
+:mod:`wirelang.persona_engine.v907_verify_canonical` (12. Modul).
 
 Schema
 ------

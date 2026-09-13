@@ -169,7 +169,7 @@ class BadTimestampShapeError(AnchorEmitterError):
 class AnchorEmitterInput:
     """Caller-supplied input to :func:`build_anchor_envelope`.
 
-    Mirrors the four Sprint-Auftrag fields verbatim. ``frozen=True``
+    Mirrors the four fields verbatim. ``frozen=True``
     so the input record is hashable; tests can stick inputs into
     sets / dict-keys without writing wrappers.
 
@@ -394,7 +394,7 @@ def serialize_anchor(env: AnchorEnvelope) -> bytes:
 def hash_anchor(env: AnchorEnvelope) -> str:
     """Return the ``"sha256:<hex>"`` payload-hash string for ``env``.
 
-    Mirrors the Rust :func:`hash_anchor` shape with the Sprint-Auftrag-
+    Mirrors the Rust :func:`hash_anchor` shape with the -
     mandated ``sha256:`` prefix.
 
     Implementation: SHA-256 of the :func:`serialize_anchor` output.
@@ -457,7 +457,7 @@ def assert_spec_invariants() -> None:
         )
     if HASH_PREFIX != "sha256:":
         raise AssertionError(
-            "HASH_PREFIX drifted from Sprint-Auftrag-pinned value"
+            "HASH_PREFIX drifted from its pinned value"
         )
     if SHA256_HEX_LEN != 64:
         raise AssertionError(

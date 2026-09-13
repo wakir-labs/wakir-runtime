@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """OpenTelemetry instrumentation surface for the persona-engine
-(Sprint-SRE Tag-15, Noa Bergstroem / SRE).
+(the observability side Bergstroem / SRE).
 
 Design goals
 ------------
@@ -11,7 +11,7 @@ Design goals
    discipline; see ``wirelang/persona_engine/__init__.py`` docstring).
    Adding mandatory ``opentelemetry-api`` + ``opentelemetry-sdk`` +
    ``opentelemetry-exporter-otlp`` deps would re-open the wheel-drift
-   class of bugs that Sprint-Pengine-9 Bug-34 closed. Instead this
+   class of bugs that Bug-34 closed. Instead this
    module *probes* for ``opentelemetry.metrics`` and
    ``opentelemetry.trace`` at module-import time inside try/except
    shims and exposes a single :class:`PersonaEngineObservability`

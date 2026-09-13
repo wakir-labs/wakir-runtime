@@ -49,7 +49,7 @@
 //!   and with `persona-canonical-form-yaml` (Crate-3) for byte-
 //!   identical cross-language parity.
 //!
-//! # Default-Lock posture (Sprint-Rust-Frontmatter-Parser-MINI)
+//! # Default-Lock posture
 //!
 //! - **A-1 Mock-Format-Baseline:** parse YAML front-matter from a
 //!   markdown text into a typed [`PersonaDef`]; preserve unknown keys
@@ -283,7 +283,7 @@ impl ToolsField {
 /// Mirrors the canonical-subset `identity_pinned` shape from
 /// `persona_canonical_form.py` line 28–43. The `cross_review_zones`
 /// list is left as `Vec<JsonValue>` because HR has not yet frozen the
-/// per-zone schema (Sprint-Pengine-7 §spec open-item OI-IPS-2).
+/// per-zone schema (§spec open-item OI-IPS-2).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct IdentityPinned {
     /// Cross-review zones the persona participates in (e.g. K, J, L).
@@ -600,7 +600,7 @@ fn yaml_type_name(v: &serde_yaml::Value) -> &'static str {
 
 // ============================================================================
 // Canonical-trace surface — cross-lang sibling of Python
-// `wirelang.persona.frontmatter_parser_canonical` (Tag-34 Phase-3a Item 11).
+// `wirelang.persona.frontmatter_parser_canonical` (Phase-3a Item 11).
 // ============================================================================
 
 /// Cross-lang canonical-trace helpers, byte-paritätisch zur Python

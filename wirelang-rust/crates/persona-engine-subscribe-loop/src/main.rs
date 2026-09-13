@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! `wakir-persona-engine-subscribe-loop` binary entry-point.
 //!
-//! Tag-33 Mini-Welle (ADR-0066 Welle-6 `subscribe_loop` pre-cutover
+//! Mini-Welle (ADR-0066 Welle-6 `subscribe_loop` pre-cutover
 //! image, parallel to ADR-0066 Welle-1 V907-verify, Welle-2 SVID-
 //! workload-identity, Welle-3 bridge-audit-writer, Welle-4 state-
 //! backing and Welle-5 lifecycle-state-machine image-builds).
@@ -38,7 +38,7 @@
 //!
 //! Zero new dependencies. No clap, no anyhow, no env_logger — the
 //! binary is a static-link-friendly thin shim for the Container-
-//! Image-Build-Pipeline (Tag-33 Mini-Welle, ADR-0066 Welle-6 image-
+//! Image-Build-Pipeline (Mini-Welle, ADR-0066 Welle-6 image-
 //! build). Parity with the `wakir-persona-engine-state-backing` and
 //! `wakir-persona-engine-fsm` operator-CLI surface.
 //!

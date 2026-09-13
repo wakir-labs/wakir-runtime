@@ -3,8 +3,8 @@
 """V-907 engine-side verify canonical-trace helpers.
 
 This module is the **Python sibling** of the Rust crate
-``persona-engine-v907-verify`` (PR #120 + Tag-26 mini-welle, expanded
-to a cross-lang canonical-trace surface in Tag-35).  Where the Rust
+``persona-engine-v907-verify`` (PR #120 + mini-welle, expanded
+to a cross-lang canonical-trace surface).  Where the Rust
 crate provides a typed ``PersonaDef`` + ``compute_v907_pin`` +
 ``verify_v907_pin`` surface above the JCS-canonical subset, this
 module provides the canonical-trace surface that pairs with it
@@ -27,8 +27,8 @@ per-call structured trace is the right shape for the 3-way triangle.
 
 Keeping the helpers in a separate Apache-2.0 module preserves the
 existing ``v907_verify.py`` BUSL surface unchanged (spec §5 anchor,
-no licence change) and matches the sibling-pattern Reza used for
-``wirelang.persona.frontmatter_parser_canonical`` (Tag-34 sibling
+no licence change) and matches the sibling-pattern used for
+``wirelang.persona.frontmatter_parser_canonical`` (sibling
 of ``persona-engine-frontmatter-parser``).
 
 Schema
@@ -117,7 +117,7 @@ ADR anchors
   the direct gate that this trace anchors).
 - ADR-0066 — Phase-3c-Beschleunigung Option A+.
 
-V-907 pin pack anchor (Tag-34 sibling pattern)
+V-907 pin pack anchor (sibling pattern)
 ----------------------------------------------
 
 The ``f01-sample-axis-a-min`` fixture's ``pin`` field is the historical

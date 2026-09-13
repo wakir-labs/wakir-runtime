@@ -14,14 +14,14 @@
 // Cross-references
 // ----------------
 // - ADR-0063 §Folgeartefakte Item 1
-// - Decision-Doc: rust-rewrite-crate-wahlen.md (Reza, 2026-05-16)
+// - Decision-Doc: rust-rewrite-crate-wahlen.md (the protocol side, 2026-05-16)
 //
 // Non-goals
 // ---------
 // - Not a production primitive layer. The production layer lives in
 //   the sister persona-* crates and follows separate spec anchors.
 // - No cross-language byte-equivalence here (that is Phase-3a-Initial-
-//   Sprint scope per Decision-Doc §"Smoke-Test-Empfehlung").
+//   scope per Decision-Doc §"Smoke-Test-Empfehlung").
 
 use std::error::Error;
 
@@ -119,7 +119,7 @@ pub fn jcs_canonicalize() -> SmokeResult<Vec<u8>> {
 /// secp256k1 keygen + ECDSA sign + verify round-trip over a known
 /// message. Returns the DER-encoded signature for inspection.
 ///
-/// This is the Reza Zone-L identity-substrate hauptkurve smoke-test
+/// This is the Zone-L identity-substrate hauptkurve smoke-test
 /// per Decision-Doc §Wahlachse 3 Stack 1.
 pub fn k256_sign_verify() -> SmokeResult<Vec<u8>> {
     use k256::ecdsa::signature::{Signer, Verifier};
@@ -303,7 +303,7 @@ pub fn aead_aes_gcm_roundtrip() -> SmokeResult<Vec<u8>> {
 ///
 /// This is the smoke-test for Decision-Doc §Wahlachse 3 Stack 3.
 /// Full TLS-1.3 handshake against a test-SPIRE-server is Phase-3a-
-/// Initial-Sprint scope.
+/// Initial- scope.
 pub fn rustls_provider_construct() -> SmokeResult<()> {
     use rustls::crypto::CryptoProvider;
     use rustls::{ClientConfig, RootCertStore};

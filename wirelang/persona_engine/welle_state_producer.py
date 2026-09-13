@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Tag-69 / Tag-70 Welle-N State-File Producer (Selin, persona-engine).
+""" / Welle-N State-File Producer (the persona-engine side, persona-engine).
 
 Implements the engine-side producer-path for ``state/welle-N.json``
-top-level rollup-files per the Tag-68 Producer-Wiring-Plan
+top-level rollup-files per the Producer-Wiring-Plan
 (``docs/persona-engine/state-file-producer-wiring-plan.md``).
 
-Scope (Tag-69 + Tag-70, per Mira-Auftrag and plan-doc §5.1)
+Scope (per orchestrator-Auftrag and plan-doc §5.1)
 -----------------------------------------------------------
 
-This module is the **producer-substrate** that Tag-69+ engine-side
+This module is the **producer-substrate** that + engine-side
 event-handlers will call. It is intentionally **decoupled** from
 ``engine.py`` / ``engine_async.py``: the handlers in those modules
 (``handle_welle_cutover_event``, ``handle_welle_sign_off_event``,
@@ -21,23 +21,23 @@ transition + atomic-write to this module. The decoupling keeps the
 hot-path engine code free of filesystem-layout knowledge and lets
 the producer-substrate be unit-tested in hermetic isolation.
 
-Tag-69 shipped the **Welle-1 producer-path** (Cutover-T0 first-fire)
-+ Sign-Off path. Tag-72 added the **Welle-4 State-Backing sign-off**
+A later revision shipped the **Welle-1 producer-path** (Cutover-T0 first-fire)
++ Sign-Off path. A later revision added the **Welle-4 State-Backing sign-off**
 path (KW-25 Mo): a sign-off variant that additionally requires a
 ``snapshot_restore_marker_status == "restored"`` precondition.
 Welle-4 is the only Welle whose sign-off is gated by the snapshot-
 restore-marker (state-backing rust<->python switch is the 10th
-pre-boot BackendDecision per the Tag-57-emit-order-pin; the
-snapshot-restore-workflow is captured in Tomas-Tag-56-Rollback-
-Workflow §J4). Tag-73 added the **Welle-5 Capability-Token
+pre-boot BackendDecision per the -emit-order-pin; the
+snapshot-restore-workflow is captured in WAT- -Rollback-
+Workflow §J4). A later revision added the **Welle-5 Capability-Token
 sign-off** path (KW-26 per ``pre-cutover-acceptance-run-order.md``;
-Reza-Zone-L): a sign-off variant that additionally requires a
+Zone-L): a sign-off variant that additionally requires a
 ``capability_token_rotation_marker_status == "rotated"`` precondition.
 Welle-5 is the only Welle whose sign-off is gated by the
 capability-token-rotation-marker (the capability-token enforce-mode
 flip from audit-only-mode to enforce-mode happens during this Welle,
 per kw-24-welle-1-7-acceptance-criteria §5 probe W5-S1..S4).
-Tag-74 (this PR) adds the **Welle-6 Cross-Substrate-Parity sign-off**
+(this PR) adds the **Welle-6 Cross-Substrate-Parity sign-off**
 path (KW-26 per the engine-side helper-default; the canonical doc
 ``pre-cutover-acceptance-run-order.md`` §3 lists Welle-6 on KW-27 --
 the producer-substrate is kw-anchor-agnostic at the transition-machine
@@ -45,9 +45,9 @@ level): a sign-off variant that additionally requires a
 ``cross_substrate_parity_marker_status == "verified"`` precondition.
 Welle-6 is the only Welle whose sign-off is gated by the cross-
 substrate-parity-marker (cosign ↔ quadlet ↔ backend-switch parity
-across the three artefact-substrates, per Tomas'
+across the three artefact-substrates, per the WAT side'
 ``cross-substrate-parity-gate`` workflow).
-Tag-70 (earlier) added:
+(earlier) added:
 
 * **Welle-2 Doppelbetrieb-Sealing** trigger (KW-24 Mi, plan-doc §2.3):
   a sign-off variant that additionally requires a
@@ -61,7 +61,7 @@ Tag-70 (earlier) added:
   precondition. Rollback is terminal (plan-doc §3.2).
 
 The implementation is parametric over ``welle_number`` (1..7) and
-is therefore reused verbatim by Tag-71+ follow-ups for the
+is therefore reused verbatim by + follow-ups for the
 remaining Wellen.
 
 Lifecycle-state-machine (plan-doc §3.1)
@@ -107,13 +107,13 @@ This module is stdlib-only. No network, no NATS, no SPIRE, no
 subprocess. Filesystem writes are confined to repo-local
 ``state/welle-N.json`` paths (path-traversal is rejected).
 
-Scope discipline (Selin)
+Scope discipline (the persona-engine side)
 ------------------------
 
-This module does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It writes
+This module does NOT modify persona definitions (HR-Domaene,
+ADR-0043), WAT-core logic (WAT-Domaene, Zone-K),
+identity-substrate design (protocol-Domaene, Zone-L), or
+container-infra (infra-Domaene, Zone-J). It writes
 ``state/welle-N.json`` rollup-fields only -- the sign-off-marker,
 validation-verdict, pre-auditor-decision, hot-spot-trend files
 remain in their respective domain owners' control (plan-doc §6.2).
@@ -137,7 +137,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 # ---------------------------------------------------------------------------
-# Canonical constants (must stay byte-equivalent to the Tag-67 schema-pin).
+# Canonical constants (must stay byte-equivalent to the schema-pin).
 # ---------------------------------------------------------------------------
 
 SCHEMA_VERSION_PIN = "tag-67-v1"
@@ -164,29 +164,29 @@ ISO_TS_NONEMPTY_RE = re.compile(
 )
 
 # Wellen for which the sign-off path requires a designated pre-auditor
-# (Henrik-cannot-self-sign-off constraint -- plan-doc §2.2,
+# (audit-cannot-self-sign-off constraint -- plan-doc §2.2,
 # schema-pin §2.5 / §5).
 PRE_AUDITOR_GUARDED_WELLEN = frozenset({3, 7})
 
 # Wellen for which the sign-off path additionally requires the
 # Doppelbetrieb-Sealing-marker to report ``sealed`` (plan-doc §2.3,
-# Tag-70 add-on). Welle-2 is the legacy↔new dual-write window
+# add-on). Welle-2 is the legacy↔new dual-write window
 # closure; sign-off without sealed-marker is refused.
 DOPPELBETRIEB_SEALED_WELLEN = frozenset({2})
 
 # Rollback-marker authority literal: callers MUST pass this exact
 # value as ``rollback_marker_status`` to authorise a rollback
-# transition. Any other value is refused (Tag-70 §2.4).
+# transition. Any other value is refused (§2.4).
 ROLLBACK_MARKER_AUTHORIZED = "rollback-authorized"
 
 # Doppelbetrieb-Sealing-marker literal: callers MUST pass this exact
 # value as ``doppelbetrieb_sealed_marker_status`` to authorise the
-# Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3).
+# Welle-2 Doppelbetrieb-Sealing sign-off (§2.3).
 DOPPELBETRIEB_SEALED = "sealed"
 
 # Wellen for which the sign-off path additionally requires the
-# snapshot-restore-marker to report ``restored`` (Tag-72 §2.5,
-# Tomas-Tag-56-Rollback-Workflow §J4). Welle-4 is the State-Backing
+# snapshot-restore-marker to report ``restored`` (§2.5,
+# WAT- -Rollback-Workflow §J4). Welle-4 is the State-Backing
 # Welle (KW-25 Mo); the 10th pre-boot BackendDecision (state_backing
 # rust<->python) is the only Welle whose sign-off requires a verified
 # snapshot-restore. Without the restore-marker the Welle-4 sign-off
@@ -196,13 +196,13 @@ SNAPSHOT_RESTORE_GUARDED_WELLEN = frozenset({4})
 
 # Snapshot-restore-marker literal: callers MUST pass this exact value
 # as ``snapshot_restore_marker_status`` to authorise the Welle-4
-# State-Backing sign-off (Tag-72 §2.5). Mirrors the
+# State-Backing sign-off (§2.5). Mirrors the
 # :data:`DOPPELBETRIEB_SEALED` design.
 SNAPSHOT_RESTORE_VERIFIED = "restored"
 
 # Wellen for which the sign-off path additionally requires the
-# capability-token-rotation-marker to report ``rotated`` (Tag-73 §2.6,
-# Reza-Zone-L capability-token-enforce-mode substrate). Welle-5 is the
+# capability-token-rotation-marker to report ``rotated`` (§2.6,
+# Zone-L capability-token-enforce-mode substrate). Welle-5 is the
 # Capability-Token Welle (KW-25 Fr 2026-06-19); the sign-off is only
 # authorised once the operator-curated capability-token-rotation-drill
 # (``state/capability-token-rotation-drill.json``, kw-24-welle-1-7-
@@ -215,12 +215,12 @@ CAPABILITY_TOKEN_ROTATION_GUARDED_WELLEN = frozenset({5})
 
 # Capability-token-rotation-marker literal: callers MUST pass this exact
 # value as ``capability_token_rotation_marker_status`` to authorise the
-# Welle-5 Capability-Token sign-off (Tag-73 §2.6). Mirrors the
+# Welle-5 Capability-Token sign-off (§2.6). Mirrors the
 # :data:`DOPPELBETRIEB_SEALED` / :data:`SNAPSHOT_RESTORE_VERIFIED` design.
 CAPABILITY_TOKEN_ROTATED = "rotated"
 
 # Wellen for which the sign-off path additionally requires the
-# cross-substrate-parity-marker to report ``verified`` (Tag-74 §2.7,
+# cross-substrate-parity-marker to report ``verified`` (§2.7,
 # Welle-6 Cross-Substrate-Parity-Welle). Welle-6 is the cross-substrate-
 # parity Welle (KW-26 Fr per the operational Source-of-Truth
 # ``pre-cutover-acceptance-run-order.md`` §3 table reconciliation; note
@@ -229,7 +229,7 @@ CAPABILITY_TOKEN_ROTATED = "rotated"
 # producer-substrate is kw-anchor-agnostic at the transition-machine
 # level and does not gate on the KW-anchor field). The sign-off is
 # only authorised once the operator-curated cross-substrate-parity-
-# probe (cosign ↔ quadlet ↔ backend-switch, per the Tomas
+# probe (cosign ↔ quadlet ↔ backend-switch, per the WAT side
 # ``cross-substrate-parity-gate`` workflow) has flipped to
 # :data:`CROSS_SUBSTRATE_PARITY_VERIFIED`. Without the parity-marker
 # the Welle-6 sign-off would leave the cross-substrate parity-claim
@@ -238,18 +238,18 @@ CROSS_SUBSTRATE_PARITY_GUARDED_WELLEN = frozenset({6})
 
 # Cross-substrate-parity-marker literal: callers MUST pass this exact
 # value as ``cross_substrate_parity_marker_status`` to authorise the
-# Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7). Mirrors the
+# Welle-6 Cross-Substrate-Parity sign-off (§2.7). Mirrors the
 # :data:`DOPPELBETRIEB_SEALED` / :data:`SNAPSHOT_RESTORE_VERIFIED` /
 # :data:`CAPABILITY_TOKEN_ROTATED` design.
 CROSS_SUBSTRATE_PARITY_VERIFIED = "verified"
 
 # Wellen for which the sign-off path additionally requires the
-# final-sealing-marker to report ``confirmed`` (Tag-75 §2.8, Welle-7
+# final-sealing-marker to report ``confirmed`` (§2.8, Welle-7
 # Final-Sealing-Welle). Welle-7 is the terminal Welle of the Phase-3c-
-# Welle-Marathon (KW-27 per
+# wave sequence (KW-27 per
 # ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 + the
 # canonical ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4
-# Phase-3-Marathon-Schluss-Acceptance). Welle-7 sign-off fires the
+# Phase-3 closing acceptance). Welle-7 sign-off fires the
 # ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker in the audit-trail
 # (per phase-3c-doppel-welle-6-7.md §4.1 the
 # ``test_dw_ac_6_7_p3m_welle_7_sign_off_triggers_phase_3_complete_marker``
@@ -260,7 +260,7 @@ CROSS_SUBSTRATE_PARITY_VERIFIED = "verified"
 # Welle-7 sign-off would leave the marathon-closure substrate
 # unverified at the moment of Phase-3c-Ende finalisation.
 #
-# Welle-7 is ALSO in :data:`PRE_AUDITOR_GUARDED_WELLEN` (Henrik-cannot-
+# Welle-7 is ALSO in :data:`PRE_AUDITOR_GUARDED_WELLEN` (audit-cannot-
 # self-sign-off invariant, plan-doc §2.2). Both guards apply: the
 # pre-auditor-decision MUST be ``"designated"`` AND the final-sealing-
 # marker MUST be ``"confirmed"``. The two guards are independent; the
@@ -271,29 +271,29 @@ FINAL_SEALING_GUARDED_WELLEN = frozenset({7})
 
 # Final-sealing-marker literal: callers MUST pass this exact value as
 # ``final_sealing_marker_status`` to authorise the Welle-7 Final-Sealing
-# sign-off (Tag-75 §2.8). Mirrors the :data:`DOPPELBETRIEB_SEALED` /
+# sign-off (§2.8). Mirrors the :data:`DOPPELBETRIEB_SEALED` /
 # :data:`SNAPSHOT_RESTORE_VERIFIED` / :data:`CAPABILITY_TOKEN_ROTATED` /
 # :data:`CROSS_SUBSTRATE_PARITY_VERIFIED` design.
 #
 # Disjoint from :data:`DOPPELBETRIEB_SEALED` ("sealed", Welle-2): the
 # Welle-2 sealing closes the legacy<->new dual-write window;
-# the Welle-7 final-sealing closes the entire Phase-3c-Welle-Marathon.
+# the Welle-7 final-sealing closes the entire Phase-3c wave sequence.
 # A separate literal disambiguates the audit-trail trigger family
-# (Henrik Internal Audit Zone-N relies on this).
+# (internal audit Zone-N relies on this).
 FINAL_SEALING_CONFIRMED = "confirmed"
 
-# Tag-76 (Selin): Phase-3-COMPLETE Production-Bringup-Verifier constants.
+# (the persona-engine side): Phase-3-COMPLETE Production-Bringup-Verifier constants.
 #
-# After Welle-7 sign-off (terminal Welle of the Phase-3c-Welle-Marathon),
+# After Welle-7 sign-off (terminal Welle of the Phase-3c wave sequence),
 # the engine-side verifier checks that **all 7** Welle-State-Files report
 # canonical post-cutover-sign-off-State. Only then may the downstream
 # audit-trail consumer emit the ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7``
 # marker (per docs/quality-gates/phase-3c-doppel-welle-6-7.md §4.1).
 #
-# The verifier is **read-only** (Scope discipline, Selin): it does not
+# The verifier is **read-only** (Scope discipline, the persona-engine side): it does not
 # mutate any state-file. It returns a verdict record or refuses to
 # write. The marker-emit itself is audit-trail-consumer-territory
-# (Henrik Internal Audit Zone-N).
+# (internal audit Zone-N).
 #
 # The verifier is the **seventh** disjoint trigger-family in the
 # audit-stream: ``trigger="phase-3-complete-verify"``. Disjoint from
@@ -309,7 +309,7 @@ PHASE_3_COMPLETE_TRIGGER = "phase-3-complete-verify"
 PHASE_3_COMPLETE_REQUIRED_WELLEN = frozenset(range(1, 8))
 
 # Canonical KW-anchor ordering for cross-Welle cutover-ISO sequencing
-# (Tag-76 verifier invariant). Cutover_iso values across the 7 Wellen
+# (verifier invariant). Cutover_iso values across the 7 Wellen
 # MUST be monotone non-decreasing in welle_number when grouped by
 # (welle_number, kw_cutover_anchor). The verifier checks this as a
 # defensive integrity-invariant: a Welle-3 cutover_iso BEFORE a
@@ -388,15 +388,15 @@ class PathTraversalError(WelleProducerError):
 
 
 class RollbackAuthorityError(WelleProducerError):
-    """Raised on a rollback without rollback-marker-authority (Tag-70 §2.4)."""
+    """Raised on a rollback without rollback-marker-authority (§2.4)."""
 
 
 class DoppelbetriebSealingError(WelleProducerError):
-    """Raised on a Welle-2 sign-off without sealed-marker (Tag-70 §2.3)."""
+    """Raised on a Welle-2 sign-off without sealed-marker (§2.3)."""
 
 
 class SnapshotRestoreError(WelleProducerError):
-    """Raised on a Welle-4 sign-off without snapshot-restore-marker (Tag-72 §2.5).
+    """Raised on a Welle-4 sign-off without snapshot-restore-marker (§2.5).
 
     Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
     BackendDecision (state_backing rust<->python switch) flips during
@@ -408,15 +408,15 @@ class SnapshotRestoreError(WelleProducerError):
 
 
 class FinalSealingError(WelleProducerError):
-    """Raised on a Welle-7 sign-off without final-sealing-marker (Tag-75 §2.8).
+    """Raised on a Welle-7 sign-off without final-sealing-marker (§2.8).
 
     Welle-7 is the Final-Sealing-Welle (terminal Welle of the Phase-3c-
-    Welle-Marathon, KW-27 per ``pre-cutover-acceptance-run-order.md`` §3
+    wave sequence, KW-27 per ``pre-cutover-acceptance-run-order.md`` §3
     + ``phase-3c-doppel-welle-6-7.md`` §4). The sign-off is only
     authorised once the operator-curated final-sealing-marker
     (``state/welle-7-final-sealing.json``) has flipped to
     :data:`FINAL_SEALING_CONFIRMED`. The marker is the engine-side
-    reflection of the Phase-3-Marathon-Schluss-Acceptance verdict (the
+    reflection of the Phase-3 closing acceptance verdict (the
     ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker fires on a
     successful Welle-7 sign-off, per phase-3c-doppel-welle-6-7.md
     §4.1).
@@ -425,7 +425,7 @@ class FinalSealingError(WelleProducerError):
     :class:`SnapshotRestoreError`, :class:`CapabilityTokenRotationError`,
     and :class:`CrossSubstrateParityError` designs.
 
-    Welle-7 is ALSO pre-auditor-guarded (Henrik-cannot-self-sign-off,
+    Welle-7 is ALSO pre-auditor-guarded (audit-cannot-self-sign-off,
     plan-doc §2.2). The :class:`PreAuditorGuardError` is raised before
     this error when both guards are violated (pre-auditor guard is
     checked earliest in the validation chain).
@@ -433,7 +433,7 @@ class FinalSealingError(WelleProducerError):
 
 
 class Phase3CompleteVerifierError(WelleProducerError):
-    """Raised when the Phase-3-COMPLETE cross-Welle verifier refuses (Tag-76).
+    """Raised when the Phase-3-COMPLETE cross-Welle verifier refuses.
 
     The verifier (``WelleStateProducer.handle_phase_3_complete_event``)
     checks that **all 7** Welle-State-Files
@@ -462,17 +462,17 @@ class Phase3CompleteVerifierError(WelleProducerError):
     sign-off). The verifier is the cross-Welle-aggregate gate.
 
     Disjoint from all other producer errors (the verifier is a NEW
-    refusal-axis introduced in Tag-76).
+    refusal-axis introduced).
     """
 
 
 class CrossSubstrateParityError(WelleProducerError):
-    """Raised on a Welle-6 sign-off without parity-marker (Tag-74 §2.7).
+    """Raised on a Welle-6 sign-off without parity-marker (§2.7).
 
     Welle-6 is the Cross-Substrate-Parity-Welle. The sign-off is only
     authorised once the operator-curated cross-substrate-parity-marker
     has flipped to :data:`CROSS_SUBSTRATE_PARITY_VERIFIED`. The marker
-    is the engine-side reflection of Tomas' ``cross-substrate-parity-
+    is the engine-side reflection of the WAT side' ``cross-substrate-parity-
     gate`` workflow verdict (cosign ↔ quadlet ↔ backend-switch parity
     across the three artefact-substrates).
 
@@ -483,10 +483,10 @@ class CrossSubstrateParityError(WelleProducerError):
 
 
 class CapabilityTokenRotationError(WelleProducerError):
-    """Raised on a Welle-5 sign-off without rotation-marker (Tag-73 §2.6).
+    """Raised on a Welle-5 sign-off without rotation-marker (§2.6).
 
     Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
-    Reza-Zone-L). The capability-token enforce-mode flip from
+    Zone-L). The capability-token enforce-mode flip from
     audit-only-mode to enforce-mode happens during this Welle; the
     sign-off is only authorised once the operator-curated
     capability-token-rotation-marker has flipped to
@@ -546,13 +546,13 @@ class WelleAuditRecord:
 
 @dataclass(frozen=True)
 class Phase3CompleteAuditRecord:
-    """Tag-76 cross-Welle verifier verdict audit-record (Selin).
+    """ cross-Welle verifier verdict audit-record (the persona-engine side).
 
     Emitted by :meth:`WelleStateProducer.handle_phase_3_complete_event`
     on a successful all-7-Wellen verification pass. The record is
     **disjoint** from :class:`WelleAuditRecord` (single-Welle record):
     this record carries cross-Welle-aggregate fields. Downstream
-    audit-trail consumers (Henrik Internal Audit Zone-N) distinguish
+    audit-trail consumers (internal audit Zone-N) distinguish
     the two record types by the ``trigger`` value
     (``"phase-3-complete-verify"`` for this record).
 
@@ -613,7 +613,7 @@ def _noop_phase_3_emitter(_record: Phase3CompleteAuditRecord) -> None:
 
 
 def _noop_emitter(_record: WelleAuditRecord) -> None:
-    """Default emitter: drops the record. Tag-69 wiring overrides."""
+    """Default emitter: drops the record. wiring overrides."""
 
 
 def audit_record_emitter_from_bridge_writer(
@@ -888,7 +888,7 @@ class WelleStateProducer:
             if pre_auditor_decision != "designated":
                 raise PreAuditorGuardError(
                     f"welle-{welle_number} sign-off requires a "
-                    f"designated pre-auditor (Henrik-cannot-self-"
+                    f"designated pre-auditor (pre-auditor-cannot-self-"
                     f"sign-off); got pre_auditor_decision="
                     f"{pre_auditor_decision!r}"
                 )
@@ -927,7 +927,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3) --
+    # -- Transition: Welle-2 Doppelbetrieb-Sealing sign-off (§2.3) --
 
     def handle_welle_2_sealing_event(
         self,
@@ -936,7 +936,7 @@ class WelleStateProducer:
         sign_off_marker_status: str,
         doppelbetrieb_sealed_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply the Welle-2 Doppelbetrieb-Sealing sign-off (Tag-70 §2.3).
+        """Apply the Welle-2 Doppelbetrieb-Sealing sign-off (§2.3).
 
         Welle-2 closes the legacy↔new dual-write window (KW-24 Mi).
         The sign-off is structurally an in-progress -> signed-off
@@ -1003,7 +1003,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: Welle-4 State-Backing sign-off (Tag-72 §2.5) --
+    # -- Transition: Welle-4 State-Backing sign-off (§2.5) --
 
     def handle_welle_4_signoff_event(
         self,
@@ -1012,11 +1012,11 @@ class WelleStateProducer:
         sign_off_marker_status: str,
         snapshot_restore_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply the Welle-4 State-Backing sign-off (Tag-72 §2.5).
+        """Apply the Welle-4 State-Backing sign-off (§2.5).
 
         Welle-4 is the State-Backing Welle (KW-25 Mo). The 10th pre-boot
         BackendDecision (``state_backing`` rust<->python switch,
-        Tag-57-emit-order-pin) flips during this Welle. The sign-off
+        -emit-order-pin) flips during this Welle. The sign-off
         is structurally an in-progress -> signed-off transition with
         **two** marker preconditions:
 
@@ -1024,7 +1024,7 @@ class WelleStateProducer:
           companion marker (same as :meth:`handle_sign_off_event`),
         * the additional ``snapshot_restore_marker_status ==
           "restored"`` marker which confirms the state-backing
-          snapshot-restore-workflow (Tomas-Tag-56-Rollback-Workflow
+          snapshot-restore-workflow (WAT- -Rollback-Workflow
           §J4) has been observed-complete by the operator (the new
           state-backing substrate has been re-hydrated from the
           pre-cutover snapshot and a parity-check against the legacy
@@ -1043,7 +1043,7 @@ class WelleStateProducer:
 
         Forensic note: the snapshot-restore-iso itself is not stored
         in the schema-pinned state-file (the schema-pin is unchanged
-        per Tag-67); it is recoverable from the audit-stream via the
+        ); it is recoverable from the audit-stream via the
         ``trigger="snapshot-restore"`` record + ``signoff_iso``.
         """
         welle_number = 4
@@ -1095,7 +1095,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: Welle-5 Capability-Token sign-off (Tag-73 §2.6) --
+    # -- Transition: Welle-5 Capability-Token sign-off (§2.6) --
 
     def handle_welle_5_signoff_event(
         self,
@@ -1104,10 +1104,10 @@ class WelleStateProducer:
         sign_off_marker_status: str,
         capability_token_rotation_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply the Welle-5 Capability-Token sign-off (Tag-73 §2.6).
+        """Apply the Welle-5 Capability-Token sign-off (§2.6).
 
         Welle-5 is the Capability-Token Welle (KW-25 Fr 2026-06-19,
-        Reza-Zone-L). The capability-token enforce-mode flips from
+        Zone-L). The capability-token enforce-mode flips from
         audit-only-mode to enforce-mode during this Welle. The sign-off
         is structurally an in-progress -> signed-off transition with
         **two** marker preconditions:
@@ -1124,7 +1124,7 @@ class WelleStateProducer:
 
         Welle-5 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
         no pre-auditor guard applies here (Welle-3 and Welle-7 are
-        the pre-auditor-guarded Wellen per the Henrik-cannot-self-
+        the pre-auditor-guarded Wellen per the audit-cannot-self-
         sign-off invariant). The audit-record carries
         ``trigger="capability-token-rotation"`` to disambiguate from
         the vanilla sign-off trigger, the Welle-2 ``trigger="sealing"``
@@ -1138,7 +1138,7 @@ class WelleStateProducer:
 
         Forensic note: the capability-token-rotation-iso itself is not
         stored in the schema-pinned state-file (the schema-pin is
-        unchanged per Tag-67); it is recoverable from the audit-stream
+        unchanged); it is recoverable from the audit-stream
         via the ``trigger="capability-token-rotation"`` record +
         ``signoff_iso``. The rotation-drill anchor (timestamp >=
         Welle-5 anchor-7d per kw-24-welle-1-7-acceptance-criteria §5.1
@@ -1199,7 +1199,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7) --
+    # -- Transition: Welle-6 Cross-Substrate-Parity sign-off (§2.7) --
 
     def handle_welle_6_signoff_event(
         self,
@@ -1208,7 +1208,7 @@ class WelleStateProducer:
         sign_off_marker_status: str,
         cross_substrate_parity_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply the Welle-6 Cross-Substrate-Parity sign-off (Tag-74 §2.7).
+        """Apply the Welle-6 Cross-Substrate-Parity sign-off (§2.7).
 
         Welle-6 is the Cross-Substrate-Parity-Welle. The sign-off is
         structurally an in-progress -> signed-off transition with **two**
@@ -1218,14 +1218,14 @@ class WelleStateProducer:
           companion marker (same as :meth:`handle_sign_off_event`),
         * the additional ``cross_substrate_parity_marker_status ==
           "verified"`` marker which confirms the cross-substrate-parity-
-          probe (cosign ↔ quadlet ↔ backend-switch, per Tomas'
+          probe (cosign ↔ quadlet ↔ backend-switch, per the WAT side'
           ``cross-substrate-parity-gate`` workflow) has been observed-
           green by the operator (the three artefact-substrates report
           identical parity hashes). Refused otherwise.
 
         Welle-6 is **not** in :data:`PRE_AUDITOR_GUARDED_WELLEN`, so
         no pre-auditor guard applies here (Welle-3 and Welle-7 are the
-        pre-auditor-guarded Wellen per the Henrik-cannot-self-sign-off
+        pre-auditor-guarded Wellen per the audit-cannot-self-sign-off
         invariant). The audit-record carries
         ``trigger="cross-substrate-parity"`` to disambiguate from the
         vanilla sign-off trigger, the Welle-2 ``trigger="sealing"``
@@ -1240,10 +1240,10 @@ class WelleStateProducer:
 
         Forensic note: the cross-substrate-parity-iso itself is not
         stored in the schema-pinned state-file (the schema-pin is
-        unchanged per Tag-67); it is recoverable from the audit-stream
+        unchanged); it is recoverable from the audit-stream
         via the ``trigger="cross-substrate-parity"`` record +
         ``signoff_iso``. The parity-probe verdict envelope is verified
-        by Tomas' ``cross-substrate-parity-gate`` workflow (the
+        by the WAT side' ``cross-substrate-parity-gate`` workflow (the
         ``state/welle-6-cross-substrate-parity.json`` operator-curated
         marker file), NOT by this producer-substrate (producer-substrate
         is engine-side only, no workflow-coupling).
@@ -1301,7 +1301,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: Welle-7 Final-Sealing sign-off (Tag-75 §2.8) --
+    # -- Transition: Welle-7 Final-Sealing sign-off (§2.8) --
 
     def handle_welle_7_signoff_event(
         self,
@@ -1311,10 +1311,10 @@ class WelleStateProducer:
         pre_auditor_decision: Optional[str] = None,
         final_sealing_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply the Welle-7 Final-Sealing sign-off (Tag-75 §2.8).
+        """Apply the Welle-7 Final-Sealing sign-off (§2.8).
 
         Welle-7 is the Final-Sealing-Welle (terminal Welle of the
-        Phase-3c-Welle-Marathon, KW-27 per
+        Phase-3c wave sequence, KW-27 per
         ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3 +
         ``docs/quality-gates/phase-3c-doppel-welle-6-7.md`` §4). The
         sign-off is structurally an in-progress -> signed-off transition
@@ -1325,12 +1325,12 @@ class WelleStateProducer:
           companion marker (same as :meth:`handle_sign_off_event`),
         * the pre-auditor guard ``pre_auditor_decision == "designated"``
           (Welle-7 is in :data:`PRE_AUDITOR_GUARDED_WELLEN` per the
-          Henrik-cannot-self-sign-off invariant, plan-doc §2.2; mirrors
+          audit-cannot-self-sign-off invariant, plan-doc §2.2; mirrors
           the Welle-3 Bridge-Audit sign-off guard),
         * the final-sealing-marker ``final_sealing_marker_status ==
-          "confirmed"`` (Tag-75 §2.8; the operator-curated marker
+          "confirmed"`` (§2.8; the operator-curated marker
           ``state/welle-7-final-sealing.json`` confirms the Phase-3-
-          Marathon-Schluss-Acceptance verdict per phase-3c-doppel-
+          closing acceptance verdict per phase-3c-doppel-
           welle-6-7.md §4.1). Refused otherwise.
 
         Refusal-order (deterministic for audit-trail forensics):
@@ -1354,7 +1354,7 @@ class WelleStateProducer:
         ``new_status == "signed-off"`` and
         ``trigger == "final-sealing"``. The Phase-3-COMPLETE-marker
         emission itself is NOT this producer-substrate's responsibility
-        (audit-trail-consumer-territory; Henrik Internal Audit Zone-N).
+        (audit-trail-consumer-territory; internal audit Zone-N).
 
         The audit-record carries ``trigger="final-sealing"`` (the
         sixth marker-family trigger, disambiguating from the Welle-2
@@ -1364,7 +1364,7 @@ class WelleStateProducer:
         ``"final-sealing"`` is intentionally distinct from Welle-2's
         ``"sealing"``: the Welle-2 sealing closes the legacy <-> new
         dual-write window (one substrate boundary); the Welle-7 final-
-        sealing closes the entire Phase-3c-Welle-Marathon (substrate
+        sealing closes the entire Phase-3c wave sequence (substrate
         closure of the four-Wochen-Cadence). The disjoint triggers let
         the bridge-audit-writer consumer route to the correct downstream
         sub-stream without ambiguity.
@@ -1386,9 +1386,9 @@ class WelleStateProducer:
 
         Forensic note: the final-sealing-iso itself is not stored in
         the schema-pinned state-file (the schema-pin is unchanged per
-        Tag-67); it is recoverable from the audit-stream via the
+        ); it is recoverable from the audit-stream via the
         ``trigger="final-sealing"`` record + ``signoff_iso``. The
-        Phase-3-Marathon-Schluss-Acceptance verdict envelope is
+        Phase-3 closing acceptance verdict envelope is
         verified by the downstream marker-emit-gate at the audit-trail
         consumer level (phase-3c-doppel-welle-6-7.md §4.1), NOT by this
         producer-substrate (producer-substrate is engine-side only, no
@@ -1401,14 +1401,14 @@ class WelleStateProducer:
                 f"sign-off-marker for welle-{welle_number} not "
                 f"signed-off: got {sign_off_marker_status!r}"
             )
-        # Welle-7 is pre-auditor-guarded (Henrik-cannot-self-sign-off,
+        # Welle-7 is pre-auditor-guarded (audit-cannot-self-sign-off,
         # plan-doc §2.2). The guard fires before the final-sealing-marker
         # check; this matches the Welle-3 pre-auditor-guard refusal-order.
         if welle_number in PRE_AUDITOR_GUARDED_WELLEN:
             if pre_auditor_decision != "designated":
                 raise PreAuditorGuardError(
                     f"welle-{welle_number} sign-off requires a "
-                    f"designated pre-auditor (Henrik-cannot-self-"
+                    f"designated pre-auditor (pre-auditor-cannot-self-"
                     f"sign-off); got pre_auditor_decision="
                     f"{pre_auditor_decision!r}"
                 )
@@ -1456,7 +1456,7 @@ class WelleStateProducer:
         self.audit_emitter(record)
         return record
 
-    # -- Transition: ANY -> rolled-back (Tag-70 §2.4 Rollback-Writer) --
+    # -- Transition: ANY -> rolled-back (§2.4 Rollback-Writer) --
 
     def handle_rollback_event(
         self,
@@ -1465,7 +1465,7 @@ class WelleStateProducer:
         *,
         rollback_marker_status: str,
     ) -> WelleAuditRecord:
-        """Apply a rollback transition (Tag-70 §2.4 Rollback-Writer).
+        """Apply a rollback transition (§2.4 Rollback-Writer).
 
         Allowed prior states (plan-doc §3.1)::
 
@@ -1558,7 +1558,7 @@ class WelleStateProducer:
         _enforce_shape(data, target)
         return json.loads(json.dumps(data))
 
-    # -- Tag-76: Phase-3-COMPLETE cross-Welle verifier (Production-Bringup). --
+    # --: Phase-3-COMPLETE cross-Welle verifier (Production-Bringup). --
 
     def handle_phase_3_complete_event(
         self,
@@ -1567,12 +1567,12 @@ class WelleStateProducer:
         required_wellen: frozenset = PHASE_3_COMPLETE_REQUIRED_WELLEN,
         phase_3_emitter: Optional[Phase3CompleteAuditEmitter] = None,
     ) -> Phase3CompleteAuditRecord:
-        """Verify all required Wellen are in canonical signed-off State (Tag-76).
+        """Verify all required Wellen are in canonical signed-off State.
 
         Cross-Welle Production-Bringup-Verifier. **Read-only**: this
         method does NOT mutate any Welle-State-File. It checks the
         invariants required for the downstream audit-trail consumer
-        (Henrik Internal Audit Zone-N) to fire the
+        (internal audit Zone-N) to fire the
         ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker.
 
         The verifier is parametric over ``required_wellen`` for unit-
@@ -1611,17 +1611,17 @@ class WelleStateProducer:
         ``verify_iso`` reflects the later call (timestamps are caller-
         supplied).
 
-        Scope discipline (Selin)
+        Scope discipline (the persona-engine side)
         ------------------------
 
         * No state-file mutation (read-only).
         * No marker-file mutation (the
           ``PHASE_3_COMPLETE_VIA_DOPPEL_WELLE_6_7`` marker file lives
           downstream; this verifier is the engine-side gate-input).
-        * No persona-definition mutation (Aisha-Domaene).
-        * No WAT-core coupling (Tomas-Domaene, Zone-K).
-        * No identity-substrate coupling (Reza-Domaene, Zone-L).
-        * No container-infra coupling (Kai-Domaene, Zone-J).
+        * No persona-definition mutation (HR-Domaene).
+        * No WAT-core coupling (WAT-Domaene, Zone-K).
+        * No identity-substrate coupling (protocol-Domaene, Zone-L).
+        * No container-infra coupling (infra-Domaene, Zone-J).
 
         Args:
             verify_iso: RFC 3339 verification-timestamp (caller-supplied).

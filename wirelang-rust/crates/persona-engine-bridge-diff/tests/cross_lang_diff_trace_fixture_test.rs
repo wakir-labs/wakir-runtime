@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-bridge-diff
-// canonical-trace (Tag-36 Mini-Welle Phase-3a Python-sync, 13. Modul).
+// canonical-trace (Mini-Welle Phase-3a Python-sync, 13. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/bridge-audit-diff-engine-cross-lang/fixtures.json`
@@ -155,7 +155,7 @@ fn f02_fixture_file_structure_pin() {
     assert_eq!(
         fixtures.len(),
         6,
-        "Tag-36 cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
+        "cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
     );
     for f in fixtures {
         let f_obj = f.as_object().expect("fixture entry must be object");

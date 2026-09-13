@@ -10,8 +10,8 @@
 
 This module is the **Python-Side-Sync** counterpart of the Rust crate
 ``wirelang-rust/crates/persona-engine-nats-subjects`` (Phase-3a Modul
-10, Tag-12 Mini-Welle, merged via PR #146 as "Rust-canonical,
-Python-Sync-Folge dokumentiert"). Tag-14 Mini-Welle (this file)
+10, Mini-Welle, merged via PR #146 as "Rust-canonical,
+Python-Sync-Folge dokumentiert"). Mini-Welle (this file)
 closes the parity loop: the 8 pin-pack fixtures listed in the Rust
 ``pins`` sub-module are reproduced here byte-identically by the typed
 builder functions, and a SHA-256 over the ``\\n``-joined list is

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 
-//! Persona-Engine Bridge-Forward -- Tag-25 Mini-Welle (10. Modul).
+//! Persona-Engine Bridge-Forward -- Mini-Welle (10. Modul).
 //!
-//! Rust authority for the Mira-side Bridge-Forward-Pipe
+//! Rust authority for the orchestrator-side Bridge-Forward-Pipe
 //! canonical-frame surface. The pre-existing Python authority is
-//! `wirelang/cli/bridge_forward.py` (Sprint-10 Tag-6); the Tag-25
+//! `wirelang/cli/bridge_forward.py`; the
 //! sibling `wirelang/cli/bridge_forward_canonical.py` exposes the
 //! higher-layer [`ForwardFrame`] wire-shape that this crate mirrors
 //! byte-for-byte.
@@ -14,7 +14,7 @@
 //!
 //! Byte-identical Python sibling at
 //! `wirelang/cli/bridge_forward_canonical.py` (Apache-2.0, same
-//! Tag-25 bundle). Both modules emit identical JCS-canonical bytes
+//! bundle). Both modules emit identical JCS-canonical bytes
 //! for the cross-lang fixture file
 //! `tests/fixtures/bridge-forward-cross-lang/fixtures.json`.
 //!
@@ -40,7 +40,7 @@
 //!
 //! Forward-frame: three alphabetical top-level keys
 //!
-//! - `envelope` : the Sprint-10 Tag-6 nine-key envelope dict.
+//! - `envelope` : the nine-key envelope dict.
 //! - `schema`   : constant [`BRIDGE_FORWARD_FRAME_SCHEMA`].
 //! - `subject`  : canonical NATS subject string built by
 //!   [`build_subject`].
@@ -69,10 +69,10 @@
 //! # ADR anchors
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 10 (this crate).
-//! - Reza PR #170 (Tag-18) -- anchor-emitter Python sibling pattern.
-//! - Reza PR #177 (Tag-21) -- lifecycle-FSM canonical-trace pattern.
-//! - Reza PR #183 (Tag-23) -- state-backing cross-lang parity pattern.
-//! - Reza PR #188 (Tag-24) -- federation-resolver cross-lang parity pattern.
+//! - PR #170 -- anchor-emitter Python sibling pattern.
+//! - PR #177 -- lifecycle-FSM canonical-trace pattern.
+//! - PR #183 -- state-backing cross-lang parity pattern.
+//! - PR #188 -- federation-resolver cross-lang parity pattern.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -105,13 +105,13 @@ pub const HASH_PREFIX: &str = "sha256:";
 /// Hex-string length of a SHA-256 digest (lower-case, no prefix).
 pub const SHA256_HEX_LEN: usize = 64;
 
-/// Size envelope from Sprint-10 Tag-6 §3.3 -- `prompt_payload` cap.
+/// Size envelope from §3.3 -- `prompt_payload` cap.
 pub const MAX_PROMPT_PAYLOAD_BYTES: usize = 256 * 1024;
 
-/// Size envelope from Sprint-10 Tag-6 §3.3 -- `auftrag_id` octet cap.
+/// Size envelope from §3.3 -- `auftrag_id` octet cap.
 pub const MAX_AUFTRAG_ID_OCTETS: usize = 64;
 
-/// Size envelope from Sprint-10 Tag-6 §3.3 -- `metadata` JCS cap.
+/// Size envelope from §3.3 -- `metadata` JCS cap.
 pub const MAX_METADATA_BYTES: usize = 8 * 1024;
 
 /// Default `org_id` (matches the Python CLI default).
@@ -140,7 +140,7 @@ pub enum BridgeForwardError {
     /// Generic shape error (e.g. internal serialisation invariant
     /// breach); the payload is the failure reason.
     InvalidShape(String),
-    /// A field exceeded the Sprint-10 Tag-6 §3.3 size envelope.
+    /// A field exceeded the §3.3 size envelope.
     /// Fields:
     /// - `field`: which limit fired (`"prompt_payload"`,
     ///   `"auftrag_id"`, `"metadata"`).
@@ -192,7 +192,7 @@ impl fmt::Display for BridgeForwardError {
 impl std::error::Error for BridgeForwardError {}
 
 // ---------------------------------------------------------------------
-// AuftragEnvelope -- inner Sprint-10 Tag-6 envelope
+// AuftragEnvelope -- inner envelope
 // ---------------------------------------------------------------------
 
 /// Inner agent.task.assigned envelope -- mirrors the Python
@@ -272,7 +272,7 @@ impl AuftragEnvelope {
 ///
 /// Mirrors the Python `build_subject` function. The subject pattern
 /// honours the subject-mapping-v1 regex
-/// `^wakir\.(dev|staging|prod)\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*(\.[a-zA-Z0-9_.-]+)?$`.
+/// `^wakir\.(dev|staging|prod)\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_.-]*(\.[a-zA-Z0-9_.-])?$`.
 ///
 /// # Errors
 ///
@@ -321,7 +321,7 @@ fn is_valid_persona_slug(slug: &str) -> bool {
 ///
 /// The four required fields plus `ts_utc` and `prompt_payload` form
 /// the inner [`AuftragEnvelope`]. `org_id` / `source` default to the
-/// Sprint-10 Tag-6 CLI defaults [`DEFAULT_ORG_ID`] / [`DEFAULT_SOURCE`].
+/// CLI defaults [`DEFAULT_ORG_ID`] / [`DEFAULT_SOURCE`].
 /// `metadata` defaults to empty.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForwardFrameInput {
@@ -344,7 +344,7 @@ pub struct ForwardFrameInput {
 }
 
 impl ForwardFrameInput {
-    /// Build a fresh input using the Sprint-10 Tag-6 CLI defaults for
+    /// Build a fresh input using the CLI defaults for
     /// `org_id` (`"acme"`) and `source` (`"mira-sandbox"`).
     #[must_use]
     pub fn new(
@@ -424,7 +424,7 @@ impl ForwardFrame {
 /// subject-mapping-v1 regex) and constructs the inner
 /// [`AuftragEnvelope`] in-place. The forward-frame inherits the inner
 /// envelope's size invariants (callers MUST call
-/// [`validate_forward_frame`] to enforce the Sprint-10 Tag-6 §3.3 size
+/// [`validate_forward_frame`] to enforce the §3.3 size
 /// envelope).
 ///
 /// # Errors
@@ -514,7 +514,7 @@ pub fn serialize_and_hash(frame: &ForwardFrame) -> Result<(Vec<u8>, String), Bri
 // Size-envelope validation
 // ---------------------------------------------------------------------
 
-/// Apply the Sprint-10 Tag-6 §3.3 size envelope to the inner envelope
+/// Apply the §3.3 size envelope to the inner envelope
 /// of `frame`. Raises a typed [`BridgeForwardError::SizeLimit`] error
 /// on the first failure (in field-name alphabetical order:
 /// `auftrag_id`, `metadata`, `prompt_payload`).
@@ -578,7 +578,7 @@ mod tests {
 
     #[test]
     fn slug_validator_rejects_bad_inputs() {
-        for s in &["", "Tomas", "1tomas", "to.mas", "to mas", "tom!", "-tom"] {
+        for s in &["", "Uppercase", "1tomas", "to.mas", "to mas", "tom!", "-tom"] {
             assert!(!is_valid_persona_slug(s), "expected reject: {s}");
         }
     }

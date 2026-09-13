@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-subscribe-loop
-// ack-records (Tag-19 Mini-Welle, Phase-3a Python-sync).
+// ack-records (Mini-Welle, Phase-3a Python-sync).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/subscribe-loop-cross-lang/fixtures.json` at the
@@ -34,7 +34,7 @@
 // remains text-only. Rather than add the `base64` crate as a
 // dev-dependency we inline a small lookup-table decoder; the
 // fixture data is hard-coded and base64-decoded once per test.
-// Identical pattern to the `persona-engine-anchor-emitter` Tag-18
+// Identical pattern to the `persona-engine-anchor-emitter`
 // PR #170 fixture test.
 
 use persona_engine_subscribe_loop::{
@@ -138,7 +138,7 @@ fn f01_fixture_file_loads_and_schema_matches_crate_constant() {
     assert_eq!(
         fixtures.len(),
         5,
-        "Tag-19 pins exactly 5 cross-lang fixtures, got {}",
+        "exactly 5 cross-lang fixtures are pinned, got {}",
         fixtures.len()
     );
 

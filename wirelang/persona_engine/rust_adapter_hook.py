@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Rust persona-engine adapter hook — Phase-3a Doppelbetrieb-Third-Sink.
 
-Sprint-Rust-Adapter-Hook-Skeleton-MINI follow-on to PR #113
+follow-on to PR #113
 (``bridge_audit_triangle``). The triangle module shipped the 3-way
 cross-check entry point plus a *byte-identical stub* for the Rust
 persona-engine sink. This module ships the **operator-facing hook
@@ -57,7 +57,7 @@ Env-var contract
   byte-identical stub so the report shape stays 3-way for downstream
   consumers but no real Rust cross-check is performed.
 
-``WAKIR_RUST_ENGINE_BIN`` (this module — Sprint-Rust-Adapter-Hook-
+``WAKIR_RUST_ENGINE_BIN`` (this module — -
 Skeleton-MINI):
 
 * Absolute path to the Rust persona-engine binary. Default

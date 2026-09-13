@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-fsm canonical-trace
-// (Tag-21 Mini-Welle, Phase-3a Python-sync — 7th module).
+// (Mini-Welle, Phase-3a Python-sync — 7th module).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/lifecycle-state-machine-cross-lang/fixtures.json`
@@ -35,7 +35,7 @@
 // The fixture file encodes byte fields as base64 (b64) so JSON
 // remains text-only. Rather than add the `base64` crate as a
 // dev-dependency we inline a small lookup-table decoder; identical
-// pattern to the `persona-engine-subscribe-loop` Tag-19 PR #172
+// pattern to the `persona-engine-subscribe-loop` PR #172
 // fixture test.
 
 use persona_engine_fsm::canonical::{

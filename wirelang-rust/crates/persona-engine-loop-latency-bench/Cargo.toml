@@ -25,15 +25,15 @@
 #
 # Why this benchmark exists
 # -------------------------
-# The subscribe-loop driver `run_subscribe_loop` (Reza PR #132) takes
+# The subscribe-loop driver `run_subscribe_loop` (PR #132) takes
 # an in-memory `tokio::sync::mpsc::Receiver<SubscribeMessage>` and a
 # `MessageHandler`. It is the deterministic substrate the 3-way bridge
-# (Selin PR #113) compares against. Once the live `async-nats` binding
-# extends this driver (Phase-3a follow-up Item-5+), the question
+# (PR #113) compares against. Once the live `async-nats` binding
+# extends this driver (Phase-3a follow-up Item-5), the question
 # operationally is: *what is the lower-bound end-to-end latency the
 # substrate adds on top of the wire?* This bench answers that question
 # under controlled synthetic load. It also gives a Rust ground-truth
-# number that the Python sibling (Selin Sprint-Pengine-13) can be
+# number that the Python sibling (the persona-engine side) can be
 # diffed against in a future cross-lang performance-parity audit.
 #
 # Scope discipline (in-process only)
@@ -74,7 +74,7 @@
 #     }
 #   }
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wirelang/persona_engine/` Python source.
 # - No LICENSING / NOTICE / .github/workflows touches.
@@ -115,9 +115,9 @@
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 15 (LAST — this crate).
 # - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
-# - Reza PR #132 — subscribe-loop scaffold (Phase-3a Item 4) — schema
+# - PR #132 — subscribe-loop scaffold (Phase-3a Item 4) — schema
 #   authority for SubscribeMessage and run_subscribe_loop_with_timeout.
-# - Selin PR #79  — Python schema-parity reference (informs the
+# - PR #79 — Python schema-parity reference (informs the
 #   envelope-shape the synthetic generator emits).
 
 [package]

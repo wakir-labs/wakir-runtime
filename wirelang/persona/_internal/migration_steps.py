@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""V-907 self-migration step registry (Phase-1b Sprint-2 Tag-1, S2-T1-02).
+"""V-907 self-migration step registry (S2-T1-02).
 
 Each :class:`MigrationStep` captures one schema-version transition
 ``v_n -> v_{n+1}``. Multi-step chains (``v_n -> v_{n+m}``) are resolved
 by composition in :mod:`wirelang.persona.persona_migration`.
 
-Design anchors (Tag-4-Skizze §3.2 + Default-Lock A-1/A-2/A-3 ratified
+Design anchors (the design sketch §3.2 + Default-Lock A-1/A-2/A-3 ratified
 2026-05-07 ~10:00 CEST):
 
 - **A-1 Mock-Format-baseline:** the V-907 mock canonical subset is the
@@ -19,7 +19,7 @@ Design anchors (Tag-4-Skizze §3.2 + Default-Lock A-1/A-2/A-3 ratified
   subset that JCS will hash.
 - **D-2 mitigation:** every default value the step injects is written
   *explicitly* in code, never via JSON-Schema default-inference. This
-  guarantees byte-determinism of the output (Tag-4 §2.3).
+  guarantees byte-determinism of the output (§2.3).
 
 Registry posture
 ----------------
@@ -61,14 +61,14 @@ class MigrationStep(Protocol):
 class V0ToV1Step:
     """``persona-v0 -> persona-v1`` schema-version lift.
 
-    Per Tag-4-Skizze §3.2 R1-R4 and Default-Lock A-1/A-2/A-3:
+    Per the design sketch §3.2 R1-R4 and Default-Lock A-1/A-2/A-3:
     the v0 to v1 transition is a schema-version edit only. All
     other top-level keys, the full ``identity_pinned`` block, and
     the markdown body (out-of-hash per A-3) pass through unchanged.
 
     This is the alignment step from the pre-framework era onto the
-    Tag-2 mock canonical subset, not a content extension. With the
-    Sprint-3 Tag-3 ``V1ToV2Step`` registered below, v0 inputs resolve
+    mock canonical subset, not a content extension. With the
+    ``V1ToV2Step`` registered below, v0 inputs resolve
     to the chain ``[V0ToV1Step(), V1ToV2Step()]`` automatically when
     the caller requests ``target_schema_version="persona-v2"``.
     """
@@ -96,10 +96,10 @@ class V0ToV1Step:
 class V1ToV2Step:
     """``persona-v1 -> persona-v2`` schema-version lift.
 
-    Per Tag-1-Sketch §3 (Phase-1b Sprint-3 Tag-1, V10-Migration-
+    Per the design sketch §3 (V10-Migration-
     Vorbereitung) and Default-Lock A-1/A-2/A-3: the v1 to v2 transition
     is a schema-version edit only. The persona-v2 schema authored at
-    Tag-2 (``wirelang/schemas/persona-v2.json``) opens a closed
+    (``wirelang/schemas/persona-v2.json``) opens a closed
     allow-list of additive optional fields at the top level
     (``model_pin``, ``spawn_constraints``) and inside
     ``identity_pinned`` (``identity_doc_ref``, ``persona_owner_role``,
@@ -115,16 +115,16 @@ class V1ToV2Step:
       v9-shape input yields a canonical-subset dict that differs from
       the v9 dict only in ``schema_version``.
     - **Reserved fields** (Option D-A pin-stability discipline,
-      Tag-1-Sketch §6) hash identically to absent when present-but-
+      the design sketch §6) hash identically to absent when present-but-
       empty, because the canonical-subset extractor drops empty
-      mappings. The Sprint-3 Tag-N reserved-field round-trip pack
+      mappings. The Tag-N reserved-field round-trip pack
       (§4.3) is the canary for this discipline.
 
-    D-2 mitigation (Tag-4-Skizze §2.3): no default-injection in this
+    D-2 mitigation (the design sketch §2.3): no default-injection in this
     step; every output byte is explicit. The only mutation is the
     ``schema_version`` const flip.
 
-    Pin-pack consequence (Tag-1-Sketch §3): the canonical-subset
+    Pin-pack consequence (the design sketch §3): the canonical-subset
     *includes* ``schema_version`` in the JCS bytes, so lifting v1 to v2
     yields a *new* hash. The migrated-v9 pin and the migrated-v8 pin
     (chain ``v0 -> v1 -> v2``) are equal by construction
@@ -132,7 +132,7 @@ class V1ToV2Step:
     PERSONA_HASH_PIN_V9_MIGRATED_TO_V2``) because v8 and v9 share every
     canonical-subset key except ``schema_version`` and the chain's
     endpoint always sets ``schema_version=persona-v2``. This is the
-    M-1 (linear-chain) direct-anchor that Sprint-2 flagged as
+    M-1 (linear-chain) direct-anchor that was flagged as
     currently indirect.
     """
 
@@ -158,9 +158,9 @@ class V1ToV2Step:
 
 #: The flat, ordered registry of migration steps.
 #:
-#: Phase-1b Sprint-2 Tag-1 introduced :class:`V0ToV1Step`.
-#: Phase-1b Sprint-3 Tag-3 appends :class:`V1ToV2Step` (linear-chain
-#: extension, Tag-4-Skizze §3.1 P2-marker: linear-chain-only, no
+#: A later revision introduced :class:`V0ToV1Step`.
+#: A later revision appends :class:`V1ToV2Step` (linear-chain
+#: extension, the design sketch §3.1 P2-marker: linear-chain-only, no
 #: branching DAG in Phase-1b). A v0 input resolves through
 #: ``[V0ToV1Step(), V1ToV2Step()]`` automatically when the caller
 #: requests ``target_schema_version="persona-v2"``.

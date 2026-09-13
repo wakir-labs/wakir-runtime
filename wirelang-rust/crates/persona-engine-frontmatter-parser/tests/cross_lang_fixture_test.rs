@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-frontmatter-parser
-// canonical-trace (Tag-34 Mini-Welle, Phase-3a Python-sync — 11th module).
+// canonical-trace (Mini-Welle, Phase-3a Python-sync — 11th module).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/frontmatter-parser-cross-lang/fixtures.json`
@@ -119,7 +119,7 @@ fn f01_fixture_file_loads_with_expected_structure() {
         FRONTMATTER_TRACE_SCHEMA
     );
     let fixtures = doc["fixtures"].as_array().expect("fixtures is an array");
-    assert_eq!(fixtures.len(), 7, "Tag-34 cross-lang vector count is 7");
+    assert_eq!(fixtures.len(), 7, "cross-lang vector count is 7");
     for f in fixtures {
         for key in &["name", "input_md_b64", "expected"] {
             assert!(

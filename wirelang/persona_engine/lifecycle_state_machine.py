@@ -102,7 +102,7 @@ class LifecycleStateMachine:
     Each instance carries exactly one persona's lifecycle. Single-
     writer; callers MUST serialise transitions externally (the engine
     holds a per-persona asyncio lock if multi-coroutine spawn-paths
-    are wired in Tag-N+).
+    are wired in Tag-N).
     """
 
     def __init__(

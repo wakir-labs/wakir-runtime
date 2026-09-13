@@ -24,7 +24,7 @@ substrate** for that decision:
   V-907 pin still present in the affinity key for telemetry-only).
 - Parse the Anthropic ``usage`` response object into a structured
   :class:`CacheTelemetry` envelope that downstream loggers / Prometheus
-  textfile-gauge writers (Noa's Watchdog-Pattern) can consume without
+  textfile-gauge writers (the observability-side Watchdog-Pattern) can consume without
   re-tokenising the raw HTTP body.
 - Provide ``supports_caching()`` as part of the LLM-hook capability
   interface so the provider-lock-in boundary (ADR-0064 §"Provider-Lock-

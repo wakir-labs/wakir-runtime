@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 
-//! Subscribe-Loop ack-record substrate (Tag-19 Mini-Welle).
+//! Subscribe-Loop ack-record substrate (Mini-Welle).
 //!
 //! This module is the Rust pendant of the Python sibling
 //! `wirelang.persona_engine.subscribe_ack` (PR shipped with this
@@ -15,7 +15,7 @@
 //! The `run_subscribe_loop` driver in this crate produces a
 //! `SubscribeLoopState` snapshot (lag, processed-count,
 //! last-message-at). That snapshot is **per-loop**, not **per-frame**.
-//! The Tag-19 cross-lang parity contract is **per-frame**: one
+//! The cross-lang parity contract is **per-frame**: one
 //! deterministic ack-record per inbound frame, regardless of whether
 //! the engine ran in core-callback, iterator, or JetStream-pull mode.
 //! Keeping the ack-record substrate in its own module preserves the
@@ -48,11 +48,11 @@
 //!
 //! # ADR anchors
 //!
-//! - ADR-0063 §Folgeartefakte Phase-3a Item 4 + Tag-19 Python-sync.
-//! - Selin PR #79  (Python subscribe-loop schema authority).
-//! - Selin PR #113 (3-way-triangle Doppelbetrieb).
-//! - Reza  PR #132 (Rust subscribe-loop scaffold; this crate).
-//! - Reza  PR #170 (Tag-18 anchor-emitter Python-sync pattern).
+//! - ADR-0063 §Folgeartefakte Phase-3a Item 4 + Python-sync.
+//! - PR #79  (Python subscribe-loop schema authority).
+//! - PR #113 (3-way-triangle Doppelbetrieb).
+//! - PR #132 (Rust subscribe-loop scaffold; this crate).
+//! - PR #170 (anchor-emitter Python-sync pattern).
 
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};

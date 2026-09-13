@@ -88,7 +88,7 @@ fn counting_escalation_hook(
 
 #[tokio::test]
 async fn t1_r1_trigger_fence_active_classifies_as_crash_detected() {
-    // Sprint-Auftrag flag `fence_active` maps onto the Python
+    // flag `fence_active` maps onto the Python
     // CrashDetected trigger. The drill runs end-to-end with the
     // default no-op hooks and the four phases must all complete.
     let mut ctx = fresh_context();
@@ -108,7 +108,7 @@ async fn t1_r1_trigger_fence_active_classifies_as_crash_detected() {
 
 #[tokio::test]
 async fn t2_r2_trigger_subscribe_failure_classifies_as_despawn_mid_operation() {
-    // Sprint-Auftrag flag `subscribe_failure` maps onto
+    // flag `subscribe_failure` maps onto
     // DespawnMidOperation. R2 phase annotation must be the
     // snapshot-restored audit string.
     let mut ctx = fresh_context();
@@ -128,7 +128,7 @@ async fn t2_r2_trigger_subscribe_failure_classifies_as_despawn_mid_operation() {
 
 #[tokio::test]
 async fn t3_r3_trigger_pin_drift_classifies_as_state_corruption() {
-    // Sprint-Auftrag flag `pin_drift` maps onto StateCorruption.
+    // flag `pin_drift` maps onto StateCorruption.
     // R3 audit annotation must contain the SPIFFE ID for the persona.
     let mut ctx = fresh_context();
     ctx.pin_drift = true;

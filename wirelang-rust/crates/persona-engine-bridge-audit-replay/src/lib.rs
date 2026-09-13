@@ -2,7 +2,7 @@
 //! Deterministic Bridge-Audit stream-replay engine for the Phase-3a
 //! Doppelbetrieb-Bridge consistency drill.
 //!
-//! Sprint-Bridge-Audit-Replay-Engine-Rust-MINI (ADR-0063 §Folgeartefakte
+//! (ADR-0063 §Folgeartefakte
 //! Phase-3a Item 11).
 //!
 //! Whereas [`persona_engine_bridge_diff`] compares ONE Python envelope
@@ -103,7 +103,7 @@ impl From<BridgeDiffError> for ReplayError {
 /// One Bridge-Audit record in a replay stream.
 ///
 /// Mirrors `wirelang.persona_engine.bridge_audit_writer.
-/// EngineeringOutputEvent` (PR #106 / Sprint-1 Tag-4) field-for-field;
+/// EngineeringOutputEvent` (PR #106 /) field-for-field;
 /// the JCS canonical form is byte-identical to the Python pendant's
 /// `EngineeringOutputEvent.to_jcs_bytes()`. The field schema is frozen
 /// at `wakir.persona.engineering-output/1`.
@@ -513,7 +513,7 @@ impl ReplayEngine {
 }
 
 // ---------------------------------------------------------------------------
-// Canonical-trace sub-module (Tag-37 Phase-3a 14. Modul).
+// Canonical-trace sub-module (Phase-3a 14. Modul).
 //
 // This sub-module is the byte-paritätisch pendant of the Python sibling
 // `wirelang.persona_engine.bridge_audit_replay_canonical`.  Where the
@@ -535,7 +535,7 @@ impl ReplayEngine {
 //
 // See module-level docstring of the Python sibling for the design
 // rationale (sibling-pattern parity with `bridge_audit_diff_engine_canonical`
-// (Tag-36 13. Modul) and `v907_verify_canonical` (Tag-35 12. Modul)).
+// (13. Modul) and `v907_verify_canonical` (12. Modul)).
 // ---------------------------------------------------------------------------
 
 /// Canonical-trace projection of a bridge-audit-replay outcome.

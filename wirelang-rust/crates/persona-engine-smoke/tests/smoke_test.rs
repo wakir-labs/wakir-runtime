@@ -5,7 +5,7 @@
 // =================================
 //
 // One unit-test per axis-decision smoke function plus invariant tests
-// and a master run-all assertion. Total >= 10 tests per Sprint-Auftrag.
+// and a master run-all assertion. Total >= 10 tests.
 //
 // These tests are the Phase-3a-Pre-Trigger acceptance gate: every
 // crate from the Decision-Doc compiles and round-trips on the target
@@ -109,7 +109,7 @@ fn sha256_hash_matches_known_vector() {
     // Cross-check with a hand-computed known-answer test.
     // The Python equivalent of this expected hex was computed via
     //   python3 -c "import hashlib; print(hashlib.sha256(b'wakir-labs persona-engine-smoke sha256 hello-world').hexdigest())"
-    // — Reza recomputes this once cargo-test passes, then pins as a
+    // — the protocol side recomputes this once cargo-test passes, then pins as a
     // Phase-3a-Initial cross-lang vector. For the smoke layer we use
     // the digest produced by sha2 0.11.0 itself as the self-anchor:
     // any future drift between 0.11.x patches will surface here.

@@ -39,7 +39,7 @@
 # -----------
 #
 # - ADR-0063 §Folgeartefakte Phase-3a — Rust-Crate-Bundle Item 3.
-# - Sprint-Pengine-7 Tag-1 Crate-8 (persona-engine-format) — same axis-A
+# - Crate-8 (persona-engine-format) — same axis-A
 #   surface; this crate is the verify side of the same axis.
 # - PR #120 (crate-smoke-test foundation) + PR #132 (subscribe-loop)
 #   establish the engine-side Rust pendant pattern.
@@ -58,7 +58,7 @@ authors.workspace      = true
 name = "persona_engine_v907_verify"
 path = "src/lib.rs"
 
-# Tag-26 Mini-Welle: Operator-CLI binary for the V-907 engine-side
+# Mini-Welle: Operator-CLI binary for the V-907 engine-side
 # verify path. Thin wrapper around the library; consumed by the
 # container-image-build-pipeline (.github/workflows/build-rust-cli-
 # v907-verify.yml). See src/main.rs for the subcommand surface

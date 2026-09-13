@@ -10,8 +10,8 @@
 //!    personas in the canonical bench setup).
 //! 2. **Real** — hand-curated persona-definition markdown checked into
 //!    the crate under `tests/fixtures/v907_pin_pack/*.md`. These are
-//!    representative of operator-supplied personas (Mira, Tomás,
-//!    Priya, Kai, Aisha) and exercise the canonical-subset lift over
+//!    representative of operator-supplied personas (the orchestrator, the WAT side,
+//!    the CTO, the infra side, HR) and exercise the canonical-subset lift over
 //!    the four optional keys.
 //!
 //! Determinism contract

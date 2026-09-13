@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-bridge-forward
-// (Tag-25 Mini-Welle, Phase-3a Python-sync, 10. Modul).
+// (Mini-Welle, Phase-3a Python-sync, 10. Modul).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/bridge-forward-cross-lang/fixtures.json` at the
@@ -41,8 +41,8 @@
 // The fixture file encodes byte fields as base64 so JSON remains
 // text-only. Rather than add the `base64` crate as a dev-dependency
 // we inline a small lookup-table decoder; identical pattern to
-// `persona-engine-federation-resolver` (Tag-24 PR #188) and
-// `persona-engine-state-backing` (Tag-23 PR #183).
+// `persona-engine-federation-resolver` (PR #188) and
+// `persona-engine-state-backing` (PR #183).
 
 use persona_engine_bridge_forward::{
     build_forward_frame, build_subject, forward_frame_hash_prefixed, forward_frame_sha256_hex,
@@ -576,7 +576,7 @@ fn f11_size_limit_validation_boundary_and_over() {
         Err(BridgeForwardError::InvalidEnv(_))
     ));
     assert!(matches!(
-        build_subject("dev", "Tomas"),
+        build_subject("dev", "Uppercase"),
         Err(BridgeForwardError::InvalidPersonaSlug(_))
     ));
     assert!(matches!(

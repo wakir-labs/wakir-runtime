@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bridge-audit stream-replay engine (Tag-37 Phase-3a 14. Modul).
+"""Bridge-audit stream-replay engine (Phase-3a 14. Modul).
 
 This module is the **Python sibling** of the Rust crate
 ``persona-engine-bridge-audit-replay`` (PR #205 / ADR-0063 §Folgeartefakte

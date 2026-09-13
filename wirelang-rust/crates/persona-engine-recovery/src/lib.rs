@@ -6,9 +6,9 @@
 //!
 //! This is the **initial Rust scaffold** of the persona-engine
 //! recovery-workflow. The Python reference implementation lives at
-//! `wirelang/persona_engine/recovery_workflow.py` (Selin Sprint-
-//! Pengine-8 PR #65, persona-engine-format-spec §3.7.4). The
-//! Doppelbetrieb-Konsistenz contract (Selin PR #113 3-way-triangle)
+//! `wirelang/persona_engine/recovery_workflow.py` (PR #65,
+//! persona-engine-format-spec §3.7.4). The
+//! Doppelbetrieb-Konsistenz contract (PR #113 3-way-triangle)
 //! requires this Rust substrate to produce schema-byte-parity with
 //! the Python workflow at the audit-record boundary.
 //!
@@ -36,14 +36,14 @@
 //! | `RECOVERY_WORKFLOW_PHASE_ORDER`         | [`RECOVERY_WORKFLOW_PHASE_ORDER`]|
 //! | `_utc_now_rfc3339()`                    | [`utc_now_rfc3339`]              |
 //!
-//! # Naming note (Sprint-Auftrag vs. PR-65)
+//! # Naming note (vs. PR-65)
 //!
-//! The Sprint-Auftrag describes `RecoveryAction` variants as
+//! The describes `RecoveryAction` variants as
 //! `R1Refetch / R2Resubscribe / R3Restart / R4Escalate`. The Python
 //! foundation (PR #65, spec §3.7.4.2) uses the canonical labels
 //! `R1 Detect / R2 Reload / R3 Re-register / R4 Resume`. Hard-
 //! constraint "Schema-Parität zu Python recovery_workflow.py" wins —
-//! we mirror the Python phase labels exactly. The Sprint-Auftrag's
+//! we mirror the Python phase labels exactly. The 's
 //! four action-hooks (SVID-Refetch, NATS-Resubscribe, FSM-Restart,
 //! Operator-Escalation) map onto the four phases as advisory action-
 //! hooks via the [`RecoveryHooks`] injection point: the operator
@@ -53,10 +53,10 @@
 //! # ADR anchors
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 4.
-//! - Selin PR #65  (Sprint-Pengine-8) — Python schema authority.
-//! - Selin PR #113 (3-way-triangle) — Doppelbetrieb substrate.
-//! - Selin PR #131 (bridge-diff-engine-rust) — sibling crate.
-//! - Reza  PR #132 (subscribe-loop-rust) — sibling crate.
+//! - PR #65 — Python schema authority.
+//! - PR #113 (3-way-triangle) — Doppelbetrieb substrate.
+//! - PR #131 (bridge-diff-engine-rust) — sibling crate.
+//! - PR #132 (subscribe-loop-rust) — sibling crate.
 //! - persona-engine-format-spec §3.7.4 — R1..R4 phase contract.
 
 use std::future::Future;
@@ -230,7 +230,7 @@ pub struct PhaseResult {
 }
 
 /// End-to-end recovery outcome. The Rust type is named
-/// `RecoveryOutcome` to match the Sprint-Auftrag signature
+/// `RecoveryOutcome` to match the signature
 /// (`run_recovery_drill -> RecoveryOutcome`); the field shape is
 /// byte-parity with the Python `RecoveryResult` dataclass.
 #[derive(Debug, Clone, PartialEq)]
@@ -246,26 +246,26 @@ pub struct RecoveryOutcome {
 }
 
 // ---------------------------------------------------------------------------
-// Recovery context (Sprint-Auftrag signature) and hook surface.
+// Recovery context (signature) and hook surface.
 // ---------------------------------------------------------------------------
 
 /// Drill-context envelope.
 ///
 /// Captures the per-drill input flags the operator forwards to the
 /// recovery workflow. The `pin_drift` / `fence_active` /
-/// `subscribe_failure` triple corresponds to the three Sprint-Auftrag
+/// `subscribe_failure` triple corresponds to the three
 /// trigger conditions; the `force_trigger` override mirrors the
 /// Python `--force-trigger=<label>` OI-PEF-10 path.
 #[derive(Debug, Clone, Default)]
 pub struct RecoveryContext {
-    /// Drift in V-907 pin pack detected (Sprint-Auftrag flag;
+    /// Drift in V-907 pin pack detected (flag;
     /// maps onto Python `state_corruption=True`).
     pub pin_drift: bool,
-    /// SRE-controlled fence active (Sprint-Auftrag flag; maps onto
+    /// SRE-controlled fence active (flag; maps onto
     /// Python `crash_detected=True` because the fence-trip is the
     /// crash-detection signal in Phase-3a).
     pub fence_active: bool,
-    /// NATS subscribe-loop failure (Sprint-Auftrag flag; maps onto
+    /// NATS subscribe-loop failure (flag; maps onto
     /// Python `despawn_mid_operation=True` because the despawn path
     /// is the subscribe-loop teardown trigger).
     pub subscribe_failure: bool,
@@ -284,7 +284,7 @@ pub type HookFuture<'a> = Pin<Box<dyn Future<Output = Result<(), RecoveryError>>
 
 /// Callable injection points for the four recovery actions.
 ///
-/// The Sprint-Auftrag enumerates four hook surfaces; we name them per
+/// The enumerates four hook surfaces; we name them per
 /// the action they perform, while the workflow itself drives the
 /// canonical R1..R4 phase order:
 ///
@@ -453,7 +453,7 @@ async fn run_phase_r3(
     // Parity audit annotation: SPIFFE ID format byte-identical with the
     // Python sibling `wirelang/persona_engine/svid_workload_identity.py`
     // `SPIFFE_ID_TEMPLATE = "spiffe://wakir.{org_id}/persona/{persona_id}"`
-    // (Tag-20 Python-sync cross-lang parity sweep).
+    // (Python-sync cross-lang parity sweep).
     let svid_id = format!(
         "spiffe://wakir.{}/persona/{}",
         if ctx.org_id.is_empty() {
@@ -499,7 +499,7 @@ async fn run_phase_r4(
 
 /// Run the R1..R4 recovery drill end-to-end.
 ///
-/// Signature mirrors the Sprint-Auftrag contract:
+/// Signature mirrors the contract:
 ///
 /// ```ignore
 /// async fn run_recovery_drill(context, budget_seconds) -> RecoveryOutcome
@@ -624,7 +624,7 @@ pub async fn run_recovery_drill_with_hooks(
 }
 
 // ---------------------------------------------------------------------------
-// Operator-escalation helper (Sprint-Auftrag hook surface).
+// Operator-escalation helper (hook surface).
 // ---------------------------------------------------------------------------
 
 /// Invoke the operator-escalation hook directly. Used by the
@@ -644,7 +644,7 @@ pub async fn escalate_to_operator(
 // ---------------------------------------------------------------------------
 
 /// Schema identifier for the canonical-projection wire-form used by
-/// the cross-lang fixture vectors (Tag-20 Python-sync). Byte-identical
+/// the cross-lang fixture vectors (Python-sync). Byte-identical
 /// with the Python sibling constant `RECOVERY_OUTCOME_SCHEMA`.
 pub const RECOVERY_OUTCOME_SCHEMA: &str = "wakir.persona-engine.recovery-outcome/1";
 
@@ -657,7 +657,7 @@ pub const HASH_PREFIX: &str = "sha256:";
 pub const SHA256_HEX_LEN: usize = 64;
 
 // ---------------------------------------------------------------------------
-// Canonical-projection helper — cross-lang fixture pin (Tag-20).
+// Canonical-projection helper — cross-lang fixture pin.
 // ---------------------------------------------------------------------------
 
 /// Build the canonical-projection `serde_json::Value` from a

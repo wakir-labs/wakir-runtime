@@ -6,8 +6,8 @@
 # -------
 # Initial Rust scaffold of the persona-engine NATS-KV Persona-State
 # backing module. Schema-parity with the Python reference
-# implementation `wirelang/persona_engine/state_backing.py` (Selin PR #65,
-# Sprint-Pengine-8/-9, anchored in persona-engine-format-spec §3.7.5).
+# implementation `wirelang/persona_engine/state_backing.py` (PR #65,
+# /-9, Anchored in persona-engine-format-spec §3.7.5).
 #
 # This crate is the deterministic substrate for the Phase-3a 3-way-
 # triangle (Doppelbetrieb) comparison. Live NATS-KV socket binding stays
@@ -38,10 +38,10 @@
 #   Python `offset_key(off)` / `offset_from_key(k)`
 #                                          <-> Rust fns (matching format)
 #
-# Watch-Revisions extension (Sprint-Auftrag-Surface)
+# Watch-Revisions extension
 # --------------------------------------------------
 # The Python trait surface declares 4 ops (snapshot, restore_latest,
-# list_snapshots, atomic_swap_pinned_offset). The Sprint-Auftrag adds a
+# list_snapshots, atomic_swap_pinned_offset). The adds a
 # fifth op `watch_revisions` — NATS-KV-native revision-stream that emits
 # `RevisionEvent` items as new snapshots land. Python pendant is the
 # `nats-py KeyValue.watch()` async iterator (used today only by the
@@ -53,19 +53,19 @@
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 6 (this crate).
-# - Selin PR #65   (Sprint-Pengine-8) — Python schema authority.
-# - Selin PR #113  (3-way-triangle)   — Doppelbetrieb substrate.
-# - Selin PR #131  (bridge-diff-rust) — sibling crate.
-# - Reza  PR #132  (subscribe-loop-rust) — sibling crate, async-nats
+# - PR #65 — Python schema authority.
+# - PR #113  (3-way-triangle)   — Doppelbetrieb substrate.
+# - PR #131  (bridge-diff-rust) — sibling crate.
+# - PR #132  (subscribe-loop-rust) — sibling crate, async-nats
 #                                          version precedent.
-# - Selin PR #135  (recovery-rust)    — sibling crate, Tokio version
+# - PR #135  (recovery-rust)    — sibling crate, Tokio version
 #                                          precedent.
-# - Selin PR #136  (v907-verify-rust) — sibling crate.
+# - PR #136  (v907-verify-rust) — sibling crate.
 # - persona-engine-format-spec §3.7.5  — state-backing trait contract.
 #
 # Versioning rationale (verified HTTP-200 against crates.io API on
 # 2026-05-17 00:10 CEST):
-# - async-nats =0.48.0  : Production NATS client; matches Reza PR #132 pin.
+# - async-nats =0.48.0  : Production NATS client; matches PR #132 pin.
 #   Compile-surface pulled in so Phase-3a live-binding step can extend
 #   without re-deciding the client. Smoke-tests do NOT touch async-nats.
 # - tokio      =1.52.3  : async runtime; `rt-multi-thread` + `macros` +
@@ -79,7 +79,7 @@
 # - hex        =0.4.3   : lower-case hex tail (matches Python
 #                         `hashlib.sha256().hexdigest()` shape).
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wirelang/persona_engine/state_backing.py`.
 # - No LICENSING / NOTICE / .github/workflows touches.
@@ -94,8 +94,8 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Selin Celik <selin@wakir.local>"]
-description = "Initial Rust scaffold of the persona-engine NATS-KV Persona-State-Backing (Phase-3a Item 6, schema-parity with Selin PR #65)."
+authors = ["Wakir Labs"]
+description = "Initial Rust scaffold of the persona-engine NATS-KV Persona-State-Backing (Phase-3a Item 6, schema-parity with PR #65)."
 publish = false
 
 [lib]
@@ -104,7 +104,7 @@ path = "src/lib.rs"
 
 # Operator-CLI binary: surface the state-backing schema/key constants
 # to operator scripts. Subcommands: `info` (constants + key formats),
-# `--version`, `--help`. Tag-33 Mini-Welle, ADR-0066 Welle-4
+# `--version`, `--help`. Mini-Welle, ADR-0066 Welle-4
 # `state_backing` pre-cutover image. Parity with the
 # `wakir-persona-engine-svid-workload-identity` and
 # `wakir-persona-engine-bridge-audit-writer` operator-CLI surface.
