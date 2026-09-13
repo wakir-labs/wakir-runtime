@@ -11,7 +11,7 @@ substrate stub-file at
   - The stub-file is well-formed JSON.
   - The stub-file declares ``audit_only: true`` and
     ``doc_form_only: true``.
-  - The stub-file declares ``tag: Tag-71`` and ``hard_dep: HD-2``.
+  - The stub-file declares its audit tag and ``hard_dep: HD-2``.
   - The stub-file declares the upstream / /
     anchors and the HD-1 substrate PR number (#446).
   - The stub-file enumerates the strict-interpretation invariant
@@ -28,7 +28,7 @@ substrate stub-file at
     control.
   - The stub-file's sandbox-boundary section sets every boundary to
     its audit-only default (no production peer-count claim, no
-    Selin direction emit, no CFO ratification envelope emit, no
+    persona-engine direction emit, no CFO ratification envelope emit, no
     kind-field default change).
   - The stub-file enumerates the three roster-mutation event types
     (peer-added, peer-removed, kind-promoted) and all default to

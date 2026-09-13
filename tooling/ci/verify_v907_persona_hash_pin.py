@@ -69,12 +69,12 @@ optional human-readable verdict banner to stderr. The envelope schema
 matches the seal-probe envelope as far as ``verdict`` and
 ``verdict_class`` so the CI gate boilerplate can be re-used.
 
-Scope discipline (Selin, ADR-0036/0043/0065/0066)
+Scope discipline (persona-engine, ADR-0036/0043/0065/0066)
 -------------------------------------------------
 This file documents the persona-engine CI gate. It does **not**
-modify persona definitions (Aisha-Domäne), WAT-core / V-907 logic
-itself (Tomás-Domäne, Zone-K), identity-substrate design (Reza-
-Domäne, Zone-L), or container-infra (Kai-Domäne, Zone-J). The
+modify persona definitions, WAT-core / V-907 logic itself
+(zone K), identity-substrate design (zone L), or container
+infra (zone J). The
 substance pinned by this gate is byte-bounded; the cross-zone
 ownership matrix is byte-bounded.
 """

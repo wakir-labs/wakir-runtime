@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
- Engine-Migration-Drift Audit (Selin, persona-engine).
+Engine-Migration-Drift Audit (persona-engine).
 ============================================================
 
 Purpose
@@ -139,10 +139,10 @@ Scope discipline
   manufactures the authority/crate skeleton in isolation.
 - **Domain-respect.** This audit does NOT propose any
   Python or Rust code change. It does NOT touch persona-definition
-  files (Aisha-Domaene), WAT-core, identity-substrate,
+  files (persona-definition domain), WAT-core, identity-substrate,
   or container-infra.
 
-Selin-Hand, AI-Corp Continuous-Mode.
+Persona-engine owner.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@
 
  OPEN-K1 closeout (from the persona-engine 0.5.2-final audit, PR #362):
 
-  > OPEN-K1: Containerfile base-image SHA digest (Tomás Zone-K)
+  > OPEN-K1: Containerfile base-image SHA digest (WAT-core zone K)
 
 The audit found that several runtime Containerfiles still carry
 ``DIGEST_PENDING_*_REVIEW`` placeholders in their FROM lines. Those

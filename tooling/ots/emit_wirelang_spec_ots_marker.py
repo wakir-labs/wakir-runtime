@@ -4,11 +4,11 @@
 """Emit an OTS-anchor stub marker for the Wirelang specification file.
 
  mirror-twin of the manifest-hash OTS-anchor probe.
-Where Tomás anchors persona-engine ``MANIFEST-*.md`` files via the
+Where the WAT side anchors persona-engine ``MANIFEST-*.md`` files via the
 WAT spool, this helper anchors the Wirelang-Spec markdown documents
 (currently ``wirelang/specs/wirelang-spec-v0-4-3.md`` and any sibling
 spec versions that ship pre-cutover). The freeze-seal probe
-(Reza, PR #371) sealed the live spec against post-freeze drift; the
+(PR #371) sealed the live spec against post-freeze drift; the
  OTS-anchor probe is the *cryptographic timestamp* tripwire
 that will, once AR-authorised, anchor the sealed spec at the
 OpenTimestamps calendar.

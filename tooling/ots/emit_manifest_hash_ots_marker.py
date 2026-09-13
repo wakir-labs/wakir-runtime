@@ -3,9 +3,9 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Emit an OTS-anchor stub marker for a persona-engine manifest hash.
 
- OPEN-K2 closeout (from the persona-engine 0.5.2-final audit, PR #362):
+OPEN-K2 closeout (from the persona-engine 0.5.2-final audit, PR #362):
 
-  > OPEN-K2: OTS-anchor of manifest hash via WAT spool (Tomás Zone-K)
+  > OPEN-K2: OTS-anchor of manifest hash via WAT spool (WAT-core zone)
 
 This helper is the **audit-only stub** for the future OTS-anchor wiring
 of persona-engine manifest hashes via the WAT spool. It computes the
@@ -81,9 +81,9 @@ trail-anchor over the wave-1 sign-off-record bundle (rollup +
 sign-off + validation + pre-auditor) and emits a marker JSON for
 the persona-engine Persona-Engine producer
 (``engine.py::backfill_audit_trail_anchors``, producer-wiring-plan
-§2.4). Cross-Review-Zone-K (Tomás OTS / WAT-Hash semantics).
+§2.4). Cross-review zone K (OTS / WAT-hash semantics).
 
- wave-2 audit-trail-anchor extension
+wave-2 audit-trail-anchor extension
 -------------------------------------------
 
 The ``--mode welle-2-audit-anchor`` flag mirrors the wave-1 wiring
@@ -133,7 +133,7 @@ canonical bundle shape (rollup + sign-off + validation + pre-
 auditor), same hash recipe.
 
 wave-5 carries its own discipline: the Capability-Token-Rotation
-markers (Reza Capability-Token-Rotation+Replay sub).
+markers (capability-token rotation + replay sub-discipline).
 Capability-Tokens minted by ``/agent/`` SVIDs are short-lived and
 rotated on a schedule; the wave-5 sign-off-record carries the
 rotation cadence + last-rotation timestamp + replay-window flag so
@@ -148,8 +148,8 @@ The marker exposes a ``capability_token_rotation_tracking`` block:
   * ``capability_token_last_rotation_iso``: ISO-8601 timestamp of
     the most recent rotation, or empty string.
   * ``capability_token_replay_window_closed``: bool — True iff the
-    sign-off declares the replay-window closed (Reza
-    replay-window discipline).
+    sign-off declares the replay-window closed (replay-window
+    discipline).
   * ``capability_token_rotation_evidence_ref``: free-form evidence
     pointer (URL, doc-path, runbook-section) or empty string.
 
@@ -228,11 +228,11 @@ Pre-Auditor-Signaling-Markers (final-welle variant): the
 wave-7 marker carries TWO signaling flags. The first
 (``pre_auditor_signaling_ready``) mirrors the wave-3 flag. The
 second (``pre_auditor_final_sealing_signaling_ready``) is the
-canonical Tomás -> internal audit hand-off signal for Phase-3-COMPLETE-
+canonical engineering -> internal audit hand-off signal for Phase-3-COMPLETE-
 marker readiness, true iff a pre-auditor-decision is present in
 the bundle AND ``global_acceptance_verdict_recorded == True``.
 
- closeout-Audit-Anchor-Bundle (Phase-3-Complete-Marker)
+Closeout-Audit-Anchor-Bundle (Phase-3-Complete-Marker)
 ----------------------------------------------------------------------
 
 The ``--mode phase-3-complete-marker`` flag consolidates the seven
@@ -287,7 +287,7 @@ I/O, no OTS calendar call, no subprocess. Real OTS stamping of
 the Phase-3-COMPLETE marker is an Operator-Hand follow-up step.
 
 wave-4 carries its own discipline: the State-Backing-Snapshot-
-Restore-Pflicht-Flag (see Amara state-file conventions). The
+Restore-Pflicht-Flag (see the state-file conventions). The
 marker exposes a ``snapshot_restore_pflicht_tracking`` block:
 
   * ``snapshot_restore_pflicht_active``: bool — True iff the
@@ -462,8 +462,8 @@ WELLE_4_KIND_ENVELOPE: str = "welle-4-audit-trail-anchor-envelope"
 # Capability-Token-Rotation cadence + last-rotation-iso +
 # replay-window-closed flag + rotation-evidence-ref so the downstream
 # observability surface can pin rotation-discipline at sign-off
-# without re-reading the bundle. Cross-coord with Reza
-# Capability-Token-Rotation+Replay sub.
+# without re-reading the bundle. Cross-coordinated with the
+# capability-token rotation + replay sub-discipline.
 WELLE_5_BUNDLE_ORDER: tuple[str, ...] = WELLE_1_BUNDLE_ORDER
 WELLE_5_BUNDLE_REQUIRED: frozenset[str] = WELLE_1_BUNDLE_REQUIRED
 WELLE_5_KIND_MARKER: str = "welle-5-audit-trail-anchor-marker"
@@ -490,7 +490,7 @@ WELLE_6_KIND_ENVELOPE: str = "welle-6-audit-trail-anchor-envelope"
 # wave-7 audit-trail-anchor mode constants. Mirror of the
 # wave-1 / wave-2 / wave-3 / wave-4 / wave-5 / wave-6 wiring
 # (same canonical bundle shape and same hash recipe). wave-7 is the
-# FINAL wave of the Phase-3c backend migration (KW-27, waves 6+7
+# FINAL wave of the Phase-3c backend migration (waves 6+7
 # entry, cutover Wednesday 2026-07-01, Sign-off-Freitag 2026-07-03
 # the Global Acceptance-Verdict sign-off-Freitag per
 # ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` §3.2).
@@ -901,7 +901,7 @@ def build_welle_1_audit_anchor_marker(
 ) -> dict:
     """Assemble the wave-1 audit-trail-anchor marker dict.
 
-    The marker is the audit-only artefact that Tomás emits and that
+    The marker is the audit-only artefact that the anchoring side emits and that
     the persona-engine producer reads to populate
     ``state/welle-1.json:audit_trail_anchor``.
     """
@@ -1015,7 +1015,7 @@ def build_welle_2_audit_anchor_marker(
 
     Mirror of the wave-1 marker, with ``welle_number=2`` and
     wave-2-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that the persona-engine producer reads
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-2.json:audit_trail_anchor``.
     """
     iso_now = now_utc.isoformat()
@@ -1130,7 +1130,7 @@ def build_welle_3_audit_anchor_marker(
 
     Mirror of the wave-1 / wave-2 marker, with ``welle_number=3`` and
     wave-3-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that the persona-engine producer reads
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-3.json:audit_trail_anchor``.
 
  carries an extra discipline: wave-3 falls under internal audit's
@@ -1333,7 +1333,7 @@ def build_welle_4_audit_anchor_marker(
 
     Mirror of the wave-1 / wave-2 / wave-3 marker, with
     ``welle_number=4`` and wave-4-specific kind strings. The marker
-    is the audit-only artefact that Tomás emits and that the persona-engine
+    is the audit-only artefact that the anchoring side emits and that the persona-engine
  producer reads to populate
     ``state/welle-4.json:audit_trail_anchor``.
 
@@ -1467,8 +1467,8 @@ CAPABILITY_TOKEN_ROTATION_STATUS_VALUES: frozenset[str] = frozenset(
 def derive_capability_token_rotation_tracking(bundle: dict) -> dict:
     """Derive the wave-5 ``capability_token_rotation_tracking`` block.
 
- wave-5 carries the Capability-Token-Rotation discipline
-    (Reza sub: Capability-Tokens minted by ``/agent/`` SVIDs
+    wave-5 carries the Capability-Token-Rotation discipline
+    (Capability-Tokens minted by ``/agent/`` SVIDs
     are short-lived and rotated on a schedule, with a replay-window
     that the sign-off declares closed at cutover-time).
 
@@ -1559,7 +1559,7 @@ def build_welle_5_audit_anchor_marker(
 
     Mirror of the wave-1 / wave-2 / wave-3 / wave-4 marker, with
     ``welle_number=5`` and wave-5-specific kind strings. The marker
-    is the audit-only artefact that Tomás emits and that the persona-engine
+    is the audit-only artefact that the anchoring side emits and that the persona-engine
  producer reads to populate
     ``state/welle-5.json:audit_trail_anchor``.
 
@@ -1567,7 +1567,7 @@ def build_welle_5_audit_anchor_marker(
     ``capability_token_rotation_tracking`` block so the Capability-
     Token-Rotation cadence + last-rotation-iso + replay-window-closed
     flag + rotation-evidence-ref surface on the observability channel
-    without re-reading the bundle (Reza cross-coord).
+    without re-reading the bundle.
     """
     iso_now = now_utc.isoformat()
     tracking = derive_capability_token_rotation_tracking(bundle)
@@ -1803,7 +1803,7 @@ def build_welle_6_audit_anchor_marker(
 
     Mirror of the wave-1 / wave-2 / wave-3 / wave-4 / wave-5
     marker, with ``welle_number=6`` and wave-6-specific kind strings.
-    The marker is the audit-only artefact that Tomás emits and that
+    The marker is the audit-only artefact that the anchoring side emits and that
     the persona-engine producer reads to populate
     ``state/welle-6.json:audit_trail_anchor``.
 
@@ -2070,7 +2070,7 @@ def build_welle_7_audit_anchor_marker(
 
     Mirror of the waves 1..6 marker, with ``welle_number=7`` and
     wave-7-specific kind strings. The marker is the audit-only
-    artefact that Tomás emits and that the persona-engine producer reads
+    artefact that the anchoring side emits and that the persona-engine producer reads
     to populate ``state/welle-7.json:audit_trail_anchor``.
 
  discipline: the marker exposes the
@@ -2084,12 +2084,12 @@ def build_welle_7_audit_anchor_marker(
 
       * ``pre_auditor_signaling_ready`` (bool) — true iff a
         pre-auditor-decision is present in the bundle. Mirror of the
- wave-3 flag.
+        wave-3 flag.
       * ``pre_auditor_final_sealing_signaling_ready`` (bool) — true
         iff (a) pre-auditor-decision is present AND (b) the final-
         sealing-tracking block reports
         ``global_acceptance_verdict_recorded == True``. This is the
-        canonical Tomás -> internal audit hand-off signal for Phase-3-
+        canonical engineering -> internal audit hand-off signal for Phase-3-
         COMPLETE-marker readiness at Post-wave-7 sign-off.
 
     Cross-Substrate-Parity-Markers (auftrag): the ``anchors``

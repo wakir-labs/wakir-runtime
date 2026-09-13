@@ -54,12 +54,12 @@ Invariants checked (wave-5 / waves 4+5):
        MUST NOT claim to actually perform rotation; the helper
        refuses to validate a non-audit-only document.)
   I-3  ``layer`` is ``Layer-3-AIP+Biscuit`` (load-bearing for the
-       Reza domain, ADR-0009 / capability-token-layer charter).
+       protocol domain, ADR-0009 / capability-token-layer charter).
   I-4  ``rotation_state`` is one of the four canonical states
        (pre-rotation, rotation-in-progress, post-rotation-grace,
        post-rotation-sealed). Any other value rejects.
   I-5  ``issuer_curve`` is one of Ed25519 / secp256k1 (Two-Curve-
-       Stack per Reza-Strang-2-Korrektur, 2026-05-06).
+       stack per the protocol-owner correction, 2026-05-06).
   I-6  ``token_format`` is ``biscuit-v3`` (single supported format
        in the wave-5 cutover; v2 is forbidden by ADR-0017 anchor).
   I-7  ``attenuation_depth_max`` is an integer in [1, 8]. Depth 0

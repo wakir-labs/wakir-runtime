@@ -11,7 +11,7 @@ substrate stub-file at
   - The stub-file is well-formed JSON.
   - The stub-file declares ``audit_only: true`` and
     ``doc_form_only: true``.
-  - The stub-file declares ``tag: Tag-72`` and ``hard_dep: HD-3``.
+  - The stub-file declares its audit tag and ``hard_dep: HD-3``.
   - The stub-file declares the upstream / /
     anchors and the HD-1 + HD-2 substrate PR numbers
     (#446 + #452), plus ADR-0014 + ADR-0025 audit-anchors.

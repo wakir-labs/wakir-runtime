@@ -23,7 +23,7 @@ Usage (CLI)
 ::
 
     python3 tooling/ci/render_engine_state_file_stub.py \\
-        --welle 3 --kw KW-25
+        --welle 3 --kw <calendar-week>
 
     # Render all seven canonical stubs (pre-cutover T0 initial-state):
     python3 tooling/ci/render_engine_state_file_stub.py --all
@@ -43,11 +43,10 @@ Sandbox-vs-Host-Operations Trennung and the plan-doc §6.
 
 Scope discipline
 ------------------------
-This stub does NOT modify persona definitions (Aisha-Domaene,
-ADR-0043), WAT-core logic (Tomas-Domaene, Zone-K),
-identity-substrate design (Reza-Domaene, Zone-L), or
-container-infra (Kai-Domaene, Zone-J). It renders strings that
-match the schema-pin (Amara-domain, QA).
+This stub does NOT modify persona definitions (ADR-0043),
+WAT-core logic (zone K), identity-substrate design (zone L),
+or container infra (zone J). It renders strings that match the
+schema pin (QA domain).
 """
 
 from __future__ import annotations
@@ -64,7 +63,7 @@ PHASE_LITERAL = "phase-3-marathon"
 # operational Source-of-Truth ``docs/quality-gates/pre-cutover-
 # acceptance-run-order.md`` §3 per-wave Run-Order table (lines 90..98).
 # waves-Reihe (post reconciliation):
-#   1=KW-22, 2=KW-23, 3=KW-25, 4=KW-26, 5=KW-26, 6=KW-26, 7=KW-27.
+#   one calendar-week anchor per wave, waves 1..7.
 #
 # W5-anchor reconciliation
 # ---------------------------------------
@@ -80,7 +79,7 @@ PHASE_LITERAL = "phase-3-marathon"
 # When the persona-engine helper-default disagrees with another
 # canonical-doc reference, the operational Final-Reference
 # ``docs/quality-gates/pre-cutover-acceptance-run-order.md`` wins.
-# Rationale: it is the run-order doc Amara + internal audit + Aisha consult on
+# Rationale: it is the run-order doc QA, internal audit and HR consult on
 # cutover-Mittwoch + sign-off-Freitag; older docstrings (e.g. the
 # ``handle_welle_5_signoff_event`` docstring's ``Fr 2026-06-19``
 # inherited string) are historical references that do not gate the

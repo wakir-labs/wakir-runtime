@@ -12,12 +12,11 @@ release-notes test that only covered engine.py + __version__.py).
 closes that gap with a hermetic scanner + a 15-test pin in
 ``wirelang/tests/persona_engine/test_engine_version_drift_full_coverage_tag60.py``.
 
-Substrate ownership (Selin, ADR-0036/0043/0065/0066):
+Substrate ownership (persona-engine, ADR-0036/0043/0065/0066):
 
 * This scanner is Persona-Engine-Owner substrate. It does NOT modify
-  persona definitions (Aisha-Domaene, ADR-0043), WAT-core logic
-  (Tomas-Domaene, Zone-K), identity-substrate design (Reza-Domaene,
-  Zone-L), or container-infra (Kai-Domaene, Zone-J).
+  persona definitions (ADR-0043), WAT-core logic (zone K),
+  identity-substrate design (zone L), or container infra (zone J).
 * It is a pure stdlib helper. No third-party deps, no network, no
   subprocess. Deterministic byte-shape output sorted by (path, line).
 
@@ -114,7 +113,7 @@ from typing import Iterable
 #: suffix; the rc1 literal joins ``STALE_VERSIONS`` below.
 ACTIVE_VERSION = "0.5.3"
 
-#: Stale version literals the Tag-60/ scanner hunts. Ordered
+#: Stale version literals the scanner hunts. Ordered
 #: longest-first so substring overlap (e.g. ``0.5.2-final-pre-cutover``
 #: contains ``0.5.2``) does not double-count matches: the scanner
 #: records the longest match per (path, line, col). added

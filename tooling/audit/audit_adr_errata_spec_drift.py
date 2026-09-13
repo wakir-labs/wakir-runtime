@@ -50,7 +50,7 @@ This is a Tier-1 (drift-detection) audit. It does **not** rewrite
 the spec, it does **not** propose new ERR markers, and it does
 **not** speak to whether v0.4.3 should be re-baselined. A non-zero
 ``mentions_legacy_form`` count surfaces a follow-up item for the
-spec editor (Reza-Hand or whoever owns the spec next). A non-zero
+spec editor (whoever owns the spec). A non-zero
 ``mentions_canonical_form`` count surfaces the spec-side anchor
 that downstream adopters will (correctly) follow.
 
@@ -98,7 +98,7 @@ Pure stdlib. No network, no git invocation, no JSON-schema
 validator dependency. Importable from the hermetic test suite
 under ``tests/audit/test_adr_errata_spec_cross_audit_tag57.py``.
 
-Reza-Hand, AI-Corp continuous-mode.
+Protocol-spec owner.
 """
 
 from __future__ import annotations
@@ -286,7 +286,7 @@ class DriftEnvelope:
     adr_heads: tuple[AdrHeadStatus, ...]
     err_markers: tuple[MarkerReport, ...]
     summary: Summary
-    draft_shape: DraftShape | None = None  # Tag-63 extension; None on non-draft.
+    draft_shape: DraftShape | None = None  # Draft extension; None on non-draft.
 
     def to_json(self, *, indent: int = 2) -> str:
         return json.dumps(dataclasses.asdict(self), indent=indent, sort_keys=False)

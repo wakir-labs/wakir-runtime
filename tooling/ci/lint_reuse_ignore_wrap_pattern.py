@@ -7,8 +7,8 @@
 Pattern
 -------
 
-Three consecutive hot-fix episodes (Kai ``a58f6e9``,
-Mira ``046a5e5`` for the SRE test, Kai self-fix
+Three consecutive hot-fix episodes (``a58f6e9``,
+``046a5e5`` for the SRE test, and the self-fix
 ``211dbfb``) all share the same root cause: a freshly-merged test
 file contains SPDX-License-Identifier string literals (typically
 ``Apache-2.0``, ``BUSL-1.1``, or ``CC-BY-4.0`` inside fixture
@@ -308,11 +308,11 @@ class ReadinessReport:
     * ``ENFORCE-FLIP-BLOCKED`` - score <  80
 
     Rationale for the thresholds: 95 % is the same coverage bar
-    Tomás used for the OTS N-Run-Stability-Window (>=3
+    used for the OTS N-Run-Stability-Window (>=3
     consecutive green main-runs == ~100 % over a 3-run sample);
     80 % is the threshold below which the workflow is more likely
     to red a legit PR than catch a real hot-fix-pattern, based on
-    the three known precedent episodes (Tag-59-hot-fix,
+    the three known precedent episodes (the first hot-fix,
     -self-fix).
     """
 
