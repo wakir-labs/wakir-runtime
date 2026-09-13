@@ -1,11 +1,11 @@
-# SPIRE-Agent Sidecar — Phase-2.2 Hermetic Skizze (Sprint-6 Tag-9)
+# SPIRE-Agent Sidecar — Phase-2.2 Hermetic sketch
 
 This document describes the **Phase-2.2 SPIRE-Agent-Sidecar** substrate
-added to `compose/spire.yaml` in Sprint-6 Tag-9. It is the paired
+added to `compose/spire.yaml` in. It is the paired
 companion to the Phase-2.1 SPIRE-Server-Sidecar documented in
 `docs/spire-server-phase-2-1.md`.
 
-**Hermetic-only**: the Tag-9 substrate exercises the compose-shape and
+**Hermetic-only**: the substrate exercises the compose-shape and
 config-shape only. No live SVID is issued. Live-gated bring-up + SVID
 fetch is a Phase-2.3 Operator-Hand slot (see §5).
 
@@ -13,13 +13,13 @@ fetch is a Phase-2.3 Operator-Hand slot (see §5).
 
 | Component | Path | Owner | Tag |
 |---|---|---|---|
-| SPIRE-Agent compose service block | `compose/spire.yaml` (services.spire-agent) | Kai | Tag-9 |
-| Agent Mock/Stub config | `config/spire-agent.conf` | Kai | Tag-9 |
-| Hermetic acceptance tests | `tests/orchestrator/test_compose_spire_agent.py` | Kai | Tag-9 |
-| Workload-API socket-share volume | `spire_agent_sockets` (named) | Kai | Tag-9 |
-| Server-Admin-API socket-share volume | `spire_server_sockets` (named, Tag-6) | Kai | Tag-6 (reused) |
+| SPIRE-Agent compose service block | `compose/spire.yaml` (services.spire-agent) | infrastructure engineering | |
+| Agent Mock/Stub config | `config/spire-agent.conf` | infrastructure engineering | |
+| Hermetic acceptance tests | `tests/orchestrator/test_compose_spire_agent.py` | infrastructure engineering | |
+| Workload-API socket-share volume | `spire_agent_sockets` (named) | infrastructure engineering | |
+| Server-Admin-API socket-share volume | `spire_server_sockets` (named) | infrastructure engineering | (reused) |
 
-The SPIRE-Server side is unchanged from the Tag-8 rebase
+The SPIRE-Server side is unchanged from the rebase
 (`compose/spire.yaml` services.spire-server, `config/spire-server.conf`,
 `tests/orchestrator/test_compose_spire.py`,
 `tests/orchestrator/test_compose_spire_cosign_pin.py`).
@@ -37,17 +37,17 @@ This is the gRPC channel the SPIRE-Server exposes for its Admin-API.
 The SPIRE-Agent dials this socket-path inside its container namespace
 to perform NodeAttestation and registration-entry fetches.
 
-This is the volume Mira's box-brief calls out by name:
+This is the volume the CEO's box-brief calls out by name:
 
 > "Workload-API-Unix-Socket via shared named-Volume
->  `spire_server_sockets` (vorausgeplant in Tag-6)"
+> `spire_server_sockets` (vorausgeplant in)"
 
 Strictly speaking, the SPIRE *Server* does not serve the
-Workload-API; the SPIRE *Agent* does. The Tag-6 volume `spire_server_
+Workload-API; the SPIRE *Agent* does. The volume `spire_server_
 sockets` is therefore the **Server-Admin** socket-share channel
 (server-side). The Workload-API-proper lives on a separate volume
 (see §2.2). Both volumes carry SPIRE-protocol Unix sockets, hence the
-generic "socket-share volume" language in the Tag-6 header.
+generic "socket-share volume" language in the header.
 
 ### 2.2 `spire_agent_sockets` — SPIFFE-Workload-API channel
 
@@ -65,7 +65,7 @@ wirelang adapter — see §4).
 Agent mount: `/var/lib/spire/agent`
 
 Holds the bootstrap trust-bundle cache, SVID cache, and (in
-disk-KeyManager mode) the agent's key material. The Tag-9 hermetic
+disk-KeyManager mode) the agent's key material. The hermetic
 substrate uses the **in-memory KeyManager** so a `compose down/up`
 cycle forces re-attestation; the data-volume is shape-only.
 
@@ -83,42 +83,42 @@ Production trust-domain pins are tracked separately:
 - Phase-3a federation trust-domain: `<FTD-ID>.wakir.dev`.
 
 Switching the hermetic substrate to a production trust-domain is a
-Phase-2.4 NATS-JWT-Auth-integration tag, **not** a Tag-9 change.
+Phase-2.4 NATS-JWT-Auth-integration tag, **not** a change.
 
-## 4. Wirelang-side cross-reference (Reza-track)
+## 4. Wirelang-side cross-reference (protocol track)
 
-Tag-9 is the DevOps-track substrate. The **wirelang-side surface**
-that persona-containers consume is owned by Reza:
+is the DevOps-track substrate. The **wirelang-side surface**
+that persona-containers consume is owned by protocol engineering:
 
-| Surface | Path | Reza-Sprint-6 Tag | Status in Tag-9 baseline |
+| Surface | Path | Tag | Status in baseline |
 |---|---|---|---|
-| SPIFFE-ID-Binding spec | `wirelang/specs/identity-substrate.md` §5 | Tag-4 (`ece8f45`) | Not yet merged into Tag-9 base |
-| Workload-API adapter skeleton | `wirelang/adapters/spiffe_workload_api.py` | Tag-4 (skeleton), Tag-5 (`9c94517` Mock adapter) | Not yet merged into Tag-9 base |
-| Real adapter | `wirelang/adapters/real_spiffe_workload_api.py` | Tag-7+ slot | Not in Sprint-6 Tag-7 yet |
+| SPIFFE-ID-Binding spec | `wirelang/specs/identity-substrate.md` §5 | (`ece8f45`) | Not yet merged into base |
+| Workload-API adapter skeleton | `wirelang/adapters/spiffe_workload_api.py` | (skeleton) (`9c94517` Mock adapter) | Not yet merged into base |
+| Real adapter | `wirelang/adapters/real_spiffe_workload_api.py` | slot | Not in yet |
 
-**Tag-9 does not import the Reza adapter** because none of the Reza
-Sprint-6 Tag-4/Tag-5 commits are in the Tag-9 baseline (`origin/kai/
-phase-2-sprint-6-tag-8-rebase-cosign-pin` = `8a6e5ad`). The Tag-9
+**does not import the protocol engineering adapter** because none of the protocol engineering
+commits are in the baseline (`origin/kai/
+phase-2-sprint-6-tag-8-rebase-cosign-pin` = `8a6e5ad`). The
 hermetic substrate is autark — it asserts only compose-/HCL-shape
 invariants on its own files. Phase-2.3+ persona-container consumers
-will pick up the Reza adapter once both tracks land in a common base
-(coordination via Aisha + Priya).
+will pick up the protocol engineering adapter once both tracks land in a common base
+(coordination via org design + the CTO).
 
-The SPIFFE-ID path-pattern that the Reza spec defines
+The SPIFFE-ID path-pattern that the protocol engineering spec defines
 (`spiffe://example.test/agent/<persona-slug>/<persona-hash-12>` for
 persona-mint workloads; `spiffe://example.test/service/<service-name>`
-for service-only workloads) is **compatible** with the Tag-9 substrate
-without modification — the trust-domain matches, and the Tag-9
+for service-only workloads) is **compatible** with the substrate
+without modification — the trust-domain matches, and the
 substrate makes no claim about per-workload SPIFFE-ID structure (that
 is a Phase-2.3 registration-entry generator's responsibility).
 
 ## 5. Operator-Hand items (Phase-2.3+)
 
-The Tag-9 substrate is hermetic. Live bring-up is **Operator-Hand**:
+The substrate is hermetic. Live bring-up is **Operator-Hand**:
 
 ### 5.1 Cosign-digest substitution
 
-The agent image-pin (and the server image-pin from Tag-8) carry the
+The agent image-pin (and the server image-pin from) carry the
 placeholder digest `DIGEST_PENDING_TOMAS_REVIEW`. Operator-Hand
 workflow:
 
@@ -141,8 +141,8 @@ sed -i 's/spire-agent:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW/spire-agent:1.14
 git commit -am "chore(spire): pin spire-agent image to sha256:<short>"
 ```
 
-Prerequisite: Tomás Zone-C acknowledgement for the Tag-9 image-pin
-(co-pilot with the Tag-8 server-side Zone-C ack — see
+Prerequisite: dev engineering Zone-C acknowledgement for the image-pin
+(co-pilot with the server-side Zone-C ack — see
 `dev-engineering/inbox/2026-05-12-zone-c-cross-review-spire-server-image-pin.md`).
 
 ### 5.2 Join-token issuance (live bring-up)
@@ -175,7 +175,7 @@ docker compose -f compose/spire.yaml exec spire-agent \
 ```
 
 A successful JWT-SVID fetch with `aud=wakir-orchestrator` is the
-Phase-2.3 acceptance signal. This is **gated on**: (a) Tomás Zone-C
+Phase-2.3 acceptance signal. This is **gated on**: (a) dev engineering Zone-C
 ack for both image-pins (server + agent), (b) Operator-Hand digest
 substitution done, (c) a host with podman/docker + cosign + skopeo
 available.
@@ -189,8 +189,8 @@ pytest tests/orchestrator/test_compose_spire.py
 pytest tests/orchestrator/test_compose_spire_cosign_pin.py
 ```
 
-These three test files cover 45 invariants (16 Tag-6 + 9 Tag-8 + 20
-Tag-9). All pass at the Tag-9 tip on hermetic CI.
+These three test files cover 45 invariants (16 9 20
+). All pass at the tip on hermetic CI.
 
 Live bring-up (Operator-Hand, after Cosign-digest substitution):
 
@@ -201,7 +201,7 @@ docker compose -f compose/spire.yaml down -v   # -v drops the volumes
 
 ## 7. Drift-detection invariants
 
-The Tag-9 test suite catches drift on:
+The test suite catches drift on:
 
 | Drift | Caught by |
 |---|---|
@@ -217,19 +217,19 @@ The Tag-9 test suite catches drift on:
 
 ## 8. Follow-up slots
 
-- **F-1 (Tag-8 carry-over):** Operator-Hand digest-substitution for the
-  SPIRE-Server image (pending Tomás Zone-C ack).
-- **F-1' (new, Tag-9):** Operator-Hand digest-substitution for the
-  SPIRE-Agent image (paired with F-1; same Tomás Zone-C cross-review).
-- **F-4 (Tag-8 trigger satisfied by Tag-9):** Phase-2.2 SPIRE-Agent-
-  Sidecar — this is Tag-9 itself. The further Phase-2.3 SVID-fetch
+- **F-1 (carry-over):** Operator-Hand digest-substitution for the
+  SPIRE-Server image (pending dev engineering Zone-C ack).
+- **F-1' (new):** Operator-Hand digest-substitution for the
+  SPIRE-Agent image (paired with F-1; same dev engineering Zone-C cross-review).
+- **F-4 (trigger satisfied by):** Phase-2.2 SPIRE-Agent-
+  Sidecar — this is itself. The further Phase-2.3 SVID-fetch
   live-smoke is Operator-Hand and listed under §5.3.
-- **F-5 (Tag-8 carry-over):** WAT-Aggregator-Test-Isolation-Drift —
-  Tomás-Hand. Three tests in `tests/wat/test_aggregator_prev_hour_root.py`
+- **F-5 (carry-over):** WAT-Aggregator-Test-Isolation-Drift —
+  engineering-hand. Three tests in `tests/wat/test_aggregator_prev_hour_root.py`
   fail in the wakir-runtime clone but not in the /tmp-worktree clone.
-  Still present in the Tag-9 baseline; not a Tag-9 regress.
+  Still present in the baseline; not a regress.
 - **Phase-2.3 SVID-fetch live-smoke:** Operator-Hand bring-up + SVID
-  fetch round-trip. Gated on F-1 + F-1' Tomás-ack.
+  fetch round-trip. Gated on F-1 + F-1' dev-engineering ack.
 - **Phase-2.4 NATS-JWT-Auth integration:** SPIRE-Agent issues
   JWT-SVIDs that the NATS-Server's `nats-jwt` auth-callout
   validates. Trust-domain switches from `example.test` to
@@ -239,5 +239,3 @@ The Tag-9 test suite catches drift on:
 - **Phase-3a x509pop NodeAttestor:** Replace `join_token` with
   `x509pop` for federation-grade attestation; remove `insecure_
   bootstrap`.
-
-— Kai
