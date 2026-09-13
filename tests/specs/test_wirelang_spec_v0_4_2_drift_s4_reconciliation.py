@@ -317,9 +317,12 @@ def test_t11_manifest_carries_v042_cross_reference():
     assert (
         "wirelang-spec-v0-4-2.md" in body
     ), "manifest must reference v0.4.2 spec file"
+    # The cross-reference is only useful if it names the suite that
+    # keeps the two surfaces consistent; the development-day anchor it
+    # used to carry said nothing about that.
     assert (
-        "Tag-50" in body
-    ), "manifest cross-reference must declare Tag-50 origin"
+        "test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py" in body
+    ), "manifest cross-reference must name the reconciliation suite"
     assert (
         "WAKIR_*_BACKEND" in body
         or "`WAKIR_*_BACKEND`" in body

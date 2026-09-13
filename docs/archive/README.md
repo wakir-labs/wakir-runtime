@@ -55,5 +55,6 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `dead-migration-tooling/sli-slo-phase-3-marathon.md` | SLI/SLO catalogue for the migration marathon | staged for deletion — superseded by `docs/observability/sli-slo-phase-1b.md` and `sli-slo-wat-phase-2.md`, which cover the surviving services |
 | `dead-migration-tooling/watch-day-operator-trigger-audit-trail-marker-catalog.md` | Catalogue of audit-trail markers the watch-day operator was to emit | staged for deletion — no consumer left |
 
+| `dead-tests/test_trajectory_resync_cross_repo_drift_score.py` | Audit suite for the cross-repo drift re-sync *score* ("92 / ENFORCE-READY") produced by the `tooling/ci/audit_cross_repo_drift_allowlist.py` helper removed in PR #526 | staged for deletion — the helper is gone and the score pinned a migration state that no longer exists; its surviving invariants (mirror-seed presence, JSON validity, SPDX posture, byte-equality with `wirelang/schemas/`) are carried forward in `tests/audit/test_protocol_mirror_seed_integrity.py` |
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

@@ -320,19 +320,28 @@ def test_T13_frontmatter_still_post_cutover_reserve_draft(spec_text: str):
 def test_T14_frontmatter_does_not_carry_pre_cutover_freeze(spec_text: str):
     fm = _extract_frontmatter_block(spec_text)
     assert "status: pre-cutover-freeze" not in fm, (
-        "Tag-64 extension MUST NOT add a freeze-marker status"
+        "the coverage extension MUST NOT add a freeze-marker status"
     )
 
 
-def test_T15_source_of_truth_mentions_tag_64_coverage(spec_text: str):
-    assert "Tag-64 coverage extension" in spec_text, (
-        "§1 source-of-truth direction MUST mention Tag-64 coverage extension"
+def test_T15_source_of_truth_declares_sample_coverage(spec_text: str):
+    """§1 states the source-of-truth direction and the sample coverage.
+
+    The two statements are the reason a reader can tell a reserve item
+    from a contract. The assertion deliberately pins the statements,
+    not the development day on which they were added.
+    """
+    assert "Source-of-truth direction" in spec_text, (
+        "§1 MUST declare the source-of-truth direction"
+    )
+    assert "Sample-block coverage extension" in spec_text, (
+        "§1 MUST declare the per-RES-Dn sample-block coverage extension"
     )
 
 
-def test_T16_audit_conformance_mentions_tag_64_suite(spec_text: str):
+def test_T16_audit_conformance_references_coverage_suite(spec_text: str):
     assert "test_wirelang_spec_v0_4_4_coverage" in spec_text, (
-        "§8 audit-conformance MUST reference the Tag-64 coverage suite"
+        "§8 audit-conformance MUST reference the coverage suite"
     )
 
 
