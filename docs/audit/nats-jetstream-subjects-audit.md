@@ -3,19 +3,19 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 Callandor GmbH and contributors
 -->
 
-# NATS-JetStream Subjects + Publish-Mode Audit (Tag-43)
+# NATS-JetStream Subjects + Publish-Mode Audit
 
-**Owner:** Selin Çelik (Persona-Engine Engineer)
+**Owner:** persona-engine engineering
 **Companion script:** [`scripts/audit/nats-jetstream-subjects-audit.py`](../../scripts/audit/nats-jetstream-subjects-audit.py)
 **Hermetic tests:** [`tests/audit/test_nats_jetstream_subjects_audit.py`](../../tests/audit/test_nats_jetstream_subjects_audit.py)
-**First report:** [`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`](../../reports/audit/2026-05-18-nats-jetstream-subjects-audit.md)
-**Related ADRs / spec sections:** Bug-42 Failure-Mode-Catalogue (`wirelang/specs/wirelang-spec-v0-2.md` §13.2 / §13.3 / §13.4), Tag-41 PR #265 (publish/subscribe surface compatibility contract).
+**First report:** [`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`](../../docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md)
+**Related ADRs / spec sections:** Bug-42 Failure-Mode-Catalogue (`wirelang/specs/wirelang-spec-v0-2.md` §13.2 / §13.3 / §13.4), PR #265 (publish/subscribe surface compatibility contract).
 
 ---
 
 ## 1. Why this audit exists
 
-PR #265 (Tag-41) closed the Bug-42 *silent-drop F-1* class for the
+PR #265 closed the Bug-42 *silent-drop F-1* class for the
 Bridge-Forward-Pipe by:
 
 1. Encoding the publish/subscribe surface-compatibility matrix in
@@ -25,7 +25,7 @@ Bridge-Forward-Pipe by:
 3. Installing a `require_compatible(...)` pre-flight gate on the
    subscriber side (`wirelang/persona_engine/cli.py`).
 
-That fix lives on three files. Tag-43 asks the next question: *Are
+That fix lives on three files. This audit asks the next question: *Are
 all other NATS publish / subscribe call sites in the codebase
 configured analogously?* A silent regression — a new module that
 calls `nc.publish` without honouring `--publish-mode jetstream`, or
@@ -179,8 +179,8 @@ The audit ships with a CI workflow
 on every push / PR touching `wirelang/`, `scripts/`,
 `scripts/audit/nats-jetstream-subjects-audit.py`, the docs file,
 or the test file. The workflow runs in **audit-only** mode for
-the introduction cut (the same posture as Reza's
-`cross-repo-drift-audit` workflow at Tag-42 introduction) and
+the introduction cut (the same posture as protocol engineering's
+`cross-repo-drift-audit` workflow at introduction) and
 publishes the Markdown report as a job-summary block. Flipping
 the workflow to `--enforce` happens after the first drift-free
 report has been observed for two consecutive merge-trains.
@@ -224,12 +224,12 @@ python3 -m pytest tests/audit/test_nats_jetstream_subjects_audit.py -v
 ## 7. Audit boundary — what this script does NOT do
 
 - **No live JetStream probe.** The complementary live-config audit
-  lives in Tomás' `cross-substrate-parity-gate` workflow.
+  lives in dev engineering's `cross-substrate-parity-gate` workflow.
 - **No git history scan.** The audit is a working-tree snapshot.
 - **No nats-py import.** stdlib-only; runs on a bare Python 3.11+.
 - **No network.** The audit never opens a socket.
 
-The combination of (a) this static audit, (b) Tomás' live-config
+The combination of (a) this static audit, (b) dev engineering's live-config
 parity gate, and (c) the existing `require_compatible` pre-flight
 guard is the Bug-42 compound defence.
 
@@ -237,14 +237,12 @@ guard is the Bug-42 compound defence.
 
 ## 8. Cross-Review references
 
-- Reza Tag-42: `scripts/audit/cross-repo-sync-audit.py` —
+- the former `scripts/audit/cross-repo-sync-audit.py` (superseded by the `tooling/compat/` gate) —
   pattern template (stdlib-only, hermetic-testable, audit-only
   vs enforce-mode).
-- Tomás Tag-41: PR #265 substrate
+- PR #265 substrate
   (`wirelang/persona_engine/publish_mode_contract.py`) — the
   Bug-42 compatibility matrix that this audit enforces structurally.
-- Kai Container-Bridge — when the audit gains a CI workflow,
+- Container-Bridge — when the audit gains a CI workflow,
   the workflow's required-status-check name must be coordinated
   with branch-protection (Zone J).
-
-— Selin

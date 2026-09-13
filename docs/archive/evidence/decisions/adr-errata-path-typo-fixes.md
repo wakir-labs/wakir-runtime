@@ -6,7 +6,7 @@ Copyright (c) 2026 Wakir Labs contributors
 # ADR-Errata — Tag-55 Path-Typo Fixes (ERR-S1..S6)
 
 **Status:** documented (Tag-55, 2026-05-19).
-**Source audit:** `reports/audit/adr-spec-compliance-audit-2026-05-19.md`
+**Source audit:** `docs/archive/evidence/audits/adr-spec-compliance-audit-2026-05-19.md`
 (Tag-54 ADR Spec-Compliance Audit, Reza, PR #349).
 **Scope:** runtime-side documentation snapshot of six errata against
 corp-internal ADRs (`AI-Corp/decisions/`). This file records the

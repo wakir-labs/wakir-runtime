@@ -163,4 +163,4 @@ above remain valid forever.
 - JCS canonicaliser: `rfc8785` PyPI (Apache-2.0).
 - Test vectors: `tests/fixtures/jcs-leaf-vectors/` (Apache-2.0).
 - Cross-module drift detector: `tests/wat/test_jcs_drift.py` and
-  `wirelang/tests/test_jcs_drift.py` (Phase-1a-Tag-7 implementation).
+  `wirelang/tests/test_jcs_drift.py` (Phase-1a implementation).

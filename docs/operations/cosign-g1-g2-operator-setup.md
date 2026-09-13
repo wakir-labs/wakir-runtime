@@ -5,11 +5,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Cosign-Strict-Mode G1+G2 Operator-Hand Setup-Guide
 
-Tag-56 deliverable (Kai). Companion to
+deliverable (infrastructure engineering). Companion to
 `docs/operations/cosign-strict-mode-activation.md` §5 Step 2 + Step 3
 and `docs/operations/cosign-keyless-oidc-drift-probe.md` §3 + §4.
 
-Tag-55 PR #357 reduced the strict-flip readiness gates from
+PR #357 reduced the strict-flip readiness gates from
 6 BLOCKED to 2 BLOCKED — G3+G5 flipped GREEN, G4+G6 stayed GREEN,
 **G1 + G2 remain BLOCKED because both require host-side egress that
 the sandbox-CI runner does not have** (per
@@ -29,7 +29,7 @@ in two strictly-ordered Operator-Hand PRs.
 | Host-host with `ghcr.io` push + Sigstore-network egress | Yes — Operator-Hand only | No — sandbox-CI runner |
 | Live `cosign` + `crane` + `skopeo` against `ghcr.io` | Yes | No — `feedback_sandbox_host_trennung.md` |
 | YAML / JSON edits against `policies/` and `tooling/baselines/cosign-drift/` | Yes — both substrate edits land here | n/a |
-| PR review by Tomás (Zone-C) | Required for both G1 and G2 PRs | n/a |
+| PR review by dev engineering (Zone-C) | Required for both G1 and G2 PRs | n/a |
 | ADR vorlage | Not required — this is procedural closeout, not architecture | n/a |
 
 The two BLOCKED gates close in **two separate Operator-Hand PRs**
@@ -40,9 +40,9 @@ against a live snapshot.
 
 ---
 
-## 2. Pre-flight — verify Tag-55 baseline still holds
+## 2. Pre-flight — verify baseline still holds
 
-Before starting either PR, the operator confirms the post-Tag-55
+Before starting either PR, the operator confirms the later
 substrate is intact. Run the readiness check on the current `main`:
 
 ```bash
@@ -62,12 +62,12 @@ Expected verdict:
 | G6 | GREEN | branch-protection display-names |
 
 If G1, G2 status diverges from BLOCKED, **STOP** — the substrate has
-drifted since Tag-55. Open a triage ticket; do not start either
+drifted since. Open a triage ticket; do not start either
 Operator-Hand PR until the drift is reconciled.
 
 If G3, G4, G5 or G6 has flipped to non-GREEN, **STOP** — a parallel
-substrate change has invalidated the Tag-55 baseline. Re-run the
-Tag-55 closeout artefact production before proceeding (see Step 1
+substrate change has invalidated the baseline. Re-run the
+closeout artefact production before proceeding (see Step 1
 of `cosign-strict-mode-activation.md`).
 
 ---
@@ -83,7 +83,7 @@ slots that must be replaced in PR #N1:
 | File | Slot count | Image |
 |---|---|---|
 | `policies/cosign-policy-phase-3b.yaml` (carrier-image) | 1 | `ghcr.io/wakir-labs/wakir-persona-engine:0.5.0-pilot` |
-| `quadlet/wakir-rust-cli.container` | 1 | same carrier image (Welle-1..3 install path) |
+| `quadlet/wakir-rust-cli.container` | 1 | same carrier image (wave-1..3 install path) |
 | `quadlet/wakir-persona-tomas.container` | 1 | `ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot` (Pilot-Persona) |
 | `quadlet/wakir-rust-cli-welle4.container` | 1 | `ghcr.io/wakir-labs/wakir-persona-engine-state-backing-welle4:0.5.0-pilot` |
 | `quadlet/wakir-rust-cli-welle5.container` | 1 | `ghcr.io/wakir-labs/wakir-persona-engine-fsm-welle5:0.5.0-pilot` |
@@ -101,7 +101,7 @@ grep -rn 'DIGEST_PENDING_KAI_CROSS_REVIEW' \
 ```
 
 The output count must match the table above. If the count diverges,
-**STOP** — a new placeholder slot has been introduced since Tag-55
+**STOP** — a new placeholder slot has been introduced since
 and this guide is stale. Update the inventory table in PR #N1 to
 match the on-disk reality before continuing.
 
@@ -122,10 +122,10 @@ Verify the digest format byte-for-byte: 64 lowercase hex chars,
 no `sha256:` doubled. Reject anything else as a malformed digest
 output.
 
-### 3.3 Resolve the per-Welle dedicated-image digests
+### 3.3 Resolve the per-wave dedicated-image digests
 
-The four Welle-4..7 dedicated single-binary images are independent
-images per the Tag-33 Mini-Welle (they are NOT in the carrier image
+The four wave-4..7 dedicated single-binary images are independent
+images per the mini wave (they are NOT in the carrier image
 — see `docs/operations/cosign-strict-mode-activation.md` Step 2a
 rationale for Resolution-B).
 
@@ -146,7 +146,7 @@ lowercase hex string.
 crane digest ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot
 ```
 
-The 0.1.0-pilot tag is the Tomás-Pilot-Persona carrier; this is a
+The 0.1.0-pilot tag is the Pilot-Persona carrier; this is a
 distinct manifest from the 0.5.0-pilot carrier. Confirm the digest
 output is the production-pilot digest, NOT the development-default
 tag — cross-check against the Pilot-Persona image-build workflow
@@ -160,14 +160,14 @@ the 7 files in §3.1 and nothing else. The commit message follows
 the form:
 
 ```text
-ops(cosign-strict-G1): resolve carrier+Welle-N+Pilot digests
+ops(cosign-strict-G1): resolve carrier+wave-N+Pilot digests
 
 Closes G1 of the Cosign-Strict-Mode readiness gates. Replaces
 the DIGEST_PENDING_KAI_CROSS_REVIEW placeholder convention with
 the real ghcr.io production digests resolved via crane on the
 operator-host.
 
-Cross-Review-Zone-C: Tomás (Container-Image-Pipeline x OTS-Anchoring).
+Cross-Review-Zone-C: dev engineering (Container-Image-Pipeline x OTS-Anchoring).
 ```
 
 ### 3.6 Verify PR #N1 against the readiness-check
@@ -190,7 +190,7 @@ in the replacement.
 | `crane digest` returns 404 | Image tag not pushed | Halt — the build pipeline is the bug, not the digest pin. Open a build-pipeline triage ticket; do not invent a digest. |
 | `crane digest` returns a non-64-char string | Malformed digest output | Halt — re-pull `crane` from upstream, do not commit a malformed digest. |
 | readiness-check shows G1 still BLOCKED post-merge | Missed placeholder slot | Re-run `grep -rn 'DIGEST_PENDING_KAI_CROSS_REVIEW' policies/ quadlet/` and patch the missed slot in a follow-up PR. |
-| Tomás (Zone-C) rejects PR #N1 | Cross-review surfaced a digest-resolution discrepancy | Halt the merge; reconcile per Tomás's review comments before re-attempting. |
+| dev engineering (Zone-C) rejects PR #N1 | Cross-review surfaced a digest-resolution discrepancy | Halt the merge; reconcile per dev engineering's review comments before re-attempting. |
 
 ---
 
@@ -267,7 +267,7 @@ touch exactly one file. The four substrate fields after the edit:
 
 The `pinned_at` field gets the operator-host's UTC date (ISO-8601
 `YYYY-MM-DD`); the `pinned_by` field gets the operator's name +
-the closeout reference (e.g. `"Kai Hoffmann (Tag-56 G2 closeout)"`).
+the closeout reference (e.g. `"<operator name> (G2 closeout)"`).
 The `notes` field gains a short paragraph explaining the live
 snapshot source (e.g. `"Captured on operator-host 2026-MM-DD via
 cosign initialize + Rekor API; cosign-installer pinned to vN."`).
@@ -282,7 +282,7 @@ two PENDING_OPERATOR_HAND_REFRESH values in pinned-trust-root.json
 with the live Fulcio CA SHA-256 + Rekor shard ID captured on the
 operator-host via cosign initialize + Rekor API.
 
-Cross-Review-Zone-C: Tomás (Container-Image-Pipeline x OTS-Anchoring).
+Cross-Review-Zone-C: dev engineering (Container-Image-Pipeline x OTS-Anchoring).
 ```
 
 ### 4.4 Verify PR #N2 against the readiness-check + fixture-mode probe
@@ -314,13 +314,13 @@ Both runs must be GREEN for G2 to count as truly closed.
 | Rekor `treeID` is non-numeric | API contract change | Halt — open a Rekor-API-contract drift ticket; do not commit a non-numeric value. |
 | readiness-check shows G2 still BLOCKED post-merge | At least one `PENDING_OPERATOR_HAND_REFRESH` slot still on disk | Re-run `grep -n 'PENDING_OPERATOR_HAND_REFRESH' tooling/baselines/cosign-drift/pinned-trust-root.json` and patch the missed field. |
 | fixture-mode probe is non-GREEN despite G2 GREEN | Drift between the pinned values and a fresh snapshot taken at probe-time | Halt — reconcile per `docs/operations/cosign-keyless-oidc-drift-probe.md` §5 (halt-on-drift recipe). |
-| Tomás (Zone-C) rejects PR #N2 | Cross-review surfaced a trust-root capture discrepancy | Halt the merge; reconcile per Tomás's review comments before re-attempting. |
+| dev engineering (Zone-C) rejects PR #N2 | Cross-review surfaced a trust-root capture discrepancy | Halt the merge; reconcile per dev engineering's review comments before re-attempting. |
 
 ---
 
 ## 5. Step 5 — Cross-Review-Zone-C sign-off (joint)
 
-After both G1 and G2 are GREEN on `main`, Tomás reviews the
+After both G1 and G2 are GREEN on `main`, dev engineering reviews the
 post-Step-4 readiness-check run and the post-Step-4 fixture-mode
 probe run and leaves a single sign-off comment referencing this
 document. The sign-off comment is the audit-trail entry for
@@ -334,7 +334,7 @@ The sign-off comment lists:
   4. Post-G2 readiness-check run-id (must be 6/6 GREEN).
   5. Post-G2 fixture-mode probe run-id (must be aggregate GREEN).
 
-Once Tomás's sign-off comment lands, the operator is cleared to
+Once dev engineering's sign-off comment lands, the operator is cleared to
 proceed to `cosign-strict-mode-activation.md` §5 Step 6 — the
 S1+S2+S3 atomic strict-flip PR.
 
@@ -354,7 +354,7 @@ The tests pin the following invariants byte-for-byte:
 | 4 | G1 inventory table lists all 7 placeholder-slot files | T-G1G2-04 |
 | 5 | G1 placeholder token matches the on-disk repo grep | T-G1G2-05 |
 | 6 | G2 PENDING token matches the on-disk pinned-trust-root field | T-G1G2-06 |
-| 7 | Guide references the Zone-C cross-review by Tomás for both PRs | T-G1G2-07 |
+| 7 | Guide references the Zone-C cross-review by dev engineering for both PRs | T-G1G2-07 |
 | 8 | Guide ordering enforces G1-first / G2-second sequence | T-G1G2-08 |
 | 9 | Guide cross-links to the parent strict-mode-activation runbook | T-G1G2-09 |
 | 10 | Guide cross-links to the cosign-keyless-OIDC-drift-probe runbook | T-G1G2-10 |
@@ -367,13 +367,11 @@ hermetic test surface with a clear pointer at the failing line.
 
 ## 7. Anchors
 
-  * Tag-54 PR #351 — readiness-check substrate baseline (4 BLOCKED).
-  * Tag-55 PR #357 — G3 + G5 closeout (down to 2 BLOCKED).
-  * Tag-56 (this guide) — G1 + G2 Operator-Hand step-by-step recipe.
+  * PR #351 — readiness-check substrate baseline (4 BLOCKED).
+  * PR #357 — G3 + G5 closeout (down to 2 BLOCKED).
+  * (this guide) — G1 + G2 Operator-Hand step-by-step recipe.
   * `docs/operations/cosign-strict-mode-activation.md` — parent runbook §5 Step 2 + Step 3.
   * `docs/operations/cosign-keyless-oidc-drift-probe.md` — sibling recipe for trust-root capture.
   * `feedback_sandbox_host_trennung.md` — sandbox boundary; no Sigstore-network egress in CI.
   * `feedback_branch_protection_check_names.md` — branch-protection display-name discipline.
-  * Cross-Review-Zone-C: Container-Image-Pipeline × Tomás-OTS-Anchoring (ADR-0020 Zone C).
-
-— Kai
+  * Cross-Review-Zone-C: Container-Image-Pipeline × OTS-Anchoring (ADR-0020 Zone C).

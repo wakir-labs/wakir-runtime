@@ -2,27 +2,27 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-10 Tag-6 — Federation Live-VM Acceptance Lane.
-# Sprint-10 Tag-8 Bug-38 substance-fix applied (service-naming +
+# Federation Live-VM Acceptance Lane.
+# Bug-38 substance-fix applied (service-naming +
 # smoke-fed-gate activation).
 #
 # **Why this script exists.**
 #
-# Sprint-10 Tag-5 Bug-30..33 (HCL-named-block, profile-field, federates_with-
+# Bug-30..33 (HCL-named-block, profile-field, federates_with-
 # placement, bootstrap-skip-cosign-resolver) made it past the hermetic
 # Sandbox test surface and only surfaced during M-3 Live-Trial on
 # wakir-orbit. Memory anchor `feedback_live_bringup_sandbox_gap.md`
 # triggered for the 6th time that day; this script is the canonical
 # Live-VM-Acceptance lane that closes the gap from the **operator-side**
 # in addition to the hermetic HCL-shape test surface in
-# tests/infra/test_federation_config_hcl_shape.py (Sprint-10 Tag-6,
+# tests/infra/test_federation_config_hcl_shape.py (
 # T-FED-HCL-01..08).
 #
 # Sandbox boundary
 # ----------------
 #
 # This script DOES NOT run in the claude-dev Sandbox. It runs on an
-# operator-controlled host (Mira-Hand) that has SSH access to the
+# operator-controlled host (operator-hand) that has SSH access to the
 # Pilot-VM. The Sandbox cannot reach 192.168.178.* — that is the host-
 # operations boundary documented by `feedback_sandbox_host_trennung.md`.
 #
@@ -30,10 +30,10 @@
 # --------------
 #
 # This script is the "Live-VM acceptance" lane that ADR-0060 was meant
-# to formalise but was rejected on cost grounds; the kostenfreie
-# alternative (Quadlet-Lint + SELinux-Hermetic + this Live-VM script
-# triggered by-hand on Sprint-Substrate-Closers) covers the same gap.
-# When a new federation-substrate PR lands on main, Mira runs this
+# to formalise but was rejected on cost grounds; the
+# no-cost alternative (Quadlet-lint + SELinux-hermetic + this Live-VM script
+# triggered by hand when a substrate change lands) covers the same gap.
+# When a new federation-substrate PR lands on main, the operator runs this
 # script against wakir-orbit (or wakir-pilot) before the next
 # Migrations-Pilot phase-gate.
 #
@@ -45,7 +45,7 @@
 #
 #   sudo bash /opt/wakir-runtime/scripts/federation-live-vm-acceptance.sh
 #
-# Or from an operator-host (Mira-Hand) over SSH:
+# Or from an operator-host (operator-hand) over SSH:
 #
 #   ssh operator@<pilot-vm-ip> \
 #     'sudo bash /opt/wakir-runtime/scripts/federation-live-vm-acceptance.sh'
@@ -58,20 +58,20 @@
 #   WAKIR_PEER_HOST           default: 192.168.178.116
 #   WAKIR_PILOT_MODE          default: federation
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 1  (DEV-ONLY, parity with the
-#                             Sprint-10 Tag-5 M-3 Live-Trial topology)
+# M-3 Live-Trial topology)
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
 #
 # Exit-Codes
 # ----------
 #
 #   0  Acceptance PASS — bootstrap-re-run finished cleanly without
-#      Mira-Hand-Patches, federation-mode active on the VM.
+# operator-hand Patches, federation-mode active on the VM.
 #   1  Pre-Flight-Fehler (script not on the Pilot-VM, repo missing, ...)
 #   2  Bootstrap-Phase-Fehler (a step failed; check the bootstrap log)
 #   3  Acceptance-Verifikation fehlgeschlagen (bootstrap succeeded but
 #      a smoke-check did not).
 #
-# -- Tomás
+# -- dev-engineering
 
 set -eu -o pipefail
 
@@ -105,7 +105,7 @@ log "side=${WAKIR_SIDE} peer=${WAKIR_PEER_SIDE}@${WAKIR_PEER_HOST} mode=${WAKIR_
 
 # --- Phase 1: bootstrap-re-run ---------------------------------------------
 
-log "Phase 1: invoking wakir-pilot-bootstrap.sh (Sprint-10 Tag-5 Bug-30..33 acceptance)"
+log "Phase 1: invoking wakir-pilot-bootstrap.sh (Bug-30..33 acceptance)"
 bootstrap_log="$(mktemp -t fed-live-vm-acceptance.XXXXXX.log)"
 log "bootstrap log: $bootstrap_log"
 
@@ -131,9 +131,9 @@ log "Phase 1: bootstrap-re-run PASS"
 
 log "Phase 2: verifying SPIRE-Server federation-mode active"
 
-# Sprint-10 Tag-8 Bug-38 substance-fix: in federation-mode the Quadlet
+# Bug-38 substance-fix: in federation-mode the Quadlet
 # unit names are side-suffixed (one SPIRE-Server-federation per side).
-# The Tag-6 acceptance script hard-coded the single-org base names
+# The acceptance script hard-coded the single-org base names
 # ``wakir-spire-server.service`` / ``wakir-spire-agent.service``, which
 # do not exist in federation-mode. The smoke CLI already uses the
 # side-suffixed shape (bin/proxmox-bringup-smoke L325/326), so this
@@ -172,7 +172,7 @@ fi
 log "  - bundle-endpoint listener: bound on :8443"
 
 # (d) SPIRE-Server log shows no `malformed configuration` error
-#     (Bug-30/31/32 surfaced as that exact error string in Tag-5 M-3
+# (Bug-30/31/32 surfaced as that exact error string M-3
 #     Live-Trial).
 if journalctl -u "$server_unit" --since '5 minutes ago' 2>/dev/null \
    | grep -qi 'malformed configuration'; then
@@ -193,10 +193,10 @@ fi
 
 # --- Phase 3: smoke-test ---------------------------------------------------
 
-# Sprint-10 Tag-8 Bug-38 substance-fix: activate the federation-bundle-
+# Bug-38 substance-fix: activate the federation-bundle-
 # sync + cross-trust-domain-verify checks. The smoke CLI gates them on
-# WAKIR_FEDERATION_MODE=enabled AND --peer-side. The Tag-6 acceptance
-# script set neither, so the two Sprint-10 Tag-1 substance checks
+# WAKIR_FEDERATION_MODE=enabled AND --peer-side. The acceptance
+# script set neither, so the two substance checks
 # always SKIPped — which defeated the whole point of running the smoke
 # inside a federation-mode acceptance lane. Pass both explicitly:
 #

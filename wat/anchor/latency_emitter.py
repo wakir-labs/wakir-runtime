@@ -7,7 +7,7 @@
 """Per-anchor pipeline-stage latency emitter (Producer side).
 
 This module is the producer counterpart to ``scripts/wat-anchor-
-pipeline-observability.py`` (Noa, PR #145). The consumer tails a JSONL
+pipeline-observability.py``. The consumer tails a JSONL
 observation file and aggregates per-stage p50/p95/p99 quantiles for
 SLO-2 (anchor-latency-p99). The producer (this module) is the code
 that writes one JSON object per finalised anchor to that file.

@@ -5,14 +5,14 @@ SPDX-License-Identifier: BUSL-1.1
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-Phase-2 Sprint-Tag-8 — `WAKIR_RESOLVER_TRUST_MODE` documentation.
+`WAKIR_RESOLVER_TRUST_MODE` documentation.
 Companion to `infra/spire/federation/wakir-pilot-bootstrap.sh` step-5
 (image-pin resolve) and to `scripts/image-pin-idempotent-resolver.sh`
 (CI-side resolver).
 
 ## Why this exists
 
-Sprint-10 Tag-7 Bug-36 collapsed the bootstrap's skip-cosign-verify
+Bug-36 collapsed the bootstrap's skip-cosign-verify
 branch into a path that resolves all four image pins via skopeo only.
 The fix unblocked the Live-VM run on `wakir-orbit` 2026-05-15 ~20:10
 CEST, but it also broadened the trust-base for the SPIRE-server,
@@ -60,7 +60,7 @@ policy — DockerHub does not sign its library images.
 Resolves all four image pins via skopeo only. No Sigstore signature
 verification on any image.
 
-Equivalent to the Sprint-10 Tag-7 Bug-36-Fix path. This is the
+Equivalent to the Bug-36-Fix path. This is the
 canonical spelling for the Bug-36-Fix behaviour; the legacy spelling
 `WAKIR_SKIP_COSIGN_VERIFY=1` maps to this mode.
 
@@ -120,7 +120,7 @@ silently choosing one over the other.
 
 ## Production-migration plan
 
-Phase-3 cutover (ADR-0058 §"Phase 4 Cutover-Entscheidung") makes
+Phase-3 cutover (ADR-0058 §"Phase 4 cutover decision") makes
 `cosign-strict` mandatory:
 
 1. **Pre-cutover audit:** all Live-VM bring-ups since Pilot-Phase
@@ -129,13 +129,13 @@ Phase-3 cutover (ADR-0058 §"Phase 4 Cutover-Entscheidung") makes
    set is re-bringup'ed under `cosign-strict` and the resulting
    digest is compared byte-for-byte.
 
-2. **Cutover gate:** `cosign-strict` is the only accepted mode on
+2. **Cut-over gate:** `cosign-strict` is the only accepted mode on
    the Pilot-VM. The cutover ADR makes `skopeo-only-all-4` a
    one-way ticket back to DEV; production hosts that ever ran
    skopeo-only are reinstalled from clean.
 
 3. **CI enforcement:** The `image-pin-idempotent-resolver.sh` CI
-   workflow runs `cosign verify` post-Cutover. A drift detected
+   workflow runs `cosign verify` post-cutover. A drift detected
    without a corresponding Sigstore signature triggers a Zone-C
    cross-review, not a silent re-pin.
 
@@ -156,12 +156,10 @@ Phase-3 cutover (ADR-0058 §"Phase 4 Cutover-Entscheidung") makes
 ## See also
 
 - ADR-0023 — Image-pin contract.
-- ADR-0058 — Pilot-Persona-Migrations-Plan §"Phase 4 Cutover".
+- ADR-0058 — pilot-persona migration plan §"Phase 4 cutover".
 - `infra/spire/federation/IMAGE_PINS.md` — per-image trust-source
   documentation (Sigstore-keyless identity, OIDC issuer, etc).
 - `scripts/image-pin-idempotent-resolver.sh` — CI-side resolver
   (idempotent, exit-code-disciplined).
 - `infra/spire/federation/proxmox/resolve-image-pins.sh` —
   Operator-Hand VM-side resolver.
-
--- Kai

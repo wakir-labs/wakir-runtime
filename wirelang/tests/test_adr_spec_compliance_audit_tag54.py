@@ -3,7 +3,7 @@
 
 Re-Dispatch nach Quota-Hit 2026-05-19 ~03:20 CEST. The Tag-54 audit
 report
-(``reports/audit/adr-spec-compliance-audit-2026-05-19.md``)
+(``docs/archive/evidence/audits/adr-spec-compliance-audit-2026-05-19.md``)
 documents drift between ADR-cited Wirelang substrate surfaces and
 the working-copy at main-tip ``f713e75`` (Tag-53 PR #345).
 
@@ -48,7 +48,12 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DECISIONS_ROOT = REPO_ROOT.parent / "decisions"
 AUDIT_REPORT = (
-    REPO_ROOT / "reports" / "audit" / "adr-spec-compliance-audit-2026-05-19.md"
+    REPO_ROOT
+    / "docs"
+    / "archive"
+    / "evidence"
+    / "audits"
+    / "adr-spec-compliance-audit-2026-05-19.md"
 )
 SPEC_DIR = REPO_ROOT / "wirelang" / "specs"
 

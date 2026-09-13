@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Phase-2 Sprint-Tag-8 — Production install-script for the Tomás-
+# Production install-script for the dev-engineering-
 # Persona Quadlet (Bug-35-Folge-Item).
 #
 # **Why this script exists.**
 #
-# Bug-35 (Sprint-10 Tag-6) fixed the Quadlet bind-mount-Path-Drift:
+# Bug-35 fixed the Quadlet bind-mount-Path-Drift:
 # the Quadlet sources now point at the Operator-staged
 # /etc/wakir/persona/<slug>.{md,json} paths instead of the
 # wakir-runtime repo tree. The Live-VM-Trial since then runs the
-# container via `podman run` directly (Mira-Hand workaround) because
+# container via `podman run` directly (operator-hand workaround) because
 # the production-Quadlet install + DNS-config + env-file wiring was
 # never codified.
 #
@@ -36,7 +36,7 @@
 # Invocation
 # ----------
 #
-#   sudo ./install-persona-tomas-quadlet.sh \
+#   sudo ./install-persona-quadlet.sh \
 #       --persona-md /path/to/tomas.md \
 #       --persona-json /path/to/tomas.json \
 #       --nats-creds /path/to/tomas.env \
@@ -70,7 +70,7 @@
 #   2  Quadlet-validate failed.
 #   3  systemctl start failed.
 #
-# -- Kai
+# -- DevOps
 
 set -eu -o pipefail
 

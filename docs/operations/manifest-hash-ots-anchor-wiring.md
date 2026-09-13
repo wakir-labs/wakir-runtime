@@ -3,11 +3,11 @@ SPDX-License-Identifier: Apache-2.0
 Copyright (c) 2026 Callandor GmbH and contributors
 -->
 
-# Manifest-Hash OTS-Anchor Wiring (Tag-57 OPEN-K2)
+# Manifest-Hash OTS-Anchor Wiring (OPEN-K2)
 
 Audit-only Sandbox-side wiring for the persona-engine
 manifest-hash OpenTimestamps anchor. Closes OPEN-K2 from
-Selin's Tag-56 0.5.2-final production-readiness audit
+the persona-engine track's 0.5.2-final production-readiness audit
 (PR #362).
 
 This document is the **Operator-Hand runbook** for the real
@@ -38,7 +38,7 @@ The Sandbox cannot reach the OTS calendar:
   `feedback_sandbox_host_trennung.md`).
 - No outbound network for non-allow-listed endpoints.
 
-That is by design. Tag-57 closes the wiring shape; real
+That is by design. closes the wiring shape; real
 anchoring runs on a network-attached host by Operator-Hand.
 
 ## 2. Wiring Topology
@@ -77,7 +77,7 @@ The "WAT spool" reference in the OPEN-K2 phrasing refers to
 the JSON envelope shape embedded in the marker
 (`wat_spool_envelope` field). The substrate-level WAT spool
 itself (`wat/` directory) is not touched by this audit-only
-wiring — the Tag-57 closeout is intentionally minimal.
+wiring — the closeout is intentionally minimal.
 
 ## 3. Marker Schema (v1)
 
@@ -142,7 +142,7 @@ git commit -m "ots(manifest-hash-anchor): MANIFEST-0.5.2-final-pre-cutover"
 The marker JSON itself never needs editing. The proof is a
 strict additive artefact.
 
-## 5. CI-Side Invariants (Tag-57 Closeout)
+## 5. CI-Side Invariants (Closeout)
 
 The hermetic test-suite at
 `tests/ci/test_k1_k2_containerfile_ots_tag57.py` enforces
@@ -160,16 +160,16 @@ these invariants:
   registry lists all three pre-cutover manifests
   (0.5.0/0.5.1/0.5.2) and points at this runbook.
 
-If any of these invariants drifts, CI fails and Tag-57
+If any of these invariants drifts, CI fails and
 closeout regresses. The real OTS-calendar step
 (Operator-Hand) is explicitly out of CI scope.
 
-## 6. Pre-Activation-Probe-Mode (Tag-59)
+## 6. Pre-Activation-Probe-Mode
 
-Tag-57 left the helper as a strict audit-only emitter. Tag-58 PR
-#371 (Reza) sealed the Wirelang-Spec v0.4.3 against post-freeze
-drift with a cutover window pinned at 2026-06-09 (KW-24 gate).
-Tag-59 closes the remaining gap: a hermetic *pre-activation-probe*
+left the helper as a strict audit-only emitter. PR
+PR #371 sealed the Wirelang-Spec v0.4.3 against post-freeze
+drift with a cutover window pinned at 2026-06-09 (gate).
+closes the remaining gap: a hermetic *pre-activation-probe*
 that walks the exact shape an actual ``ots stamp`` invocation would
 take, without performing any network I/O.
 
@@ -198,8 +198,8 @@ The probe runs four stages:
    ``kind``, ``wat_spool_envelope.anchor_target``).
 4. **Sandbox boundary.** Reaffirmed OK-by-construction: this
    module is stdlib-only and performs no subprocess / no socket
-   / no network. Tag-57 invariant ``test_t09_k2_stdlib_only``
-   plus the Tag-59 test-suite enforce this at CI time.
+   / no network. The invariant ``test_t09_k2_stdlib_only``
+   plus the test-suite enforce this at CI time.
 
 The verdict envelope (``ots-pre-activation-probe-verdict``,
 ``schema_version: 1``) reports ``PROBE-READY`` iff every stage
@@ -239,10 +239,10 @@ The CI workflow
 ``.github/workflows/ots-pre-anchor-activation-probe.yml`` runs the
 probe on every pre-cutover manifest (0.5.0, 0.5.1, 0.5.2-final),
 schema-validates each verdict envelope, aggregates a job-summary
-table, and runs the hermetic Tag-59 test-suite
+table, and runs the hermetic test-suite
 (``tests/ci/test_ots_pre_anchor_activation_probe_tag59.py``).
 
-## 7. AR-Authorisierungs-Pfad
+## 7. Authorisation path
 
 The probe alone never produces a real OTS proof. It is the
 *green-light tripwire* that asserts the Repo-Side pipeline is
@@ -251,15 +251,15 @@ anchoring is:
 
 ```
 +----------------------------------+
-| (a) Probe = PROBE-READY on main  |  <-- CI gate (Tag-59)
+| (a) Probe = PROBE-READY on main  |  <-- CI gate
 +-------+--------------------------+
         |
-        | (b) Mira requests AR-authorisation
-        |     (ADR or AR-Hand decision) for
-        |     KW-24 cutover gate (2026-06-09).
+        | (b) Engineering requests the
+        |     authorisation (ADR or signed
+        |     decision) for the cutover gate.
         v
 +----------------------------------+
-| (c) Aufsichtsrat authorisation   |
+| (c) External-audit authorisation |
 |     dropped into                 |
 |     ar-hand/ inbox or signed     |
 |     decision marker.             |
@@ -294,15 +294,15 @@ ready and the next move is human.
 **Anchors (Pfad):**
 
 - ADR-0007 (Internal Audit Trail via OTS) — substrate.
-- Reza Tag-58 PR #371 — cutover window pinned 2026-06-09.
-- Tomás Tag-57 PR #366 — audit-only emit, OPEN-K2 closeout.
-- Tomás Tag-59 PR — pre-activation-probe + AR-authorisation pfad.
+- PR #371 — cutover window pinned 2026-06-09.
+- PR #366 — audit-only emit, OPEN-K2 closeout.
+- PR — pre-activation-probe + AR-authorisation pfad.
 
 ---
 
 **Anchors:**
 
 - ADR-0007 (Internal Audit Trail via OTS).
-- Selin's Tag-56 0.5.2-final audit (PR #362), OPEN-K2.
-- Tomás Tag-57 K1+K2 closeout PR.
-- Tomás Tag-59 pre-activation-probe PR.
+- the persona-engine track's 0.5.2-final audit (PR #362), OPEN-K2.
+- K1+K2 closeout PR.
+- pre-activation-probe PR.

@@ -181,80 +181,36 @@ SUB_WORKFLOWS: Tuple[SubWorkflow, ...] = (
     SubWorkflow(
         workflow_file="license-gate.yml",
         check_name="License-Hygiene Gate (ADR-0061)",
-        path_globs=(
-            "**/*.py",
-            "**/*.toml",
-            "**/LICENSE*",
-            "**/NOTICE",
-            "LICENSING.md",
-            "LICENSES/**",
-            "README.md",
-            "bin/**",
-            "infra/spire/**/bin/**",
-            ".github/workflows/**",
-            ".cross-repo-drift-allowlist.yaml",
-            "dashboards/**",
-            "docs/**",
-            "wirelang-rust/**",
-            "tests/infra/test_spdx_header_consistency.py",
-            "tests/infra/test_license_hygiene_consistency.py",
-            "tests/infra/test_licensing_md_state.py",
-            "REUSE.toml",
-        ),
+        # No path filter: the workflow lost its ``paths:`` list so the
+        # required context reports on every PR (ADR-0072 W5).
+        path_globs=("**",),
         required=True,
     ),
     # 2. wirelang suite production lane -- tests.yml :: production-suite
     SubWorkflow(
         workflow_file="tests.yml",
         check_name="wirelang suite with rfc8785 + jsonschema",
-        path_globs=(
-            "wirelang/**",
-            "tests/**",
-            "pyproject.toml",
-            ".github/workflows/**",
-            ".cross-repo-drift-allowlist.yaml",
-            "dashboards/**",
-            "docs/**",
-            "wirelang-rust/**",
-            ".pre-commit-config.yaml",
-            "scripts/pre-commit-*.py",
-        ),
+        # No path filter: the workflow lost its ``paths:`` list so the
+        # required context reports on every PR (ADR-0072 W5).
+        path_globs=("**",),
         required=True,
     ),
     # 3. wirelang suite shadow lane -- tests.yml :: shadow-suite
     SubWorkflow(
         workflow_file="tests.yml",
         check_name="wirelang suite without rfc8785 / jsonschema (shadow)",
-        path_globs=(
-            "wirelang/**",
-            "tests/**",
-            "pyproject.toml",
-            ".github/workflows/**",
-            ".cross-repo-drift-allowlist.yaml",
-            "dashboards/**",
-            "docs/**",
-            "wirelang-rust/**",
-            ".pre-commit-config.yaml",
-            "scripts/pre-commit-*.py",
-        ),
+        # No path filter: the workflow lost its ``paths:`` list so the
+        # required context reports on every PR (ADR-0072 W5).
+        path_globs=("**",),
         required=True,
     ),
     # 4. drift-envelope -- tests.yml :: drift-envelope
     SubWorkflow(
         workflow_file="tests.yml",
         check_name="production-vs-sandbox drift envelope",
-        path_globs=(
-            "wirelang/**",
-            "tests/**",
-            "pyproject.toml",
-            ".github/workflows/**",
-            ".cross-repo-drift-allowlist.yaml",
-            "dashboards/**",
-            "docs/**",
-            "wirelang-rust/**",
-            ".pre-commit-config.yaml",
-            "scripts/pre-commit-*.py",
-        ),
+        # No path filter: the workflow lost its ``paths:`` list so the
+        # required context reports on every PR (ADR-0072 W5).
+        path_globs=("**",),
         required=True,
     ),
     # 5. cross-repo compatibility -- cross-repo-compat.yml (ADR-0072 W4).
@@ -271,12 +227,9 @@ SUB_WORKFLOWS: Tuple[SubWorkflow, ...] = (
     SubWorkflow(
         workflow_file="runtime-acceptance-gates.yml",
         check_name="runtime acceptance gates",
-        path_globs=(
-            "wirelang/**",
-            "tests/infra/test_phase_2_acceptance_gates.py",
-            "docs/quality-gates/**",
-            ".github/workflows/runtime-acceptance-gates.yml",
-        ),
+        # No path filter: the workflow lost its ``paths:`` list so the
+        # required context reports on every PR (ADR-0072 W5).
+        path_globs=("**",),
         required=True,
     ),
 )

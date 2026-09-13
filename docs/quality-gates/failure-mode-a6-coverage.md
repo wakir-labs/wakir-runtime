@@ -2,40 +2,40 @@
 
 | Field | Value |
 |---|---|
-| Owner | Kai Hoffmann (DevOps / Container-Image-Pipeline), with Zone-C cross-review by Tomás Reinhart |
-| Status | Tag-46 closeout — A6 PARTIAL -> COVERED |
+| Owner | infrastructure engineering (DevOps / Container-Image-Pipeline), with Zone-C cross-review by dev engineering |
+| Status | closeout — A6 PARTIAL -> COVERED |
 | Phase | 3 (closing): substrate-layer A6 coverage extension |
-| Source | Amara Tag-45 Pre-Mortem Coverage-Audit PR #293 (`docs/quality-gates/pre-mortem-failure-mode-coverage.md` §2 A6, Tag-46+ follow-up table row 2); Kai Tag-46 spawn 2026-05-18 |
-| Date | 2026-05-18 (creation, Tag-46 A6-coverage spawn) |
+| Source | QA engineering Pre-Mortem Coverage-Audit PR #293 (`docs/quality-gates/pre-mortem-failure-mode-coverage.md` §2 A6, follow-up table row 2); infrastructure engineering spawn 2026-05-18 |
+| Date | 2026-05-18 (creation A6-coverage spawn) |
 | Test-File | `tests/infra/test_cosign_drift_coverage_a6.py` (17 hermetic invariants — 15 parametric + 5 standalone) |
 | Companion (CI-workflow shape) | `tests/ci/test_build_wakir_provisioner_workflow.py` (`test_cosign_login_step_present`, `test_cosign_login_runs_before_sign`) |
-| Companion (policy-substrate shape) | `tests/infra/test_cosign_policy_phase_3b.py` (Tag-23..Tag-45 inventory invariants) |
-| Companion (Quadlet-installer shape) | `tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py` (Tag-45 13->15 closeout) |
-| Companion (planned Marathon-Layer-5) | `tests/phase_3c/test_cosign_chain_marathon_image_hash_stability.py` (Amara owner, Tag-46+ follow-up table row 2) |
+| Companion (policy-substrate shape) | `tests/infra/test_cosign_policy_phase_3b.py` (..inventory invariants) |
+| Companion (Quadlet-installer shape) | `tests/infra/test_tag45_quadlet_cosign_15_binary_substrate.py` (13->15 closeout) |
+| Companion (planned rollout campaign-Layer-5) | `tests/phase_3c/test_cosign_chain_marathon_image_hash_stability.py` (QA engineering owner, follow-up table row 2) |
 
 ## 0. Contract scope
 
 This document is the **substrate-layer coverage matrix** for
 failure-mode **A6 — Cosign-Verification-Drift (Image-Re-Bake
-mid-Marathon)** as classified in Amara's Tag-45 Pre-Mortem
-Coverage-Audit (`pre-mortem-failure-mode-coverage.md` §2 A6).
+mid-rollout campaign)** as classified in QA engineering's Pre-Mortem
+Coverage-Audit (historical; git history, tag `archive/pre-phase-4`).
 
-The Tag-45 audit classified A6 as **PARTIAL** with two pinning tests
+The audit classified A6 as **PARTIAL** with two pinning tests
 (both CI-workflow-shape: `test_cosign_login_step_present`,
-`test_cosign_login_runs_before_sign`). The Tag-46+ follow-up table
+`test_cosign_login_runs_before_sign`). The follow-up table
 named two closers:
 
   * `test_cosign_chain_marathon_image_hash_stability.py` — Layer-5
-    Phase-3c-marathon-level closer, **Amara owner with Kai cross-review**.
+    Phase-3c-marathon-level closer, **QA engineering owner with infrastructure engineering cross-review**.
   * `tests/infra/test_cosign_drift_coverage_a6.py` (this file) —
-    Layer-3 substrate-layer closer, **Kai owner with Zone-C
+    Layer-3 substrate-layer closer, **infrastructure engineering owner with Zone-C
     cross-review**.
 
 The substrate-layer closer fires the A6 PARTIAL -> COVERED transition
-in the Tag-45 coverage matrix. The Layer-5 marathon-level closer
-(Amara, separate spawn) extends the COVERED classification across
-the Welle-N -> Welle-N+1 image-hash-stability invariant during the
-KW-24..KW-27 marathon.
+in the coverage matrix. The Layer-5 marathon-level closer
+(QA engineering, separate spawn) extends the COVERED classification across
+the wave-N -> wave-N+1 image-hash-stability invariant during the
+..marathon.
 
 ## 1. The 20 test-vectors
 
@@ -43,10 +43,10 @@ The 17-invariant test file is organised into 20 logical test-vectors
 (15 parametric runs of TV-A6-01..15 + 5 standalone invariants
 TV-A6-16..20).
 
-### Per-binary cosign-drift detection (TV-A6-01 .. TV-A6-15)
+### Per-binary cosign-drift detection (TV-A6-01.. TV-A6-15)
 
 `test_a6_per_binary_cosign_drift_invariant` runs once per binary
-in the 15-binary Tag-45-closeout inventory. Each run asserts the
+in the 15-binary closeout inventory. Each run asserts the
 policy entry carries the four substrate slots that an A6 re-bake
 would silently corrupt (`component`, `crate_path`, `in_image_path`,
 `env_switch`) AND that `in_image_path` is rooted under
@@ -56,23 +56,23 @@ drift target.
 
 | TV | Binary | Source-Tag |
 |---|---|---|
-| TV-A6-01 | recovery | Tag-17 Mini-Welle PR #167 |
-| TV-A6-02 | state-backing | Tag-17 Mini-Welle PR #167 |
-| TV-A6-03 | fsm | Tag-18 Mini-Welle PR #169 |
-| TV-A6-04 | v907-verify | Tag-19 Mini-Welle PR #171 |
-| TV-A6-05 | bridge-diff | Tag-20 Mini-Welle PR #175 |
-| TV-A6-06 | subscribe-loop | Tag-22 Mini-Welle PR #181 |
-| TV-A6-07 | anchor-emitter | Tag-23 Mini-Welle PR #184 |
-| TV-A6-08 | svid-workload-identity | Tag-25/Tag-29 PR #191 + Welle-2 image-build |
-| TV-A6-09 | bridge-audit-writer | Tag-31 Mini-Welle (Welle-3 image-build) |
-| TV-A6-10 | state-backing-welle4 | Tag-33 Mini-Welle (Welle-4 cutover image) |
-| TV-A6-11 | fsm-welle5 | Tag-33 Mini-Welle (Welle-5 cutover image) |
-| TV-A6-12 | subscribe-loop-welle6 | Tag-33 Mini-Welle (Welle-6 cutover image) |
-| TV-A6-13 | recovery-welle7 | Tag-33 Mini-Welle (Welle-7 cutover image) |
-| TV-A6-14 | bridge-audit-replay | Tag-37/Tag-45 PR #246 (14. Phase-3a Modul) |
-| TV-A6-15 | migrate-version | Tag-38/Tag-45 PR #250 (15. Phase-3a Modul; sweep closeout) |
+| TV-A6-01 | recovery | mini wave PR #167 |
+| TV-A6-02 | state-backing | mini wave PR #167 |
+| TV-A6-03 | fsm | mini wave PR #169 |
+| TV-A6-04 | v907-verify | mini wave PR #171 |
+| TV-A6-05 | bridge-diff | mini wave PR #175 |
+| TV-A6-06 | subscribe-loop | mini wave PR #181 |
+| TV-A6-07 | anchor-emitter | mini wave PR #184 |
+| TV-A6-08 | svid-workload-identity | PR #191 + wave-2 image-build |
+| TV-A6-09 | bridge-audit-writer | mini wave (wave-3 image-build) |
+| TV-A6-10 | state-backing-welle4 | mini wave (wave-4 cutover image) |
+| TV-A6-11 | fsm-welle5 | mini wave (wave-5 cutover image) |
+| TV-A6-12 | subscribe-loop-welle6 | mini wave (wave-6 cutover image) |
+| TV-A6-13 | recovery-welle7 | mini wave (wave-7 cutover image) |
+| TV-A6-14 | bridge-audit-replay | PR #246 (14. Phase-3a Modul) |
+| TV-A6-15 | migrate-version | PR #250 (15. Phase-3a Modul; sweep closeout) |
 
-### Standalone invariants (TV-A6-16 .. TV-A6-20)
+### Standalone invariants (TV-A6-16.. TV-A6-20)
 
 | TV | Invariant | Test | Failure-mode angle |
 |---|---|---|---|
@@ -84,17 +84,17 @@ drift target.
 
 ## 2. A6 PARTIAL -> COVERED transition
 
-The Tag-45 PARTIAL classification was based on two CI-workflow-shape
+The PARTIAL classification was based on two CI-workflow-shape
 tests that verified the cosign-login step exists and runs before the
 sign step. That coverage is necessary but not sufficient: it pins
 the workflow shape, not the substrate slots that an A6 image-re-bake
 would silently corrupt.
 
-The Tag-46 closeout adds 17 substrate-layer invariants (15 parametric
+The closeout adds 17 substrate-layer invariants (15 parametric
 per-binary + 5 standalone) that pin:
 
   * **Per-binary substrate integrity** (TV-A6-01..15) — the 15-binary
-    inventory matches the Tag-45 Quadlet+Cosign closeout byte-for-byte,
+    inventory matches the Quadlet+Cosign closeout byte-for-byte,
     and each binary's drift-anchor slots are present and well-formed.
   * **Recovery automation** (TV-A6-16) — the cosign-verify-images.yml
     workflow exits non-zero on digest drift, AND the policy ships the
@@ -111,20 +111,20 @@ per-binary + 5 standalone) that pin:
     §2 A6 is updated to COVERED and lists this test file as the
     pinning anchor.
 
-Together with the two Tag-45 CI-workflow-shape tests and the
+Together with the two CI-workflow-shape tests and the
 planned Layer-5 marathon-level test, A6 has three-fold coverage:
 
   * **Layer-1 (CI-workflow shape)**: cosign-login step present + runs
-    before sign (Tag-45, in
-    `tests/ci/test_build_wakir_provisioner_workflow.py`).
+    before sign
+    (`tests/ci/test_build_wakir_provisioner_workflow.py`).
   * **Layer-3 (substrate)**: per-binary drift-anchor slots +
     recovery posture + installer pin + OIDC identity + trust-root
-    discipline (Tag-46, this file).
-  * **Layer-5 (marathon)**: Welle-N image-hash MUST equal Welle-N+1
-    image-hash for the same image — pending Amara spawn (Tag-46+
-    follow-up table row 2).
+    discipline (this file).
+  * **Layer-5 (marathon)**: wave-N image-hash MUST equal wave-N+1
+    image-hash for the same image — pending a QA follow-up
+    (follow-up table row 2).
 
-The Tag-46 substrate-layer closer is sufficient for the A6 PARTIAL
+The substrate-layer closer is sufficient for the A6 PARTIAL
 -> COVERED transition at the Pre-Mortem coverage matrix level. The
 Layer-5 marathon-level test is an additional defence-in-depth pin
 that extends COVERED across the cutover sequence.
@@ -150,26 +150,24 @@ policy YAML.
 
 ## 4. Coverage summary
 
-| Failure-mode | Pre-Tag-46 | Tag-46 (this file) | Post-Tag-46 |
+| Failure-mode | Pre | (this file) | Post |
 |---|---|---|---|
 | A6 — Cosign-Verification-Drift | PARTIAL (2 CI-shape tests) | +17 substrate invariants | COVERED |
 
 ## 5. Cross-review note (Zone C)
 
-Zone C is the Container-Image-Pipeline x Tomás-OTS-Anchoring
+Zone C is the Container-Image-Pipeline x OTS-Anchoring
 cross-review boundary (per `agents-workspaces/kai/CLAUDE.md` §2).
 The A6 substrate-layer extension touches the cosign-policy YAML
 that the same `wakir-persona-engine` image is verified against —
-the image Tomás's
-`quadlet/wakir-persona-tomas.container` already pins. The Tag-46
+the image dev engineering's
+`quadlet/wakir-persona-tomas.container` already pins. The
 extension does NOT change the image-build path, the digest-resolver
 workflow (`resolve-image-pins-ci.yml`), or the OTS-anchoring
 pipeline. It only adds 17 substrate-layer assertions on the
 existing policy YAML + verify workflow.
 
-The Tag-45 Quadlet+Cosign substrate refresh (PR #294) already had
-Zone-C cross-review by Tomás (commit message anchor). The Tag-46
+The Quadlet+Cosign substrate refresh (PR #294) already had
+Zone-C cross-review by dev engineering (commit message anchor). The
 substrate-layer test extension is a follow-on within the same
 Zone-C cross-review surface; no new Zone-C gate triggered.
-
-— Kai

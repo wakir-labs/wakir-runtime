@@ -3,7 +3,7 @@ SPDX-License-Identifier: Apache-2.0
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 ---
-title: "Operator-Hand OTS-Live-Stamping Setup-Recipe (Tag-77)"
+title: "Operator-Hand OTS-Live-Stamping Setup-Recipe"
 status: "active"
 owner: "tomas"
 audience: "operator,ar,engineering"
@@ -20,8 +20,6 @@ related_adrs:
 related_docs:
   - "docs/operations/manifest-hash-ots-anchor-wiring.md"
   - "docs/operations/wirelang-spec-ots-anchor-wiring.md"
-  - "docs/operations/res-d4-high-residual-mitigation-deep-dive.md"
-  - "docs/operations/operator-hand-cutover-eve-final-recipe.md"
 related_prs:
   - "#366"
   - "#371"
@@ -29,15 +27,15 @@ related_prs:
   - "#440"
   - "#484"
 cross_review_markers:
-  - "Zone-K: WAT-Core × OTS-Substrate (Tomas-domain)"
-  - "Zone-L: Identity × Spec-Seal (Reza-cross-anchor)"
-  - "Zone-N: QA × Audit-Trail (Henrik-evidence)"
+  - "Zone-K: WAT-Core × OTS-Substrate (dev engineering)"
+  - "Zone-L: Identity × Spec-Seal (protocol cross-anchor)"
+  - "Zone-N: QA × Audit-Trail (internal-audit evidence)"
 ---
 
-# Operator-Hand OTS-Live-Stamping Setup-Recipe (Tag-77)
+# Operator-Hand OTS-Live-Stamping Setup-Recipe
 
-Pre-Cutover-Eve Operator-Hand-Activation-Recipe for the
-`WAKIR_OTS_LIVE_EMIT=1` toggle. Consumed at KW-24 cutover gate
+Pre-cutover-Eve Operator-Hand-Activation-Recipe for the
+`WAKIR_OTS_LIVE_EMIT=1` toggle. Consumed at cutover gate
 (2026-06-08 T0, Eve 2026-06-07) by the Operator-Hand to flip the
 OTS substrate from audit-only to live-emit on a network-attached
 host.
@@ -46,9 +44,9 @@ This doc is a **doc-form-only Operator-Hand recipe**. The Sandbox
 side never crosses into live-emit; the helper substrate
 (`tooling/ots/emit_manifest_hash_ots_marker.py`,
 `tooling/ots/emit_wirelang_spec_ots_marker.py`) refuses to set the
-ENV-flag by construction (Tag-70 HD-1 invariant, see
+ENV-flag by construction (HD-1 invariant, see
 `tooling/audit/prepare_res_d4_hd1_ots_substrate.py`). The
-Aufsichtsrat-authorisation gate sits between probe-readiness and
+external audit-authorisation gate sits between probe-readiness and
 live-flip; see §3.
 
 ## §1 Scope
@@ -56,7 +54,7 @@ live-flip; see §3.
 ### §1.1 Activation-Pfad
 
 This recipe covers the **single Operator-Hand step** that flips the
-OTS substrate from audit-only to live-emit at the KW-24 cutover
+OTS substrate from audit-only to live-emit at the cutover
 gate. It documents every action between the AR-authorisation drop
 (§3) and the first verified live-OTS-anchor (§5), and pins the
 rollback path (§7) for the case the live-flip fails.
@@ -70,7 +68,7 @@ rollback path (§7) for the case the live-flip fails.
 | Eve+1 | 2026-06-07 late | Operator | `WAKIR_OTS_LIVE_EMIT=1` toggle (§4) |
 | T0 | 2026-06-08 T0 | Operator | First-Live-Stamp test (§5) |
 | T0+0.5h | 2026-06-08 T0+0.5h | Operator | Marker-chain verification (§6) |
-| T0..T0+6 | rolling | Operator | Phase-3c-Welle-1..7 live-stamping under flag |
+| T0..T0+6 | rolling | Operator | Phase-3c-wave-1..7 live-stamping under flag |
 
 ### §1.3 Non-Scope
 
@@ -82,18 +80,18 @@ rollback path (§7) for the case the live-flip fails.
   The Sandbox helpers stay stdlib-only and never see
   `WAKIR_OTS_LIVE_EMIT=1` (Sandbox-Boundary, §8).
 - This recipe does **not** open the AR-authorisation request.
-  Mira drives that step via ADR-Vorlage or AR-Hand decision marker.
+  leadership drives that step via an ADR or an operator-hand decision marker.
 
 ## §2 Pre-Activation-Probe-Verifikation
 
 Before requesting AR-authorisation, the Operator confirms that the
-hermetic Tag-59 pre-activation-probe is green across all
-pre-cutover manifests AND the Tag-76 Phase-3-COMPLETE-Marker has
-been emitted (Marathon-Closeout consolidation done).
+hermetic pre-activation-probe is green across all
+pre-cutover manifests AND the Phase-3-COMPLETE-Marker has
+been emitted (rollout campaign-Closeout consolidation done).
 
 ### §2.1 Manifest-Hash Pre-Activation-Probe
 
-Run the Tag-59 probe across all three pre-cutover manifests and
+Run the probe across all three pre-cutover manifests and
 confirm every verdict is `PROBE-READY`:
 
 ```bash
@@ -124,9 +122,9 @@ Every emitted verdict envelope MUST satisfy:
 
 ### §2.2 Phase-3-COMPLETE-Marker
 
-Confirm the Tag-76 Marathon-Closeout-Audit-Anchor-Bundle has
-emitted the Phase-3-COMPLETE-Marker for Welle-1..7. The marker
-file lives under `tooling/ots/markers/` after Tag-76 PR #484
+Confirm the rollout closeout audit-anchor bundle has
+emitted the Phase-3-COMPLETE-Marker for wave-1..7. The marker
+file lives under `tooling/ots/markers/` after PR #484
 merge:
 
 ```bash
@@ -161,34 +159,34 @@ print('PRE-EVE-PROBE-GREEN' if all_ready else 'PRE-EVE-PROBE-DEFECT')
 ```
 
 If the aggregate prints `PRE-EVE-PROBE-DEFECT`, **do not proceed
-to §3**. Open a Tag-77-defect-ticket and escalate to Tomas
-(Matrix-Lead) + Priya (CTO).
+to §3**. Open a defect ticket and escalate to dev engineering
+(Matrix-Lead) + the CTO.
 
 ## §3 AR-Authorisierungs-Schritt
 
-The Aufsichtsrat-authorisation drop is the **single gate** between
+The external audit-authorisation drop is the **single gate** between
 probe-readiness (§2) and the live-flip toggle (§4). The Operator
 MUST NOT proceed to §4 without an explicit AR-authorisation marker
 present.
 
-### §3.1 AR-Authorisation-Request (Mira-Hand)
+### §3.1 AR-Authorisation-Request (engineering-hand)
 
-Mira files the AR-authorisation request via ADR-Vorlage or
-AR-Hand-Decision-Marker. The request MUST contain:
+the CEO files the AR-authorisation request via ADR-Vorlage or
+operator-hand-Decision-Marker. The request MUST contain:
 
-- **Purpose**: Live-OTS-anchor activation for Phase-3c-Welle-1..7
-  cutover (KW-24, T0 = 2026-06-08).
+- **Purpose**: Live-OTS-anchor activation for Phase-3c-wave-1..7
+  cutover (T0 = 2026-06-08).
 - **Scope**: `WAKIR_OTS_LIVE_EMIT=1` on the Operator-Host only.
   Sandbox stays audit-only.
 - **Rollback**: §7 of this doc.
-- **Audit-Trail**: Henrik Voss Zone-N audit-sample includes
+- **Audit-Trail**: internal audit Zone-N audit-sample includes
   live-stamp markers + `.ots` proof files.
 - **Sandbox-Boundary recital**: Sandbox helpers refuse the flag
   by construction; flag is host-side only.
 
 ### §3.2 AR-Authorisation-Marker
 
-When the Aufsichtsrat approves, a signed decision marker lands in
+When the external audit approves, a signed decision marker lands in
 `ar-hand/inbox/` with the canonical filename pattern:
 
 ```
@@ -202,7 +200,7 @@ ls ar-hand/inbox/*-ots-live-emit-activation-authorisation.md
 cat ar-hand/inbox/2026-06-07-ots-live-emit-activation-authorisation.md
 ```
 
-The marker MUST contain a signature block from the Aufsichtsrat
+The marker MUST contain a signature block from the external audit
 and the cutover-target-date `2026-06-08`. The Operator records the
 marker SHA-256 as audit-evidence:
 
@@ -271,19 +269,19 @@ EOF
 ```
 
 This log file is Operator-Hand evidence. It is **not** committed to
-the repo. Henrik Voss reads it via the Zone-N audit-sample
+the repo. internal audit reads it via the Zone-N audit-sample
 out-of-band path.
 
 ## §5 First-Live-Stamp Test
 
 With the flag exported, run the **first live-OTS-stamp** against
-the Tag-76 Phase-3-COMPLETE-Marker. This is the canonical proof
+the Phase-3-COMPLETE-Marker. This is the canonical proof
 that the live-flip works.
 
 ### §5.1 Stamp-Invocation
 
 ```bash
-# Locate the Phase-3-COMPLETE-Marker emitted at Tag-76.
+# Locate the Phase-3-COMPLETE marker.
 MARKER=$(ls tooling/ots/markers/phase-3-complete-marker-*.json | head -1)
 echo "Stamping: ${MARKER}"
 
@@ -321,7 +319,7 @@ ots verify "${MARKER}.ots"
 ```
 
 Expected output:
-- "Success! Bitcoin block N attests existence as of ..."
+- "Success! Bitcoin block N attests existence as..."
 
 If `ots verify` fails, **immediately invoke §7 rollback**. The
 live-flip is not considered successful until the verify-step
@@ -337,20 +335,20 @@ EOF
 
 ## §6 Marker-Chain-Verifikation
 
-The Phase-3-COMPLETE-Marker references the seven Welle-N
-audit-anchor markers (Tag-69..Tag-75). The Operator confirms each
+The Phase-3-COMPLETE-Marker references the seven wave-N
+audit-anchor markers (..). The Operator confirms each
 predecessor marker is stamp-eligible AND records the chain.
 
-### §6.1 Welle-1..7-Marker-Stamp-Sequence
+### §6.1 wave-1..7-Marker-Stamp-Sequence
 
-Iterate over the seven Welle-N markers and stamp each one in
-order (Welle-1, Welle-2, Welle-3, Welle-4, Welle-5, Welle-6,
-Welle-7):
+Iterate over the seven wave-N markers and stamp each one in
+order (wave-1, wave-2, wave-3, wave-4, wave-5, wave-6,
+wave-7):
 
 ```bash
 for welle in 1 2 3 4 5 6 7 ; do
   WELLE_MARKER="tooling/ots/markers/welle-${welle}-audit-anchor.json"
-  echo "Stamping Welle-${welle}: ${WELLE_MARKER}"
+  echo "Stamping wave-${welle}: ${WELLE_MARKER}"
   ots stamp "${WELLE_MARKER}"
 done
 ```
@@ -358,7 +356,7 @@ done
 ### §6.2 Chain-Hash-Verifikation
 
 The Phase-3-COMPLETE-Marker carries a `welle_1_7_marker_chain`
-field that SHA-256s the seven Welle-N markers in canonical
+field that SHA-256s the seven wave-N markers in canonical
 sort-order. Confirm the chain hash matches:
 
 ```bash
@@ -378,7 +376,7 @@ print('CHAIN-OK:', chain)
 ### §6.3 Cross-Substrate-Parity
 
 Confirm the Phase-3-COMPLETE-Marker's
-`cross_substrate_parity_markers` list points at the seven Welle-N
+`cross_substrate_parity_markers` list points at the seven wave-N
 marker filenames AND each `.ots` proof file is present after §6.1:
 
 ```bash
@@ -424,7 +422,7 @@ any live-stamp residue.
 | R2-Verify-Failure | `ots verify` does not return Bitcoin-block attestation | CRITICAL |
 | R3-Chain-Drift | §6.2 chain-hash mismatch | CRITICAL |
 | R4-Parity-Mismatch | §6.3 parity-list missing or `.ots` proof absent | HIGH |
-| R5-AR-Recall | Aufsichtsrat retracts authorisation post-flip | CRITICAL |
+| R5-AR-Recall | external audit retracts authorisation post-flip | CRITICAL |
 
 ### §7.2 Rollback-Sequence
 
@@ -445,14 +443,14 @@ cat >> out/operator-hand-audit-log.jsonl <<EOF
 {"event": "ots-live-emit-rollback", "ts": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "trigger": "<R1|R2|R3|R4|R5>", "quarantined_proofs": "$(ls out/rollback-quarantine | wc -l)"}
 EOF
 
-# 5. Notify Mira + Priya + Henrik via the standard notify-bridge.
+# 5. Notify engineering leadership and internal audit via the notify-bridge.
 echo "OTS-LIVE-EMIT-ROLLBACK trigger=<R1|R2|R3|R4|R5>" \
   > out/notify-mira-rollback.txt
 ```
 
 ### §7.3 Rollback-Audit-Trail
 
-The quarantined `.ots` proof files MUST be retained for Henrik's
+The quarantined `.ots` proof files MUST be retained for internal audit's
 Zone-N audit-sample. Do **not** delete them. The audit-trail
 remains complete even after rollback.
 
@@ -469,13 +467,13 @@ re-arm marker, ADR-0023a §6.1). The Operator does NOT re-export
 
 **In Sandbox (Repo/CI):**
 - `tooling/ots/emit_manifest_hash_ots_marker.py` — audit-only emit
-  + pre-activation-probe + Welle-N audit-anchor + Phase-3-COMPLETE.
+  + pre-activation-probe + wave-N audit-anchor + Phase-3-COMPLETE.
 - `tooling/ots/emit_wirelang_spec_ots_marker.py` — audit-only emit.
 - Hermetic schema-tests over marker JSON shape.
 - This recipe doc (`docs/operations/ots-live-stamping-operator-setup.md`).
-- The Tag-77 verifier helper
+- The verifier helper
   (`tooling/ci/verify_ots_live_setup_doc.py`).
-- The Tag-77 test-suite
+- The test-suite
   (`tests/ci/test_ots_live_setup_doc_tag77.py`).
 
 ### §8.2 Out-of-Sandbox-Scope
@@ -494,7 +492,7 @@ re-arm marker, ADR-0023a §6.1). The Operator does NOT re-export
 
 The Sandbox cannot reach the OTS calendar. The Sandbox helpers
 refuse `WAKIR_OTS_LIVE_EMIT=1` by construction (no `--mode live`
-flag in `emit_manifest_hash_ots_marker.py`; the Tag-70 HD-1
+flag in `emit_manifest_hash_ots_marker.py`; the HD-1
 substrate enforces ENV-flag-default-off via
 `tooling/audit/prepare_res_d4_hd1_ots_substrate.py`). This is the
 canonical **Operator-Hand-Sandbox-Gap** pattern from
@@ -506,7 +504,7 @@ The Sandbox-side substrate validates that:
 - Helper subprocesses do not import `socket`, `subprocess`,
   `urllib.request`, or any network module.
 - Helper subprocesses exit non-zero when invoked with
-  `WAKIR_OTS_LIVE_EMIT=1` (defensive trip — Tag-70
+  `WAKIR_OTS_LIVE_EMIT=1` (defensive trip —
   `test_helper_subprocess_rejects_live_emit_env_flag`).
 
 ### §8.4 ADR-Anchors
@@ -514,16 +512,16 @@ The Sandbox-side substrate validates that:
 - **ADR-0007** — Internal Audit Trail via OTS (substrate).
 - **ADR-0023a** — Sandbox-Boundary (no live-emit in Sandbox).
 - **ADR-0044** — QA × Audit Cross-Review (Zone-N evidence).
-- **ADR-0066** — Marathon-Closeout Substanz-Prüfung Pflicht.
+- **ADR-0066** — rollout campaign-Closeout Substanz-Prüfung Pflicht.
 
 ### §8.5 Cross-Anchor-PRs
 
-- **#366** (Tomás Tag-57) — audit-only emit substrate.
-- **#371** (Reza Tag-58) — Wirelang-Spec v0.4.3 seal.
-- **#382** (Tomás Tag-60) — Live-VM-Rotation-Stub.
-- **#440** (Tomás Tag-69 RES-D4 deep-dive) — HD-1 OTS-substrate-prep.
-- **#484** (Tomás Tag-76) — Phase-3-COMPLETE-Marker
-  (Marathon-Closeout-Audit-Anchor-Bundle).
+- **#366** (dev engineering) — audit-only emit substrate.
+- **#371** (protocol engineering) — Wirelang-Spec v0.4.3 seal.
+- **#382** (dev engineering) — Live-VM-Rotation-Stub.
+- **#440** (dev engineering RES-D4 deep-dive) — HD-1 OTS-substrate-prep.
+- **#484** (dev engineering) — Phase-3-COMPLETE-Marker
+  (rollout closeout audit-anchor bundle).
 
 ---
 
@@ -531,10 +529,8 @@ The Sandbox-side substrate validates that:
 
 - ADR-0007 (Internal Audit Trail via OTS).
 - ADR-0023a (Sandbox-Boundary).
-- Tag-57 PR #366 K1+K2 closeout.
-- Tag-58 PR #371 Wirelang-Spec seal.
-- Tag-59 pre-activation-probe + AR-authorisation pfad.
-- Tag-69 RES-D4 deep-dive HD-1 substrate-prep.
-- Tag-76 PR #484 Phase-3-COMPLETE-Marker.
-
--- Tomás
+- PR #366 K1+K2 closeout.
+- PR #371 Wirelang-Spec seal.
+- pre-activation-probe + AR-authorisation pfad.
+- RES-D4 deep-dive HD-1 substrate-prep.
+- PR #484 Phase-3-COMPLETE-Marker.

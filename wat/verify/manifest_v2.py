@@ -12,7 +12,7 @@ sister question that external implementers actually ask first when
 they get handed a manifest file: "is this manifest internally
 consistent with itself, and does it match the v2 schema contract?"
 
-In Sprint-2 Tag-1 the trigger code-touchpoint in
+At the time of writing the trigger code-touchpoint in
 ``wat/aggregator.py`` does not yet exist. The pin tests
 (``tests/wat/test_manifest_v2_schema_smoke.py``) cover the schema
 contract at structural level; this stub adds the **cross-module
@@ -61,11 +61,9 @@ Per ``docs/wat-manifest-v2-spec.md`` §9 OQ-1 (ratified
 2026-05-07 by wirelang-engineering Cross-Review-Zone-2), the
 canonical Merkle ordering for ``caprefs_root`` is **ordered
 Merkle** (preserves producer / issuance intent). This stub
-implements the ordered convention; strict-mode is the default
-since Sprint-2 Tag-4:
+implements the ordered convention; strict-mode is the default:
 
-- ``--strict-multi-cap-root`` (default **on** since Sprint-2
-  Tag-4) — recompute ``caprefs_root`` and reject on mismatch
+- ``--strict-multi-cap-root`` (default **on**) — recompute ``caprefs_root`` and reject on mismatch
   with exit code 1 and reason ``multi_cap_root_mismatch``.
 - ``--no-strict-multi-cap-root`` (lenient escape hatch for
   third-party verifiers that have not yet adopted the locked
@@ -73,7 +71,7 @@ since Sprint-2 Tag-4:
   verified (OQ-1 pending)`` and continue.
 
 This matches the spec §8 verifier-posture matrix: strict is the
-reference-verifier default since Sprint-2 Tag-4; lenient remains
+reference-verifier default; lenient remains
 available as a forward-compat escape hatch for downstream
 verifiers that have not yet adopted the locked ordering.
 
@@ -87,7 +85,7 @@ two semantic tables:
 - ``1`` — schema-validation failure, cross-integrity failure, or
   ``multi_cap_root_mismatch`` under strict mode.
 
-Real-manifest mode (Sprint-2 Tag-5)
+Real-manifest mode
 -----------------------------------
 
 The v2-spec verifier above operates on manifests that conform to
@@ -115,7 +113,7 @@ Multi-cap awareness in real-manifest mode is conditional: today's
 v1 aggregator does not emit ``multi_cap_events`` or
 ``multi_cap_summary``. When a real manifest does carry those keys
 (future v2 producer-code), the same multi-cap consistency check
-(strict default ON since Sprint-2 Tag-4) runs against them.
+(strict default ON) runs against them.
 """
 
 from __future__ import annotations
@@ -134,8 +132,8 @@ from wat.merkle.aggregator import (
     compute_leaf_hash,
 )
 
-# Manifest-signing primitive (Sprint-4 Tag-6). The verifier-sig wire-up
-# (Sprint-5 Tag-2) consumes ``verify_manifest_signature`` and the
+# Manifest-signing primitive. The verifier-sig wire-up
+# consumes ``verify_manifest_signature`` and the
 # ``VerifyMode`` policy surface; signing itself is the producer's job
 # and stays in :mod:`wat.identity.manifest_signing`.
 from wat.identity.manifest_signing import (
@@ -151,16 +149,16 @@ from wat.identity.manifest_signing import (
 #: verification without requiring the explicit CLI flag (useful for
 #: cron / systemd-unit invocations). The opt-in is the *only* path —
 #: the default-off posture protects backward compatibility for the 321
-#: pre-Sprint-5-Tag-1 tests and any external verifier that has not yet
+#: earlier tests and any external verifier that has not yet
 #: adopted the optional ``signature`` slot.
 _VERIFY_SIGNATURE_ENV: str = "WAKIR_VERIFY_MANIFEST_SIGNATURE"
 
 
 #: WAT-side anchor-kid bridge module. Lives in
-#: :mod:`wat.identity.anchor_kid` (Sprint-4 Tag-5). The bridge delegates
+#: :mod:`wat.identity.anchor_kid`. The bridge delegates
 #: to the canonical Identity-Substrate kid-resolver
-#: (:mod:`wirelang.identity.kid_resolver`, Reza Sprint-4 Tag-3) via
-#: importlib. The Tag-3 wire-up here (the verifier path) imports the
+#: (:mod:`wirelang.identity.kid_resolver`) via
+#: importlib. The wire-up here (the verifier path) imports the
 #: WAT-side bridge — NOT the canonical resolver directly — so that
 #: the cross-branch dependency stays exactly one hop wide and the
 #: WAT-domain error type (:class:`WatAnchorKidError`) surfaces all
@@ -197,7 +195,7 @@ DEFAULT_SCHEMA_PATH = (
 
 #: Default location of the v1 (real-manifest) schema relative to the
 #: repo. Used by ``verify_real_manifest_file`` when called with
-#: ``use_schema_file=True`` (off-default since Sprint-2 Tag-6) and by
+#: ``use_schema_file=True`` (off-default) and by
 #: the CLI ``--use-schema-file`` flag. The v1 schema is the
 #: source-of-truth pin for the on-disk wakir-wat-manifest/v1 wire-form
 #: emitted by the aggregator; the in-code field-by-field validator
@@ -248,7 +246,7 @@ class ManifestV2Result:
         for v1 manifests.
     signature_status:
         Outcome of the optional manifest-signature verification
-        (Phase-2 Sprint-5 Tag-2 wire-up). One of:
+        (wire-up). One of:
 
         - ``""`` — signature verification was not requested (default
           opt-in surface; the verifier never auto-runs the signature
@@ -348,7 +346,7 @@ class ManifestV2Result:
         ``wat/verify/manifest_v2.py`` (this module) and the frontend
         ``AuditTrailEntry`` consumer (per
         ``infra/repos-skeleton/site/src/data/wakir-audit-trail-sample.ts``,
-        published in Sprint-Frontend-1 Tag-3 outbox memo). The frontend
+        published in the frontend-track outbox memo). The frontend
         provisional interface treats every entry as one of three
         ``kind`` values; a manifest-v2 verifier-result maps to
         ``"wat-tv-pin-pack"`` — the kind for "the runtime pinned a set
@@ -406,7 +404,7 @@ class ManifestV2Result:
         - ``signature_status`` — string, mirror of :meth:`as_dict`
           ``signature_status``. One of ``"" | "verified" |
           "unsigned-permissive" | "unsigned-strict" | "mismatch" |
-          "structural-error"``. Added in Phase-2 Sprint-5 Tag-3 as
+          "structural-error"``. Added as
           the twelfth pinned key (additive within
           ``wakir-verify-manifest-v2/0``; no schema-version bump per
           the additive-only evolution rule below). Empty string when
@@ -930,9 +928,9 @@ def _resolve_signature_pubkey_via_aip_doc(
     """Resolve the signature-block ``kid`` to an Ed25519 public key
     against an AIP document.
 
-    Bridge to :mod:`wat.identity.anchor_kid` (Sprint-4 Tag-5), which in
-    turn delegates to :mod:`wirelang.identity.kid_resolver` (Reza
-    Sprint-4 Tag-3, Z-1-Cross-Review-substance). Uses importlib so the
+    Bridge to :mod:`wat.identity.anchor_kid`, which in
+    turn delegates to :mod:`wirelang.identity.kid_resolver`
+    (Z-1-Cross-Review-substance). Uses importlib so the
     verifier remains importable even when the WAT-anchor-kid bridge or
     the canonical resolver branch has not merged to ``main`` — failure
     surfaces as a ``("structural-error", <reason>)`` from the caller.
@@ -964,7 +962,7 @@ def _resolve_signature_pubkey_via_aip_doc(
       :func:`wirelang.identity.kid_resolver.resolve_kid`.
     - The WAT-domain ``purpose="wat-anchor"`` filter is owned by
       :func:`wat.identity.anchor_kid.resolve_wat_anchor_kid`.
-    - The verifier here (Tag-3 wire-up) only orchestrates the call
+    - The verifier here (wire-up) only orchestrates the call
       and converts errors to the ``signature_status`` enum.
     """
     if not isinstance(manifest, dict):
@@ -1005,8 +1003,8 @@ def _resolve_signature_pubkey_via_aip_doc(
                 None,
                 "canonical kid-resolver not available: "
                 "wirelang.identity.kid_resolver is not importable "
-                "(cross-branch merge gap; Identity-Substrate "
-                "Sprint-4 Tag-3 must merge before kid-resolver "
+                "(cross-branch merge gap; the Identity-Substrate kid-resolver "
+                "must merge before the kid-resolver "
                 "bridge can run). Pass "
                 "verify_signature_public_key=<bytes> directly to "
                 "skip the bridge.",
@@ -1063,7 +1061,7 @@ def verify_manifest_v2_file(
         ``wirelang/schemas/wat-manifest-v2.json`` next to the
         repo-root.
     strict_multi_cap_root:
-        When True (default since Sprint-2 Tag-4, OQ-1 ratified
+        When True (default, OQ-1 ratified
         ordered-Merkle 2026-05-07), recompute ``caprefs_root`` for
         every entry in ``multi_cap_events`` and reject on mismatch.
         When False (lenient escape hatch for third-party verifiers
@@ -1071,13 +1069,13 @@ def verify_manifest_v2_file(
         recompute and report ``multi_cap_root_status = "deferred"``
         so external callers can wire their own posture.
     verify_signature:
-        Phase-2 Sprint-5 Tag-2 wire-up. When True, the verifier
+        wire-up. When True, the verifier
         consumes the optional manifest-level ``signature`` slot
-        (schema 0.2.0, Phase-2 Sprint-5 Tag-1) using the
+        (schema 0.2.0) using the
         :func:`wat.identity.manifest_signing.verify_manifest_signature`
         primitive. When False (default), the slot round-trips through
-        the verifier without being checked — preserves the pre-Sprint-
-        5-Tag-2 behaviour and the 321 pre-existing tests. Opt-in is
+        the verifier without being checked — preserves the earlier
+        behaviour and the 321 pre-existing tests. Opt-in is
         the only path; there is no auto-detect from slot-presence to
         avoid making the integrity verdict depend on the absence of a
         caller-supplied public key.
@@ -1097,14 +1095,14 @@ def verify_manifest_v2_file(
         = False``. The flag has no effect when ``verify_signature
         =False``.
     verify_signature_aip_doc:
-        Phase-2 Sprint-5 Tag-3 wire-up. Optional AIP document mapping.
+        wire-up. Optional AIP document mapping.
         When supplied AND ``verify_signature=True`` AND
         ``verify_signature_public_key=None`` AND the manifest carries a
         ``signature`` slot, the verifier resolves the slot's ``kid``
         field to a public key via the WAT anchor-kid bridge
-        (:mod:`wat.identity.anchor_kid`, Sprint-4 Tag-5) which in turn
+        (:mod:`wat.identity.anchor_kid`) which in turn
         delegates to the canonical Identity-Substrate kid-resolver
-        (:mod:`wirelang.identity.kid_resolver`, Reza Sprint-4 Tag-3,
+        (:mod:`wirelang.identity.kid_resolver`,
         Z-1-Cross-Review). Resolution failures (kid not found,
         canonical resolver branch not merged, AIP-document malformed,
         validity-window violation, wrong purpose) surface as
@@ -1217,14 +1215,14 @@ def verify_manifest_v2_file(
                 failure_reason=f"{phase}: {multi_msg}",
             )
 
-    # Optional manifest-signature wire-up (Phase-2 Sprint-5 Tag-2).
+    # Optional manifest-signature wire-up.
     # Default off; opt-in by the caller. Runs after schema +
     # integrity + multi-cap-root because those phases are the
     # cheaper, pre-existing contract — signature verification is
     # only meaningful on a structurally consistent manifest.
     signature_status = ""
     if verify_signature:
-        # Sprint-5 Tag-3: Kid-Resolver-Bridge. When the caller has
+        # Kid-Resolver-Bridge. When the caller has
         # supplied an AIP document AND no direct public-key AND the
         # manifest carries a signature slot, resolve the slot's kid
         # via the WAT anchor-kid bridge -> canonical Identity-Substrate
@@ -1288,7 +1286,7 @@ def verify_manifest_v2_file(
 
 
 # ---------------------------------------------------------------------------
-# Real-manifest mode (Sprint-2 Tag-5)
+# Real-manifest mode
 # ---------------------------------------------------------------------------
 
 
@@ -1526,7 +1524,7 @@ class OtsAnchorCheck:
         header. False on missing file or magic-byte mismatch.
     full_verify_attempted:
         True iff the caller asked for the off-default
-        ``ots verify``-Voll-Integration (Sprint-3 Tag-4) by passing
+        ``ots verify``-Voll-Integration by passing
         ``ots_full_verify=True`` (or via env / CLI flag — see
         :func:`_full_verify_enabled` below). False means the
         ``full_verify_*`` fields are not load-bearing and the OTS
@@ -1589,7 +1587,7 @@ class OtsAnchorCheck:
 #: without an explicit ``ots_full_verify=True`` argument. The CLI
 #: ``--ots-full-verify`` flag is the explicit-and-preferred path;
 #: the env-flag exists for cron-style invocations that cannot
-#: easily inject CLI flags. Sprint-3 Tag-4.
+#: easily inject CLI flags.
 _OTS_FULL_VERIFY_ENV_VAR = "WAKIR_OTS_FULL_VERIFY"
 
 
@@ -1683,7 +1681,7 @@ def _check_ots_anchor_side_files(
     # restrictive umask on the aggregator side, ops sandbox that
     # denies the verifier service account, transient I/O errors).
     # The verifier must not crash; it must surface a structured
-    # rejection. Sprint-4 Tag-1 receipt-persistence-edge-case
+    # rejection. Receipt-persistence edge-case
     # hardening (see tests/wat/test_tv3_receipt_persistence_edges.py).
     try:
         raw = root_bin.read_bytes()
@@ -1810,7 +1808,7 @@ class RealManifestResult:
     schema/integrity flags plus an :class:`OtsAnchorCheck` for the
     OTS-pin-anchor side-files.
 
-    ``signature_status`` (Sprint-5 Tag-5, additive) mirrors the slot
+    ``signature_status`` (additive) mirrors the slot
     in :class:`ManifestV2Result`: empty string when the signature
     check is OFF (legacy/default backward-compat), one of the six
     pinned values otherwise (``verified`` /
@@ -1870,13 +1868,13 @@ def verify_real_manifest_file(
         this stub only asserts the side-files exist and are
         well-formed.
     strict_multi_cap_root:
-        When True (default since Sprint-2 Tag-4), runs the same
+        When True (default), runs the same
         ordered-Merkle ``caprefs_root`` recompute as
         :func:`verify_manifest_v2_file` *if* the manifest carries
         ``multi_cap_events``. v1 manifests do not, so this flag is
         a no-op against today's real manifests.
     use_schema_file:
-        When True (off-default since Sprint-2 Tag-6), additionally
+        When True (off-default), additionally
         validate the manifest against the formal v1 JSON-Schema file
         at ``real_schema_path`` (or :data:`DEFAULT_REAL_SCHEMA_PATH`
         when not given) before running the in-code field-by-field
@@ -1885,12 +1883,12 @@ def verify_real_manifest_file(
         hermetic-no-deps fallback. Both paths are run together when
         this flag is True so that drift between the two is caught
         immediately. When False (default) the in-code path alone
-        validates, matching Sprint-2 Tag-5 behaviour.
+        validates, matching real-manifest-mode behaviour.
     real_schema_path:
         Override the default location of the v1 schema file. Useful
         for tests; production callers should leave this None.
     ots_full_verify:
-        When True (off-default since Sprint-3 Tag-4), additionally
+        When True (off-default), additionally
         invoke :func:`wat.anchor.ots_anchor.verify_receipt` against
         ``root.bin.ots`` to confirm the OTS receipt is finalised on
         Bitcoin (or cross-validated via the Esplora HTTP fallback)
@@ -1900,10 +1898,9 @@ def verify_real_manifest_file(
         trip to the configured Esplora endpoint), which is why it
         is off by default. The CLI ``--ots-full-verify`` flag and
         the ``WAKIR_OTS_FULL_VERIFY=1`` env var both flip this on.
-        See ``docs/wat-manifest-v2-spec.md`` §11 (Sprint-3 Tag-4
-        entry).
+        See ``docs/wat-manifest-v2-spec.md`` §11.
     verify_signature:
-        When True (off-default since Sprint-5 Tag-5), additionally
+        When True (off-default), additionally
         consume the optional ``signature`` slot on the real
         manifest. Today the Production-aggregator does not emit
         signed manifests; this opt-in path exists for hand-signed
@@ -1912,7 +1909,7 @@ def verify_real_manifest_file(
         (after fields, integrity, multi-cap-root, and OTS anchor),
         mirroring :func:`verify_manifest_v2_file`. When False, the
         ``signature`` slot is ignored and ``signature_status`` is
-        left empty (backward-compat for all pre-Tag-5 callers).
+        left empty (backward-compat for all earlier callers).
     verify_signature_public_key:
         32-byte raw Ed25519 public key used to verify the
         ``signature`` slot. Required when ``verify_signature=True``
@@ -2060,8 +2057,8 @@ def verify_real_manifest_file(
                 failure_reason=ots.failure_reason,
             )
 
-    # Sprint-5 Tag-5: optional signature check (opt-in, default OFF
-    # for backward-compat — pre-Tag-5 callers see signature_status="").
+    # optional signature check (opt-in, default OFF
+    # for backward-compat — earlier callers see signature_status="").
     # The real-aggregator (``wat/cmd/aggregator_cli.py``) does NOT
     # emit signed manifests today; the wire-up exists so that hand-
     # signed real-manifest fixtures (and the future signing aggregator
@@ -2133,7 +2130,7 @@ def build_parser() -> argparse.ArgumentParser:
             "Recompute caprefs_root from caprefs_full under the ordered-"
             "Merkle convention (OQ-1 ratified 2026-05-07 by wirelang-"
             "engineering Cross-Review-Zone-2) and reject on mismatch. "
-            "On by default since Sprint-2 Tag-4. Use "
+            "On by default. Use "
             "--no-strict-multi-cap-root for lenient mode (deferred-"
             "warning) — escape hatch for third-party verifiers that "
             "have not yet adopted the locked ordering."
@@ -2150,7 +2147,7 @@ def build_parser() -> argparse.ArgumentParser:
             "instead of v2-spec-shaped. Skips JSON-Schema validation "
             "and runs field-by-field validation + Merkle rebuild + "
             "OTS-anchor side-file check. See "
-            "docs/wat-manifest-v2-spec.md §10 (Sprint-2 Tag-5 entry)."
+            "docs/wat-manifest-v2-spec.md §10."
         ),
     )
     parser.add_argument(
@@ -2177,7 +2174,7 @@ def build_parser() -> argparse.ArgumentParser:
             "manifest-v1.json by default). Off by default; the in-code "
             "field-by-field validator runs in either case as the "
             "redundant hermetic-no-deps path. See "
-            "docs/wat-manifest-v2-spec.md §11 (Sprint-2 Tag-6 entry)."
+            "docs/wat-manifest-v2-spec.md §11."
         ),
     )
     parser.add_argument(
@@ -2199,24 +2196,24 @@ def build_parser() -> argparse.ArgumentParser:
             "to confirm the OpenTimestamps receipt is finalised on "
             "Bitcoin (or cross-validated via the Esplora HTTP fallback) "
             "and attests to manifest.merkle_root. Off by default since "
-            "Sprint-3 Tag-4: the magic-header pin is the hermetic path; "
+            "the magic-header pin is the hermetic path; "
             "full verify shells out to the 'ots' CLI and may consult "
             "Esplora over the network. Equivalent to setting "
             "WAKIR_OTS_FULL_VERIFY=1 in the environment. See "
-            "docs/wat-manifest-v2-spec.md §11 (Sprint-3 Tag-4 entry)."
+            "docs/wat-manifest-v2-spec.md §11."
         ),
     )
     parser.add_argument(
         "--verify-signature",
         action="store_true",
         help=(
-            "Opt in to manifest-signature verification (Phase-2 "
-            "Sprint-5 Tag-2 wire-up). Consumes the optional top-level "
-            "``signature`` slot (schema 0.2.0, Phase-2 Sprint-5 "
-            "Tag-1) and verifies it via "
+            "Opt in to manifest-signature verification. "
+            "Consumes the optional top-level "
+            "``signature`` slot (schema 0.2.0) "
+            "and verifies it via "
             "wat.identity.manifest_signing.verify_manifest_signature "
             "against --verify-signature-public-key-hex. Default OFF "
-            "to preserve backward compatibility for the pre-Sprint-5 "
+            "to preserve backward compatibility for the earlier "
             "test cohort and external verifiers that have not yet "
             "adopted the optional slot. Equivalent to setting "
             "WAKIR_VERIFY_MANIFEST_SIGNATURE=1 in the environment. "
@@ -2256,10 +2253,10 @@ def build_parser() -> argparse.ArgumentParser:
             "public-key-hex is NOT set, the verifier resolves the "
             "signature slot's 'kid' field to an Ed25519 public key "
             "via the WAT anchor-kid bridge "
-            "(wat.identity.anchor_kid, Phase-1b Sprint-4 Tag-5) "
+            "(wat.identity.anchor_kid) "
             "delegating to the canonical Identity-Substrate kid-"
-            "resolver (wirelang.identity.kid_resolver, Reza "
-            "Phase-2 Sprint-4 Tag-3, Z-1-Cross-Review). Resolution "
+            "resolver (wirelang.identity.kid_resolver, "
+            "Z-1-Cross-Review). Resolution "
             "failures surface as signature_status='structural-error'. "
             "A caller-supplied --verify-signature-public-key-hex "
             "always wins over the bridge."
@@ -2473,7 +2470,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         else VerifyMode.PERMISSIVE
     )
 
-    # Sprint-5 Tag-3: optional AIP-document load for the kid-resolver
+    # optional AIP-document load for the kid-resolver
     # bridge. Caller-supplied raw pubkey wins; the AIP-document path is
     # the convenience surface for callers that hold an AIP document but
     # not a raw key. Load failures surface as exit 1 *before* the

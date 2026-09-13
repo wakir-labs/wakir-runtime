@@ -485,9 +485,9 @@ PY
             exit 6
         fi
 
-        # Defect-fix Tag-25 (2026-05-07): the synthetic marker from
+        # Defect-fix (2026-05-07): the synthetic marker from
         # step 3 lives at the same path that ``ots stamp`` would write
-        # the real receipt to. Empirically (Tag-22 + Tag-24 audit-trail
+        # the real receipt to. Empirically (+ audit-trail
         # checks) ``ots stamp`` does NOT overwrite an existing
         # ``root.bin.ots`` — the real receipt is silently dropped and
         # the audit-trail file remains the 25-byte synthetic marker.

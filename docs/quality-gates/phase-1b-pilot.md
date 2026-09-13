@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
-| Status | Active for Sprint-Pengine-12 → Sprint-QA-Tag-15 |
-| Phase | 1b — Pilot (Single-org pilot-VM with Tomás-Persona-Container live + Pre-Framework-Tomás still authoritative) |
+| Owner | QA engineering (QA), with Zone-N cross-check by internal audit |
+| Status | Active for the engine increment → the QA increment |
+| Phase | 1b — Pilot (Single-org pilot-VM with Persona-Container live + the pre-framework agent still authoritative) |
 | Source | ADR-0058 (Pilot-Persona-Migrations-Plan), feedback_live_bringup_sandbox_gap |
 | Date approved | 2026-05-16 (draft pending Zone-N review) |
 
@@ -13,10 +13,10 @@
 Phase 1b is the **substrate-and-pilot-spawn phase**: the wakir-runtime
 stack is up on a real CoreOS Pilot-VM (NATS + SPIRE-Server +
 SPIRE-Agent + persona-tomas Quadlet container running in
-DOUBLE-SHADOW mode), and the Tomás-Persona-Container produces
+DOUBLE-SHADOW mode), and the Persona-Container produces
 shadow engineering-output that the bridge-audit double-sink captures
-for the Doppelbetrieb-Score-CLI. Pre-Framework-Tomás still drives all
-production engineering traffic; the wakir-Tomás-container is
+for the Doppelbetrieb-Score-CLI. the pre-framework agent still drives all
+production engineering traffic; the wakir persona container is
 observed-only.
 
 Entry from Phase 1a (pre-pilot) requires every gate in this document
@@ -30,7 +30,7 @@ to be green.
   `acceptance-gate.sh` returns exit 0.
 * **Evidence:** `gate-verdict.json` with `verdict == "PASS"`,
   `pass_count == 6`, `fail_count == 0`, `bug_vectors == []`.
-* **Owned-by:** Kai (substrate) + Tomas (acceptance-script).
+* **Owned-by:** infrastructure engineering (substrate) + dev engineering (acceptance-script).
 * **Test-Vector:** existing `tests/infra/test_vm_e2e_acceptance_gate.py`
   G1–G11; new `tests/infra/test_pilot_phase_e2e_smoke.py`
   TV-PIL-BUGMAP-01..07.
@@ -43,7 +43,7 @@ to be green.
 * **Evidence:** persona-engine state-machine transition-records
   serialised to NATS-KV bucket `wakir-persona-state-acme-tomas`;
   bridge-audit-writer writes `engineering_output` to both sinks.
-* **Owned-by:** Selin (persona-engine).
+* **Owned-by:** persona-engine engineering (persona-engine).
 * **Test-Vector:** `tests/infra/test_pilot_phase_e2e_smoke.py`
   TV-PIL-FSM-01..06.
 
@@ -56,7 +56,7 @@ to be green.
   (EXIT_V907_HASH_DRIFT).
 * **Evidence:** Container-start log shows `v907-verify ok pin=sha256:…`;
   bridge-audit `axis-a-pin` record matches the build-time pin.
-* **Owned-by:** Selin (persona-engine).
+* **Owned-by:** persona-engine engineering (persona-engine).
 * **Test-Vector:** `tests/infra/test_pilot_phase_e2e_smoke.py`
   TV-PIL-V907-01..04.
 
@@ -70,7 +70,7 @@ to be green.
 * **Evidence:** NATS subject metrics show a non-zero publish-count on
   the output subject; bridge-audit `reply` record matches the
   publish.
-* **Owned-by:** Selin (persona-engine subscribe-loop) + Reza (schema).
+* **Owned-by:** persona-engine engineering (persona-engine subscribe-loop) + protocol engineering (schema).
 * **Test-Vector:** `tests/infra/test_pilot_phase_e2e_smoke.py`
   TV-PIL-BUG42-01..04.
 
@@ -82,7 +82,7 @@ to be green.
   `pass | warn | fail`.
 * **Evidence:** Score-JSON output file with `schema` field set to
   the spec-canonical id and all four axes populated.
-* **Owned-by:** Selin (CLI) + Reza (schema).
+* **Owned-by:** persona-engine engineering (CLI) + protocol engineering (schema).
 * **Test-Vector:** `tests/infra/test_pilot_phase_e2e_smoke.py`
   TV-PIL-DOP-01..04 + existing `tests/test_cli_doppelbetrieb_score.py`.
 
@@ -90,12 +90,12 @@ to be green.
 
 | Component | Coverage threshold (line) | Coverage threshold (branch) | Source |
 |---|---|---|---|
-| `wirelang.persona_engine.lifecycle_state_machine` | 95% | 90% | Selin |
-| `wirelang.persona_engine.v907_verify` | 95% | 90% | Selin |
-| `wirelang.persona_engine.nats_subscribe_loop` | 85% | 80% | Selin |
-| `wirelang.cli.doppelbetrieb_score` | 90% | 85% | Selin |
-| `infra/test-e2e/vm-lifecycle-harness/acceptance-gate.sh` | n/a (shell — branch via failure-path test) | every CHECK_TO_BUGS entry exercised | Kai+Amara |
-| `scripts/ci-live-vm-acceptance-wrapper.sh` | n/a (shell) | every documented `--flag` exercised | Kai+Amara |
+| `wirelang.persona_engine.lifecycle_state_machine` | 95% | 90% | persona-engine engineering |
+| `wirelang.persona_engine.v907_verify` | 95% | 90% | persona-engine engineering |
+| `wirelang.persona_engine.nats_subscribe_loop` | 85% | 80% | persona-engine engineering |
+| `wirelang.cli.doppelbetrieb_score` | 90% | 85% | persona-engine engineering |
+| `infra/test-e2e/vm-lifecycle-harness/acceptance-gate.sh` | n/a (shell — branch via failure-path test) | every CHECK_TO_BUGS entry exercised | infrastructure engineering + QA engineering |
+| `scripts/ci-live-vm-acceptance-wrapper.sh` | n/a (shell) | every documented `--flag` exercised | infrastructure engineering + QA engineering |
 
 Coverage is reported per CI-run as
 `coverage.xml` artefacts. Below-threshold = QA-blocker; Engineering-
@@ -106,28 +106,28 @@ Coverage is a proxy-metric per `qa.md` Arbeitsstil-Anker. Tests
 that exist to bump coverage without exercising a behavioural
 invariant do not count toward the threshold.
 
-## 3. SLI/SLO requirements (coordination with Noa SRE)
+## 3. SLI/SLO requirements (coordination with SRE engineering)
 
 Phase 1b is observed-only for production traffic — the SLOs below
 are **substrate-health SLOs**, not Wakir-Service-SLOs:
 
 | SLI | Window | SLO | Owner |
 |---|---|---|---|
-| Persona-Container `up` (Quadlet active) | rolling 24h | ≥99.0% | Noa |
-| NATS-jetstream availability (substrate) | rolling 24h | ≥99.5% | Noa |
-| SPIRE-Server `healthy` | rolling 24h | ≥99.5% | Noa |
-| Bridge-Forward end-to-end latency p95 (publish → reply on output subject) | rolling 1h | ≤30s | Noa |
-| Subscribe-loop dropped-envelope rate (malformed + parse-error) | rolling 1h | ≤1% of publish-count | Noa |
+| Persona-Container `up` (Quadlet active) | rolling 24h | ≥99.0% | SRE engineering |
+| NATS-jetstream availability (substrate) | rolling 24h | ≥99.5% | SRE engineering |
+| SPIRE-Server `healthy` | rolling 24h | ≥99.5% | SRE engineering |
+| Bridge-Forward end-to-end latency p95 (publish → reply on output subject) | rolling 1h | ≤30s | SRE engineering |
+| Subscribe-loop dropped-envelope rate (malformed + parse-error) | rolling 1h | ≤1% of publish-count | SRE engineering |
 
-Coordination note: I (Amara) have not yet held the Phase-1b
-SLI/SLO-design session with Noa. The numbers above are proposed
-defaults derived from the Sprint-10 Tag-6 substrate-spec and the
-ADR-0058 Phase-2 cutover-criteria. Noa-Owned. Marked
-**vorläufig** per `qa.md` Antwort-Disziplin P2 until Noa signs off.
+Coordination note: I (QA engineering) have not yet held the Phase-1b
+SLI/SLO-design session with SRE engineering. The numbers above are proposed
+defaults derived from the substrate-spec and the
+ADR-0058 Phase-2 cutover-criteria. Owned. Marked
+**vorläufig** per `qa.md` Antwort-Disziplin P2 until SRE engineering signs off.
 
-## 4. Henrik-Audit-Punkte (Zone N)
+## 4. Audit-Punkte (Zone N)
 
-Henrik's Audit-Sample for Phase 1b consumes:
+internal audit's Audit-Sample for Phase 1b consumes:
 
 * **A.** The `gate-verdict.json` files from the CI-Live-VM runs
   (audit-trail of substrate health over time — sampled monthly).
@@ -136,20 +136,18 @@ Henrik's Audit-Sample for Phase 1b consumes:
 * **C.** The Doppelbetrieb-Score JSON outputs (Migration-Playbook §5
   comparison-test-set evidence — sampled per Doppelbetrieb-week).
 * **D.** This document, the test-plan
-  `docs/test-plans/sprint-qa-tag-15-e2e-pilot-smoke.md`, and the
+  `docs/test-plans/e2e-pilot-smoke.md`, and the
   test-suite coverage-report — for Zone-N boundary verification
   (does QA-evidence overlap with audit-evidence?).
 
-Henrik does **not** consume:
+internal audit does **not** consume:
 
 * Raw pytest-output (this is operative QA-evidence, not
   audit-trail).
-* Coverage.xml as such (Henrik samples the high-level coverage
+* Coverage.xml as such (internal audit samples the high-level coverage
   threshold compliance, not the file-by-file numbers).
 
 Boundary holds: QA covers functional invariants; Audit covers
-governance-compliance (ADR-0058 §"Phase 4 Cutover-Entscheidung"
+governance-compliance (ADR-0058 §"Phase 4 cutover-Entscheidung"
 criteria are met, the cutover-decision honours the four-axis acceptance
 criteria, etc.).
-
-— Amara

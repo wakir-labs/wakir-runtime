@@ -5,10 +5,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Cross-Substrate Parity Runbook — 3-Way Inventory Pflicht
 
-**Status:** Live (Tag-32 Mini-Welle, ADR-0066 Welle-3 Mitigation).
-**Owner:** Kai (DevOps), Cross-Review Zone C (Tomás).
-**Anchor-ADR:** ADR-0066 Welle-3 Mitigation, ADR-0065
-Phase-3c Cutover-Sequenz.
+**Status:** live.
+**Owner:** DevOps / container substrate, cross-reviewed by the
+OTS-anchoring domain.
+**Anchor-ADR:** ADR-0066 (wave-3 mitigation), ADR-0065
+(phase-3c switchover sequence).
 **Gate:** `.github/workflows/cross-substrate-parity-gate.yml`
 (Workflow-name: `cross-substrate-parity-gate`, job-display:
 `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)`).
@@ -19,8 +20,8 @@ Phase-3c Cutover-Sequenz.
 
 Der Phase-3b Rust-CLI Inventory wird in **drei** Substraten getragen.
 Eine Drift zwischen ihnen ist die schlimmste Failure-Mode-Klasse
-für Phase-3c Cutover, weil sie eine partielle Migration als
-erfolgreiche disguised.
+für die Phase-3c-Umstellung, weil sie eine partielle Migration als
+erfolgreiche tarnt.
 
 Die drei Substrate:
 
@@ -40,9 +41,8 @@ Die drei Substrate:
      Binaries.
 
 **Kanonische 11-Binary-Inventory** (Phase-3b carrier-image set;
-ursprünglich 9 bei Tag-31, auf 11 erweitert bei Tag-45 mit den
-Phase-3a-Foundation 14 + 15 Closeout-Modulen `bridge-audit-replay`
-und `migrate-version`):
+ursprünglich 9, auf 11 erweitert mit den Phase-3a-Foundation-
+Closeout-Modulen `bridge-audit-replay` und `migrate-version`):
 
 | # | Component | Binary-Basename |
 |---|-----------|-----------------|
@@ -55,8 +55,8 @@ und `migrate-version`):
 | 7 | anchor-emitter | `wakir-persona-engine-anchor-emitter` |
 | 8 | svid-workload-identity | `wakir-persona-engine-svid-workload-identity` |
 | 9 | bridge-audit-writer | `wakir-persona-engine-bridge-audit-writer` |
-| 10 | bridge-audit-replay | `wakir-persona-engine-bridge-audit-replay` (Tag-45) |
-| 11 | migrate-version | `wakir-persona-engine-migrate-version` (Tag-45) |
+| 10 | bridge-audit-replay | `wakir-persona-engine-bridge-audit-replay` |
+| 11 | migrate-version | `wakir-persona-engine-migrate-version` |
 
 ---
 
@@ -67,7 +67,7 @@ Der Backend-Switch-Resolver trägt **einen** zusätzlichen Eintrag
 
 | Component | Binary-Basename | Grund der Divergenz |
 |-----------|-----------------|----------------------|
-| federation-resolver | `wakir-persona-engine-federation-resolver` | ADR-0066 §Welle-Sequenz: Welle-2-Scaffold; noch kein Image-Build, daher noch keine Cosign-Policy / Quadlet-Installer Entry. Wird mit Welle-N-Promotion lock-step in alle drei Substrate gehoben. |
+| federation-resolver | `wakir-persona-engine-federation-resolver` | ADR-0066 §Wave-Sequenz: Scaffold ohne Image-Build, daher noch kein Cosign-Policy- / Quadlet-Installer-Eintrag. Wird bei der Promotion lock-step in alle drei Substrate gehoben. |
 
 Diese Divergenz ist explizit in der Test-Datei
 `tests/infra/test_cross_substrate_parity_3way.py` als
@@ -83,10 +83,10 @@ Der Workflow `cross-substrate-parity-gate.yml` triggert auf
 Änderungen an einem der drei Substrate. Job:
 
 - **Display-Name:** `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)`
-- **Required-Status:** Initial **advisory** (analog zum
-  hash-derivate-gate Pattern). Mira-Hand-Folge nach erstem grünen
-  main-Run: Pflicht-Aktivierung als Required-Check in Branch-
-  Protection (Operator-Hand, GitHub-Repo-Settings).
+- **Required-Status:** initial **advisory** (analog zum
+  hash-derivate-gate-Pattern). Nach dem ersten grünen main-Run
+  aktiviert der Operator den Check als Required-Check in der
+  Branch-Protection (GitHub-Repo-Settings).
 - **Test-Substrat:** `tests/infra/test_cross_substrate_parity_3way.py`
   (5 + 1 = 6 Tests, hermetic, kein Live-Network).
 
@@ -103,10 +103,10 @@ Resolver-Phase-3b inventory drift:
 
 ---
 
-## 4. Operator-Recipe: Welle-N Inventory-Erweiterung
+## 4. Operator-Recipe: Inventory-Erweiterung
 
-Wenn eine neue Welle-N ein 10. (oder weiteres) Phase-3b-Binary
-einführen will, gilt die **3-Way-Lock-Step-Pflicht**:
+Wenn eine Erweiterung ein weiteres Phase-3b-Binary einführen will,
+gilt die **3-Way-Lock-Step-Pflicht**:
 
 1. **Cosign-Policy:** Eintrag unter `binaries:` in
    `policies/cosign-policy-phase-3b.yaml` ergänzen
@@ -126,20 +126,20 @@ einführen will, gilt die **3-Way-Lock-Step-Pflicht**:
 5. **Runbook:** Diesen Runbook-Tabellenabschnitt §1 erweitern.
 6. **Tuple-Name:** Wenn der Inventory-Count != 9 wird, das Tupel
    in beiden Test-Files umbenennen (`EXPECTED_BINARIES_<N>`) und
-   in Welle-N-Mini-Welle-Notiz dokumentieren.
+   in der PR-Beschreibung dokumentieren.
 
-Wenn alle 6 Schritte in einer Mini-Welle in **einer** PR landen,
+Wenn alle 6 Schritte in **einer** PR landen,
 bleibt der CI-Gate grün. Wenn auch nur einer fehlt, schlägt der
 Gate fehl — das ist gewünscht.
 
 ---
 
-## 5. Operator-Recipe: Resolver-only-Scaffold (Welle-N+1 Vorgriff)
+## 5. Operator-Recipe: Resolver-only-Scaffold (Vorgriff)
 
-Eine Welle-N-Vorbereitung kann es notwendig machen, einen
-Resolver-Backend zu landen, **bevor** das Image-Build / die
-Cosign-Policy / der Quadlet-Installer-Entry landet. Beispiel:
-`federation-resolver` als Welle-2-Scaffold (ADR-0066 §Welle-Sequenz).
+Eine Vorbereitung kann es notwendig machen, einen Resolver-Backend
+zu landen, **bevor** das Image-Build / die Cosign-Policy / der
+Quadlet-Installer-Entry landet. Beispiel: `federation-resolver` als
+Scaffold (ADR-0066 §Wave-Sequenz).
 
 In diesem Fall:
 
@@ -149,8 +149,8 @@ In diesem Fall:
    `RESOLVER_KNOWN_EXTRAS` um den neuen Component-Slug ergänzen
    (Pattern: `("federation-resolver", "<next-extra>")`).
 3. In diesem Runbook §2-Tabelle eine neue Zeile mit dem Grund
-   der Divergenz dokumentieren (welche Welle, ADR-Anchor).
-4. Wenn die Welle dann live geht, in derselben Mini-Welle:
+   der Divergenz dokumentieren (ADR-Anchor nennen).
+4. Wenn das Backend dann live geht, in derselben PR:
    - Resolver-Konstante bleibt (oder wird auf neue Konfiguration
      gebogen).
    - `RESOLVER_KNOWN_EXTRAS`-Entry entfernen.
@@ -176,12 +176,11 @@ Operator-Hand.
 
 ## 7. Wartungs-Anker
 
-- **Cross-Review Zone C** — Tomás (Matrix-Lead): jede Änderung an
-  diesem Runbook ODER an der 3-Way-Parity-Test-Datei ODER an dem
-  Workflow muss in Zone C cross-reviewed werden (Container-Image-
-  Pipeline × OTS-Anchoring-Konsens-Domain).
-- **Mira-Hand-Folge:** Nach erstem grünen main-Run unter
-  `cross-substrate-parity-gate.yml` muss Mira den Job als
+- **Cross-Review:** jede Änderung an diesem Runbook ODER an der
+  3-Way-Parity-Test-Datei ODER an dem Workflow braucht ein
+  Cross-Review der Container-Image-Pipeline × OTS-Anchoring-Domain.
+- **Operator-Folge:** Nach erstem grünen main-Run unter
+  `cross-substrate-parity-gate.yml` muss der Operator den Job als
   Required-Status-Check in Branch-Protection aktivieren (GitHub
   Repo-Settings → Branches → main → Required status checks). Der
   Job-Display-Name `cross-substrate parity (cosign ↔ quadlet ↔
@@ -189,29 +188,33 @@ Operator-Hand.
   `feedback_branch_protection_check_names.md`).
 - **Audit-Log:** Drift-Vorfälle werden im
   `activity-log.md` als `cross-substrate-parity-drift`-Vorfall
-  protokolliert. Henrik (Internal Audit) auditiert die Vorfälle
-  im regulären Sample.
+  protokolliert. Internal Audit sichtet die Vorfälle im regulären
+  Sample.
 
 ---
 
 ## Tag-57 Addendum — OPEN-J1 Closeout (10-BackendDecision-Manifest-Parity)
 
-**Status:** Tag-57 (2026-05-19). Wires the Selin Tag-56
-Persona-Engine-0.5.2-final Production-Readiness-Audit
+<!-- The "Tag-57" anchor in this heading is pinned verbatim by
+     tests/observability/test_cross_substrate_parity_gate_tag57.py;
+     it is an archaeology-lint allowlist entry until that test is
+     renamed. -->
+
+**Status:** live since 2026-05-19. Wires the
+persona-engine-0.5.2-final production-readiness audit item
 **OPEN-J1 ("Cross-substrate-parity-gate green on PR")** into this gate.
 
-### Was Tag-57 hinzufügt
+### Was das Addendum hinzufügt
 
-Der Gate trägt ab Tag-57 zwei Substrat-Parity-Verträge unter einem
-Dach:
+Der Gate trägt zwei Substrat-Parity-Verträge unter einem Dach:
 
-**Vertrag A (Tag-32 Bestand, unverändert):** 9-Binary-Phase-3b-
+**Vertrag A (Bestand, unverändert):** 9-Binary-Phase-3b-
 Inventory-Parity zwischen Cosign-Policy, Quadlet-Installer und
 Backend-Switch-Resolver. Treiber-Test:
 `tests/infra/test_cross_substrate_parity_3way.py` (6 Tests).
 
-**Vertrag B (Tag-57 neu):** 10-BackendDecision-Boot-Fan-Out-Parity
-zwischen den drei Substraten der Tag-52 Manifest-Konsolidierung:
+**Vertrag B:** 10-BackendDecision-Boot-Fan-Out-Parity zwischen den
+drei Substraten der Manifest-Konsolidierung:
 
 1. **Manifest** —
    `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md`
@@ -225,7 +228,7 @@ zwischen den drei Substraten der Tag-52 Manifest-Konsolidierung:
 
 Treiber-Tests:
 - `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
-  (Selin-Manifest-Integrity-Suite, ~30 Tests, Tag-52-Anchor).
+  (Manifest-Integrity-Suite, ~30 Tests).
 - `tests/observability/test_cross_substrate_parity_gate_tag57.py`
   (12 hermetic Tests, Workflow-Wiring + Triple-Witness-Konsistenz).
 
@@ -241,9 +244,9 @@ Treiber-Tests:
 Alle Stages sind hermetic (pytest-only, kein Subprocess, kein
 Netzwerk, kein Rust-Build, kein Engine-Boot).
 
-### Path-Trigger (Tag-57 erweitert)
+### Path-Trigger
 
-Der Gate triggert ab Tag-57 zusätzlich bei Änderungen an:
+Der Gate triggert zusätzlich bei Änderungen an:
 
 - `wirelang/persona_engine/MANIFEST-0.5.2-final-pre-cutover.md`
 - `infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml`
@@ -251,14 +254,14 @@ Der Gate triggert ab Tag-57 zusätzlich bei Änderungen an:
 - `wirelang/tests/persona_engine/test_manifest_0_5_2_final_pre_cutover.py`
 - `tests/observability/test_cross_substrate_parity_gate_tag57.py`
 
-Damit triggert jede Selin-Style-PR (die nur Manifest-/Pin-Pack-
-Inhalte berührt) ab Tag-57 automatisch den Gate; OPEN-J1 ist auf
-diesen PRs als CI-Check sichtbar.
+Damit triggert auch eine PR, die nur Manifest-/Pin-Pack-Inhalte
+berührt, automatisch den Gate; OPEN-J1 ist auf diesen PRs als
+CI-Check sichtbar.
 
 ### Required-Status-Check-Konfiguration (Operator-Hand, Sandbox-Gap)
 
-Der CI-Workflow läuft jetzt automatisch auf PRs, aber Branch-
-Protection-Bindung ist Operator-Hand (Mira-Hand). Per
+Der CI-Workflow läuft automatisch auf PRs, aber die Branch-
+Protection-Bindung ist Operator-Hand. Per
 `feedback_branch_protection_check_names.md` muss der exakte
 Job-Display-Name als Required-Status-Check eingetragen werden:
 
@@ -268,7 +271,7 @@ Job-Display-Name als Required-Status-Check eingetragen werden:
 cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)
 ```
 
-Aktivierungs-Schritte (Mira-Hand, einmalig):
+Aktivierungs-Schritte (Operator-Hand, einmalig):
 
 1. Repo-Settings → Branches → main → Edit branch protection rule.
 2. "Require status checks to pass before merging" aktiviert lassen.
@@ -287,27 +290,25 @@ Aktivierungs-Schritte (Mira-Hand, einmalig):
 
 ### Closeout-Trail (OPEN-J1)
 
-- **Auslöser:** Selin Tag-56 Audit-Bericht
-  `reports/audit/persona-engine-0-5-2-production-readiness-2026-05-19.md`
-  §4 Open-Item-Tracker, Zeile OPEN-J1.
-- **Schluss-Substanz:** PR `kai/tag-57-cross-substrate-parity-green`
-  (Tag-57). Erweitert den Gate um Vertrag B, fügt 12 Tag-57-Tests
-  hinzu, dokumentiert Required-Status-Check-Aktivierung.
+- **Auslöser:** persona-engine-0.5.2 production-readiness audit
+  (git history, tag `archive/pre-phase-4`) §4 Open-Item-Tracker,
+  Zeile OPEN-J1.
+- **Schluss-Substanz:** der Addendum-PR erweitert den Gate um
+  Vertrag B, fügt 12 Tests hinzu und dokumentiert die
+  Required-Status-Check-Aktivierung.
 - **Sandbox-Gap:** Required-Status-Check-Aktivierung in Branch-
-  Protection ist Operator-Hand (Mira-Hand). Tag-57-PR-Merge schließt
-  die CI-Substanz; Branch-Protection-Aktivierung schließt OPEN-J1
+  Protection ist Operator-Hand. Der PR-Merge schließt die
+  CI-Substanz; die Branch-Protection-Aktivierung schließt OPEN-J1
   vollständig.
-- **AR-Sichtung:** Henrik (Internal Audit) protokolliert die
-  Closeout-Sequenz im regulären Sample.
+- **Audit:** Internal Audit protokolliert die Closeout-Sequenz im
+  regulären Sample.
 
 ---
 
-*Erstellt: Tag-32 Mini-Welle (ADR-0066 Welle-3 Mitigation).*
-*Erweitert: Tag-57 (2026-05-19, OPEN-J1 Closeout, Selin-Audit-Anker).*
+*Erstellt mit der ADR-0066-Mitigation, erweitert 2026-05-19 mit dem
+OPEN-J1-Closeout.*
 *Sibling-Runbooks:*
 - *`docs/operations/cosign-policy-phase-3b.md` — Cosign-Policy
   Operator-Hand-Recipe.*
 - *`docs/operations/cross-repo-drift-runbook.md` — Cross-Repo
   Drift-Operator-Recipe.*
-
-— Kai

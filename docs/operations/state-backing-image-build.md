@@ -8,18 +8,18 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 **Status:** Living operations document.
 **Scope:** Build, sign and publish the
 `wakir-persona-engine-state-backing` Rust-CLI container image.
-**ADR anchor:** ADR-0066 §Phase-3c Welle-4 `state_backing`
-(approved 2026-05-17). Tag-33 Mini-Welle.
+**ADR anchor:** ADR-0066 §Phase-3c wave-4 `state_backing`
+(approved 2026-05-17). mini wave.
 **Sibling docs:**
-- `docs/operations/v907-verify-image-build.md` (Welle-1).
-- `docs/operations/svid-workload-identity-image-build.md` (Welle-2).
-- `docs/operations/bridge-audit-writer-image-build.md` (Welle-3).
-- `docs/operations/lifecycle-state-machine-image-build.md` (Welle-5
-  sibling, same Tag-33 Mini-Welle).
-- `docs/operations/subscribe-loop-image-build.md` (Welle-6 sibling,
-  same Tag-33 Mini-Welle).
-- `docs/operations/recovery-workflow-image-build.md` (Welle-7 sibling,
-  same Tag-33 Mini-Welle).
+- `docs/operations/v907-verify-image-build.md` (wave-1).
+- `docs/operations/svid-workload-identity-image-build.md` (wave-2).
+- `docs/operations/bridge-audit-writer-image-build.md` (wave-3).
+- `docs/operations/lifecycle-state-machine-image-build.md` (wave-5
+  sibling, same mini wave).
+- `docs/operations/subscribe-loop-image-build.md` (wave-6 sibling,
+  same mini wave).
+- `docs/operations/recovery-workflow-image-build.md` (wave-7 sibling,
+  same mini wave).
 - `docs/operations/cosign-policy-phase-3b.md` (the policy the image
   must satisfy; 13-binary inventory now includes this image as
   `state-backing-welle4`).
@@ -29,18 +29,18 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 ## 1. Why this image exists
 
 ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks
-(Option A+). The Tag-33 Mini-Welle ships the **Welle-4 image-build**
+(Option A+). This increment ships the **wave-4 image-build**
 substrate: a dedicated single-binary Rust-CLI container image for the
 persona-engine NATS-KV Persona-State-Backing operator surface.
 
-The Welle-4 cutover step (a subsequent Mini-Welle) will pin this
+The wave-4 cutover step (a subsequent mini wave) will pin this
 image in a dedicated Quadlet, flip the
 `WAKIR_STATE_BACKING_BACKEND=rust_inmemory|rust_natskv` operator
 flag and migrate the production-default backend from Python
 (`wirelang.persona_engine.state_backing`) to the Rust pendant in the
 `persona-engine-state-backing` crate.
 
-The library crate shipped earlier in Phase-3a; the Tag-33 image-build
+The library crate shipped earlier in Phase-3a; the image-build
 adds the `[[bin]]` target + Containerfile + workflow + cosign-policy
 entry that turns the library into a deployable container image.
 
@@ -114,7 +114,7 @@ the prior three image-builds:
   `id-token: write` OIDC token (no static `cosign.pub`).
 - Digest artefact: workflow upload
   (`wakir-persona-engine-state-backing-digest`) consumed by the
-  Welle-4 cutover step.
+  wave-4 cutover step.
 
 ---
 
@@ -128,7 +128,7 @@ gh workflow run build-rust-cli-state-backing.yml \
 
 The workflow's `Emit workflow summary` step prints the resulting
 digest and the byte-precise sed-substitution recipe that the
-Welle-4 cutover step will paste into the Welle-4 dedicated
+wave-4 cutover step will paste into the wave-4 dedicated
 Quadlet's image pin.
 
 ---
@@ -141,6 +141,6 @@ Quadlet's image pin.
   recipe.
 - `tests/workflows/test_build_rust_cli_welle_4_5_6_7.py` —
   hermetic workflow-structure tests (parametrised across all four
-  Welle-4..7 workflows).
+  wave-4..7 workflows).
 - `policies/cosign-policy-phase-3b.yaml` — 13-binary inventory
   including this image as `state-backing-welle4`.

@@ -315,7 +315,7 @@ def main() -> None:
     doc = {
         "_comment": (
             "Cross-lang fixture vectors for the persona-engine "
-            "anchor-submit-worker (Phase-3a Item 12 / Tag-26 Python-sync). "
+            "anchor-submit-worker (Phase-3a Item 12 / Python-sync). "
             "Authoritative wire-pin: any drift on either side (Rust crate "
             "persona-engine-anchor-submit-worker or Python "
             "wirelang.persona_engine.anchor_submit_worker) must update "

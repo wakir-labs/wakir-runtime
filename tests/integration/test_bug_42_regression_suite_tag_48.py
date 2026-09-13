@@ -253,7 +253,7 @@ def test_a5_env_var_resolver_roundtrips_and_rejects(monkeypatch) -> None:
 # Section B — NATS-Subject-Pattern-Drift (6 tests)
 # ---------------------------------------------------------------------------
 #
-# Tag-43 baseline (`reports/audit/2026-05-18-nats-jetstream-subjects-audit.md`):
+# Tag-43 baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
 # - 24 wakir.* literals total (NATS subjects: 7, namespace-ids: 17)
 # - 0 drift rows
 #
@@ -509,7 +509,7 @@ def test_c5_compatible_and_fanout_verdicts_have_no_failure_mode_id() -> None:
 def test_d1_audit_reports_zero_drift_at_head(audit_result) -> None:
     """D1: At repo HEAD the audit reports exactly 0 drift rows.
 
-    Tag-43 baseline (``reports/audit/2026-05-18-nats-jetstream-subjects-audit.md``):
+    Tag-43 baseline (``docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md``):
     0 drift, 276 scanned files. Tag-48 pins the 0-drift invariant; the
     file count is allowed to grow as the codebase grows.
     """
@@ -560,17 +560,21 @@ def test_d3_audit_namespace_id_count_pinned(audit_result) -> None:
     namespace_ids = [
         s for s in audit_result.subjects if s.verdict == "namespace-id"
     ]
-    # Lower bound from Tag-43 baseline; upper bound generous to
-    # accommodate organic growth of telemetry meter names.
-    assert len(namespace_ids) >= 15, (
+    # Lower bound from the first audit baseline (17), re-pinned to 14 when
+    # three dead scripts carrying namespace-id literals were removed
+    # (ADR-0072 W5: welle-1-2-doppel-telemetry-emitter.py,
+    # welle-3-telemetry-emitter.py, spiffe_skizze_constants.py). Upper
+    # bound generous to accommodate organic growth of telemetry meter names.
+    assert len(namespace_ids) >= 14, (
         f"namespace-id count dropped to {len(namespace_ids)}; "
-        f"Tag-43 baseline was 17. A removed metric / schema-id is "
-        f"worth a review."
+        f"pinned floor is 14 (first baseline 17, minus three removed dead "
+        f"scripts). A removed metric / schema-id is worth a review."
     )
     total = len(audit_result.subjects)
-    assert total >= 22, (
+    assert total >= 21, (
         f"total wakir.* literal inventory shrank to {total}; "
-        f"Tag-43 baseline was 24"
+        f"pinned floor is 21 (first baseline 24, minus three removed dead "
+        f"scripts)"
     )
 
 

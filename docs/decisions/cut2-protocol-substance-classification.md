@@ -2,7 +2,7 @@
 
 **Datum:** 2026-05-16
 **Trigger:** ADR-0062 Phase-2 Cut-2 (`wakir-protocol` Apache-2.0 + CC-BY-4.0)
-**Autor:** Tomás Reinhart (Dev-Engineering, Matrix-Lead)
+**Autor:** Dev-Engineering
 **ADR-Anker:** ADR-0034 §3.3, ADR-0062 "Cut 2", ADR-0061 (License-Hygiene Phase-1)
 
 ## Zweck
@@ -15,7 +15,7 @@ bzw. CC-BY-4.0, Konsolidation nach `wakir-protocol`) vs.
 Cut-2-Konsolidations-Modus ist **Kopie** in wakir-protocol mit
 Re-Strukturierung des Package-Layouts (`wakir_protocol/`-Namespace).
 Cross-Repo-Import-Adaption in wakir-runtime (`wirelang.* → wakir_protocol.*`)
-ist Folge-Sprint (Reza-Hand pro ADR-0062 §Cut-2-Folgeartefakte) — analog
+ist ein Folgeschritt (ADR-0062 §Cut-2-Folgeartefakte) — analog
 Cut-1-Pattern.
 
 ## Klassifikations-Kriterien
@@ -191,11 +191,11 @@ Cut-1-Pattern.
 
 **Kopie, nicht Move.** wakir-runtime behält Apache-Files für die
 Übergangs-Zeit. Cross-Repo-Import-Adaption (wirelang.* → wakir_protocol.*)
-in wakir-runtime ist Folge-Sprint (Reza-Hand).
+in wakir-runtime ist ein Folgeschritt.
 
-**Rationale:** Single-Welle-Move würde Federation- und Persona-Engine-Tests
+**Rationale:** Ein Move in einem Schritt würde Federation- und Persona-Engine-Tests
 (BUSL-Internal, hängen am Apache-Substrat) breaken. Cut-1-Pattern war
-gleich. Adapter-Welle als Cut-2-Folge-Item.
+gleich. Adapter-Umstellung als Cut-2-Folge-Item.
 
 ## Re-Strukturierung: Package-Layout `wakir_protocol/`
 
@@ -215,9 +215,9 @@ wakir_protocol/
     └── nats_subject_mapping.py
 ```
 
-## Cross-Repo-Imports (für Folge-Sprint)
+## Cross-Repo-Imports (für den Folgeschritt)
 
-Reza-Hand-Adapter-Welle nach Cut-2-Stabilisation:
+Adapter-Umstellung nach Cut-2-Stabilisation:
 
 - `from wirelang.canonical import caveat_set` → `from wakir_protocol.canonical import caveat_set`
 - `from wirelang.identity import aip_document` → `from wakir_protocol.identity_substrate import aip_document`
@@ -251,10 +251,10 @@ Aktuelle Pattern (description-Feld mit SPDX-Text) → REUSE-False-Positive.
 ```
 
 Cut-2 Implementation: Migrations-Script `tools/refactor_schema_spdx.py` (im
-wakir-protocol-Repo, optional in Cut-2-Tag-2 wenn Bedarf besteht), aktuell
+wakir-protocol-Repo, optional nachgelagert wenn Bedarf besteht), aktuell
 manueller Refactor pro Schema-File beim Kopier-Schritt.
 
-## Acceptance-Gates (Cut-2-Tag-1)
+## Acceptance-Gates (Cut-2 Initial-Cut)
 
 - [ ] Repo `wakir-labs/wakir-protocol` existiert public, Apache-2.0-
       LICENSE, CC-BY-4.0 für `docs/`.
@@ -266,20 +266,18 @@ manueller Refactor pro Schema-File beim Kopier-Schritt.
 - [ ] wakir-runtime-Tests laufen weiter grün (Kopie, kein Move).
 - [ ] Klassifikations-Doc committed in wakir-runtime/docs/decisions/.
 
-## Cut-2-Folge-Items (außerhalb Cut-2-Tag-1)
+## Cut-2-Folge-Items (außerhalb des Initial-Cut)
 
-- Reza-Hand: Cross-Repo-Import-Adaption (`wirelang.* → wakir_protocol.*`).
-- Kai-Hand: GitHub-Actions-Workflow (CI pytest, REUSE-Lint, semver-tag-on-merge).
-- Júlia-Hand: README + Marketing-Stub-Page wakirlabs.com `/protocol/`.
-- Mira-Hand: PyPI-Package-Publish (initial `wakir-protocol@0.1.0`).
-
-— Tomás
+- Cross-Repo-Import-Adaption (`wirelang.* → wakir_protocol.*`).
+- GitHub-Actions-Workflow (CI pytest, REUSE-Lint, semver-tag-on-merge).
+- README + Marketing-Stub-Page wakirlabs.com `/protocol/`.
+- PyPI-Package-Publish (initial `wakir-protocol@0.1.0`).
 
 ---
 
-## Anhang A — Cut-2-Folge-Sprint-Befund (Reza-Hand, 2026-05-16)
+## Anhang A — Befund aus dem Cut-2-Folgeschritt (2026-05-16)
 
-**Trigger:** Cross-Repo-Import-Adaption-Sprint pro ADR-0062
+**Trigger:** Cross-Repo-Import-Adaption pro ADR-0062
 §Cut-2-Folge-Items.
 
 ### A.1 Audit-Ergebnis Cross-Repo-Imports
@@ -306,10 +304,10 @@ konsolidierten Apache-Substrat (`wirelang.*`, `capability_token.*`,
   (`tooling/` ist JS-only, `scripts/` ist standalone-Python ohne
   wirelang-Abhängigkeit).
 
-**Konsequenz für die Adapter-Welle:** Da keine Apache-Top-Level-
+**Konsequenz für die Adapter-Umstellung:** Da keine Apache-Top-Level-
 Python-Files `wirelang.*` importieren, gibt es keine substantielle
-Import-Umstellung auf `wakir_protocol.*`. Die im Folge-Sprint-
-Auftrag vorgesehene zweistufige Behandlung (BUSL-Subtree behält
+Import-Umstellung auf `wakir_protocol.*`. Die vorgesehene
+zweistufige Behandlung (BUSL-Subtree behält
 `wirelang.*` mit Kommentar; Apache-Top-Level stellt um) reduziert
 sich auf die erste Stufe.
 
@@ -360,7 +358,7 @@ Vollständiger SPDX-Header-Audit aller 215 Python-Files unter
   BUSL-Internal-Code.
 
 **Befund:** Keine widersprüchliche SPDX/Klassifikations-Kombination
-gefunden. Keine Mira-Hand-Folge-Patches benötigt.
+gefunden. Keine Folge-Patches benötigt.
 
 ### A.4 README-Status
 
@@ -370,10 +368,10 @@ Source-PR #93 bereits gepflegt und nennt:
 - den Klassifikations-Doc-Link,
 - das `[protocol]`-Extra (`pip install 'wakir-runtime[protocol]'`).
 
-Da die Adapter-Welle keine substanzielle Import-Umstellung an
-Top-Level-Code bewirkt hat, ist kein README-Folge-Eingriff in
-diesem PR nötig. Reza notiert das ausdrücklich, damit Mira den
-Status sieht.
+Da die Adapter-Umstellung keine substanzielle Import-Änderung an
+Top-Level-Code bewirkt hat, ist kein README-Folge-Eingriff nötig.
+Das ist hier ausdrücklich festgehalten, damit der Status sichtbar
+bleibt.
 
 ### A.5 Tests post-Adaption
 
@@ -381,5 +379,3 @@ Smoke-Test lokal mit `pytest tests/wirelang/` und
 `pytest wirelang/tests/` weiter grün — der Doc-String-Kommentar in
 den 9 Hub-`__init__.py`-Files ändert keine Import-Mechanik. Volle
 Test-Suite ist im PR-Body protokolliert.
-
-— Reza

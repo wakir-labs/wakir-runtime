@@ -10,17 +10,17 @@ and a shared test-vector file, then runs every vector through:
 2. The Node.js ``ajv`` validator under
    ``tooling/external-verifier-ajv/`` (shells out to ``node validate.js``
    with the same vectors file; the Node.js side prints a JSON report).
-3. The Python ``fastjsonschema`` validator (Phase-2 Sprint-6 Tag-1).
+3. The Python ``fastjsonschema`` validator.
    A second independent Python-side implementation that compiles the
    schema to native Python code. Triangulating against ``jsonschema``
    catches bugs in either library's Draft-2020-12 implementation that
    would otherwise be invisible behind a single-implementation pin.
 4. The Node.js ``@hyperjump/json-schema`` validator
-   (Phase-2 Sprint-6 Tag-6). A pure-JS Draft-2020-12 implementation
+  . A pure-JS Draft-2020-12 implementation
    maintained independently from ``ajv`` (Jason Desrosiers, not Ben
    McMahen). Quadrangulating exposes JS-family cross-library drift
    that would otherwise hide behind a one-implementation pin on the
-   JS side. Sprint-6 Tag-6 originally targeted a Rust/Go/Java pole
+   JS side. originally targeted a Rust/Go/Java pole
    for second-language-family witness; the sandbox host has none of
    those toolchains installed and no privilege to install system
    packages, so Hyperjump replaces the intended foreign-language pole
@@ -39,7 +39,7 @@ This script exists for two purposes:
   with the reference set?"). Drop a third validator into the same
   vectors file, compare verdicts, and the schema-correctness
   conversation has objective ground truth.
-- **CI gate** (off-default for now; opt-in per Sprint-3 follow-up
+- **CI gate** (off-default for now; opt-in per follow-up
   Open-Item). Once the Node.js side is wired into a CI step the script
   exits non-zero on any mismatch.
 
@@ -99,7 +99,7 @@ _signed_tmp_holder: list[Any] = []
 #: an hour-receipt directory carrying ``manifest.json`` + ``root.bin``
 #: + ``root.bin.ots``. The four hours together form the TV-2
 #: Bitcoin-anchored multi-hour reference run committed to the repo
-#: in Sprint-3 Tag-2.
+#:.
 TV2_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "wat-tv2-real"
 TV2_HOUR_SLOTS: tuple[str, ...] = (
     "2026-05-27T00",
@@ -109,7 +109,7 @@ TV2_HOUR_SLOTS: tuple[str, ...] = (
 )
 
 #: Real-manifest fixture cohort used by ``--real-tv3``. Single-hour
-#: TV-3 close-out run (Sprint-3 Tag-3 commit). Same triple shape as
+#: TV-3 close-out run (commit). Same triple shape as
 #: TV-2; reuses the same code paths via the generic
 #: ``run_real_manifest_pipeline_for`` helper.
 TV3_FIXTURE_ROOT = REPO_ROOT / "tests" / "fixtures" / "wat-tv3-real"
@@ -311,7 +311,7 @@ def run_hyperjump_validator(vectors_path: Path) -> dict | None:
     Returns ``None`` if Node is unavailable or the Hyperjump tool's
     ``node_modules`` is missing. Returns the parsed JSON report
     otherwise. Symmetric to :func:`run_node_validator` but targets the
-    fourth pole (Sprint-6 Tag-6).
+    fourth pole.
     """
     node_bin = shutil.which("node")
     if node_bin is None:
@@ -477,7 +477,7 @@ def load_real_vectors_for(
 
 
 def load_tv2_real_vectors() -> list[dict]:
-    """Backward-compat wrapper for TV-2 cohort (Sprint-3 Tag-2 surface)."""
+    """Backward-compat wrapper for TV-2 cohort (surface)."""
     return load_real_vectors_for(TV2_FIXTURE_ROOT, TV2_HOUR_SLOTS, "tv2")
 
 
@@ -496,7 +496,7 @@ def stage_signed_cohort(
     """Stage signed deep-copies of every hour-slot manifest under ``out_root``.
 
     The production aggregator (``wat/cmd/aggregator_cli.py`` v1) does
-    NOT emit signed manifests today (Sprint-5 Tag-5 open-item). To run
+    NOT emit signed manifests today (open-item). To run
     the full ``verify_real_manifest_file(verify_signature=True, ...)``
     path against the on-disk TV-2 cohort the driver hand-signs in-
     memory deep-copies of each manifest and writes them to a temporary
@@ -507,7 +507,7 @@ def stage_signed_cohort(
     Pattern lifted from
     ``tests/wat/test_tv2_real_manifest_sig_verify.py::_stage_signed_hour``;
     the test and the driver share this code path through this helper
-    (Sprint-6 Tag-2 deduplication: the driver was assembled from the
+    (deduplication: the driver was assembled from the
     same recipe the test had already validated).
 
     Returns ``(staged_cohort_root, private_seed_bytes, public_key_bytes)``
@@ -627,7 +627,7 @@ def run_real_manifest_pipeline_for(
 def run_real_manifest_pipeline(
     *, check_ots_anchor: bool = True, use_schema_file: bool = True
 ) -> dict:
-    """Backward-compat wrapper for TV-2 cohort (Sprint-3 Tag-2 surface)."""
+    """Backward-compat wrapper for TV-2 cohort (surface)."""
     return run_real_manifest_pipeline_for(
         TV2_FIXTURE_ROOT,
         TV2_HOUR_SLOTS,
@@ -731,8 +731,8 @@ def main(argv: list[str] | None = None) -> int:
             "In --real-tv2 / --real-tv3 mode, ALSO run the "
             "verify_real_manifest_file pipeline with verify_signature=True "
             "against a tmp-dir signed copy of the cohort. The production "
-            "aggregator does not emit signed manifests today (Sprint-5 "
-            "Tag-5 open-item), so this driver hand-signs in-memory deep-"
+            "aggregator does not emit signed manifests today ("
+            " open-item), so this driver hand-signs in-memory deep-"
             "copies of every hour-receipt with a fresh ephemeral Ed25519 "
             "keypair, writes the signed manifests to a tmp directory "
             "next to byte-for-byte copies of root.bin + root.bin.ots, "
@@ -743,7 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             "fastjsonschema) consume the ORIGINAL unsigned cohort because "
             "the signature slot is additive and the schema-file path "
             "accepts both shapes -- the parity contract is preserved. "
-            "Sprint-6 Tag-2 wire-up; unblocks the Sprint-5 Tag-5 "
+            " wire-up; unblocks the "
             "real-manifest signature driver-mode follow-up."
         ),
     )

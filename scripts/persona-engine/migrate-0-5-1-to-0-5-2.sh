@@ -9,18 +9,18 @@
 # Persona-Engine Migration Helper — Operator-Hand entry script
 # ============================================================
 #
-# Tag-53 (2026-05-19). Wraps the Python helpers in
+# (2026-05-19). Wraps the Python helpers in
 # `scripts/persona-engine/migrate_0_5_1_to_0_5_2_helpers.py` with an
-# operator-facing Bash CLI for the KW-24 Live-VM rotation of the
+# operator-facing Bash CLI for the Live-VM rotation of the
 # Wakir persona-engine image from `0.5.1-pre-cutover`
-# (Tag-48 PR #313) to `0.5.2-final-pre-cutover` (Tag-52 PR #336).
+# to `0.5.2-final-pre-cutover`.
 #
 # Sandbox boundary
 # ----------------
 #
 # This script is OPERATOR-HAND. It runs on the Live-VM, as root,
 # under Operator-Hand control. It is NOT run in the claude-dev
-# sandbox. The hermetic Tag-53 test suite in
+# sandbox. The hermetic test suite in
 # `wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py`
 # exercises the Python helpers directly without invoking this Bash
 # wrapper, so the test suite remains hermetic even though the
@@ -29,7 +29,7 @@
 # Why a Bash wrapper at all?
 # --------------------------
 #
-# The Operator-Hand surface for KW-24 cutover is bash/systemd. A
+# The operator-hand surface cutover is bash/systemd. A
 # python3 entrypoint would require the operator to know the import
 # layout of the wakir-runtime tree; a Bash wrapper keeps the
 # invocation flat. The wrapper delegates all logic to the Python
@@ -90,17 +90,17 @@
 # Cross-zone discipline
 # ---------------------
 #
-# This script touches the Quadlet file (Kai-domain, Zone-J advisory)
+# This script touches the Quadlet file (DevOps-domain, Zone-J advisory)
 # only in `--apply` mode and only for the Image= line tag string.
 # It does NOT touch:
 #
-#   - WAT-core / OTS-anchor logic (Tomás, Zone-K).
-#   - Identity-substrate keys (Reza, Zone-L).
-#   - Persona-definition files (Aisha).
+# - WAT-core / OTS-anchor logic.
+# - Identity-substrate keys.
+# - Persona-definition files.
 #
-# Operators are expected to run this script under Kai's runbook
+# Operators are expected to run this script under the DevOps track's runbook
 # guidance; the script writes a snapshot of the Quadlet file
-# before any sed-edit so Kai can audit the diff post-rotation.
+# before any sed-edit so DevOps can audit the diff post-rotation.
 
 set -euo pipefail
 

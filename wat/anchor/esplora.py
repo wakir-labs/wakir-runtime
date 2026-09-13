@@ -30,7 +30,7 @@ Cross-validation contract
 -------------------------
 
 This module does not re-implement OTS proof-tree walking. It runs the
-narrow check specified by the Phase-1a Tag-15 brief: given a block
+narrow check specified by the brief: given a block
 height ``H`` extracted from a finalised OTS receipt's
 ``BitcoinBlockHeaderAttestation`` line, confirm via Esplora that the
 block exists at that height on Bitcoin mainnet, and return the block
@@ -38,7 +38,7 @@ hash for the caller to record. A future Phase-1b extension can also
 recompute the OTS proof leaf and compare against the block's
 ``merkle_root`` for a full proof-tree validation; the current
 contract is intentionally limited to "block exists at claimed
-height" because that is what the Tag-15 spec asks for and because
+height" because that is what the spec asks for and because
 the OTS proof-tree walk has its own ``pyopentimestamps`` library
 surface we do not want to re-export.
 
@@ -143,7 +143,7 @@ class BlockLookupResult:
     cached:
         ``True`` when the result was served from the on-disk sidecar
         cache, ``False`` when it required an HTTP round-trip. Tests
-        and the Tag-15 brand-demo memo both consume this signal to
+        and the brand-demo memo both consume this signal to
         report cache-hit rate.
     """
 

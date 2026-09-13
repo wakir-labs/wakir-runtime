@@ -8,7 +8,7 @@ Run from the repo root:
     python3 scripts/derive-bridge-audit-diff-engine-fixtures.py > \\
         tests/fixtures/bridge-audit-diff-engine-cross-lang/fixtures.json
 
-This is the canonical derivation procedure for the Tag-36 Mini-Welle
+This is the canonical derivation procedure for the increment
 13. Modul (Phase-3a-Python-Sync). Both the Python side
 (``wirelang.persona_engine.bridge_audit_diff_engine_canonical``) and the
 Rust side (``persona-engine-bridge-diff`` crate canonical sub-module)
@@ -218,8 +218,8 @@ def _derive_doc() -> dict:
     return {
         "_comment": (
             "Cross-lang fixture vectors for the persona-engine "
-            "bridge-audit-diff-engine canonical-trace (Tag-36 "
-            "Mini-Welle Phase-3a Python-sync, 13. Modul). Six "
+            "bridge-audit-diff-engine canonical-trace ("
+            "increment Phase-3a Python-sync, 13. Modul). Six "
             "outcomes covered: byte-identical happy path, single "
             "value-mismatch, only-in-a, only-in-b, type-mismatch "
             "(bool vs string), and a multi-field drift across "

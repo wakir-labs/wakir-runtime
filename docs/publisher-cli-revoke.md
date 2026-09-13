@@ -2,7 +2,7 @@
 
 **Module:** `wirelang.schemas.publisher_cli`
 **Subcommand:** `revoke`
-**Sprint:** Phase-2 Sprint-6 Tag-2 (additive over Sprint-6 Tag-1
+**Phase:** Phase-2 (additive over the
 revocation backend axis)
 **Bucket touched:** `wakir-capability-policies` (NOT `wakir-schemas`)
 
@@ -28,7 +28,7 @@ wakir-schema-registry revoke
 
 Apply an *explicit revocation* to an existing capability-policy
 record on the `wakir-capability-policies` NATS-KV bucket. This is
-the operator surface for the Sprint-6 Tag-1 backend axis (typed
+the operator surface for the backend axis (typed
 `revoked_at` + `revocation_reason` on `CapabilityPolicy`; gate
 denies `as_of >= revoked_at` with source `POLICY_REVOKED`;
 `put_with_revision` enforces revocation-monotonicity).
@@ -59,8 +59,8 @@ Together they derive the canonical KV key
 - `--revoked-at <rfc3339-with-tz>` (required) — the wall-clock
   instant of the revocation. MUST carry a timezone (e.g.
   `2026-05-11T22:00:00Z` or `2026-05-11T22:00:00+00:00`); a naive
-  RFC-3339 is rejected with `INPUT_ERROR` (3). The gate (Sprint-4
-  Tag-6 + Sprint-6 Tag-1) denies any decision with
+  RFC-3339 is rejected with `INPUT_ERROR` (3). The gate (
+) denies any decision with
   `as_of >= revoked_at` and source `POLICY_REVOKED`.
 - `--revocation-reason <free-form>` (optional but strongly
   recommended) — free-form audit string. Surfaced in the gate's
@@ -90,7 +90,7 @@ Together they derive the canonical KV key
   `--expected-revision` and the live revision surfaces with
   `CAS_CONFLICT` (5) BEFORE any backend write.
 - `--lww` — **last-write-wins escape-hatch**. Bypasses the
-  Sprint-6 Tag-1 revocation-monotonic backend invariant. Permits
+  revocation-monotonic backend invariant. Permits
   operator-deliberate semantics (e.g. an authorised un-revoke).
   Use only when you understand exactly what you are doing; the
   bucket history retains both the revocation event and the
@@ -160,7 +160,7 @@ JSON object on stderr; non-zero exit code:
 | 4         | `VALIDATION_ERROR`           | Live envelope on the bucket is poisoned, or the rewritten record fails policy/record validation.    |
 | 5         | `CAS_CONFLICT`               | `--expected-revision` does not match the live revision (a concurrent writer landed first).          |
 | 6         | `BACKEND_ERROR`              | Other backend transport / I/O failure.                                                              |
-| 8         | `REVOCATION_CONFLICT`        | Sprint-6 Tag-1 revocation-monotonic invariant tripped: un-revoke or advance-instant via CAS-pin.    |
+| 8         | `REVOCATION_CONFLICT`        | revocation-monotonic invariant tripped: un-revoke or advance-instant via CAS-pin.    |
 | 9         | `REVOKE_TARGET_NOT_FOUND`    | The `(registered_by, policy_id)` record does not exist on the bucket.                               |
 
 `REVOCATION_CONFLICT` is distinct from `CAS_CONFLICT`:
@@ -187,7 +187,7 @@ wakir-schema-registry revoke \
 ### Refresh the revocation reason (idempotent rewrite)
 
 The same `--revoked-at` instant + a different `--revocation-reason`
-is permitted by the Sprint-6 Tag-1 idempotent-rewrite invariant.
+is permitted by the idempotent-rewrite invariant.
 Useful for audit-trail enrichment after the initial revocation:
 
 ```sh
@@ -274,18 +274,18 @@ in-memory mock pattern (CAS-aware KV mock mirroring nats-py shape).
 - `wirelang/schemas/publisher_cli.py` — `_run_revoke`,
   `_add_revoke_flags`, `RevokeReceipt`, `ExitCode.REVOCATION_CONFLICT`,
   `ExitCode.REVOKE_TARGET_NOT_FOUND`.
-- `wirelang/schemas/capability_policy_nats_kv_backend.py` — Sprint-6
-  Tag-1 backend axis: `CapabilityPolicyRevocationConflict`,
+- `wirelang/schemas/capability_policy_nats_kv_backend.py` —
+  backend axis: `CapabilityPolicyRevocationConflict`,
   `put_with_revision` Gate 3 (revocation-monotonic).
-- `wirelang/schemas/registered_by_capability.py` — Sprint-4 Tag-6 +
-  Sprint-6 Tag-1: `DecisionSource.POLICY_REVOKED`, gate
+- `wirelang/schemas/registered_by_capability.py` —
+  `DecisionSource.POLICY_REVOKED`, gate
   precedence ordering.
-- `wirelang/tests/test_capability_policy_revocation.py` — Sprint-6
-  Tag-1 backend tests (the foundation this CLI builds on).
-- `wirelang/tests/test_publisher_cli_revoke.py` — Sprint-6 Tag-2
+- `wirelang/tests/test_capability_policy_revocation.py` —
+  backend tests (the foundation this CLI builds on).
+- `wirelang/tests/test_publisher_cli_revoke.py` —
   CLI tests (this subcommand).
 
 ---
 
-*Sprint-6 Tag-2 — Reza Tehrani (dev-engineering-2 / wirelang). Spec
+*— protocol engineering (dev-engineering-2 / wirelang). Spec
 v0.16.0 capability-policy-revocation operator surface.*

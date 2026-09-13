@@ -2,27 +2,27 @@
 
 | Field | Value |
 |---|---|
-| Owner | Amara Osei (QA), with Zone-N cross-check by Henrik (Internal Audit) |
+| Owner | QA engineering (QA), with Zone-N cross-check by internal audit |
 | Status | Draft for Phase-2 → Phase-3 cutover preparation |
-| Phase | 3 — Production (wakir-Tomás-Container is authoritative; Pre-Framework-Tomás is decommissioned or runs in observe-only fallback) |
-| Source | ADR-0058 §"Phase 4 Cutover-Entscheidung", ADR-0055 |
+| Phase | 3 — Production (wakir-Container is authoritative; the pre-framework agent is decommissioned or runs in observe-only fallback) |
+| Source | ADR-0058 §"Phase 4 cutover-Entscheidung", ADR-0055 |
 | Date approved | 2026-05-16 (draft; entry from Phase-2 still 6 weeks out by stable schedule) |
 
 ## 0. Phase contract
 
 Phase 3 begins when the ADR-0058 cutover-decision-artefact has been
-approved by the Aufsichtsrat (governance decision, gated on the
+approved by the external audit (governance decision, gated on the
 Phase-2 acceptance-gates per `phase-2-doppelbetrieb.md` §5).
 
 In Phase 3:
 
 * `wakir-persona-tomas.service` is the authoritative
-  Tomás-Persona-Container (the Pre-Framework-Tomás-spawn is either
+  Persona-Container (the pre-framework agent spawn is either
   decommissioned or runs in *observe-only* fallback for emergency
   rollback).
-* The Doppelbetrieb-Score-CLI continues to run if Pre-Framework-Tomás
+* The Doppelbetrieb-Score-CLI continues to run if the pre-framework agent
   is in observe-only fallback, but is **non-blocking** (the wakir-
-  Tomás output is authoritative, the Pre-Framework output is the
+  dev engineering output is authoritative, the Pre-Framework output is the
   audit-comparator only).
 * New persona-migrations follow the same ADR-0058 pilot →
   doppelbetrieb → production lifecycle; this document is the
@@ -33,39 +33,39 @@ In Phase 3:
 ### 3.1 All Phase-2 gates remain green for production-traffic
 
 * **Gate:** Every gate from `phase-2-doppelbetrieb.md` §1 still
-  passes, with the wakir-Tomás-Container now load-bearing.
-* **Owned-by:** Amara (enforcement), Selin (engine), Noa (substrate).
+  passes, with the wakir-Container now load-bearing.
+* **Owned-by:** QA engineering (enforcement), persona-engine engineering (engine), SRE engineering (substrate).
 
 ### 3.2 Rollback-runbook drill cleared
 
 * **Gate:** The Phase-2 → Phase-3 emergency-rollback runbook
-  (revert authoritative back to Pre-Framework-Tomás) has been
+  (revert authoritative back to the pre-framework agent) has been
   executed against a Pilot-VM at least once in the 30 days
   preceding cutover, with a measured rollback-time ≤ 15 minutes.
-* **Evidence:** Runbook-drill report signed off by Noa and Aisha.
-* **Owned-by:** Noa (runbook) + Aisha (drill moderation).
+* **Evidence:** Runbook-drill report signed off by SRE engineering and org design.
+* **Owned-by:** SRE engineering (runbook) + org design (drill moderation).
 * **Test-Vector:** This is a runbook-drill, not a hermetic test.
   QA-evidence is the drill-report; not a pytest entry.
 
 ### 3.3 V-907 / OTS audit-trail end-to-end
 
-* **Gate:** Every Tomás-Persona-Container spawn in the 30 days
+* **Gate:** Every Persona-Container spawn in the 30 days
   preceding cutover has a complete OTS-anchored audit-trail (axis-A
   pin → V-907 verify → engineering-output → reply-publish), with
   zero gaps in the audit-chain.
 * **Evidence:** OTS audit-trail Merkle-root reconciliation report
-  (Tomás-owned).
-* **Owned-by:** Tomás (WAT/OTS) + Henrik (audit).
+  (dev-engineering-owned).
+* **Owned-by:** dev engineering (WAT/OTS) + internal audit (audit).
 
 ### 3.4 Recovery-drill green on production substrate
 
-* **Gate:** The OI-PEF-11 recovery-drill (per Sprint-Pengine-7
+* **Gate:** The OI-PEF-11 recovery-drill (per the engine increment
   schema-registry entry `recovery_drill_outcome`) has been executed
   against the production substrate at least once in the 14 days
   preceding cutover, with `outcome == "pass"`.
 * **Evidence:** `recovery-drill-anchor` Quadlet log + signed
   outcome-record.
-* **Owned-by:** Selin + Noa.
+* **Owned-by:** persona-engine engineering + SRE engineering.
 
 ### 3.5 No regressions vs. Phase-2 baseline
 
@@ -73,8 +73,8 @@ In Phase 3:
   Phase-2 baseline) and substrate stability (Phase-2 SLOs) maintained
   for first 28 days post-cutover.
 * **Evidence:** Post-cutover Doppelbetrieb-Score weekly rollup
-  + Noa SLO-rollup.
-* **Owned-by:** Amara + Selin + Noa.
+  + SLO-rollup.
+* **Owned-by:** QA engineering + persona-engine engineering + SRE engineering.
 
 ## 2. Test-Coverage thresholds
 
@@ -86,43 +86,43 @@ Phase-3-specific thresholds at the **end-to-end** test level:
 
 | Component | Test-vector count | Source |
 |---|---|---|
-| Production-traffic E2E happy-path (full lifecycle on production substrate) | ≥ 5 distinct auftrag-classes | Amara |
-| Emergency-rollback runbook drill | ≥ 1 successful drill in last 30d | Noa |
-| Recovery-drill (OI-PEF-11) | ≥ 1 successful run in last 14d | Selin+Noa |
+| Production-traffic E2E happy-path (full lifecycle on production substrate) | ≥ 5 distinct auftrag-classes | QA engineering |
+| Emergency-rollback runbook drill | ≥ 1 successful drill in last 30d | SRE engineering |
+| Recovery-drill (OI-PEF-11) | ≥ 1 successful run in last 14d | persona-engine engineering + SRE engineering |
 
-## 3. SLI/SLO requirements (coordination with Noa SRE)
+## 3. SLI/SLO requirements (coordination with SRE engineering)
 
 Phase 3 SLOs are **production-grade** — tighter than Phase 2:
 
 | SLI | Window | SLO | Owner |
 |---|---|---|---|
-| Output-reply timeliness p99 (publish → reply) | rolling 1h | ≤ 30s | Noa |
-| Bridge-Forward fan-out drop-rate (if Pre-Framework still observe-only) | rolling 24h | ≤ 0.01% | Noa |
-| Persona-Container `up` (Quadlet active) | rolling 30d | ≥ 99.9% | Noa |
-| V-907 pin-drift event count | rolling 28d | 0 (zero-tolerance) | Noa+Selin |
-| Recovery-drill `outcome == pass` rate | rolling 90d | ≥ 95% | Noa+Selin |
+| Output-reply timeliness p99 (publish → reply) | rolling 1h | ≤ 30s | SRE engineering |
+| Bridge-Forward fan-out drop-rate (if Pre-Framework still observe-only) | rolling 24h | ≤ 0.01% | SRE engineering |
+| Persona-Container `up` (Quadlet active) | rolling 30d | ≥ 99.9% | SRE engineering |
+| V-907 pin-drift event count | rolling 28d | 0 (zero-tolerance) | SRE engineering + persona-engine engineering |
+| Recovery-drill `outcome == pass` rate | rolling 90d | ≥ 95% | SRE engineering + persona-engine engineering |
 
 Coordination note (vorläufig per P2): Phase-3 SLO numbers are
-production-target placeholders. Noa-design-review remains a Phase-2
+production-target placeholders. an SRE design review remains a Phase-2
 → Phase-3 promotion-prerequisite (gate §5.3 in
 `phase-2-doppelbetrieb.md`).
 
-## 4. Henrik-Audit-Punkte (Zone N)
+## 4. Audit-Punkte (Zone N)
 
-Henrik's Audit-Sample for Phase 3 consumes everything from Phase-1b
+internal audit's Audit-Sample for Phase 3 consumes everything from Phase-1b
 and Phase-2 plus:
 
 * **H.** The full OTS audit-trail Merkle-root reconciliation report
-  (Tomás-owned) — full audit, not sample.
-* **I.** The Aufsichtsrat-approved cutover-decision-artefact.
+  (dev-engineering-owned) — full audit, not sample.
+* **I.** The external audit-approved cutover-decision-artefact.
 * **J.** The post-cutover 28-day stability report
   (output-quality + substrate-stability + recovery-drill).
 * **K.** Any Phase-3 incident-post-mortems (full audit).
 
-Henrik does **not** consume:
+internal audit does **not** consume:
 
 * Per-output Doppelbetrieb diffs (sample only).
-* Live SLI dashboards (Noa-domain).
+* Live SLI dashboards (SRE domain).
 
 ## 5. Cross-phase invariants
 
@@ -142,8 +142,6 @@ with them:
   removing this gate at any phase requires a new ADR and is **not**
   a QA-discretionary call.
 * **Quality-Gate document edits require Zone-N cross-review** —
-  Amara cannot unilaterally relax a gate; Henrik signs off via the
+  QA engineering cannot unilaterally relax a gate; internal audit signs off via the
   Zone-N quarterly review (or ad-hoc if a gate-relaxation is
   proposed mid-quarter).
-
-— Amara

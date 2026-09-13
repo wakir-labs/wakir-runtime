@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""routing-decision-observability — Tag-16 Routing-Decision-Aggregator (SRE).
+"""routing-decision-observability — Routing-Decision-Aggregator (SRE).
 
 Background
 ----------
 
 ADR-0064 (Model-Routing + Prompt-Caching, Approval 2026-05-16 ~15:30
 CEST) Phase-2b (PR #159 — heuristic-routing production-wiring) and
-Phase-2c (Selin Tag-16 — LLM-classifier production-wiring) both
+Phase-2c (persona-engine engineering — LLM-classifier production-wiring) both
 emit a per-decision JSONL record to the path configured via
 ``WAKIR_ROUTING_DECISION_JSONL``. The schema is documented in
 ``wirelang/persona_engine/anthropic_call.py``::
@@ -26,8 +26,8 @@ emit a per-decision JSONL record to the path configured via
 
 This aggregator is the SRE-side observability surface on top of that
 substrate. It is the **routing-decision parallel** to the existing
-per-model **cost** aggregator (Noa PR #110) and per-(persona, model)
-**cache** aggregator (Noa PR #112). Together those three views give
+per-model **cost** aggregator and per-(persona, model)
+**cache** aggregator. Together those three views give
 an operator a complete operational picture of the persona-engine hot
 path: which model was chosen, how fast the decision ran, which
 routing mode resolved it, and how often the classifier path resolved
@@ -128,7 +128,7 @@ Run mode
 
 Stdlib-only (parity with the other observability scripts). Driven
 by a 5-minute systemd-user-timer cadence inside the ``claude-dev``
-toolbox container — the same substrate Kai already runs for the
+toolbox container — the same substrate DevOps already runs for the
 cost + cache aggregators.
 
 Exit codes

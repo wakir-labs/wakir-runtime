@@ -8,18 +8,18 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 **Status:** Living operations document.
 **Scope:** Build, sign and publish the
 `wakir-persona-engine-subscribe-loop` Rust-CLI container image
-(Welle-6 `subscribe_loop` cutover substrate).
-**ADR anchor:** ADR-0066 §Phase-3c Welle-6 `subscribe_loop`
-(approved 2026-05-17). Tag-33 Mini-Welle.
+(wave-6 `subscribe_loop` cutover substrate).
+**ADR anchor:** ADR-0066 §Phase-3c wave-6 `subscribe_loop`
+(approved 2026-05-17).
 **Sibling docs:**
-- `docs/operations/v907-verify-image-build.md` (Welle-1).
-- `docs/operations/svid-workload-identity-image-build.md` (Welle-2).
-- `docs/operations/bridge-audit-writer-image-build.md` (Welle-3).
-- `docs/operations/state-backing-image-build.md` (Welle-4 sibling).
-- `docs/operations/lifecycle-state-machine-image-build.md` (Welle-5
+- `docs/operations/v907-verify-image-build.md` (wave-1).
+- `docs/operations/svid-workload-identity-image-build.md` (wave-2).
+- `docs/operations/bridge-audit-writer-image-build.md` (wave-3).
+- `docs/operations/state-backing-image-build.md` (wave-4 sibling).
+- `docs/operations/lifecycle-state-machine-image-build.md` (wave-5
   sibling).
-- `docs/operations/recovery-workflow-image-build.md` (Welle-7 sibling,
-  same Tag-33 Mini-Welle).
+- `docs/operations/recovery-workflow-image-build.md` (wave-7 sibling,
+  same mini wave).
 - `docs/operations/cosign-policy-phase-3b.md` (13-binary inventory
   now includes this image as `subscribe-loop-welle6`).
 
@@ -28,20 +28,20 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 ## 1. Why this image exists
 
 ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks. The
-Tag-33 Mini-Welle ships the **Welle-6 image-build** substrate: a
+mini wave ships the **wave-6 image-build** substrate: a
 dedicated single-binary Rust-CLI container image for the persona-
 engine NATS-JetStream subscribe-loop operator surface.
 
-The Welle-6 cutover step will pin this image in a dedicated
+The wave-6 cutover step will pin this image in a dedicated
 Quadlet, flip the `WAKIR_SUBSCRIBE_LOOP_BACKEND=rust` operator flag
 and migrate the production-default backend from Python
 (`wirelang.persona_engine.subscribe_loop`) to the Rust pendant in
 the `persona-engine-subscribe-loop` crate.
 
 Note: a `subscribe-loop` binary already shipped in the carrier
-image earlier (Tag-22 Mini-Welle PR #181 wired the Python
-production-default switch). The Tag-33 image-build adds the
-**dedicated single-binary image** for the Welle-6 cutover step —
+image earlier (mini wave PR #181 wired the Python
+production-default switch). The image-build adds the
+**dedicated single-binary image** for the wave-6 cutover step —
 the cutover Quadlet pins a single-binary image so a rollback flips
 the `WAKIR_SUBSCRIBE_LOOP_BACKEND` flag back to Python without
 touching the carrier-image digest.

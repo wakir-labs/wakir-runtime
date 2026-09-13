@@ -16,7 +16,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 **Scope:** `wakir-labs/wakir-runtime` (BUSL-1.1) ↔
 `wakir-labs/wakir-protocol` (Apache-2.0 + CC-BY-4.0) ↔
 `wakir-labs/wakir-verify` (Apache-2.0).
-**Authored:** 2026-05-17 (Reza, EXT-AUDIT-FOLGE Tag-31, Sprint
+**Authored:** 2026-05-17 (protocol engineering, EXT-AUDIT-FOLGE,
 `Cross-Repo-Drift-Gates-Doku-Sync-MINI`).
 **ADR-Anker:** ADR-0062 Cut-2 / Cut-3 (protocol-substance
 classification), ADR-0066 (live-telemetry observability).
@@ -52,7 +52,7 @@ does not:
    same disagreement-without-cause for downstream adopters.
 3. **Living drift-map** — the Enforce-Flip-Readiness doc pinned a
    Day-1 snapshot (`6/10` drift). This runbook re-measures the
-   drift-map at each external-audit-follow-up Welle and records the
+   drift-map at each external-audit-follow-up wave and records the
    trajectory, so a future auditor can see *change* not just *state*.
 
 ---
@@ -73,21 +73,21 @@ Each zone has its own enforcement posture, owner, and CI lane.
 * **Inventory:** ten mirror-pairs hard-coded in `pairs=( ... )`.
 * **Allowlist:** `.cross-repo-drift-allowlist.yaml`. Currently
   **empty** by design (ADR-0062 Cut-2 follow-up).
-* **Owner:** Reza (substance) + Tomás (Cross-Review-Zone-3, OTS-
+* **Owner:** protocol engineering (substance) + dev engineering (Cross-Review-Zone-3, OTS-
   Schema-Anker compatibility).
 
 ### 2.2 Zone-B — Runtime ↔ Protocol shared test-vector fixtures
 
 * **CI lane:** *not yet automated.* Manual side-by-side `sha256sum`
-  diff at each external-audit-follow-up Welle (see §4 below).
+  diff at each external-audit-follow-up wave (see §4 below).
 * **Enforcement:** Doku-only. Drift is recorded in this runbook §3
   and resolved manually by the affected vector's owner.
 * **Required-status-check:** none (intentional — cryptographic
   vectors evolve at a different cadence than schemas).
 * **Inventory:** ten parallel fixture sets present in both repos
   (see §3.2 below).
-* **Owner:** Reza (Identity-Substrate + Wirelang vectors), Kai (WAT
-  vectors), Tomás (Cross-Review-Zone-3 boundary).
+* **Owner:** protocol engineering (Identity-Substrate + Wirelang vectors), infrastructure engineering (WAT
+  vectors), dev engineering (Cross-Review-Zone-3 boundary).
 
 ### 2.3 Zone-C — Runtime ↔ Verify manifest/proof types
 
@@ -98,8 +98,8 @@ Each zone has its own enforcement posture, owner, and CI lane.
 * **Required-status-check:** none.
 * **Inventory:** four shape-equivalence pairs (`wat/verify/manifest_v2.py`
   ↔ `wakir_verify/manifest.py`, etc.).
-* **Owner:** Kai (WAT-Layer-4 substrate) + Reza (Cross-Review on
-  cryptographic equivalence) + Tomás (OTS-Schema-Anker
+* **Owner:** infrastructure engineering (WAT-Layer-4 substrate) + protocol engineering (Cross-Review on
+  cryptographic equivalence) + dev engineering (OTS-Schema-Anker
   compatibility).
 
 ### 2.4 Zone-D — Wirelang spec prose docs
@@ -108,16 +108,16 @@ Each zone has its own enforcement posture, owner, and CI lane.
   at sprint-cadence, schemas at hours-cadence).
 * **Enforcement:** Status-log only.
 * **Inventory:** see [cross-repo-drift-mirror-pair-status.md](./cross-repo-drift-mirror-pair-status.md).
-* **Owner:** Reza.
+* **Owner:** protocol engineering.
 
 ---
 
-## 3. Current drift-map (measured 2026-05-17, Reza)
+## 3. Current drift-map (measured 2026-05-17, protocol engineering)
 
 The §3.x tables below are **point-in-time measurements** against the
 following baselines:
 
-* `wakir-runtime` main tip: `4e9a2eb` (post-Welle-3 telemetry).
+* `wakir-runtime` main tip: `4e9a2eb` (post-wave-3 telemetry).
 * `wakir-protocol` main tip: `575898c` (Cut-1 CI bootstrap).
 * `wakir-verify` main tip: `24e7df1` (Cut-1 README final).
 
@@ -154,13 +154,13 @@ not today's drift-set.
 * Pair `4` (Layer-3 capability-token) regression — open a follow-up
   PR to determine which side is authoritative and apply the
   appropriate `re-sync-*-from-*` strategy per Enforce-Flip-
-  Readiness §3. Owner: Reza.
+  Readiness §3. Owner: protocol engineering.
 * Pair `7` (federation-trust-document) regression — same
-  treatment. Owner: Reza.
+  treatment. Owner: protocol engineering.
 * Pair `8` (canonical caveat-set) still drifting on Day-31 —
   confirm SPDX-header-only-vs-substance with side-by-side diff
   before admitting to allowlist per `allowlist-spdx-header-only`
-  strategy. Owner: Tomás.
+  strategy. Owner: dev engineering.
 
 ### 3.2 Zone-B drift-map — Runtime ↔ Protocol shared fixtures (TODAY)
 
@@ -192,9 +192,9 @@ row (encoding only).
 
 * `jcs-leaf-vectors/vector-4-multi-utf8.json` — re-sync to the
   runtime version (UTF-8-native is the canonical JCS-emit per
-  RFC 8785). Owner: Reza.
-* `schema-registry/caveat-override-event-export-v1` rows — Reza
-  + Tomás side-by-side diff to identify which schema version is
+  RFC 8785). Owner: protocol engineering.
+* `schema-registry/caveat-override-event-export-v1` rows — protocol engineering
+  + side-by-side diff to identify which schema version is
   authoritative; the 81-byte size delta (6988 vs. 6907) suggests
   a partial commit on one side.
 
@@ -229,13 +229,13 @@ runbook is the first welle in which Zone-C is named as a contract
 zone. No automated CI lane exists yet. **Action:** spawn follow-up
 sprint `Cross-Repo-Verify-Shape-Equivalence-MINI` to build the
 CI lane that runs `pytest` from `wakir-verify` against the runtime-
-shipped `wat-tv2-real-signed` fixture. Owner: Kai (WAT) + Reza
+shipped `wat-tv2-real-signed` fixture. Owner: infrastructure engineering (WAT) + protocol engineering
 (Cross-Review boundary).
 
 ### 3.4 Zone-D drift-map — Wirelang prose spec
 
 Tracked in [cross-repo-drift-mirror-pair-status.md](./cross-repo-drift-mirror-pair-status.md).
-TODAY: `wirelang-spec-v0-2.md` was byte-identical at the Sprint-
+TODAY: `wirelang-spec-v0-2.md` was byte-identical at the
 Wirelang-Spec-Sync-Cross-Repo-MINI snapshot (2026-05-16) per that
 file's row. No new prose-spec drift verifications since.
 
@@ -244,7 +244,7 @@ file's row. No new prose-spec drift verifications since.
 ## 4. Drift re-measurement methodology
 
 This runbook is a **living document**: §3 must be re-measured at each
-external-audit-follow-up Welle and the new measurement appended to §6
+external-audit-follow-up wave and the new measurement appended to §6
 without rewriting older rows.
 
 ### 4.1 Zone-A measurement (5 min, fully scripted)
@@ -265,8 +265,8 @@ python3 scripts/cross_repo_drift_snapshot.py \
   --output docs/operations/cross-repo-drift-runbook-snapshot-$(date -I).md
 ```
 
-(Script does not exist yet — placeholder for the follow-up Welle. For
-TODAY's measurement Reza ran the equivalent shell inline; see §6 log.)
+(Script does not exist yet — placeholder for the follow-up wave. For
+TODAY's measurement protocol engineering ran the equivalent shell inline; see §6 log.)
 
 ### 4.2 Zone-B measurement (10 min, semi-scripted)
 
@@ -303,12 +303,12 @@ The `.cross-repo-drift-allowlist.yaml` is **empty** as of
 | Item | Value |
 |---|---|
 | `len(allow)` | 0 |
-| Last audit | 2026-05-17 (Reza, EXT-AUDIT-FOLGE Tag-31) |
+| Last audit | 2026-05-17 (protocol engineering, EXT-AUDIT-FOLGE) |
 | Tech-debt rows | none — empty list cannot carry debt |
 | Justification | ADR-0062 Cut-2 follow-up: baseline drift is observed in audit-only mode before any waiver is admitted. Until §4 of the Enforce-Flip-Readiness doc completes Steps 2–4, the allowlist remains empty. |
 | Next refresh trigger | Step-2 of Enforce-Flip-Readiness (SPDX-header-only allowlist seed for current rows `8` if confirmed SPDX-only). |
 
-**No tech-debt to flush from the allowlist on Tag-31.** The audit
+**No tech-debt to flush from the allowlist on.** The audit
 demand "are the [allowlist entries] still begründbar oder Tech-
 Schuld?" resolves to "no entries exist; the empty-allowlist posture
 is intentional and ADR-anchored". The next refresh window opens
@@ -322,7 +322,7 @@ only when the Enforce-Flip cleanup sequence (Enforce-Flip-Readiness
 Each measurement welle appends a new section here. **Do not edit
 older entries** — they are the audit-trail for the drift trajectory.
 
-### 6.1 Day-1 (2026-05-16, Tomás, PR #126)
+### 6.1 Day-1 (2026-05-16, dev engineering, PR #126)
 
 * Zone-A: `ok=4, drift=6, missing=0`.
 * Zone-B: not measured.
@@ -330,7 +330,7 @@ older entries** — they are the audit-trail for the drift trajectory.
 * Zone-D: clean (`wirelang-spec-v0-2.md` byte-identical).
 * Source: [cross-repo-drift-enforce-flip-readiness.md](./cross-repo-drift-enforce-flip-readiness.md) §2.
 
-### 6.2 Day-31 (2026-05-17, Reza, this PR)
+### 6.2 Day-31 (2026-05-17, protocol engineering, this PR)
 
 * Zone-A: `ok=4, DRIFT=6, missing=0`. Identity of drift rows
   shifted vs. Day-1 (rows 2 and 9 resolved; rows 4 and 7
@@ -343,19 +343,19 @@ older entries** — they are the audit-trail for the drift trajectory.
   Zone-C is named here for the first time. Spawn follow-up
   sprint to add the CI lane.
 * Zone-D: no change since 2026-05-16.
-* Source: this runbook, EXT-AUDIT-FOLGE Tag-31.
-* Cross-Review-Zone-3 sign-off: pending Tomás (Tag-31 outbox).
+* Source: this runbook, EXT-AUDIT-FOLGE.
+* Cross-Review-Zone-3 sign-off: pending dev engineering (outbox).
 
 ---
 
 ## 7. Cross-references
 
 * [cross-repo-drift-enforce-flip-readiness.md](./cross-repo-drift-enforce-flip-readiness.md)
-  — Tomás's operator checklist for the Enforce-Flip itself
+  — dev engineering's operator checklist for the Enforce-Flip itself
   (Steps 1–8). This runbook is the *measurement+map* companion;
   the Enforce-Flip-Readiness doc is the *flip-procedure* companion.
 * [cross-repo-drift-mirror-pair-status.md](./cross-repo-drift-mirror-pair-status.md)
-  — Reza's status log for Zone-D prose-spec sync verifications.
+  — protocol engineering's status log for Zone-D prose-spec sync verifications.
 * [branch-protection-required-status-checks.md](./branch-protection-required-status-checks.md)
   — what gets added to required-status-checks after the
   Enforce-Flip per Step-7.
@@ -372,5 +372,3 @@ older entries** — they are the audit-trail for the drift trajectory.
   "which files are mirrored?" decision).
 
 ---
-
-— Reza

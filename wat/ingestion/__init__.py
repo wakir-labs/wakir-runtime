@@ -6,7 +6,7 @@
 
 """WAT ingestion: Wirelang Layer-1 frame -> hour-spool bridge.
 
-This sub-package implements the Phase-1a-Tag-7 contract that connects
+This sub-package implements the contract that connects
 the Wirelang Layer-1 frame stream to the hourly Merkle aggregator
 (``wat.merkle.aggregator``). It owns:
 

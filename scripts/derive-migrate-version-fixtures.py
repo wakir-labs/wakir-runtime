@@ -22,8 +22,7 @@ Fixture set
 Six vectors covering all three failure_mode branches plus three
 success paths:
 
-- f01-known-pair-no-bump — OK, same major, no bump. The Tag-38
-  canonical V-907-style anchor: ``0.3.0-pilot`` -> ``0.4.0-pilot``,
+- f01-known-pair-no-bump — OK, same major, no bump. The canonical V-907-style anchor: ``0.3.0-pilot`` -> ``0.4.0-pilot``,
   pinning the current production semver pair.
 - f02-known-pair-allow-bump-flag-on — OK, same major; the
   ``allow_major_bump=True`` flag is set defensively.  Exercises the
@@ -131,7 +130,7 @@ def main() -> None:
             allow_major_bump=False,
             comment=(
                 "Current production pair, same major, no bump. "
-                "Phase-3a Tag-38 V-907-style anchor."
+                " V-907-style anchor."
             ),
         ),
         _emit_fixture(

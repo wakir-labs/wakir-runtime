@@ -6,11 +6,11 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 # WAT TV-2 — Chain-Check Real-Calendar Test Plan
 
 Status: draft, Phase 1a, scheduled for KW 21-22 of 2026.
-Parent plan: `docs/wat-smoke-test-plan.md` (Tag-22 full-smoke).
+Parent plan: `docs/wat-smoke-test-plan.md` (full-smoke).
 Sibling plans: `docs/wat-tv1-test-plan.md` (volume),
 `docs/wat-tv3-test-plan.md` (backfill leg).
 
-This document concretises Test Vector 2 (TV-2) of the Tag-22
+This document concretises Test Vector 2 (TV-2) of the
 full-smoke plan: the **chain-check real-calendar pendant**. TV-1
 proves the volume baseline for a single hour; TV-3 proves the
 backfill daemon clears the queue after a multi-hour outage. TV-2
@@ -20,7 +20,7 @@ contiguous 4-6 hour window — i.e. the audit-trail-walking surface
 that ADR-0020 commits us to.
 
 The verifier-side chain semantics are already covered by
-`tests/wat/test_verify_chain_check.py` (Tag-8) with mocked OTS
+`tests/wat/test_verify_chain_check.py` with mocked OTS
 receipts. TV-2 is the integration mirror: same semantics, but every
 hour in the chain is a real submission against the four production
 calendars, and the Merkle root of hour H+1 cryptographically
@@ -121,7 +121,7 @@ Exit codes accepted in TV-2:
 Hour 0 is verified without `--chain-check` (trivially chain-skipped
 when run with the flag, as captured in §3).
 
-## 5. Acceptance criteria (mirror of Tag-22 plan A1-A5)
+## 5. Acceptance criteria (mirror of plan A1-A5)
 
 - **A1.** `tests/wat/test_tv2_chain_check_real.py` passes with
   `OTS_INTEGRATION_TEST=1`. Hash consistency against the offline
@@ -168,7 +168,7 @@ Two coordination risks against the v2 boundary:
   inheriting the production default.
 
 **Owner: wirelang-eng (Identity-Substrate / WAT manifest schema).**
-Surface as a Tag-12 cross-review-zone-2 sync item if drift is
+Surface as a cross-review-zone-2 sync item if drift is
 detected during TV-2 implementation rather than patching the fixture
 inline. The wirelang-↔-WAT contract for hour-to-hour wiring lives
 under that consensus-owner hat.
@@ -182,7 +182,7 @@ calendar operators. If the Phase-1c container-identity work
 ends up running CI on the gated suite, the TV-2 nightly should
 **not** be scheduled in CI — it stays a manual, operator-driven
 test. **Owner: container-identity-eng (infra / CI).** Surface as
-a Tag-13
+a
 cross-review-zone-C sync item if a CI-side trigger is proposed.
 
 ## 8. Operator runbook

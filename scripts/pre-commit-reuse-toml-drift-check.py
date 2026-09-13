@@ -2,8 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Pre-commit ``REUSE.toml`` annotation-drift check.
-
-Tag-32 EXT-AUDIT-FOLGE companion hook. Triggered whenever ``REUSE.toml``
+ EXT-AUDIT-FOLGE companion hook. Triggered whenever ``REUSE.toml``
 itself is staged. Verifies two invariants:
 
   1. ``REUSE.toml`` parses as valid TOML.

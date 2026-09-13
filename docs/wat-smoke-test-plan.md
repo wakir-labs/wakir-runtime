@@ -3,18 +3,18 @@ SPDX-License-Identifier: CC-BY-4.0
 SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 -->
 
-# WAT Tag-22 Full-Smoke Test Plan
+# WAT Full-Smoke Test Plan
 
 Status: draft, Phase 1a, scheduled for KW 22 of 2026.
 
-This document captures the test plan for the Tag-22 full smoke run
-of the Wakir Audit Trail (WAT) hourly anchor pipeline. The Tag-9
-realistic smoke (this branch) is a precursor; Tag-22 is the final
+This document captures the test plan for the full smoke run
+of the Wakir Audit Trail (WAT) hourly anchor pipeline. The
+realistic smoke (this branch) is a precursor; is the final
 sign-off pass before Phase 1a closes.
 
 ## Scope
 
-The Tag-22 smoke covers the hourly contract end-to-end:
+The smoke covers the hourly contract end-to-end:
 
 1. event spool -> Merkle aggregation (`wakir-merkle build`)
 2. Merkle root -> public OTS calendars (`wakir-anchor stamp`)
@@ -67,7 +67,7 @@ manifest's root by one byte and re-run; expect exit code 4
 
 ## Acceptance criteria (WAT-Phase-1a-Spec §7-§8)
 
-A Tag-22 smoke run is considered passing when:
+A smoke run is considered passing when:
 
 - A1. All four `tests/wat/test_ots_integration.py` cases pass with
   `OTS_INTEGRATION_TEST=1`, including against the public pool aliases
@@ -78,7 +78,7 @@ A Tag-22 smoke run is considered passing when:
   if the run started inside the last 60 minutes; in that case the
   audit-alarm threshold is not yet reached.
 - A3. The full repository test suite stays at 274 passing tests
-  (Tag-8 baseline) plus the 4 integration cases gated on the env
+  (baseline) plus the 4 integration cases gated on the env
   variable. No new failures or skips introduced by the smoke layer.
 - A4. Calendar latency budgets observed in TV-1:
   - submit p50 < 5s, p95 < 30s
@@ -90,7 +90,7 @@ A Tag-22 smoke run is considered passing when:
 
 ## Operator runbook
 
-The Tag-22 smoke is driven from a single host with the `.venv`
+The smoke is driven from a single host with the `.venv`
 activated:
 
 1. `bash scripts/wat-smoke-test.sh` (full, ~5 min sleep + ~6 h wait

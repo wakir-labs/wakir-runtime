@@ -1,33 +1,33 @@
-# Runbook — SPIRE-Server-Sidecar Phase-2.1 (Sprint-6-Tag-8 rebase)
+# Runbook — SPIRE-Server-Sidecar Phase-2.1 (rebase)
 
-**Owner:** Kai Hoffmann (DevOps).
-**Status:** Phase-2.1 hermetic substrate authored (Tag-6) plus
-  Cosign-Digest-Pin form (Tag-8 rebase). Image-digest substitution
-  pending Operator-Hand + Tomás Zone-C cross-review.
+**Owner:** infrastructure engineering (DevOps).
+**Status:** Phase-2.1 hermetic substrate authored plus
+  Cosign-Digest-Pin form (rebase). Image-digest substitution
+  pending Operator-Hand + dev engineering Zone-C cross-review.
 **Hermetic-Status:** authored under ADR-0051 Sandbox-Trennung. No
   `podman run`, no live registry-pull in this sprint-tag.
 
 ## 1. Why
 
-Sprint-6-Tag-6 laid down the SPIRE-Server-Sidecar as the Workload-
+laid down the SPIRE-Server-Sidecar as the Workload-
 Identity-Substrate referenced by ADR-0020 (Phase-1b Container-
-Orchestrator). The Tag-7 follow-up that added the Cosign-Digest-Pin
+Orchestrator). The follow-up that added the Cosign-Digest-Pin
 form was authored on a `/tmp`-worktree without `origin` setup — it
-forked from a phantom baseline rather than the real Tag-6 tip
-(`1d41dd8`). This Tag-8 box rebases the Tag-7 substance back onto the
-real Tag-6 tip per Mira-Box-Brief.
+forked from a phantom baseline rather than the real tip
+(`1d41dd8`). This box rebases the substance back onto the
+real tip per Box-Brief.
 
 The substrate consists of:
 
 1. `compose/spire.yaml` — Podman/Docker-Compose service definition.
-   Tag-6 carried the hermetic-network layout, named volumes, deploy
+   carried the hermetic-network layout, named volumes, deploy
    limits, and `cap_drop: ALL` + `no-new-privileges:true` hardening.
-   Tag-8 adds the **Cosign-Digest-Pin form** on the image reference,
+   adds the **Cosign-Digest-Pin form** on the image reference,
    plus read-only root filesystem, non-root uid:gid, tmpfs for
    `/run/spire`, and an explicit loopback ports mapping.
-2. `config/spire-server.conf` — SPIRE-Server HCL config. Tag-6's
+2. `config/spire-server.conf` — SPIRE-Server HCL config.'s
    hermetic-only ``example.test`` trust-domain is **preserved**
-   (not the Tag-7 ``wakir.dev`` drift). Production trust-domain
+   (not the ``wakir.dev`` drift). Production trust-domain
    migration is a Phase-2.4 NATS-JWT-Auth integration tag, not this
    rebase.
 
@@ -39,7 +39,7 @@ The compose file carries a **placeholder digest**:
 image: "ghcr.io/spiffe/spire-server:1.14.6@sha256:DIGEST_PENDING_TOMAS_REVIEW"
 ```
 
-This is deliberate. Per ADR-0051 the Mira-sandbox has no host-podman
+This is deliberate. Per ADR-0051 the agent sandbox has no host-podman
 or registry access, so the real digest cannot be fetched from this
 agent context. Before the substrate is brought live the Operator
 must:
@@ -54,7 +54,7 @@ must:
    The upstream SPIFFE project signs releases via GitHub-Actions
    OIDC. (P7 verification stamp: this command form is the documented
    cosign-keyless verification pattern; the exact identity-regex may
-   need updating after a SPIFFE-release-engineering review — Tomás
+   need updating after a SPIFFE-release-engineering review — dev engineering
    Zone-C-Cross-Review confirms.)
 
 2. **Resolve the digest:**
@@ -68,7 +68,7 @@ must:
    resolved digest. Commit message:
    `chore(spire): pin spire-server image to sha256:<short>`.
 
-4. **Tomás Zone-C-Cross-Review** before the substrate is started
+4. **dev engineering Zone-C-Cross-Review** before the substrate is started
    live: Image-Pipeline × OTS-Anchoring impact must be confirmed
    (the Persona-Container-Image-Hash-Pinning workflow in V-907 will
    eventually need to anchor SPIRE-Server-image-digests too).
@@ -81,10 +81,10 @@ must:
    The acceptance suite accepts either the placeholder or a 64-hex
    digest, so it stays green throughout the substitution workflow.
 
-## 3. Bring-Up Procedure (Operator-Box, NOT Mira-Sandbox)
+## 3. Bring-Up Procedure (Operator-Box, NOT Sandbox)
 
 > **Run from an operator-controlled host with podman installed.**
-> Never run from the Mira-sandbox (ADR-0051).
+> Never run from the agent sandbox (ADR-0051).
 
 ```
 cd <repo-root>
@@ -109,7 +109,7 @@ SPIFFE-IDs use the Phase-2.4 trust-domain, not this hermetic stand.)
 
 Store the returned token in Infisical under
 `infra/spire/join-tokens/sprint-6-agent-bootstrap` (Operator-Hand;
-Mira-sandbox has no Infisical-write).
+the agent sandbox has no Infisical write access).
 
 ### Health-check:
 
@@ -118,7 +118,7 @@ podman exec wakir-spire-server /opt/spire/bin/spire-server healthcheck
 # Exit 0 = healthy.
 ```
 
-## 4. Acceptance Criteria (Sprint-6-Tag-8)
+## 4. Acceptance Criteria
 
 - [x] `compose/spire.yaml` exists and parses as valid Compose YAML.
 - [x] Image is pinned in the form
@@ -129,48 +129,46 @@ podman exec wakir-spire-server /opt/spire/bin/spire-server healthcheck
 - [x] Healthcheck uses the `spire-server healthcheck` built-in.
 - [x] Config-file mount is read-only; data volume is named.
 - [x] API port is bound to `127.0.0.1:8081` only (no exposure).
-- [x] Trust-domain is `example.test` (hermetic only — see Tag-6
+- [x] Trust-domain is `example.test` (hermetic only — see
       header for IANA-RFC-6761 rationale).
 - [x] JWT-SVID default TTL is `15m`.
-- [x] Datastore is SQLite for Sprint-6 (Phase-3 migrates to
+- [x] Datastore is SQLite for (Phase-3 migrates to
       Postgres).
 - [x] NodeAttestor is `join_token` for manual bootstrap.
-- [x] Acceptance suite: 16 (Tag-6 invariants) + 9 (Tag-8
+- [x] Acceptance suite: 16 (invariants) + 9 (
       Cosign-Pin) = 25 SPIRE-Compose tests; full suite 304 passed +
       25 skipped = 329 collected.
 
-Open items (deferred to a later sprint-tag, **not** in this Tag-8
+Open items (deferred to a later sprint-tag, **not** in this
 scope):
 
-- [ ] Real digest substitution (Operator-Hand + Tomás Zone-C).
+- Real digest substitution (Operator-Hand + dev engineering Zone-C).
 - [ ] SPIRE-Agent-Sidecar (separate service block, Workload-API-
-      Unix-Socket-share) — Phase-2.2 trigger once Reza delivers
+      Unix-Socket-share) — Phase-2.2 trigger once protocol engineering delivers
       the SPIFFE-Workload-API-Adapter-impl-slot-1.
 - [ ] Production trust-domain switch — Phase-2.4
       NATS-JWT-Auth-integration tag.
 - [ ] Postgres-datastore-migration (Phase-3).
-- [ ] Phala-Cloud-attestation-bridge (V-904 Phase-3, Zone-D-Reza-
+- [ ] Phala-Cloud-attestation-bridge (V-904 Phase-3, Zone-D protocol-
       Cross-Review-Gate).
 
 ## 5. Rollback
 
 There is nothing running in production from this sprint-tag — the
 substrate is authored but not deployed. Rollback is a `git revert`
-of the Tag-8-commit on the rebase branch; no live-system impact.
+of the earlier commit on the rebase branch; no live-system impact.
 
 ## 6. References
 
 - ADR-0020 — Container-Orchestrator Phase-1b.
-- ADR-0023b — V-904-Annex (Reza-Cross-Review-Pflicht für Phala-
+- ADR-0023b — V-904-Annex (Cross-Review-Pflicht für Phala-
   Cloud-Bridge).
 - ADR-0049 — Worktree-Pattern (this sprint-tag worktree:
   `/tmp/kai-sprint-6-tag-8-rebase-runtime`, branch
   `kai/phase-2-sprint-6-tag-8-rebase-cosign-pin`).
 - ADR-0050 — Tool-Surface-Pflicht-Stempel.
-- ADR-0051 — Mira-Sandbox vs. Host-Operations Trennung
+- ADR-0051 — Sandbox vs. Host-Operations Trennung
   (rejected variant; operational principle stays: no host-podman-
-  socket in Mira-sandbox).
-- Reza-Zone-A-Spec (SPIFFE/SPIRE-Workload-Identity).
+  socket in the agent sandbox).
+- Zone-A-Spec (SPIFFE/SPIRE-Workload-Identity).
 - Cosign upstream docs (keyless-signing-verification pattern).
-
-— Kai

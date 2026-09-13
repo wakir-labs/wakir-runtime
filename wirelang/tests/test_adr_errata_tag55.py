@@ -45,11 +45,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 ERRATA_DOC = (
     REPO_ROOT
     / "docs"
+    / "archive"
+    / "evidence"
     / "decisions"
-    / "adr-errata-tag-55-path-typo-fixes.md"
+    / "adr-errata-path-typo-fixes.md"
 )
 AUDIT_REPORT_REL = (
-    "reports/audit/adr-spec-compliance-audit-2026-05-19.md"
+    "docs/archive/evidence/audits/adr-spec-compliance-audit-2026-05-19.md"
 )
 
 

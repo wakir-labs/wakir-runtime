@@ -17,7 +17,7 @@
 #                                           **cache** (Phase-1b; consumed
 #                                           by ``wirelang.schemas.
 #                                           registry_nats_kv_backend``,
-#                                           Sprint-3 Tag-1)
+#)
 #      - ``wakir-aip-cache``                AIP-Document resolver cache
 #      - ``wakir-ftd-cache``                Federation-Trust-Document
 #                                           cache
@@ -28,11 +28,11 @@
 #                                           migration off the
 #                                           ``wakir-schemas`` cache
 #                                           bucket; 5th bucket added
-#                                           Sprint-4 Tag-4 via the Z-B
+# via the Z-B
 #                                           paired-update with the
 #                                           Wirelang-side track,
-#                                           analogous to the Sprint-3
-#                                           Tag-1 schema-registry
+# analogous to the
+# schema-registry
 #                                           surface that established
 #                                           the entry-envelope codec
 #                                           ``wakir.wirelang.
@@ -43,11 +43,11 @@
 #                                           ``wirelang.federation.
 #                                           route_registry_nats_kv_
 #                                           backend.NatsKvRouteRegistry``
-#                                           (Sprint-2 Tag-4 backend +
-#                                           Sprint-2 Tag-6 watch-stream
+# (backend +
+# watch-stream
 #                                           snapshot layer). Registered
-#                                           as the 6th bucket Sprint-4
-#                                           Tag-5 via the Z-B follow-up
+# as the 6th bucket
+# via the Z-B follow-up
 #                                           paired-update, closing the
 #                                           inventory-drift gap that
 #                                           previously required an
@@ -59,16 +59,16 @@
 #                                           Phase-3 promotion of the
 #                                           operator-local
 #                                           ``--capability-registry``
-#                                           JSON-file shape (Sprint-5
-#                                           Tag-1 Wirelang publisher-CLI)
+# JSON-file shape (
+# Wirelang publisher-CLI)
 #                                           onto a cluster-wide
 #                                           cross-invocation policy
 #                                           store. Phase-1b / Phase-2
 #                                           have NO live consumer on
 #                                           this bucket; it is
 #                                           registered ahead of time as
-#                                           the 7th bucket Sprint-5
-#                                           Tag-2 via the Z-B
+# the 7th bucket
+# via the Z-B
 #                                           paired-update with the
 #                                           Wirelang-side track so the
 #                                           Phase-3 operator bring-up
@@ -171,7 +171,7 @@ from typing import Any, Iterable, Mapping, Optional, Sequence
 # The values below are the source-of-truth for the Phase-1 single-node
 # NATS deployment. They mirror the bucket-config records in the
 # orchestrator skeleton spec and the ``docs/runbooks/nats-kv-phase-1.md``
-# runbook published with the Phase-1b Sprint-2 Tag-1 delivery.
+# runbook published with the delivery.
 #
 # Drift-policy: any deviation between the live cluster and these values
 # is a drift. The script reports drift, never auto-corrects it.
@@ -197,7 +197,7 @@ class BucketSpec:
 #:
 #: * ``wakir-schemas`` — consumed by
 #:   ``wirelang.schemas.registry_nats_kv_backend.NatsKvSchemaRegistry``
-#:   (Phase-1b Sprint-3 Tag-1). The consumer pins its own
+#:. The consumer pins its own
 #:   ``BUCKET_CONFIG`` constant to the same field values; test
 #:   ``T-SR-10`` (Wirelang suite) is the byte-precise anchor.
 #:
@@ -209,13 +209,13 @@ class BucketSpec:
 #:   the cluster). The bucket-config mirrors ``wakir-schemas`` so the
 #:   Phase-2 migration is a value-copy without a config-drift step:
 #:   same history (5), same max_value_size (256 KiB), same unbounded
-#:   TTL. Sprint-4 Tag-4 paired-update with the Wirelang-side track,
+#: TTL. paired-update with the Wirelang-side track,
 #:   which owns the schema-registry consumer-side codec
 #:   ``wakir.wirelang.schema-registry-entry/1``.
 #:
 #: * ``wakir-federation-routes`` — consumed by
 #:   ``wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry``
-#:   (Sprint-2 Tag-4 read/write backend, Sprint-2 Tag-6 watch-stream
+#: (read/write backend, watch-stream
 #:   snapshot layer). The Wirelang-side module exports
 #:   ``BUCKET_NAME = "wakir-federation-routes"`` and a ``BUCKET_CONFIG``
 #:   mapping (history=5, ttl_seconds=0, max_value_size=4096, storage=
@@ -226,16 +226,16 @@ class BucketSpec:
 #:   ``test_wakir_federation_routes_matches_wirelang_consumer_bucket_config``
 #:   in the orchestrator suite plus the dual-anchor parity test
 #:   ``test_inventory_matches_init_nats_buckets`` in the health-check
-#:   suite. Sprint-4 Tag-5 paired-update closes the Sprint-2 Tag-7
+#: suite. paired-update closes the
 #:   Z-B Schluss-Marker open follow-up that asked for this exact
 #:   inventory entry; the hand-creation fallback (Runbook §6.5) is
 #:   retained only as an out-of-band recreate recipe.
 #:
 #: * ``wakir-capability-policies`` — **reserved** for the Phase-3
 #:   promotion of the operator-local ``--capability-registry``
-#:   JSON-file shape (Sprint-5 Tag-1 Wirelang publisher-CLI; cf.
+#: JSON-file shape (Wirelang publisher-CLI; cf.
 #:   ``wirelang/schemas/publisher_cli.py`` ``--capability-registry``
-#:   / ``--gate`` flags and the Sprint-5 Tag-1 spec §5.13) onto a
+#: / ``--gate`` flags and the spec §5.13) onto a
 #:   cluster-wide cross-invocation policy store. The bucket has NO
 #:   live consumer in Phase-1b / Phase-2; it is registered ahead of
 #:   time so the Phase-3 operator bring-up procedure collapses into
@@ -257,17 +257,17 @@ class BucketSpec:
 #:   test analogous to ``test_t_tag5_02_sixth_bucket_config_mirrors_
 #:   wirelang_consumer_bucket_config`` lands as a follow-up; until
 #:   then this entry stays in reservation-form (no cross-import
-#:   pin). Sprint-5 Tag-2 paired-update with the Wirelang-side
+#: pin). paired-update with the Wirelang-side
 #:   ``wakir-capability-policies`` Phase-3 reservation reference
-#:   (Wirelang-track Sprint-5 Tag-1 §6 / Phase-3 follow-up slot,
-#:   promoted to Sprint-5 Tag-2 add per CEO-side strategic call
+#: (§6 / Phase-3 follow-up slot,
+#: promoted to add per CEO-side strategic call
 #:   2026-05-11).
 #:
 #: Phase-1b boundary: the 5th bucket ``wakir-schema-registry-entries``
 #: is created on cluster bring-up but is **not** consumed by any module
 #: shipped in Phase-1b (Phase-2-reserved). The 6th bucket
 #: ``wakir-federation-routes`` IS consumed by the Wirelang-side V-908
-#: backend; pre-Sprint-4-Tag-5 the bucket was created out-of-band per
+#: backend; earlier the bucket was created out-of-band per
 #: §6.5 of the runbook, this entry promotes it into the routine init
 #: pass. The 7th bucket ``wakir-capability-policies`` is reserved for
 #: Phase-3 capability-policy persistence — no Phase-1b / Phase-2

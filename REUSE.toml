@@ -106,7 +106,7 @@ SPDX-License-Identifier = "CC-BY-4.0"
 # migrated to top-level `x-spdx-license-identifier` /
 # `x-spdx-file-copyright-text` properties (ADR-0061
 # §Folgeartefakte, external-audit recommendation #6,
-# Sprint-Hygiene-Tag-2 2026-05-16). They no longer need an
+# 2026-05-16). They no longer need an
 # override because the file is now self-declarative for SPDX
 # scanners.
 # ============================================================

@@ -40,7 +40,7 @@
 # 5. Emits a structured JSON report on stdout (stable shape) plus a
 #    human-readable progress log on stderr. JSON-on-stdout is the
 #    contract operator-tooling pipelines parse (cron-driven monitoring
-#    is a Sprint-3 follow-up; the JSON shape is stable for that
+# is a follow-up; the JSON shape is stable for that
 #    consumer).
 #
 # Why a separate tool from ``check-nats-kv-health.py``
@@ -51,7 +51,7 @@
 # read-through cache layer depends on; it does not understand the
 # value envelopes, only the bucket configuration.
 #
-# This Tag-7 tool is the next layer up: it understands the V-908
+# This tool is the next layer up: it understands the V-908
 # federation-route value envelope (schema URI, RFC 3339 timestamps,
 # optional WAT anchor field) and exercises the N2 evaluator surface
 # end-to-end. Keeping the tools separate respects domain boundaries:
@@ -61,8 +61,8 @@
 # routes only wants the Phase-1 tool green.
 #
 # Cross-reference: this tool consumes the wirelang-eng-side modules at
-# ``wirelang/federation/n2_evaluator.py`` (Tag-3) and
-# ``wirelang/federation/route_registry_nats_kv_backend.py`` (Tag-4)
+# ``wirelang/federation/n2_evaluator.py`` and
+# ``wirelang/federation/route_registry_nats_kv_backend.py``
 # byte-precisely. It does not redeclare any of the wirelang-eng-owned
 # constants; the only additions are operator-facing
 # (CLI / JSON-shape / runbook §6).
@@ -79,7 +79,7 @@
 #       --probe-ftd-id "did:web:wakir.dev:ftd:v1"
 #
 # Authentication: reads ``WAKIR_NATS_TOKEN`` from the env if set,
-# same convention as the Tag-2 / Tag-6 scripts. Phase-2 SPIFFE
+# same convention as the / scripts. Phase-2 SPIFFE
 # JWT-SVID auth is a follow-up tracked in the orchestrator runbook.
 #
 # Exit codes
@@ -371,7 +371,7 @@ async def inspect_bucket(
 
 
 async def _safe_get_kv(js: Any, name: str) -> Optional[Any]:
-    """NotFound-class-name heuristic. Same shape as the Tag-6 tool."""
+    """NotFound-class-name heuristic. Same shape as the tool."""
     try:
         return await js.key_value(bucket=name)
     except KeyError:
@@ -632,7 +632,7 @@ def evaluator_probe(
 
 
 # ---------------------------------------------------------------------
-# /jsz HTTP probe (re-used from Tag-6, kept local for drop-in copy)
+# /jsz HTTP probe (re-used, kept local for drop-in copy)
 # ---------------------------------------------------------------------
 
 
@@ -644,7 +644,7 @@ def probe_jsz(
 ) -> JszProbe:
     """Probe the JetStream HTTP introspection endpoint.
 
-    Same shape as the Tag-6 ``check-nats-kv-health.py`` probe; kept
+    Same shape as the ``check-nats-kv-health.py`` probe; kept
     local so this script remains a single-file drop-in for an
     operator host.
     """

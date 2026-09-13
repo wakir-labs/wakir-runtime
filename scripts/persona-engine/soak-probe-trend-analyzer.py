@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Persona-Engine Soak-Probe Daily-Trend-Analyzer (Tag-55).
+"""Persona-Engine Soak-Probe Daily-Trend-Analyzer.
 
 Context
 -------
 
-Tag-54 PR #348 shipped ``scripts/persona-engine/soak-probe-5-day.py``
+PR  #348 shipped ``scripts/persona-engine/soak-probe-5-day.py``
 -- the sandbox-side compressed-time 5-day soak probe for the
 Persona-Engine 0.5.2-final-pre-cutover boot fan-out + FSM + V-907
 substrates. The probe verifies six invariants (A boot-decisions
 stable, A' boot-decisions count==10, B FSM trace hash stable,
 C V-907 pin stable, D resource object-count within budget,
 D' decision-payload-bytes stable).
-
-Tag-55 promotes that single-shot probe into an *autonomous daily
-trend tracker* for the ~3-week pre-KW-24-Cutover window. The
+ promotes that single-shot probe into an *autonomous daily
+trend tracker* for the ~3-week earlier-cutover window. The
 companion workflow ``persona-engine-soak-probe-daily.yml`` runs
 the probe once per day at 05:00 UTC, persists the resulting
 report into ``state/soak-probe-daily-trend/yyyy-mm-dd.json``,
@@ -28,7 +27,7 @@ and invokes this analyzer to:
   recovered -> INVARIANT-IMPROVED).
 * Compute Stability counters: how many days in the last N was
   the overall_ok = True? Per-invariant pass-rate over the window?
-* Surface invariant-fail events into a Mira-notify-emitter
+* Surface invariant-fail events into a the operator-notify-emitter
   compatible JSONL feed (``state/soak-probe-notify-events.jsonl``)
   for operator-inbox materialisation.
 * Emit a rolled-up trend report (JSON + Markdown) for the
@@ -38,7 +37,7 @@ The notify-event envelopes carry severity ``warning`` (single-day
 invariant-fail) or ``page`` (two-or-more consecutive days of
 invariant-fail; canonical "cutover-blocker" signal). The format
 matches ``scripts/observability/mira-notify-emitter.py`` schema
-version "1" so the existing Mira-Notify-Receiver picks it up
+version "1" so the existing notify-Receiver picks it up
 without bespoke routing.
 
 Sandbox-mode posture
@@ -53,8 +52,7 @@ output*. Any drift across real days is a structural signal:
   * Either the runtime tree changed (legitimate -- new feature
     landed, expect a new fingerprint baseline); or
   * The probe substrate itself is non-deterministic (a leak, a
-    crate-side state-accumulator, gc-internals drift); the
-    Tag-55 trend tracker is precisely the witness that catches
+    crate-side state-accumulator, gc-internals drift); the trend tracker is precisely the witness that catches
     the second case before the cutover-day Live-VM rehearsal.
 
 Pure-function-vs-IO split
@@ -69,28 +67,28 @@ bottom.
 Cross-zone discipline
 ---------------------
 
-This analyzer is sandbox-side persona-engine work (Selin /
+This analyzer is sandbox-side persona-engine work (persona-engine engineering /
 pengine domain). It does NOT:
 
-  * Edit persona-definition files (Aisha-domain).
-  * Touch WAT-core / OTS-anchor logic (Tomás-domain, Zone K).
-  * Touch identity-substrate keys (Reza-domain, Zone L).
-  * Touch Quadlet container definitions (Kai-domain, Zone J).
+  * Edit persona-definition files (HR-domain).
+  * Touch WAT-core / OTS-anchor logic (dev-engineering-domain, Zone K).
+  * Touch identity-substrate keys (protocol engineering-domain, Zone L).
+  * Touch Quadlet container definitions (DevOps-domain, Zone J).
 
-It reads the soak-probe report JSON (Tag-54 substrate; same-
-zone) and emits Mira-notify-emitter-compatible JSONL (Tag-46
-Noa-SRE substrate; cross-zone consumer, read-only against its
+It reads the soak-probe report JSON (substrate; same-
+zone) and emits the operator-notify-emitter-compatible JSONL (
+SRE-SRE substrate; cross-zone consumer, read-only against its
 schema).
 
 Anchors
 -------
 
-* Tag-54 PR #348 -- ``soak-probe-5-day.py`` substrate.
-* Tag-46 PR #294 -- ``mira-notify-emitter.py`` schema v1.
-* Tag-44 PR #287 -- ``pre-cutover-daily-trend-analyzer.py``
+* PR  #348 -- ``soak-probe-5-day.py`` substrate.
+* PR  #294 -- ``mira-notify-emitter.py`` schema v1.
+* PR  #287 -- ``pre-cutover-daily-trend-analyzer.py``
   (sister tracker, same Last-N-Days windowing pattern).
 
-Author: Selin Çelik (Persona-Engine-Engineer), Tag-55, 2026-05-19.
+Author: the persona-engine track (Persona-Engine-Engineer), 2026-05-19.
 """
 
 from __future__ import annotations
@@ -134,8 +132,8 @@ DEFAULT_NOTIFY_PATH = "state/soak-probe-notify-events.jsonl"
 # Notify-emitter schema-v1 constants (mirror mira-notify-emitter.py).
 NOTIFY_SCHEMA_VERSION = "1"
 NOTIFY_SOURCE = "soak-probe-trend-analyzer"
-# Runbook URL: pending the dedicated runbook document (SRE/Noa
-# follow-up). The URL is the canonical anchor a Mira-notify-emitter
+# Runbook URL: pending the dedicated runbook document (SRE/SRE
+# follow-up). The URL is the canonical anchor a the operator-notify-emitter
 # severity=page event must carry (validate_event() requirement).
 # Points to the trend-analyzer source as the interim operator
 # reference; the dedicated runbook MD will land in a sibling PR
@@ -542,7 +540,7 @@ def build_trend_report(
 
 
 # ---------------------------------------------------------------------
-# Notify-event construction (Mira-notify-emitter schema v1).
+# Notify-event construction (the operator-notify-emitter schema v1).
 # ---------------------------------------------------------------------
 
 
@@ -571,7 +569,7 @@ def _derive_event_id(
 def build_notify_events(
     report: TrendReport, fired_at_utc: str | None = None
 ) -> list[dict[str, Any]]:
-    """Build Mira-notify-emitter-compatible notify-event dicts
+    """Build the operator-notify-emitter-compatible notify-event dicts
     from a TrendReport.
 
     Emission policy:
@@ -610,7 +608,7 @@ def build_notify_events(
                 "summary": (
                     f"Persona-Engine soak-probe has been failing for "
                     f"{report.consecutive_fail_streak} consecutive "
-                    f"days (ending {report.today_date_iso}). Cutover-"
+                    f"days (ending {report.today_date_iso}). Release-"
                     f"blocker."
                 )[:200],
                 "description": None,
@@ -760,8 +758,8 @@ def render_trend_markdown(report: TrendReport) -> str:
         lines.append("_No verdict changes today vs yesterday._")
         lines.append("")
     lines.append(
-        "Anchors: Tag-54 soak-probe-5-day.py; "
-        "Tag-55 soak-probe-trend-analyzer.py."
+        "Anchors: soak-probe-5-day.py; "
+        " soak-probe-trend-analyzer.py."
     )
     return "\n".join(lines) + "\n"
 
@@ -868,7 +866,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="soak-probe-trend-analyzer",
         description=(
             "Aggregate daily Persona-Engine soak-probe reports into "
-            "a Last-N-Days trend report and emit Mira-notify-emitter-"
+            "a Last-N-Days trend report and emit the operator-notify-emitter-"
             "compatible JSONL events on invariant-fail / persistent-"
             "fail / fingerprint-drift."
         ),
@@ -918,7 +916,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--notify-path",
         default=DEFAULT_NOTIFY_PATH,
         help=(
-            f"JSONL feed for Mira-notify-emitter events "
+            f"JSONL feed for notify-emitter events "
             f"(default: {DEFAULT_NOTIFY_PATH})."
         ),
     )

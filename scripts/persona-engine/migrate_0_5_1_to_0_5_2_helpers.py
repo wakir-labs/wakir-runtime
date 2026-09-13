@@ -5,12 +5,12 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Persona-Engine 0.5.1-pre-cutover -> 0.5.2-final-pre-cutover Migration Helpers (Tag-53).
+"""Persona-Engine 0.5.1-pre-cutover -> 0.5.2-final-pre-cutover Migration Helpers.
 
 Stdlib-only helper module backing the Bash entry script
 ``scripts/persona-engine/migrate-0-5-1-to-0-5-2.sh``. The functions
 here are pure (no I/O beyond reading the in-tree manifest +
-pin-pack files) and importable from the hermetic Tag-53 test
+pin-pack files) and importable from the hermetic test
 suite ``wirelang/tests/persona_engine/test_migrate_0_5_1_to_0_5_2_tag53.py``.
 
 Why a Python helper backing a Bash entry script?
@@ -24,7 +24,7 @@ comparisons) where Bash's quoting + arithmetic surface would be
 brittle. The split mirrors the existing pattern from
 ``scripts/persona-engine/boot-self-test.py`` (Python self-test
 backed by a Bash invocation in CI) and
-``scripts/install-persona-tomas-quadlet.sh`` (Bash entry, Python
+``scripts/install-persona-quadlet.sh`` (Bash entry, Python
 sub-helpers).
 
 ADR scope
@@ -35,12 +35,12 @@ ADR scope
   it does **not** rewrite persona-definition files. The
   0.5.1 -> 0.5.2-final transition is a no-op at the
   persona-definition-format layer (manifest §5).
-- ADR-0043 — persona-engine engineer mandate: Selin owns this
+- ADR-0043 — persona-engine engineer mandate: persona-engine engineering owns this
   helper; no eingriff in HR-domain persona-definitions.
 - ADR-0065 / ADR-0066 — cutover discipline: this helper does
   NOT execute the rotation itself. It pre-checks, verifies post-
   rotation invariants, and emits a rotation-plan for the
-  Operator-Hand to apply. The Live-VM rotation is operator-hand
+  operator-hand to apply. The Live-VM rotation is operator-hand
   territory (sandbox boundary).
 
 Public API
@@ -53,7 +53,7 @@ Bash wrapper and the hermetic test suite:
     pin-pack files exist at expected paths and compute their
     sha256 digests. Returns a structured report.
   * :func:`compute_rotation_plan` — render the rotation-step
-    plan (image-tag bump statements) for the Operator-Hand to
+    plan (image-tag bump statements) for the operator-hand to
     apply on the Live-VM. Returns plan steps as a list of dicts.
   * :func:`post_rotation_verify` — given an "as-observed"
     snapshot from the Live-VM (manifest_version label, pin-pack
@@ -92,13 +92,13 @@ Cross-zone boundaries
 This helper touches manifest text (own domain) and pin-pack
 YAML (own domain). It does NOT touch:
 
-- Container Quadlet definitions (Kai-domain, Zone-J).
-- WAT-core / OTS-anchor logic (Tomás-domain, Zone-K).
-- Identity-substrate keys (Reza-domain, Zone-L).
-- Persona definition files (Aisha-domain).
+- Container Quadlet definitions (DevOps-domain, Zone-J).
+- WAT-core / OTS-anchor logic (dev-engineering-domain, Zone-K).
+- Identity-substrate keys (protocol engineering-domain, Zone-L).
+- Persona definition files (HR-domain).
 
 The rotation-plan steps that *reference* the Quadlet image-tag
-are advisory — the Operator-Hand applies them; Kai owns the
+are advisory — the operator-hand applies them; DevOps owns the
 infra runbook side of the same activity.
 """
 
@@ -137,15 +137,15 @@ TO_PIN_PACK_REL: _t.Final[str] = (
 )
 CONTAINERFILE_REL: _t.Final[str] = "infra/persona-engine/Containerfile.real"
 
-# The Tag-52 manifest §5 asserts byte-stability on these invariants vs.
-# Tag-48 0.5.1-pre-cutover. The helper verifies the claim against the
+# The manifest §5 asserts byte-stability on these invariants vs.
+# 0.5.1-pre-cutover. The helper verifies the claim against the
 # actual on-disk files.
 EXPECTED_TOTAL_WIRED_CRATES: _t.Final[int] = 10
 EXPECTED_TOTAL_PIN_PACK_CRATES: _t.Final[int] = 15
 EXPECTED_BOOT_RECORD_COUNT: _t.Final[int] = 10
 
 # The 10 wired-crate names, in canonical boot order (manifest §1 + §3).
-# Byte-stable vs. Tag-48; any reordering is an ADR-level decision.
+# Byte-stable vs.; any reordering is an ADR-level decision.
 CANONICAL_BOOT_ORDER: _t.Final[tuple[str, ...]] = (
     "persona-engine-recovery",
     "persona-engine-state-backing",
@@ -430,7 +430,7 @@ def pre_rotation_hash_check(repo_root: pathlib.Path) -> PreRotationReport:
             )
 
         tag = summary.get("tag")
-        # Tag-52 is the consolidation marker; the pin-pack records
+        # This revision is the consolidation marker; the pin-pack records
         # the emit-day tag (52). This is informational, not a hard
         # gate — operators applying the rotation on a later day
         # still benefit from the helper.
@@ -616,7 +616,7 @@ def compute_rotation_plan(
 ) -> list[dict[str, _t.Any]]:
     """Render the operator-applicable rotation plan.
 
-    The plan is a list of steps the Operator-Hand executes on the
+    The plan is a list of steps the operator-hand executes on the
     Live-VM. The helper does NOT execute any step; it only emits
     them. Each step is a dict with:
 
@@ -625,11 +625,11 @@ def compute_rotation_plan(
       * ``action``: one-line operator-facing summary.
       * ``command``: literal shell-or-systemd command to apply.
       * ``rollback``: literal inverse command (recorded eagerly so
-        the Operator-Hand can pivot without re-deriving anything).
+        the operator-hand can pivot without re-deriving anything).
 
     The ``quadlet_path`` keyword arg defaults to the canonical
     ``/etc/containers/systemd/wakir-persona-engine.container``
-    Kai-staged path; operators on a Live-VM with a different layout
+    DevOps-staged path; operators on a Live-VM with a different layout
     pass their actual path. The helper does not read this file —
     it is only a string baked into the rendered plan.
     """
@@ -1037,7 +1037,7 @@ def main(argv: list[str] | None = None) -> int:
         prog="migrate_0_5_1_to_0_5_2_helpers",
         description=(
             "Persona-Engine 0.5.1 -> 0.5.2-final migration helpers "
-            "(Tag-53). Operator-Hand wrapper script invokes this "
+            ". operator-hand wrapper script invokes this "
             "module via the four sub-commands below."
         ),
     )

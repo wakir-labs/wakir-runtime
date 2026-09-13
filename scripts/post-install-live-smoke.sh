@@ -56,11 +56,11 @@
 #     supervisory-board approval pass for that side.
 #   * It does NOT run the gated pytest live-smoke contracts (those
 #     are §7.1 step 8; a separate post-install-pytest-smoke.sh is
-#     a Sprint-3 follow-up if the CEO-side files such an item). The real-adapter
+# a follow-up if the CEO-side files such an item). The real-adapter
 #     round-trip in step 6 here is the minimum substrate-side smoke
 #     that the build-host activation needs to declare done.
 #   * It does NOT touch SPIFFE/SVID setup (Cross-Review Zone A
-#     deferred to Sprint-3 item 6).
+# deferred to item 6).
 #   * It does NOT push to the remote, mutate any persistent state
 #     beyond the one synthetic-key round-trip in step 6 (which is
 #     deleted at the end of step 6), or prompt for credentials. The

@@ -499,13 +499,13 @@ def test_p14_runbook_has_section_6_and_7():
     assert K2_DOC.is_file(), f"missing: {K2_DOC}"
     text = K2_DOC.read_text(encoding="utf-8")
     assert "## 6. Pre-Activation-Probe-Mode" in text
-    assert "## 7. AR-Authorisierungs-Pfad" in text
+    assert "## 7. Authorisation path" in text
     # §6 must reference the new CLI surface.
     assert "--mode pre-activation-probe" in text
     assert "--probe-verdict-out" in text
-    # §7 must reference KW-24 cutover gate and Reza PR #371 anchor.
-    assert "KW-24" in text
-    assert "PR #371" in text or "Tag-58 PR #371" in text
+    # §7 must reference the pinned cutover window and the spec-seal PR.
+    assert "2026-06-09" in text
+    assert "PR #371" in text
     # Old §5 invariants section is preserved (Tag-57 backwards anchor).
     assert "## 5. CI-Side Invariants" in text
 

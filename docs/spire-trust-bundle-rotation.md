@@ -3,19 +3,19 @@
 **Status:** Operator-Hand. Phase-2.6 runbook substance per the
 SPIFFE Z-A skizze §9 phase-plan and §10 risk-row "Trust-Bundle-
 Rotation-Sequence" (DevOps-track Operations, no Wirelang-side
-block; Reza-Z-A-Ack-Slot-4 §4.4).
+block; Z-A-Ack-Slot-4 §4.4).
 
-**Cross-Reference:** SPIFFE-Skizze §4.2 (Sequenz-Schritte
-Phase-2-Boot, `docs/spiffe-z-a-jwt-svid-skizze.md`) is the
+**Cross-Reference:** SPIFFE-sketch §4.2 (Sequenz-Schritte
+Phase-2-Boot, `docs/archive/evidence/decisions/spiffe-jwt-svid-identity-sketch.md`) is the
 canonical reference for the bootstrap-sequence the rotation steps
 inherit from.
 
 **Authoring-Zeitstempel:** `date -u 2026-05-12T18:47:56Z` (CEST
-20:47, Phase-2 Sprint-6 Tag-11).
+20:47, Phase-2).
 
 **Scope:** This runbook covers the Phase-2 hermetic substrate's
 trust-bundle-rotation sequence. Live-host execution is operator-
-hand per ADR-0051 (Mira-Sandbox-vs-Host-Operations-Trennung); the
+hand per ADR-0051 (Sandbox-vs-Host-Operations-Trennung); the
 sandbox MUST NOT perform real podman/systemd operations and MUST
 NOT call into a live SPIRE-Server.
 
@@ -61,7 +61,7 @@ Before starting a rotation:
       current upstream-CA `not_after` timestamp. The default
       Phase-2 expiry-watch trigger is `not_after - 7 days`.
 - [ ] **Cross-Review Zone-A consensus recorded.** If the rotation
-      changes the trust-domain (case 2), Aisha-Marker-Recording
+      changes the trust-domain (case 2), Marker-Recording
       for the trust-domain switch must be present.
 - [ ] **Backup of current trust-bundle.** `cosign verify`-
       compatible signed copy of the bundle in
@@ -208,7 +208,7 @@ nats --server tls://127.0.0.1:4222 \
 the JWT-SVID `iss` claim references the **new** trust-bundle's CA
 issuer hash. If any probe fails, proceed to §5 (roll-back).
 
-### 3.4 Cutover
+### 3.4 cutover
 
 The cutover is implicit — once §3.3 validation passes, the new CA
 is the default-issuance CA. The previous CA remains in the bundle
@@ -259,13 +259,13 @@ substrate-recreate event because:
 
 ### 4.1 Pre-migration checklist
 
-- [ ] **Aisha-Marker-Recording for the trust-domain switch.**
-- [ ] **Reza-Z-A-Ack** for the federation-trust-domain literal
+- **Marker-Recording for the trust-domain switch.**
+- **Z-A-Ack** for the federation-trust-domain literal
       (V-908 FTD-ID slug format `[a-z][a-z0-9-]{2,30}`).
 - [ ] **NATS-Server downtime window** scheduled — connections
       issued under `example.test` will be invalidated.
-- [ ] **Tomás Zone-C ack** for any image-pin changes that ship
-      with the migration (parity with Sprint-6-Tag-8 workflow).
+- **dev engineering Zone-C ack** for any image-pin changes that ship
+      with the migration (parity with workflow).
 
 ### 4.2 Migration steps
 
@@ -403,7 +403,7 @@ Path B).
 ## 6. Operator-Disziplin
 
 - **No live operations from sandbox.** ADR-0051 (rejected; the
-  rejection IS the directive) makes the Mira-Sandbox host-podman-
+  rejection IS the directive) makes the Sandbox host-podman-
   socket explicitly off-limits. Every command in this runbook is
   Operator-Hand on the host.
 - **Tool-Surface-Stempel (ADR-0050) per session.** Operator
@@ -414,7 +414,7 @@ Path B).
   pre-staged worktree on a non-prod host first; production-host
   config changes are atomic copy-in operations only.
 - **Pre-Box-Worktree (ADR-0049) Anker.** This runbook authored
-  in `/tmp/kai-sprint-6-tag-11-runtime` per the Sprint-6 Tag-10
+  in `/tmp/kai-sprint-6-tag-11-runtime` per the
   tip `7c16f5d` worktree pattern.
 
 ---
@@ -445,12 +445,12 @@ Path B).
 - **Authoring-Zeitstempel:** `date -u 2026-05-12T18:47:56Z`.
 - **§4.2 cross-reference verified:** `docs/spiffe-z-a-jwt-svid-
   skizze.md` §4.2 (Sequenz-Schritte Phase-2-Boot) is the
-  canonical reference; lines 295-340 in the Sprint-6 Tag-10 tip
+  canonical reference; lines 295-340 in the tip
   `7c16f5d` worktree.
-- **Phase-2.6 marker verified:** SPIFFE-Skizze §9 phase-plan
+- **Phase-2.6 marker verified:** SPIFFE-sketch §9 phase-plan
   Phase-2.6 entry "Trust-Bundle-Rotation-Sequence" — this
   runbook is the Phase-2.6 deliverable.
-- **Reza-Z-A-Ack-Slot-4 §4.4 verified:** DevOps-track Operations
+- **Z-A-Ack-Slot-4 §4.4 verified:** DevOps-track Operations
   ownership of trust-bundle-rotation confirmed in
   `agents-workspaces/reza/outbox/2026-05-11-z-a-cross-review-ack.md`
   §4.4.
@@ -458,5 +458,3 @@ Path B).
   runbook's authoring path. All command shapes verified against
   the SPIRE 1.14.6 CLI reference (P7-conjecture; exact exit-
   code semantics confirmed once Phase-2.3 live-gated test runs).
-
-— Kai

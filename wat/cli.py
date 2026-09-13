@@ -17,7 +17,7 @@ helper called out by PR #116 §5 (Cross-Review-Pflicht für on-VM-CLI).
 ``wat anchor-receipt`` purpose
 ------------------------------
 
-Operators running Live-VM acceptance tests (and Henrik's audit
+Operators running Live-VM acceptance tests (and the internal audit
 sample §4-A/§4-B) need a quick, machine-readable view of *one* WAT
 pipeline hour without having to know the layout of
 ``meta/timestamps/wat/<hour>/``. The receipt CLI emits a tight JSON

@@ -5,16 +5,16 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Persona-Engine 0.5.1-pre-cutover Boot Self-Test **v2** (Tag-50).
+"""Persona-Engine 0.5.1-pre-cutover Boot Self-Test **v2**.
 
-This is the **Tag-50 extension** of the Tag-48 self-test
-(``boot-self-test.py``). It carries forward every Tag-48 invariant
+This is the ** extension** of the self-test
+(``boot-self-test.py``). It carries forward every invariant
 (10 BackendDecisions, FSM closure, V-907 pin stability, boot
 fingerprint determinism) and adds **three new coverage classes**:
 
     A. **15-Crate Cross-Lang-Pin Coverage in Boot.** The pin-pack
        ships **15** Rust crates (10 boot-wired + 5 boot-unwired).
-       Tag-48 boot-self-test only verifies the 10 boot-wired
+       boot-self-test only verifies the 10 boot-wired
        half. The cutover-day operator wants live evidence that
        *every* pin-pack row remains shape-consistent on the
        cutover box (name + version + fixtures-or-note).
@@ -31,19 +31,19 @@ fingerprint determinism) and adds **three new coverage classes**:
          ``selector_env`` / ``binary_env`` keys per boot-wired
          crate.
 
-       Tag-48 self-test verifies the manifest <-> pin-pack arc
+       self-test verifies the manifest <-> pin-pack arc
        (check #8 ``cross_source_consistency``); it does NOT
        cross-check the **resolver code** against the documents.
-       Tag-50 adds that third arc — closing the **DRIFT-S4**
+       This revision adds that third arc — closing the **DRIFT-S4**
        surface: a resolver-side ENV constant whose name is in the
        module but missing from the manifest §2 tables, or
        vice-versa.
 
-    C. **DRIFT-S4 reconciliation report.** Post-Tag-50, the
+    C. **DRIFT-S4 reconciliation report.** Post-, the
        resolver module declares ENV constants for **two** crates
        (``BRIDGE_AUDIT_REPLAY_BACKEND_ENV``,
        ``MIGRATE_VERSION_BACKEND_ENV``) that are **not** in the
-       10-flag manifest §2 ENV schema. Tag-50 documents this
+       10-flag manifest §2 ENV schema. documents this
        intentionally: the two extra constants gate companion-crate
        subprocess paths that are **not** part of the Stage-1 boot
        fan-out. The self-test pins the **closed enum** of
@@ -54,11 +54,11 @@ fingerprint determinism) and adds **three new coverage classes**:
 Why a v2 file and not edits to ``boot-self-test.py``?
 -----------------------------------------------------
 
-* **Patch-trace integrity.** The Tag-48 file is referenced by
-  ``test_boot_self_test_tag47.py`` and the Tag-48 wire-in audit
+* **Patch-trace integrity.** The file is referenced by
+  ``test_boot_self_test_tag47.py`` and the wire-in audit
   trail. Editing it in place would silently change the contract
   the existing hermetic suite was approved against.
-* **Cutover-day boot harness.** v2 runs **alongside** v1 in the
+* **cutover-day boot harness.** v2 runs **alongside** v1 in the
   cutover-day operator runbook (Phase-3b §6, KW 23). v1 stays as
   the 0.5.1-pre-cutover anchor; v2 layers the extra coverage on
   top.
@@ -125,7 +125,7 @@ PIN_PACK_PATH = (
 EXPECTED_MANIFEST_VERSION = "0.5.1-pre-cutover"
 EXPECTED_PIN_VERSION = "0.1.0"
 
-# 10 BackendDecision domains, boot-ordered (Tag-48 wire-in).
+# 10 BackendDecision domains, boot-ordered (wire-in).
 EXPECTED_BOOT_ORDER: Tuple[Tuple[int, str, str], ...] = (
     (1, "recovery-workflow", "recovery"),
     (2, "state-backing", "state_backing"),
@@ -287,7 +287,7 @@ def _parse_pin_pack_yaml(text: str) -> Dict[str, Any]:
     """Parse the pin-pack YAML using only stdlib regex.
 
     The pin-pack YAML is hand-curated and follows a small subset
-    matching the Tag-48 self-test parser. Refer to
+    matching the self-test parser. Refer to
     ``boot-self-test.py:_parse_pin_pack_yaml`` for the grammar notes.
     """
     out: Dict[str, Any] = {}
@@ -395,7 +395,7 @@ def _drive_stage_1_boot(
 
 
 # ---------------------------------------------------------------------------
-# Class A — Tag-48 carry-forward checks (smoke; v1 owns the depth).
+# Class A — carry-forward checks (smoke; v1 owns the depth).
 # ---------------------------------------------------------------------------
 
 
@@ -493,7 +493,7 @@ def check_boot_fingerprint_deterministic() -> Tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
-# Class B — 15-Crate Cross-Lang-Pin live boot coverage (Tag-50 new).
+# Class B — 15-Crate Cross-Lang-Pin live boot coverage (new).
 # ---------------------------------------------------------------------------
 
 
@@ -880,7 +880,7 @@ def check_env_flip_unknown_value_rejected() -> Tuple[bool, str]:
     This is the strict-validation invariant: an operator who fat-
     fingers ``WAKIR_RECOVERY_BACKEND=ruts`` (typo for ``rust``)
     must see a hard error, not a silent fallback to Python. This
-    behaviour is part of the Tag-48 selector-ENV contract.
+    behaviour is part of the selector-ENV contract.
 
     Picks the recovery domain as the representative; the other 9
     resolvers share the same dispatch shape.
@@ -914,7 +914,7 @@ def check_env_flip_unknown_value_rejected() -> Tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
-# Class E — Cargo.toml <-> pin-pack version cross-check (post-Tag-50).
+# Class E — Cargo.toml <-> pin-pack version cross-check (later).
 # ---------------------------------------------------------------------------
 
 
@@ -970,7 +970,7 @@ def check_cargo_pinpack_version_alignment() -> Tuple[bool, str]:
 
 
 CHECKS: Tuple[Tuple[str, Callable[[], Tuple[bool, str]]], ...] = (
-    # Class A — Tag-48 carry-forward smoke.
+    # Class A — carry-forward smoke.
     ("artefacts_present", check_artefacts_present),
     ("stage_1_emits_ten", check_stage_1_emits_ten),
     ("stage_1_order", check_stage_1_order),

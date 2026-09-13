@@ -191,7 +191,7 @@ checks). Forcing chain-check would break those use cases.
 
 Exit codes follow the verify-CLI contract: `0` verified, `1` failed,
 `3` pending (OTS not yet finalised on Bitcoin), `4` chain-mismatch
-(introduced Tag-8 alongside the opt-in flag).
+(introduced alongside the opt-in flag).
 
 ### Edge cases
 
@@ -207,7 +207,7 @@ Exit codes follow the verify-CLI contract: `0` verified, `1` failed,
   manifest at all, the next emitted hour records `prev_hour_root:
   null`. The gap itself is not silently bridged. A `--chain-check`
   verifier reports `chain-skipped` rather than walking across the
-  gap. (default-decision Tag-8, decision-owner: no walk-back across
+  gap. (Default decision: no walk-back across
   gaps. A separate Phase-1b feature may add explicit gap markers.)
 - **Mismatched chain.** A non-null `prev_hour_root` that does not
   equal the previous hour's `merkle_root` is the only chain-state
@@ -216,7 +216,7 @@ Exit codes follow the verify-CLI contract: `0` verified, `1` failed,
   reported as an audit-trail integrity event in addition to the
   proof outcome.
 - **Legacy manifest (no `prev_hour_root` key).** Treated identically
-  to `prev_hour_root: null`: `chain-skipped`. This keeps pre-Tag-8
+  to `prev_hour_root: null`: `chain-skipped`. This keeps pre-v2
   archives verifiable with a current `--chain-check` verifier
   without any backfill.
 
@@ -231,8 +231,8 @@ default-flip at the reader side**:
 - v1 → v2 reader: flip `--chain-check` to default-on; introduce
   `--no-chain-check` for opt-out.
 - Backfill: existing v1 manifests that already carry
-  `prev_hour_root` (per the always-emit aggregator path shipped at
-  Tag-8) need no rewrite. v1 manifests that lack the key can be
+  `prev_hour_root` (per the always-emit aggregator path) need no
+  rewrite. v1 manifests that lack the key can be
   read by v2 verifiers as `chain-skipped` indefinitely; an offline
   backfill tool to compute and inject the missing values is a
   Phase-1b deliverable, not a v2-prerequisite.
@@ -264,7 +264,7 @@ Likely v2 additions (non-binding, for context):
 These are all additive; the v1 fields and their semantics will not
 be changed retroactively.
 
-## Production signing (Phase-2 Sprint-6 Tag-3)
+## Production signing (Phase-2)
 
 The aggregator emits an Ed25519 detached signature on the hour-
 manifest when both `--sign-key` and `--sign-kid` are supplied. The
@@ -293,10 +293,10 @@ Ed25519 signing key in one of two formats; format is detected by
 content sniff (no extension dependency):
 
 * **Hex** — 64-char hex-encoded 32-byte raw seed (trailing newline
-  tolerated). The original Sprint-6 Tag-3 format; matches the
+  tolerated). The original format; matches the
   AIP-document `public_keys[].key_hex` slot convention and remains
   the canonical compact form.
-* **PEM/PKCS#8** (Sprint-6 Tag-5) — unencrypted PEM-encoded PKCS#8
+* **PEM/PKCS#8** — unencrypted PEM-encoded PKCS#8
   Ed25519 private key. Matches the output of `openssl genpkey
   -algorithm ed25519`. Encrypted PEMs are rejected on this path:
   the unattended cron has no place to source a passphrase. Operators
@@ -320,7 +320,7 @@ Both flags must be supplied together; partial configuration is
 rejected with exit code 2 so a half-edited cron does not silently
 emit unsigned manifests.
 
-### End-to-end example (Phase-2 Sprint-6 Tag-4)
+### End-to-end example (Phase-2)
 
 The end-to-end demonstration script
 `scripts/wat-e2e-aggregator-signed-tv2.py` ties the production-side
@@ -352,7 +352,7 @@ script's `--keep-staging` flag preserves the temp directory for
 post-mortem inspection. Exit code is 0 iff every hour passes every
 gate (fields + integrity + ots-anchor + signature) AND every
 rebuilt `merkle_root` matched the fixture's (the deterministic-sort
-contract from Tag-3).
+contract from).
 
 ## Reference implementations
 

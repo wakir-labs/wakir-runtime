@@ -142,7 +142,7 @@ The operator observes the first 2-3 follow-up PRs:
   intuitive "would this sub-workflow fire on this changed-files set?"
 - Do the polling-timings stay within the 75-minute job-level timeout?
 
-### Step 3 — Cutover (operator hand, GitHub repo settings)
+### Step 3 — cutover (operator hand, GitHub repo settings)
 
 Once observation is clean, the operator:
 1. Adds `ci-aggregator` to the Branch-Protection Required-Status
@@ -259,7 +259,7 @@ sub-workflow YAML's `paths:` filter. Fix the inventory.
   Status-Check (`decisions/0068-status-aggregator-workflow-required-check.md`).
 - Branch-protection check-names audit (2026-05-18) — root-cause analysis of the path-
   filter / display-name double-axis problem
-  (`docs/audit/branch-protection-check-names-audit-2026-05-18.md`).
+  (git history, tag `archive/pre-phase-4`).
 - `feedback_branch_protection_check_names.md` — operator memory
   item documenting the display-name pitfall.
 - `feedback_live_bringup_sandbox_gap.md` — sibling memory item that

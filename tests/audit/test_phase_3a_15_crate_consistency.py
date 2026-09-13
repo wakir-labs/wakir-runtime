@@ -164,7 +164,7 @@ PIN_PACK_ONLY: frozenset[str] = frozenset(
 BASELINE_COMMIT: str = "7ada5ab"
 
 
-REPORT_PATH: str = "reports/audit/phase-3a-15-crate-consistency-2026-05-19.md"
+REPORT_PATH: str = "docs/archive/evidence/audits/phase-3a-15-crate-consistency-2026-05-19.md"
 
 
 # ---------------------------------------------------------------------

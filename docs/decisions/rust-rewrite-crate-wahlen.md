@@ -8,9 +8,8 @@ doc: rust-rewrite-crate-wahlen
 version: 0.1.0
 status: decision-prep
 date: 2026-05-16
-author: Reza Tehrani (Dev-Engineering-2)
-audience: mira-ceo, priya-cto, selin-pengine, tomas-engineering, henrik-audit
-purpose: Crate-Wahl-Decision-Doc für ADR-0063 §Folgeartefakte Item 1 — drei offene Wahlachsen aus Selin-Roadmap §2.3 beantworten.
+author: Dev-Engineering
+purpose: Crate-Wahl-Decision-Doc für ADR-0063 §Folgeartefakte Item 1 — drei offene Wahlachsen aus Rust-Rewrite-Roadmap §2.3 beantworten.
 ---
 
 # Rust-Re-Write Crate-Wahlen (ADR-0063 §Folgeartefakte Item 1)
@@ -19,14 +18,14 @@ purpose: Crate-Wahl-Decision-Doc für ADR-0063 §Folgeartefakte Item 1 — drei 
 
 - ADR-0063 approved 2026-05-16 ~15:30 CEST (Option A — Phase-3-Trigger
   nach Phase-2-Validation, ~KW 27).
-- Selin-Roadmap (`docs/decisions/persona-engine-rust-rewrite-roadmap.md`,
-  Sprint-Pengine-13, PR #79) identifiziert in §2.3 drei offene
+- Rust-Rewrite-Roadmap (`docs/decisions/persona-engine-rust-rewrite-roadmap.md`,
+  PR #79) identifiziert in §2.3 drei offene
   Crate-Wahl-Fragen für die Rust-Persona-Engine.
 - Decision-Vorbereitung jetzt, damit Phase-3a-Start (~KW 27,
   ~2026-06-26) ohne offene Crate-Wahlen lossetzbar ist.
 - Diese Doku ist eine **Decision-Vorbereitung**, kein
   Implementierungs-Auftrag. Sie liefert pro Wahlachse eine
-  Empfehlung mit Begründung, Smoke-Test-Skizze und Risiko-Liste.
+  Empfehlung mit Begründung, Smoke-Test-Entwurf und Risiko-Liste.
 - Re-Validation-Pflicht 2 Wochen vor Phase-3-Trigger (ADR-0063
   §"Risiken" Crate-Wahl-Ökosystem-Drift) — diese Snapshots sind
   Stand 2026-05-16, müssen bei Phase-3-Start bestätigt werden.
@@ -50,9 +49,9 @@ purpose: Crate-Wahl-Decision-Doc für ADR-0063 §Folgeartefakte Item 1 — drei 
 
 ### Use-Case
 
-Persona-State-Recovery (Spec §3.7.4 R1..R4, Reza Zone-B Identity-
-Substrate). Backup-Substrate für `PersonaStateSnapshot` (siehe
-Selin-Roadmap §1.3 — state-pack envelope ist der Cross-Engine-
+Persona-State-Recovery (Spec §3.7.4 R1..R4, Identity-Substrate-
+Zone). Backup-Substrate für `PersonaStateSnapshot` (siehe
+Rust-Rewrite-Roadmap §1.3 — state-pack envelope ist der Cross-Engine-
 Determinism-Anchor).
 
 **Substrat-Klassifikation:** Identity-Substrate-kritisch. Format-
@@ -84,7 +83,7 @@ irreversibel.
   Pause vorher ist Risiko-Indikator).
 - C-FFI-Layer (libsodium in älteren Versionen, 0.1.7 hat C-Code
   entfernt — Linecounts: 530 Rust, 0 C in 0.1.7 vs. 261 Rust +
-  1395 C in 0.1.4). Pure-Rust ab 0.1.7 ist Reza-positiv.
+  1395 C in 0.1.4). Pure-Rust ab 0.1.7 wird positiv bewertet.
 - Geringe Adoption (3.155 recent downloads) — kleines
   Ecosystem-Risiko.
 - API: generic bytes (kein SLIP-0039-Mnemonic-Layer).
@@ -117,7 +116,7 @@ irreversibel.
   Substrate-kritischen Pfad fragwürdig.
 - Nur sinnvoll wenn alle drei externen Optionen disqualifizieren.
 
-### Empfehlung (Reza)
+### Empfehlung
 
 **`vsss-rs` v5.4.0**, mit folgenden Bedingungen:
 
@@ -131,14 +130,14 @@ irreversibel.
    (kein Pedersen, kein Feldman, kein VSSS — diese sind
    feature-flag-gated und werden NICHT aktiviert in Cargo.toml).
 3. **Format-Anchor:** Der Backup-Substrate-Byte-Format ist im
-   `persona_state_recovery_format`-Spec (Reza Zone-B, folgt
+   `persona_state_recovery_format`-Spec (Identity-Substrate-Zone, folgt
    in Phase-3a) festgenagelt. `vsss-rs` ist Implementation,
    nicht Format-Definition.
 
-**Begründung gegen Mira-Empfehlung-Stand:** Mira-Empfehlung
+**Begründung gegen den ursprünglichen Empfehlungs-Stand:** Die Empfehlung
 in ADR-0063 §Folgeartefakte war `shamir-sss` (das ist die
 Python-`shamir-mnemonic`-Domäne) falls production-tested,
-sonst Standalone. Reza-Vertiefung zeigt: `shamir-sss` als
+sonst Standalone. Die Vertiefung zeigt: `shamir-sss` als
 Crate-Name existiert nicht direkt auf Crates.io
 (API-Check: `crate 'rfc8785' does not exist` — gleiche
 Klasse-Befund). `vsss-rs` ist der aktive, breit-adoptierte,
@@ -166,10 +165,10 @@ Pause vor 2025-10) als auch eigene Implementation
 
 ### Use-Case
 
-- WAT-Audit-Hash (Tomás Zone-K, identische Bytes Python-Engine
+- WAT-Audit-Hash (WAT-Zone, identische Bytes Python-Engine
   ↔ Rust-Engine ↔ WAT-Sink).
-- V-907-Persona-Hash (Aisha Zone-F + Reza Zone-B-Anker).
-- Doppelbetrieb-Konsistenz (Selin-Roadmap §4.1 Gates G-1/G-2/G-3
+- V-907-Persona-Hash (Persona-Definition- + Identity-Substrate-Zone).
+- Doppelbetrieb-Konsistenz (Rust-Rewrite-Roadmap §4.1 Gates G-1/G-2/G-3
   fordern byte-identische JCS-Bytes Python ↔ Rust).
 
 **Substrat-Klassifikation:** Cross-Engine-Determinism-Anker.
@@ -193,9 +192,9 @@ Ein-Byte-Drift bricht Bridge-Audit-Writer als Konsistenz-Oracle.
 
 ### Korrektur-Befund
 
-**Mira-Empfehlung-Stand-Korrektur:** ADR-0063 §Folgeartefakte
-Item 1 und Selin-Roadmap §2.2 schlagen `rfc8785-rs` bzw.
-`serde-json-canonicalization` als Optionen vor. Reza-
+**Korrektur am ursprünglichen Empfehlungs-Stand:** ADR-0063 §Folgeartefakte
+Item 1 und Rust-Rewrite-Roadmap §2.2 schlagen `rfc8785-rs` bzw.
+`serde-json-canonicalization` als Optionen vor. Die 
 Verifikation zeigt: **beide existieren nicht auf Crates.io**
 unter diesen Namen.
 
@@ -226,24 +225,24 @@ unter diesen Namen.
   prioritär gepflegt werden.
 - Größere Dependency-Footprint.
 
-### Empfehlung (Reza)
+### Empfehlung
 
 **`serde_jcs` v0.2.0** als alleiniger JCS-Crate für **hot-path
 UND Tests**.
 
-**Begründung gegen Mira-Empfehlung-Stand:** Mira-Empfehlung
+**Begründung gegen den ursprünglichen Empfehlungs-Stand:** Die Empfehlung
 ADR-0063 §Folgeartefakte unterscheidet `rfc8785-rs` (hot-path)
 vs. `serde-jcs` (Tests). Diese Trennung war auf der falschen
-Annahme zwei aktiver Implementations basiert. Reza-Befund:
+Annahme zwei aktiver Implementations basiert. Befund:
 `rfc8785` (Rust-Crate-Name) existiert nicht. Der einzige
 aktive Crate ist `serde_jcs` — also: ein Crate für beide
 Pfade.
 
-**Wenn Mira-Stand zwei Crates wollte für Cross-Implementation-
+**Wenn der ursprüngliche Stand zwei Crates wollte für Cross-Implementation-
 Check:** Cross-Implementation-Check funktioniert besser via
 Python-`rfc8785` Wheel ↔ Rust-`serde_jcs` (zwei Sprachen, zwei
 Implementations) statt zwei Rust-Crates. Das ist genau das was
-Selin-Roadmap §4.1 Gate G-1/G-2/G-3 fordert.
+Rust-Rewrite-Roadmap §4.1 Gate G-1/G-2/G-3 fordert.
 
 ### Smoke-Test-Empfehlung
 
@@ -288,16 +287,16 @@ Test-Vector-Suite als Acceptance.
 
 ### Use-Case
 
-- **BIP32 secp256k1:** Identity-Substrate-Hauptkurve (Reza
-  Zone-L, Persona-Identity-Document-Signaturen).
-- **SLIP-0010 Ed25519:** Alternativ-Identity-Kurve (Aisha-Persona-
+- **BIP32 secp256k1:** Identity-Substrate-Hauptkurve (Persona-
+  Identity-Document-Signaturen).
+- **SLIP-0010 Ed25519:** Alternativ-Identity-Kurve (Persona-
   Tooling, manche Sub-Key-Pfade).
 - **SVID-Cert-Verify:** X.509-Parse für SPIFFE Workload-API
-  (Selin-Roadmap §2.1 `svid_workload_identity.py`).
+  (Rust-Rewrite-Roadmap §2.1 `svid_workload_identity.py`).
 - **AEAD für State-Encryption:** AES-GCM oder ChaCha20-Poly1305
   für PersonaStateBacking-Optional-Encryption (Phase-3b-Item).
 - **Hash:** SHA-256 für V-907-pins und Merkle-Layer-Konsistenz
-  mit WAT (Tomás Zone-K).
+  mit WAT (WAT-Zone).
 
 ### Kandidaten (Stand 2026-05-16, Crates.io-API)
 
@@ -328,10 +327,10 @@ Test-Vector-Suite als Acceptance.
 
 ### Analyse — Crypto-Strategie-Ansatz
 
-Mira-Empfehlung-Stand: `ring` für Phase-3a, `aws-lc-rs`-Migration
+Ursprünglicher Empfehlungs-Stand: `ring` für Phase-3a, `aws-lc-rs`-Migration
 für FIPS-Compliance bei Hosted-Service-Pfad.
 
-**Reza-Bewertung der Strategie:**
+**Bewertung der Strategie:**
 - `ring` ist all-in-one (Sig, Hash, AEAD, RNG), audit-clean,
   117M recent DLs (Bedrock-Adoption). Aber: kein BIP32, kein
   SLIP-0010, kein secp256k1 (`ring` macht ECDSA-P256/P384,
@@ -340,7 +339,7 @@ für FIPS-Compliance bei Hosted-Service-Pfad.
   ist die explizite Roadmap), FIPS-140-3 zertifiziert seit
   ~2024. Größerer Maintainer (AWS-Team).
 - **Keine der beiden ringeligen Crates kann secp256k1.** Das
-  ist der Hauptbedarf für Reza Zone-L (BIP32-Hauptkurve).
+  ist der Hauptbedarf der Identity-Substrate-Zone (BIP32-Hauptkurve).
 
 **Implication:** Wir können NICHT mit nur `ring` oder nur
 `aws-lc-rs` auskommen. Wir brauchen **eine Layered-Strategie**:
@@ -353,9 +352,9 @@ für FIPS-Compliance bei Hosted-Service-Pfad.
   CryptoProvider und das ist konfigurierbar).
 - **BIP32-Layer:** `bip32` crate (iqlusioninc, baut auf `k256`).
 
-### Empfehlung (Reza) — Crate-Stack pro Pfad
+### Empfehlung — Crate-Stack pro Pfad
 
-#### Stack 1 — Identity-Substrate (Reza Zone-L)
+#### Stack 1 — Identity-Substrate
 
 | Pfad | Crate | Version-Pin |
 |---|---|---|
@@ -370,7 +369,7 @@ Pfad — eigene Implementation auf Basis von `ed25519-dalek` +
 `hmac` + `sha2` ist machbar (~150 LOC), kontrolliert, und
 spart Maintainer-Single-Point-Risiko.
 
-#### Stack 2 — Cross-Engine-Determinism (Tomás Zone-K + Reza Zone-B)
+#### Stack 2 — Cross-Engine-Determinism (WAT- und Identity-Substrate-Zone)
 
 | Pfad | Crate | Version-Pin |
 |---|---|---|
@@ -380,7 +379,7 @@ spart Maintainer-Single-Point-Risiko.
 recent DLs, audit-clean (RustCrypto-Org-Reputation), Lizenz-
 konform. Kein konkurrierender Vorschlag.
 
-#### Stack 3 — SVID + Workload-API (Selin-Roadmap §2.1 svid_workload_identity)
+#### Stack 3 — SVID + Workload-API (Rust-Rewrite-Roadmap §2.1 svid_workload_identity)
 
 | Pfad | Crate | Version-Pin |
 |---|---|---|
@@ -412,13 +411,13 @@ AES-GCM auf ARM ohne Hardware-Beschleunigung, von WireGuard +
 TLS-1.3 als bevorzugtes AEAD. AES-GCM-Pfad für FIPS-
 Compliance-Bedarf (Phase-X Hosted-Service).
 
-### Empfehlung gegen Mira-Empfehlung-Stand
+### Empfehlung gegenüber dem ursprünglichen Stand
 
-**Mira-Stand:** `ring` für Phase-3a, `aws-lc-rs` später.
+**Ursprünglicher Stand:** `ring` für Phase-3a, `aws-lc-rs` später.
 
-**Reza-Korrektur:** 
+**Korrektur:** 
 1. **`ring` deckt unseren Hauptbedarf (secp256k1) NICHT ab.**
-   Mira-Empfehlung war auf der Annahme dass `ring` als All-in-
+   Die ursprüngliche Empfehlung war auf der Annahme dass `ring` als All-in-
    One reicht. Das ist für SPIFFE-TLS okay, aber Identity-
    Substrate braucht secp256k1 das `ring` nicht hat.
 2. **Direkt `aws-lc-rs` statt `ring` für TLS-Pfad** — kein
@@ -431,7 +430,7 @@ Compliance-Bedarf (Phase-X Hosted-Service).
 ### Smoke-Test-Empfehlung
 
 Pro Crate ein Hello-World-Use-Case in `crates/persona-engine-
-crypto-smoke/` (Phase-3a-Initial-Sprint):
+crypto-smoke/` (Phase-3a-Initial-Schritt):
 
 1. `k256`: secp256k1 keygen + sign + verify against Python-
    `cryptography`-Wheel ECDSA-output.
@@ -478,22 +477,23 @@ Pin-Update vor Phase-3a-Trigger.
 
 | Wahlachse | Crate | Version-Pin | Status |
 |---|---|---|---|
-| Shamir-Secret-Sharing | `vsss-rs` | `=5.4.0` | Reza-Empfehlung, Smoke-Test-Pflicht |
-| JCS (RFC 8785) | `serde_jcs` | `=0.2.0` | Reza-Empfehlung, single-crate-Wahl |
-| secp256k1 ECDSA | `k256` | `=0.13.4` | Reza-Empfehlung |
-| BIP32 derivation | `bip32` | `=0.5.3` | Reza-Empfehlung |
-| Ed25519 sig | `ed25519-dalek` | `=2.2.0` | Reza-Empfehlung |
-| SLIP-0010 Ed25519 derive | Eigene Implementation (`wakir-slip10`) | — | Reza-Eigenbau (~150 LOC) |
-| SHA-256 | `sha2` | `=0.11.0` | Reza-Empfehlung |
-| TLS / SVID | `rustls` 0.23.40 + `aws-lc-rs` 1.17.0 CryptoProvider | `=0.23.40` / `=1.17.0` | Reza-Empfehlung |
-| AEAD (Default) | `chacha20poly1305` | `=0.10.1` | Reza-Empfehlung |
+| Shamir-Secret-Sharing | `vsss-rs` | `=5.4.0` | Empfehlung, Smoke-Test-Pflicht |
+| JCS (RFC 8785) | `serde_jcs` | `=0.2.0` | Empfehlung, single-crate-Wahl |
+| secp256k1 ECDSA | `k256` | `=0.13.4` | Empfehlung |
+| BIP32 derivation | `bip32` | `=0.5.3` | Empfehlung |
+| Ed25519 sig | `ed25519-dalek` | `=2.2.0` | Empfehlung |
+| SLIP-0010 Ed25519 derive | Eigene Implementation (`wakir-slip10`) | — | Eigenbau (~150 LOC) |
+| SHA-256 | `sha2` | `=0.11.0` | Empfehlung |
+| TLS / SVID | `rustls` 0.23.40 + `aws-lc-rs` 1.17.0 CryptoProvider | `=0.23.40` / `=1.17.0` | Empfehlung |
+| AEAD (Default) | `chacha20poly1305` | `=0.10.1` | Empfehlung |
 | AEAD (FIPS-Pfad) | `aes-gcm` | `=0.10.3` | Phase-X Hosted-Service-Reserve |
 
 ### Smoke-Test-Empfehlungen pro Crate
 
 Pro Crate ein Hello-World-Use-Case in `crates/persona-engine-
-crypto-smoke/` als Phase-3a-Initial-Sprint-Item (Reza Hauptlast,
-Cross-Review Tomás für Cert-Parse + Selin für JCS-Vector-Suite).
+crypto-smoke/` als Phase-3a-Initial-Item (Haupt-Last Identity-
+Substrate; Cross-Review WAT-Zone für Cert-Parse, Persona-Engine-
+Zone für JCS-Vector-Suite).
 
 Detail-Tests siehe §"Smoke-Test-Empfehlung" je Wahlachse.
 
@@ -507,12 +507,11 @@ Detail-Tests siehe §"Smoke-Test-Empfehlung" je Wahlachse.
 
 ### Cross-Review-Bedarf vor Phase-3a-Trigger
 
-- **Tomás Zone-K (Sign-off Gate G-11 per Selin-Roadmap):**
+- **WAT-Zone (Sign-off Gate G-11 per Roadmap):**
   V-907 SHA-256 + JCS Byte-Equivalence Review.
-- **Selin Zone-Persona-Engine (Sign-off Gate G-10 per Selin-
-  Roadmap):** Crate-Stack-Review insbesondere JCS-Test-Vector-
+- **Persona-Engine-Zone (Sign-off Gate G-10 per Roadmap):** Crate-Stack-Review insbesondere JCS-Test-Vector-
   Suite.
-- **Kai Zone-J (Sign-off Gate G-12):** Container-Image-Build
+- **Container-Zone (Sign-off Gate G-12):** Container-Image-Build
   mit allen Crypto-Crates (Static-Linking, Image-Size-Acceptance
   ≤ 125 MB).
 
@@ -537,14 +536,14 @@ Detail-Tests siehe §"Smoke-Test-Empfehlung" je Wahlachse.
 
 ## Out-of-Scope (für dieses Decision-Doc)
 
-- **Tonic / gRPC / async-nats:** Diese sind in Selin-Roadmap
+- **Tonic / gRPC / async-nats:** Diese sind in Rust-Rewrite-Roadmap
   §2.1 bereits gewählt und nicht Teil der drei offenen Wahlen.
-  Reza-Cross-Sicht: einverstanden mit Selin-Wahlen.
-- **serde_yaml für persona-md axis-A parse:** Selin-Roadmap §2.2
-  hat das adressiert. Reza-Cross-Sicht: YAML-1.2-Strict-Mode
-  hinzufügen als Pre-Phase-3a-Item (Aisha Zone-F).
-- **`reqwest` für Anthropic LLM-Hook (Phase-3-Stub):** Selin-
-  Roadmap §2.1, nicht Identity-Substrate-Domain.
+  Cross-Review-Sicht: einverstanden mit diesen Wahlen.
+- **serde_yaml für persona-md axis-A parse:** Rust-Rewrite-Roadmap §2.2
+  hat das adressiert. Cross-Review-Sicht: YAML-1.2-Strict-Mode
+  hinzufügen als Pre-Phase-3a-Item (Persona-Definition-Zone).
+- **`reqwest` für Anthropic LLM-Hook (Phase-3-Stub):** Rust-
+  Rewrite-Roadmap §2.1, nicht Identity-Substrate-Domain.
 
 ---
 
@@ -555,7 +554,7 @@ Detail-Tests siehe §"Smoke-Test-Empfehlung" je Wahlachse.
   §Folgeartefakte Item 1.
 - ADR-0035 §C (Sprach-pro-Komponente, approved 2026-05-06) —
   Persona-Engine in Rust-Pflicht.
-- Selin-Roadmap-Doku: `docs/decisions/persona-engine-rust-
+- Roadmap-Doku: `docs/decisions/persona-engine-rust-
   rewrite-roadmap.md` §2.3 (drei offene Wahlen) + §4.4
   (Governance-Gates).
 - Memory `feedback_externe_url_verifikation` — HTTP-200-Stempel-
@@ -564,4 +563,4 @@ Detail-Tests siehe §"Smoke-Test-Empfehlung" je Wahlachse.
 
 ---
 
-*— Reza Tehrani (Dev-Engineering-2), 2026-05-16*
+*— Dev-Engineering, 2026-05-16*

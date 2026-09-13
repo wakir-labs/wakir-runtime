@@ -6,9 +6,9 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 # WAT TV-1 — 100-Events One-Hour Volume Test Plan
 
 Status: draft, Phase 1a, scheduled for KW 21-22 of 2026.
-Parent plan: `docs/wat-smoke-test-plan.md` (Tag-22 full-smoke).
+Parent plan: `docs/wat-smoke-test-plan.md` (full-smoke).
 
-This document concretises Test Vector 1 (TV-1) of the Tag-22
+This document concretises Test Vector 1 (TV-1) of the
 full-smoke plan: a hundred synthetic events spool through the
 production aggregator, anchor through the public OTS calendars, and
 get verified end-to-end. TV-1 is the volume baseline against which
@@ -58,7 +58,7 @@ calendars are touched.
 
 ## 3. Performance-Erwartungen
 
-These budgets are the Phase-1a soft targets; Tag-22 sign-off
+These budgets are the Phase-1a soft targets; sign-off
 re-evaluates them against measured numbers. Hard CI gates are
 deliberately absent — calendar latency is the dominant variable and
 sits outside our control.
@@ -73,7 +73,7 @@ sits outside our control.
 Build time is the only stage entirely under WAT control; the others
 are dominated by network round-trips.
 
-## 4. Acceptance criteria (mirrors Tag-22 plan A1-A5)
+## 4. Acceptance criteria (mirrors plan A1-A5)
 
 - **A1.** `tests/wat/test_tv1_one_hour_volume.py` passes with
   `OTS_INTEGRATION_TEST=1`. Hash consistency against the offline
@@ -98,7 +98,7 @@ fields — so spec drift between Wirelang frame shape and the WAT
 leaf tuple is a coordination risk. The Identity-Substrate-Owner
 (wirelang-eng) is the consensus owner for that contract; if drift
 is detected during TV-1 implementation, flag
-it as a Tag-10 cross-review-zone-2 sync item rather than patching
+it as a cross-review-zone-2 sync item rather than patching
 the projection inline.
 
 ## 6. Operator runbook

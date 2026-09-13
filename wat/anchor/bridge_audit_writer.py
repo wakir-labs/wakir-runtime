@@ -472,7 +472,7 @@ def count_activity_log_lines_for_persona(
     A canonical line matches the prefix
     ``YYYY-MM-DD · <persona_id> · ``. The bridge ONLY writes canonical
     lines; the existing activity-log header sections, headlines, and
-    Mira-Hourly free-form prose are ignored.
+    hourly free-form prose are ignored.
     """
     log_path = Path(activity_log_path)
     if not log_path.is_file():

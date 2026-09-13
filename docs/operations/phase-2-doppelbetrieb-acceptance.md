@@ -9,7 +9,7 @@ Copyright (c) 2026 Callandor GmbH and contributors
 **Scope:** Cross-language acceptance criteria for the Phase-2 / Phase-3a
 Doppelbetrieb-Bridge between the Python `wirelang.persona_engine` and
 the Rust `wirelang-rust/crates/persona-engine-*` substrate.
-**Last update:** 2026-05-17 (Tag-14 Mini-Welle —
+**Last update:** 2026-05-17 (mini wave —
 Bridge-Audit-Roundtrip-E2E acceptance criterion added, gate #4).
 
 ---
@@ -74,7 +74,7 @@ works against either side's JSON report.
 
 **Test file:** `tests/integration/test_bridge_audit_roundtrip_e2e.py`.
 
-This is the **stream-level** acceptance gate added in Tag-14 Mini-Welle
+This is the **stream-level** acceptance gate added in mini wave
 (2026-05-17). The roundtrip wires the production-side Python emit
 path to the Rust replay engine end-to-end:
 
@@ -188,15 +188,13 @@ Gates are accreted, not replaced.
   current Gate 4 fixture is 3-record (canonical F3) plus a 5-record
   writer emit. A scale-test gate that pins a 1000-event trace would
   add confidence that the JCS canonicaliser stays byte-stable at
-  realistic session lengths. Out of scope for Tag-14; candidate for
-  Phase-3a Sprint-1.
+  realistic session lengths. Out of scope for now; candidate for
+  Phase-3a.
 * **Gate 6 (proposed):** Persistence-roundtrip — emit, persist to
-  NATS-KV stream, replay from NATS-KV. Pending NATS-KV Tag-N+
-  integration; out-of-scope for Tag-14.
+  NATS-KV stream, replay from NATS-KV. Pending the NATS-KV
+  integration; out of scope here.
 * **Cross-org gate (proposed):** When `wakir-protocol` ships its own
   bridge-audit-replay pendant, the cross-repo-drift gate should
   extend to assert stream-hash agreement across the two repos for
   the same fixtures. Pending `wakir-protocol` substrate;
-  out-of-scope for Tag-14.
-
-— Tomás
+  out-of-scope.

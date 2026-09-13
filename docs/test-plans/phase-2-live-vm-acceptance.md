@@ -2,15 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Owner | Amara Osei (QA) |
+| Owner | QA engineering |
 | Date drafted | 2026-05-16 |
-| Sprint | Sprint-Live-VM-Test-Plan-Doku-MINI (Folge zu Sprint-Live-VM-MINI) |
 | Baseline-PR | wakir-runtime PR #108 (Phase-2 Doppelbetrieb Live-VM Test-Suite skeleton) |
-| Companion-PR | wakir-runtime PR #76 (CI-Live-VM-Acceptance-Wrapper, Kai) |
+| Companion-PR | wakir-runtime PR #76 (CI-Live-VM-Acceptance-Wrapper, infrastructure engineering) |
 | ADR-Anker | ADR-0058 (Pilot-Persona-Migrations-Plan), feedback_live_bringup_sandbox_gap, feedback_sandbox_host_trennung |
 | Quality-Gate-Anker | `docs/quality-gates/phase-2-doppelbetrieb.md` (Phase-2-Acceptance-Gates §2.1–§2.5) |
-| Cross-Review (Zone M) | Tomás (WAT-CLI on-VM), Selin (persona-inspect on-VM), Reza (bridge-forward subcommand semantics), Kai (CI-Wrapper coupling), Noa (heartbeat-freshness SLI overlap) |
-| Cross-Review (Zone N) | Henrik (Audit-evidence harvest from the live-target lane) |
+| Cross-Review (Zone M) | dev engineering (WAT-CLI on-VM), persona-engine engineering (persona-inspect on-VM), protocol engineering (bridge-forward subcommand semantics), infrastructure engineering (CI-Wrapper coupling), SRE engineering (heartbeat-freshness SLI overlap) |
+| Cross-Review (Zone N) | internal audit |
 
 ## 0. Why this document exists
 
@@ -23,7 +22,7 @@ facing companion: it documents
 * the **pre-conditions** an operator must satisfy before invoking
   the suite,
 * which TV-LVD vectors are **Operator-Hand-only** vs. which are
-  **CI-triggerable** through the Kai CI-Wrapper (PR #76),
+  **CI-triggerable** through the infrastructure engineering CI-Wrapper (PR #76),
 * the **Acceptance-Gate mapping** (§2.1–§2.5 of
   `docs/quality-gates/phase-2-doppelbetrieb.md`) each TV-LVD vector
   feeds, and
@@ -32,7 +31,7 @@ facing companion: it documents
   distinguish from a real Phase-2 regression.
 
 It is **not** an on-VM runbook. The on-VM execution lane is owned by
-Tomás (`scripts/federation-live-vm-acceptance.sh`) and Kai
+dev engineering (`scripts/federation-live-vm-acceptance.sh`) and infrastructure engineering
 (`scripts/ci-live-vm-acceptance-wrapper.sh`). This document is the
 **QA-side** contract: what evidence the Live-VM lane is expected to
 produce so the Phase-2 Acceptance-Gate is enforceable.
@@ -48,7 +47,7 @@ rather than a silent pass.
 ### 1.1 SSH-key access to the Pilot-VM target
 
 * **Default target host:** `192.168.178.116` (wakir-pilot side per
-  Sprint-10 Tag-6 dogfood-LAN topology), override via
+  dogfood-LAN topology), override via
   `WAKIR_PEER_HOST`.
 * **Required:** the operator-host (or CI runner) has a private-key
   whose public-key is installed in the target user's
@@ -72,7 +71,7 @@ is up:
 * **wakir-orbit side:** federation-mode active, bundle-endpoint
   listener bound on `:8443`, peer-trust-bundle imported.
 * **Required reachability:** TCP/8443 between the two sides
-  (verified by Kai's `WAKIR_BILATERAL_PRECHECK=1` step in
+  (verified by infrastructure engineering's `WAKIR_BILATERAL_PRECHECK=1` step in
   `wakir-pilot-bootstrap.sh`, PR #76).
 
 If only one side is up, the Persona-Container heartbeat vectors
@@ -91,14 +90,14 @@ skip with an explicit reason.
   happens to carry the flag in a config file but should not actually
   point at the live VM and (b) an operator shell that has the env-var
   set but did not mean to run the live lane right now.
-* **Operator invocation (Mira-Hand):**
+* **Operator invocation (engineering-hand):**
 
   ```
   WAKIR_LIVE_VM_ACCEPTANCE=1 pytest --run-live-vm \
       tests/live_vm/test_phase_2_doppelbetrieb_live.py
   ```
 
-* **CI invocation (via Kai-Wrapper):** the wrapper sets the env-var
+* **CI invocation (via Wrapper):** the wrapper sets the env-var
   internally on the on-VM side and passes the flag through. The CI
   runner side itself does not need to set the env-var — the
   wrapper-script is the gate.
@@ -108,7 +107,7 @@ skip with an explicit reason.
 The skeleton `ssh_runner` fixture (PR #108) is a **refusal stub**: it
 raises `pytest.fail()` if invoked outside a live run. A real run
 requires the operator-side test framework to install a real
-SSH-backed runner. Sprint-Live-VM-Folge (post-MINI) will land this
+SSH-backed runner. A follow-up increment will land this
 runner; this Test-Plan is written assuming it exists.
 
 ### 1.5 On-VM CLI subcommand availability
@@ -124,8 +123,8 @@ The TV-LVD vectors invoke three on-VM CLI surfaces that are
 * `wat inject-synthetic-leaf` / `anchor-receipt --json` /
   `verify --external --json` (TV-LVD-05..07)
 
-Sub-command **existence-confirmation** is on Tomás (wat-CLI),
-Selin (persona-engine-CLI) and Reza (bridge-forward CLI / schema).
+Sub-command **existence-confirmation** is on dev engineering (wat-CLI),
+persona-engine engineering (persona-engine-CLI) and protocol engineering (bridge-forward CLI / schema).
 If any of these subcommands is named differently or carries
 different flag-semantics on the substrate at run-time, the
 corresponding TV-LVD vector MUST be marked `xfail` with the
@@ -144,14 +143,14 @@ mechanical enough to run on a CI cadence without supervision.
 | **TV-LVD-02** Persona heartbeat burst (5×) | CI-triggerable | Read-only, bounded loop. Cache-staleness regression is mechanical to detect. | Continuous |
 | **TV-LVD-03** Persona heartbeat post-restart | **Operator-Hand** | `systemctl restart` mutates VM state. A wedged restart blocks unrelated Engineering-traffic on the Pilot-VM. | On-demand (post-deploy, post-substrate-update) |
 | **TV-LVD-04** Heartbeat post-bridge-fanout | CI-triggerable | `bridge-forward inject-synthetic` is by-design idempotent and tagged; clean test-data hygiene. | Continuous |
-| **TV-LVD-05** WAT leaf → hour-root | CI-triggerable | Injects a tagged synthetic leaf into the audit-trail. This is by-design (the WAT-test-vector lane writes test-leaves; Henrik filters by tag in sample-audit). | Continuous |
+| **TV-LVD-05** WAT leaf → hour-root | CI-triggerable | Injects a tagged synthetic leaf into the audit-trail. This is by-design (the WAT-test-vector lane writes test-leaves; internal audit filters by tag in sample-audit). | Continuous |
 | **TV-LVD-06** OTS state progression (72h-old) | CI-triggerable | Read-only against historical hour-bucket. Needs ≥72h Pilot-VM uptime — schedule it weekly so the 72h-window is always populated. | Weekly (Phase-2 §2.1 cadence) |
 | **TV-LVD-07** External-verifier roundtrip | CI-triggerable | Read-only, expensive (re-derives hour-root from persisted leaves). Run after TV-LVD-06 in the same Wrapper-Run. | Weekly |
 | **TV-LVD-08** Subscribe-loop single auftrag | CI-triggerable | Bounded, tagged, idempotent. | Continuous |
 | **TV-LVD-09** Subscribe-loop 100-burst symmetric | CI-triggerable | 100-burst is well under the §2.2 drop-rate budget (≤0.1% over 24h). | Continuous |
 | **TV-LVD-10** Bug-42 induced-reconnect | **Operator-Hand** | `--induce-reconnect-mid-burst` deliberately disturbs the subscribe-loop and could leak into unrelated traffic if the test-tag filter has a regression. Wants a human to watch the run. | On-demand (post-engine-update, regression-on-suspicion) |
 
-**Lane discipline.** The CI-triggerable lane is invoked through Kai's
+**Lane discipline.** The CI-triggerable lane is invoked through infrastructure engineering's
 `scripts/ci-live-vm-acceptance-wrapper.sh` (PR #76). The
 Operator-Hand lane is invoked directly via the `WAKIR_LIVE_VM_ACCEPTANCE=1`
 + `--run-live-vm` double-gate at an operator shell, optionally
@@ -162,7 +161,7 @@ exercising the Operator-Hand vectors — they are gated by lane choice,
 not by hard separation. But the default CI-Wrapper invocation MUST
 deselect the Operator-Hand vectors (`-m 'live_vm and not operator_only'`,
 once that marker lands in the suite). The Wrapper-Run summary-JSON
-records which lane it ran in.
+records which lane it ran.
 
 ## 3. Acceptance-Gate mapping
 
@@ -175,22 +174,22 @@ required.
 
 | TV-LVD | Phase-2 Gate (§ in `phase-2-doppelbetrieb.md`) | What the vector proves about the Gate |
 |---|---|---|
-| TV-LVD-01 | §2.1 (All Phase-1b gates remain green) + §2.4 (V-907 pin-drift) | Persona-Container responds, baseline alive-signal that every other Gate depends on. |
+| TV-LVD-01 | §2.1 (All Phase-1b gates remain green) + §2.4 (V-907 pin-drift) | Persona-Container responds, baseline alive-signal that every other Gate depends. |
 | TV-LVD-02 | §2.1 (Phase-1b gates inherit) | Heartbeat-cache-staleness regression class is detected (substance-bug pattern 2026-05-13 #4). |
 | TV-LVD-03 | §2.4 (V-907 pin-drift over 28d) + §2.1 | Restart-roundtrip preserves the build-time pin; `EXIT_V907_HASH_DRIFT` does not fire. |
 | TV-LVD-04 | §2.2 (Bridge-Forward fan-out symmetric) — receive-side | Container actually consumes a published auftrag — the Bug-42-class silent-drop is detected at the receive-end. |
 | TV-LVD-05 | §2.1 (Phase-1b WAT-roundtrip inherits) | Leaf → hour-Merkle-root pipeline is live; OTS-state is observable. |
-| TV-LVD-06 | §2.1 (Phase-1b OTS-upgrade-loop) + Henrik-Audit §4 evidence-A | OTS-upgrade-loop has not silently stopped; 72h-old buckets are anchored. |
-| TV-LVD-07 | §2.1 (Phase-1b external-verifier) + Henrik-Audit §4 evidence-B | Audit-trail is verifiable by a third party. **Core audit-trail invariant for Zone-N.** |
+| TV-LVD-06 | §2.1 (Phase-1b OTS-upgrade-loop) + Audit §4 evidence-A | OTS-upgrade-loop has not silently stopped; 72h-old buckets are anchored. |
+| TV-LVD-07 | §2.1 (Phase-1b external-verifier) + Audit §4 evidence-B | Audit-trail is verifiable by a third party. **Core audit-trail invariant for Zone-N.** |
 | TV-LVD-08 | §2.2 (Bridge-Forward fan-out symmetric, single) | Per-auftrag exactly-once on both sinks. |
 | TV-LVD-09 | §2.2 (Bridge-Forward fan-out symmetric, burst) | Drop-rate budget at 100-burst is 0 (well inside the ≤0.1%-over-24h budget). |
 | TV-LVD-10 | §2.2 (Bridge-Forward fan-out symmetric, no-duplicate) | Bug-42-class double-delivery under induced reconnect is detected. |
 
-**Henrik-Audit-Sample evidence harvest.** The TV-LVD outputs (pytest
+**Audit-Sample evidence harvest.** The TV-LVD outputs (pytest
 JUnit-XML + summary-JSON from the CI-Wrapper) are the evidence-source
 for the Phase-2 Audit-Sample §4.A (continuous CI-Live-VM-Acceptance-
 Gate runs) and §4.B (external-verifier-driver runs against the
-substrate). The mapping above is the Zone-N contract: Henrik reads
+substrate). The mapping above is the Zone-N contract: internal audit reads
 the TV-LVD-IDs in the summary-JSON and confirms they cover the §1
 Gates without claiming evidence the Gate does not actually demand.
 
@@ -240,7 +239,7 @@ substrate-fix.
   the Quadlet-pin is platform-specific (`linux/amd64`) but the
   bringup script resolved against the manifest-list head.
 * **Reference.** `docs/ci-image-pin-resolution.md`,
-  `docs/spire-agent-phase-2-2.md` (skopeo-inspect recipe), Kai
+  `docs/spire-agent-phase-2-2.md` (skopeo-inspect recipe), infrastructure engineering
   Resolver-Trust-Mode-Selector (`WAKIR_RESOLVER_TRUST_MODE`, PR #76).
 * **Affects.** TV-LVD-03 (post-restart heartbeat). A
   `pin_sha256`-mismatch in the heartbeat doc is *also* the symptom of
@@ -260,7 +259,7 @@ substrate-fix.
   TV-LVD-01..10 all fail at fixture-time because the
   persona-tomas Quadlet has no SPIRE-Agent SVID and refuses to
   start.
-* **Root cause.** Bootstrap-substance-bug class fixed in Sprint-Tag-6/7;
+* **Root cause.** Bootstrap-substance-bug class fixed earlier;
   regression-guard in `federation-live-vm-acceptance.sh` line ~180
   (`grep 'malformed configuration'`).
 * **Affects.** Entire TV-LVD-suite is unrunnable until substrate-fix.
@@ -288,19 +287,19 @@ substrate-fix.
 ### 4.5 Bug-35-class podman-run-vs-Quadlet drift
 
 * **Pattern.** Persona-tomas Container is up under
-  `podman run` (Mira-Hand workaround), but the Quadlet-unit
+  `podman run` (engineering-hand workaround), but the Quadlet-unit
   `wakir-persona-tomas.service` is `inactive`. TV-LVD-03
   (post-restart) fails because `systemctl restart` operates on the
   inactive Quadlet, not the running `podman run` container.
-* **Root cause.** Production-install path was Mira-Hand-`podman
-  run` workaround since Bug-35; Kai PR #76 ships
-  `scripts/install-persona-tomas-quadlet.sh` to replace the
+* **Root cause.** Production-install path was Hand-`podman
+  run` workaround since Bug-35; infrastructure engineering #76 ships
+  `scripts/install-persona-quadlet.sh` to replace the
   workaround with a Quadlet-installed unit.
 * **Affects.** TV-LVD-03 only. TV-LVD-01/02/04 still work against
   the `podman run` container if the `wakir-persona-tomas` name
   resolves to it; TV-LVD-05..10 are unaffected (different
   containers).
-* **Disposition.** Run `install-persona-tomas-quadlet.sh` to
+* **Disposition.** Run `install-persona-quadlet.sh` to
   promote the workaround to a Quadlet; re-run TV-LVD-03.
 
 ### 4.6 Sandbox-host-collision (defence-in-depth, should never fire)
@@ -330,7 +329,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
 
 ### 5.1 `wirelang persona-inspect` (TV-LVD-01..04)
 
-* **Owner:** Selin (Persona-Engine).
+* **Owner:** persona-engine engineering.
 * **Assumed subcommand:** `wirelang persona-inspect --heartbeat --json`.
 * **Assumed output schema:**
 
@@ -341,7 +340,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
    "pin_sha256": "<64-hex>"}
   ```
 
-* **Selin to confirm:** Subcommand exists; flags `--heartbeat` +
+* **persona-engine engineering to confirm:** Subcommand exists; flags `--heartbeat` +
   `--json` are accepted; output schema matches; the engine
   caches/serves a fresh `transition_utc` per probe (not a stale
   cached value, see TV-LVD-02 regression class).
@@ -352,7 +351,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
 
 ### 5.2 `wat anchor-receipt` / `wat verify --external` (TV-LVD-05..07)
 
-* **Owner:** Tomás (WAT-substrate).
+* **Owner:** dev engineering (WAT-substrate).
 * **Assumed subcommands:**
   * `wat inject-synthetic-leaf --tag <tag>` (TV-LVD-05).
   * `wat anchor-receipt --current-hour --json` (TV-LVD-05).
@@ -365,7 +364,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
   * Verify-external:
     `{"verdict": "verified"|"failed", ...}` (verdict-key is
     load-bearing; rest is informational).
-* **Tomás to confirm:** Subcommand-set exists on the on-VM `wat`
+* **dev engineering to confirm:** Subcommand-set exists on the on-VM `wat`
   binary; `--hours-ago N` is supported; `inject-synthetic-leaf` is
   by-design (not gated behind a debug-build flag).
 * **If `inject-synthetic-leaf` is debug-only:** TV-LVD-05 must be
@@ -374,7 +373,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
 
 ### 5.3 `wirelang bridge-forward` subcommands (TV-LVD-04, TV-LVD-08..10)
 
-* **Owner:** Reza (Wirelang-schema) — primary; Selin (subscribe-loop)
+* **Owner:** protocol engineering (Wirelang-schema) — primary; persona-engine engineering (subscribe-loop)
   — co-owner.
 * **Assumed subcommands:**
   * `wirelang bridge-forward inject-synthetic --persona <p> --tag <t>`
@@ -395,7 +394,7 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
    "duplicate_count": <int>}
   ```
 
-* **Reza/Selin to confirm:** Subcommands exist; `--filter-tag` filters
+* **protocol engineering/persona-engine engineering to confirm:** Subcommands exist; `--filter-tag` filters
   the summary against a single test-run cleanly; `--induce-reconnect-
   mid-burst` is implemented and bounded (the reconnect must be
   scoped to the test's tagged Aufträge — not a process-wide NATS
@@ -408,13 +407,13 @@ vectors carry an implicit `xfail-on-CLI-mismatch` disposition (§1.5).
 
 ### 5.4 Cross-review cadence
 
-* Zone-M wöchentlich via Tomás (Engineering-Lead, ADR-0045-Matrix-
+* Zone-M wöchentlich via dev engineering (Engineering-Lead, ADR-0045-Matrix-
   Lead-Hut): the three CLI-substance-bestätigung items are agenda-
   items at the next Zone-M review.
-* Zone-N quarterly with Henrik: the Acceptance-Gate-Mapping (§3) is
+* Zone-N quarterly with internal audit: the Acceptance-Gate-Mapping (§3) is
   the Zone-N contract for Phase-2 Audit-Sample evidence harvest.
   Confirm that the TV-LVD-to-Gate mapping is total (every §1 Gate
-  has at least one TV-LVD feeding it) and audit-readable (Henrik
+  has at least one TV-LVD feeding it) and audit-readable (internal audit
   can derive the §4-A/B evidence from the Wrapper-Run summary-JSON
   without consulting the test source).
 
@@ -445,14 +444,12 @@ MINI-scope Test-Plan:
 
 This Test-Plan is **draft pending Zone-M and Zone-N cross-review**.
 
-* **Zone-M (Tomás + Selin + Reza + Kai + Noa):** confirm §1.5 / §5
+* **Zone-M (dev engineering + persona-engine engineering + protocol engineering + infrastructure engineering + SRE engineering):** confirm §1.5 / §5
   CLI-substance items.
-* **Zone-N (Henrik):** confirm §3 Acceptance-Gate-Mapping is the
+* **Zone-N (internal audit):** confirm §3 Acceptance-Gate-Mapping is the
   evidence-contract for Phase-2 Audit-Sample §4-A/§4-B.
 
 On sign-off, this document becomes the **canonical operator
 companion** to PR #108. Until sign-off, the TV-LVD suite stays
 skipped-by-default and the Phase-2 Acceptance-Gate enforcement lane
 runs against the hermetic surface only.
-
-— Amara

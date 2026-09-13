@@ -1,6 +1,6 @@
 # Live-VM Rotation State-Machine (OPEN-J2 Sandbox-Stub)
 
-**Status:** Tag-60 (2026-05-19). Stub-only — no live VM is touched
+**Status:** 2026-05-19. Stub-only — no live VM is touched
 from this lane. The Operator-Hand rotation recipe is validated
 hermetically as a deterministic state-machine.
 
@@ -18,7 +18,7 @@ Those steps are Operator-Hand by construction per
 
 ## §1 Why a stub, not the real thing
 
-OPEN-J2 was marked "kein CI-Substrat moeglich" on Tag-56 because
+OPEN-J2 was marked "kein CI-Substrat moeglich" because
 the rotation drives an actual VM lifecycle: snapshot create,
 image swap, systemd quadlet reload, post-rotation acceptance
 probe against a `192.168.178.*` LAN host. The hermetic claude-dev
@@ -160,7 +160,7 @@ following is true:
   vector flagged as a known-pending fix.
 * The pre-cutover AR-authorisation window has elapsed
   mid-rotation (see §6).
-* External observability (Noa SRE dashboards) shows latency or
+* External observability (SRE engineering dashboards) shows latency or
   error-rate drift that the post-0.5.2 acceptance probe did
   not catch.
 
@@ -217,23 +217,23 @@ scheduled.
 ## §6 AR-Authorisation pathway
 
 The probe is the green-light tripwire. It does **not** authorise
-the live rotation — the Aufsichtsrat does, on the strength of the
-probe verdict plus the wider Phase-3c pre-cutover bundle (Tag-59
-OTS pre-anchor probe, Tag-57 K2 audit-only emit, Welle-3..7
+the live rotation — the external audit does, on the strength of the
+probe verdict plus the wider Phase-3c pre-cutover bundle (
+OTS pre-anchor probe K2 audit-only emit, wave-3..7
 hot-spot probes).
 
 Pathway:
 
 1. **Probe green.** `live-vm-rotation-state-machine-probe`
    reports `ROTATION-STATE-MACHINE-INTACT` on main.
-2. **Bundle assembled.** Internal Audit (Henrik Voss) folds the
+2. **Bundle assembled.** Internal audit folds the
    probe verdict into the pre-cutover bundle.
-3. **AR sights.** Aufsichtsrat reviews the bundle in the
-   pre-cutover gate (KW-24 window pinned by Tag-58 Wirelang-Spec
+3. **External review.** External audit reviews the bundle in the
+   pre-cutover gate (window pinned by Wirelang-Spec
    seal).
 4. **AR authorises.** Explicit go/no-go decision recorded in
    `activity-log.md` plus the relevant ADR closeout.
-5. **Operator schedules.** Operator (Fred / Mira-Hand) picks the
+5. **Operator schedules.** The operator picks the
    rotation window and runs the actual VM rotation off the
    recipe at `docs/operations/live-vm-acceptance-phase-3b.md`.
    The Sandbox is never in this loop.
@@ -245,5 +245,3 @@ Pathway:
 If the probe reports `DRIFT` at step 1 the rotation does not
 proceed — the table change is reverted or the gap is closed
 before the bundle is resubmitted.
-
-— Tomás

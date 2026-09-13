@@ -3,8 +3,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Prometheus textfile-collector adapter for the orchestrator health checks.
 
-This adapter consumes the JSON report emitted by either of the two
-Sprint-2 health-check tools and rewrites it into the Prometheus
+This adapter consumes the JSON report emitted by either of the two health-check tools and rewrites it into the Prometheus
 node_exporter ``textfile_collector`` format. It is deliberately
 small (single-pass, stdlib-only) and runs as a systemd-timer-driven
 ``oneshot`` after the corresponding health-check unit finishes.

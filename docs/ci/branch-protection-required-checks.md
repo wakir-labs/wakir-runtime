@@ -40,18 +40,30 @@ after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
 
 | # | Job display name (verbatim) | Workflow file | Trigger reach | Since | Status |
 |---|---|---|---|---|---|
-| 1 | `License-Hygiene Gate (ADR-0061)` | `.github/workflows/license-gate.yml` | broad path filter | 2026-05 | ACTIVE |
-| 2 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
-| 3 | `wirelang suite without rfc8785 / jsonschema (shadow)` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
-| 4 | `production-vs-sandbox drift envelope` | `.github/workflows/tests.yml` | broad path filter | 2026-05 | ACTIVE |
+| 1 | `License-Hygiene Gate (ADR-0061)` | `.github/workflows/license-gate.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
+| 2 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
+| 3 | `wirelang suite without rfc8785 / jsonschema (shadow)` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
+| 4 | `production-vs-sandbox drift envelope` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
 | 5 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | every PR + push to main (no path filter) | 2026-09 (W4, replaces the cross-repo drift context) | PENDING-OPERATOR (context swap at the W4 merge, see §2.3) |
 | 6 | `verify-containerfile-base-image-digest-pins` | `.github/workflows/containerfile-digest-pin-gate.yml` | Containerfiles | 2026-05 | ACTIVE |
 | 7 | `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)` | `.github/workflows/cross-substrate-parity-gate.yml` | policies + quadlet + engine | 2026-05 | ACTIVE |
 | 8 | `wirelang spec v0.4.3 freeze-seal probe` | `.github/workflows/wirelang-spec-freeze-seal-probe.yml` | spec directory | 2026-05 | ACTIVE |
 | 9 | `cosign verify SPIRE images` | `.github/workflows/cosign-verify-images.yml` | image pins | 2026-05 | ACTIVE |
 | 10 | `Cosign-Keyless-OIDC-Drift-Probe (daily)` | `.github/workflows/cosign-keyless-oidc-drift-probe.yml` | schedule + trust-root | 2026-05 | ACTIVE |
-| 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | wirelang + tests + docs + workflows | 2026-09 (renamed from the Phase-2 aggregator) | PENDING-OPERATOR (add after first green run on `main`) |
-| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (AR-Hand: add after first green run on `main`) |
+| 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | every PR + push to `main` (no path filter) | 2026-09 (renamed from the Phase-2 aggregator) | PENDING-OPERATOR (add after first green run on `main`) |
+| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (operator-hand: add after first green run on `main`) |
+
+**Invariant: a required workflow carries no `paths:` filter.**
+A required status context that never reports leaves the pull request
+pending forever, so every workflow feeding a required context fires on
+every pull request and every push to `main`. Since ADR-0072 W5 this
+holds for `license-gate.yml`, `tests.yml` and
+`runtime-acceptance-gates.yml` (the filters were removed there), and it
+already held for `cross-repo-compat.yml` and `proof-path.yml`. The
+mirror of this invariant on the aggregator side is the `("**",)`
+path-glob of every required row in `scripts/ci/ci_aggregator.py`
+(`SUB_WORKFLOWS`); adding a `paths:` filter to a required workflow
+without changing both places re-opens the forever-pending class.
 
 Removed in Phase 4 W1 (workflows deleted, contexts removed from
 protection by the operator on 2026-09-11):

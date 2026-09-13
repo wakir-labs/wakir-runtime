@@ -5,11 +5,11 @@
 # Licensed under the Business Source License 1.1; see
 # wirelang/persona_engine/LICENSE-BSL.md.
 # Change Date: 2030-05-15. Change License: Apache License 2.0.
-"""Legacy ENV-Flag Migration Detector (Tag-51).
+"""Legacy ENV-Flag Migration Detector.
 
 Repo-wide scanner that locates lingering usages of the
 v0.4.0 / v0.4.1 ``WAKIR_PE_*_BACKEND`` ENV-flag family
-(deprecated by Wirelang Spec v0.4.2 PR #320, Tag-50) and emits a
+(deprecated by Wirelang Spec v0.4.2 PR  #320) and emits a
 machine-readable migration report.
 
 Posture
@@ -68,7 +68,7 @@ The legacy names legitimately appear in:
   * The detector itself and its own hermetic test suite (this
     file plus ``tests/scripts/test_legacy_env_flag_migration_
     detector.py``).
-  * The Tag-51 daily-workflow YAML (which names the detector).
+  * The daily-workflow YAML (which names the detector).
 
 These paths are excluded by the built-in DEFAULT_EXCLUDES list.
 Pass ``--include-spec-files`` for a full audit that surfaces the
@@ -78,8 +78,7 @@ v0.4.3 deprecation cleanup pass).
 Migration mapping
 -----------------
 
-The mapping table is sourced verbatim from Spec v0.4.2 §6 (Tag-50
-PR #320). Each entry carries:
+The mapping table is sourced verbatim from Spec v0.4.2 §6 (PR  #320). Each entry carries:
 
   * ``legacy``       — the deprecated flag name.
   * ``canonical``    — the v0.4.2 successor (string), or a list
@@ -105,7 +104,7 @@ Tri-state exit code
              informational-baseline pattern).
   * ``2``  — findings exist AND ``--fail-on-find`` was passed.
              Used by PR-time gating once the migration is
-             expected complete (post-Tag-55 cutover, TBD).
+             expected complete (later cutover, TBD).
 
 Exit code ``3`` is reserved for ``--self-test`` failure (mapping
 drift vs. Spec v0.4.2 §6). Exit code ``4`` is reserved for
@@ -114,9 +113,9 @@ detector internal errors (path-not-found, etc.).
 Anchors
 -------
 
-  * Wirelang Spec v0.4.2 §6 (deprecation table) — Tag-50 PR #320.
+  * Wirelang Spec v0.4.2 §6 (deprecation table) — PR  #320.
   * ADR-0065 — Phase-3c cutover sequence.
-  * Tag-51 inbox / Tomas+Reza cross-review-zone-1.
+  * inbox / dev-engineering+protocol engineering cross-review-zone-1.
 """
 
 from __future__ import annotations
@@ -133,7 +132,7 @@ from typing import Any
 
 
 # ----------------------------------------------------------------------
-# Migration mapping (Wirelang Spec v0.4.2 §6, Tag-50 PR #320)
+# Migration mapping (Wirelang Spec v0.4.2 §6, PR #320)
 # ----------------------------------------------------------------------
 #
 # Each row spells out:
@@ -394,7 +393,7 @@ def _emit_deprecation_warning(count: int, stream: Any) -> None:
         f"usage{plural} detected. Migrate to canonical "
         f"WAKIR_*_BACKEND names per Wirelang Spec v0.4.2 §6. "
         f"See https://github.com/wakir-labs/wakir-runtime/pulls "
-        f"PR #320 (Tag-50)."
+        f"PR #320."
     )
     print(msg, file=stream)
 
@@ -603,7 +602,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=(
             "Disable the built-in DEFAULT_EXCLUDES list and scan the "
             "spec files, spec-drift test suites, the detector itself "
-            "and the Tag-51 daily-workflow YAML too. Useful for a "
+            "and the daily-workflow YAML too. Useful for a "
             "full audit when preparing a v0.4.3 spec cleanup."
         ),
     )

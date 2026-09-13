@@ -7,12 +7,12 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 **Status:** Living operations document.
 **Scope:** Operator companion for the Phase-3b backend-matrix
-extension of `.github/workflows/live-vm-acceptance.yml` (Tag-18
-Mini-Welle, 2026-05-17).
+extension of `.github/workflows/live-vm-acceptance.yml` (
+mini wave, 2026-05-17).
 **Predecessor:** `docs/test-plans/phase-2-live-vm-acceptance.md`
-(Tag-15/16 operator companion for the base lane).
+(/16 operator companion for the base lane).
 **Related PR:** `wirelang/persona_engine/rust_backend_switch.py`
-(PR #167, Tag-17 Mini-Welle) introduced the ENV-gated Rust-default
+(PR #167 mini wave) introduced the ENV-gated Rust-default
 switches that this lane validates on a real Pilot-VM.
 
 ---
@@ -59,7 +59,7 @@ The Phase-3b extension adds two jobs to `live-vm-acceptance.yml`:
 
 ```
                 +----------------------------+
-                | live-vm-acceptance         |  (Tag-15, base lane)
+                | live-vm-acceptance         |  (base lane)
                 | (Operator-Hand dispatch)   |
                 +----------------------------+
                               |
@@ -81,7 +81,7 @@ The Phase-3b extension adds two jobs to `live-vm-acceptance.yml`:
 Both new jobs gate themselves on the `recovery_backend != 'none'` OR
 `state_backing_backend != 'none'` condition. When both inputs are
 `none` (the default), only the base lane runs and the new jobs
-no-op — preserving Tag-15/16 dispatch semantics for operators who
+no-op — preserving/16 dispatch semantics for operators who
 do not want Phase-3b validation in a given run.
 
 ---
@@ -157,7 +157,7 @@ a structured JSON report:
 
 ### Driver-not-present staging
 
-The Tag-18 Mini-Welle ships the **workflow surface**. The driver
+The mini wave ships the **workflow surface**. The driver
 script itself (`scripts/ci-live-vm-phase-3b-driver.sh`) is a
 follow-up sprint deliverable. When the driver is absent, each
 matrix-cell emits a structured `driver-not-present` stub:
@@ -180,7 +180,7 @@ matrix-cell emits a structured `driver-not-present` stub:
 
 The aggregate job recognises `driver-not-present` as a clean SKIP —
 the workflow returns success but the operator sees a clear signal
-that no real acceptance ran. This mirrors the Tag-15 Tag-17 staging
+that no real acceptance ran. This mirrors the staging
 posture where the wrapper and the on-VM script landed in
 separate sprints.
 
@@ -211,7 +211,7 @@ Aggregate status transitions:
 | status | meaning | exit code |
 |---|---|---|
 | `ok` | every `ok` report shares a single `final_state_hash`, no latency violations | 0 |
-| `skipped-driver-not-present` | every report is `driver-not-present` (Tag-18 staging) | 0 |
+| `skipped-driver-not-present` | every report is `driver-not-present` (staging) | 0 |
 | `fail` | one or more per-cell reports are `fail` | 1 |
 | `fail-equivalence-break` | `ok` reports carry more than one distinct `final_state_hash` (cross-backend drift) | 1 |
 | `fail-latency-budget` | one or more `ok` reports exceed the p95 budget | 1 |
@@ -283,14 +283,14 @@ phase_3b_latency_budget_ms = 1500
 The matrix collapses to a single cell; the aggregate verdict is the
 per-cell verdict.
 
-### 7.3 Skip Phase-3b entirely (Tag-15/16 parity)
+### 7.3 Skip Phase-3b entirely (/16 parity)
 
 ```
 recovery_backend       = none
 state_backing_backend  = none
 ```
 
-The new jobs no-op; the lane behaves exactly as before Tag-18.
+The new jobs no-op; the lane behaves exactly as before.
 
 ### 7.4 Verdict consumption
 
@@ -308,32 +308,32 @@ jq '.status, .equivalence_class, .latency_violations' aggregate-summary.json
 
 ## 8. Cross-Review anchors
 
-* **PR #167** (Tag-17 Mini-Welle, ENV-gated Rust-default switches)
+* **PR #167** (mini wave, ENV-gated Rust-default switches)
   — this lane is the Phase-3b production validation surface for
   the switches.
 * **ADR-0058** (Pilot-Persona-Migrations-Plan) — §"Phase 4
-  Cutover-Entscheidung". The Phase-3b equivalence verdict is one
+  cutover-Entscheidung". The Phase-3b equivalence verdict is one
   of the inputs to the Phase-3a → Phase-4 cutover decision.
-* **Zone N** (QA × Henrik-Audit) — the aggregate summary JSON is
+* **Zone N** (QA × Audit) — the aggregate summary JSON is
   evidence for the Doppelbetrieb cross-language equivalence
-  claim. Henrik samples a Phase-3b run per audit window.
+  claim. internal audit samples a Phase-3b run per audit window.
 * **Zone J** (Persona-Engine × Container-Substrate) — the lane is
-  Persona-Engine-substance running under Kai-owned Container-Infra;
-  Selin and Kai cross-review the driver-script PR when it lands.
-* **`feedback_sandbox_host_trennung.md`** (Mira-Memory) — the
+  Persona-Engine substance running on infrastructure-owned container infra;
+  persona-engine engineering and infrastructure engineering cross-review the driver-script PR when it lands.
+* **`feedback_sandbox_host_trennung.md`** (Memory) — the
   hermetic claude-dev Sandbox cannot reach `192.168.178.*`.
   Phase-3b inherits the base-lane SSH-precheck and fails closed
   when the secret is absent.
 
 ---
 
-## 9. Out of scope (Tag-18)
+## 9. Out of scope
 
-* ~~`scripts/ci-live-vm-phase-3b-driver.sh`~~ — landed Tag-19 (this
+* ~~`scripts/ci-live-vm-phase-3b-driver.sh`~~ — landed (this
   follow-up). The driver is the matrix-cell hand-off implementation
   that fulfils the §4 contract. The workflow keeps its inline
   `driver-not-present` stub-emit as a defence-in-depth safety net
-  for branches that predate Tag-19 (see
+  for branches that predate this change (see
   `live-vm-acceptance.yml:648` `if [[ -x "${DRIVER}" ]]; then`).
 * Real-VM bring-up in CI. The hermetic Sandbox cannot reach the
   Pilot-VM. The Phase-3b lane is Operator-Hand-dispatch only,
@@ -341,19 +341,19 @@ jq '.status, .equivalence_class, .latency_violations' aggregate-summary.json
   `--mode=self-test` surface so its CLI + verdict-emit can be
   exercised hermetically via `WAKIR_PHASE_3B_MOCK_*` ENV-vars
   (see `tests/scripts/test_ci_live_vm_phase_3b_driver.py`).
-* Automatic cross-language equivalence assertion in the Tag-15/16
+* Automatic cross-language equivalence assertion in the/16
   hermetic test surface. The hermetic surface already pins
   `final_state_hash` via PR #135 / #140 cross-language fixtures;
   Phase-3b validates the same claim on a real VM.
 
 ---
 
-## 10. Tag-19 driver follow-up — verdict-status codomain narrowing
+## 10. driver follow-up — verdict-status codomain narrowing
 
-The Tag-18 workflow YAML §4 originally hinted at a richer
+The workflow YAML §4 originally hinted at a richer
 verdict-status codomain
 (`{ok, fail, fail-latency-budget, fail-driver-error,
-driver-not-present}`). The Tag-19 driver implementation discovered
+driver-not-present}`). The driver implementation discovered
 that the per-permutation verdict-step
 (`live-vm-acceptance.yml:707-724`) only accepts three tokens
 (`{ok, fail, driver-not-present}`) before tripping its
@@ -372,8 +372,6 @@ discriminator via `backend_decision_record.fail_subkind`:
 | `driver-not-present` | `null`           | 0         | remote driver binary not yet deployed              |
 
 The aggregate-job consumes `status` only; the exit code is the
-operator-side richer signal. Auditors (Henrik's sample-audit lane,
+operator-side richer signal. Auditors (internal audit's sample-audit lane,
 Zone N) can read `backend_decision_record.fail_subkind` to
 distinguish the failure-modes without re-running the lane.
-
-— Kai

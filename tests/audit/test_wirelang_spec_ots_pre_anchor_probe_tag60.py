@@ -488,14 +488,14 @@ class TestT16RunbookSectionsPresent(unittest.TestCase):
             "## 2. Wiring inventory",
             "## 3. Helper + stub layout",
             "## 4. Probe modes",
-            "## 5. Cross-trip-wire with Tag-58 freeze-seal",
-            "## 6. AR-authorisation gate",
+            "## 5. Cross-trip-wire with the freeze-seal probe",
+            "## 6. External-audit authorisation gate",
             "## 7. Operator-Hand cutover",
             "## 8. Open items",
         ):
             self.assertIn(header, text, f"runbook missing section: {header}")
         self.assertIn("manifest-hash-ots-anchor-wiring.md", text)
-        self.assertIn("KW-24", text)
+        self.assertIn("2026-06-09", text)
 
 
 class TestT17SandboxBoundaryStdlibOnly(unittest.TestCase):

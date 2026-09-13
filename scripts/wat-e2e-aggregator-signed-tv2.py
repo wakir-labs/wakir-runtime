@@ -4,10 +4,10 @@
 """End-to-end demonstration: aggregator-signed manifest -> real-tv2
 verifier pipeline with signature verification.
 
-This is the substantive Sprint-6-Tag-3 follow-up Item 4 (Mira-Multi-
-Item-Box Sprint-6-Tag-4, Item 3): tie the production-side signing
-that Tag-3 landed (``--sign-key`` / ``--sign-kid`` on the aggregator)
-to the verifier-side signature-status gate from Sprint-5-Tag-5,
+This is the substantive follow-up Item 4 (the operator-Multi-
+Item-Box, Item 3): tie the production-side signing
+that An earlier revision landed (``--sign-key`` / ``--sign-kid`` on the aggregator)
+to the verifier-side signature-status gate,
 running over the TV-2 real-manifest fixture cohort.
 
 What this script does
@@ -26,8 +26,7 @@ What this script does
    OTS-anchor check verifies against the same bytes the original
    receipt anchored).
 5. Assert ``manifest["merkle_root"]`` equals the fixture's
-   ``merkle_root`` -- this is the deterministic-sort contract from
-   Sprint-6 Tag-3.
+   ``merkle_root`` -- this is the deterministic-sort contract.
 6. Run ``verify_real_manifest_file(verify_signature=True, ...)``
    against the aggregator-signed copy and require
    ``signature_status == "verified"`` on every hour.
@@ -41,8 +40,8 @@ Exit codes
 
 This is a closing-the-loop driver -- it does NOT live-anchor anything
 new, it consumes the pre-existing OTS receipts in the fixture cohort.
-The point is to demonstrate that the Tag-3 aggregator's signed output
-flows cleanly into the Sprint-5-Tag-5 verifier substrate end-to-end.
+The point is to demonstrate that the aggregator's signed output
+flows cleanly into the verifier substrate end-to-end.
 """
 from __future__ import annotations
 

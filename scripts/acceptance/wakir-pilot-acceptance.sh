@@ -2,17 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Sprint-10 Tag-9 — Canonical Wakir-Pilot Acceptance Entry-Point.
+# Canonical Wakir-Pilot Acceptance Entry-Point.
 #
 # Why this script exists
 # ----------------------
 #
-# Sprint-10 Tag-6/8 (Bug-30..33, Bug-36+37, Bug-38) iterated the
+# (Bug-30..33, Bug-36+37, Bug-38) iterated the
 # Live-VM-Acceptance lane against ``scripts/federation-live-vm-
 # acceptance.sh``. The script grew the federation-mode-specific shape
 # (Phase 2 federation-unit probes, Phase 3 smoke-fed-gate) and is
-# locked to ``WAKIR_PILOT_MODE=federation``. Tag-9 hermetic-substrate
-# review (Mira-CEO Tag-9 auftrag, 2026-05-15) found that the
+# locked to ``WAKIR_PILOT_MODE=federation``. hermetic-substrate
+# review (the operator-CEO auftrag, 2026-05-15) found that the
 # acceptance entry-point naming is asymmetric with the wider
 # convention:
 #
@@ -44,7 +44,7 @@
 #
 # Same as ``federation-live-vm-acceptance.sh``: this script DOES NOT
 # run in the claude-dev Sandbox. It runs on an operator-controlled
-# host (Mira-Hand) that has SSH access to the Pilot-VM. The Sandbox
+# host (operator-hand) that has SSH access to the Pilot-VM. The Sandbox
 # cannot reach 192.168.178.* — see ``feedback_sandbox_host_trennung.md``.
 #
 # Invocation
@@ -52,7 +52,7 @@
 #
 #   sudo bash /opt/wakir-runtime/scripts/acceptance/wakir-pilot-acceptance.sh
 #
-# Or from an operator-host (Mira-Hand) over SSH:
+# Or from an operator-host (operator-hand) over SSH:
 #
 #   ssh operator@<pilot-vm-ip> \
 #     'sudo bash /opt/wakir-runtime/scripts/acceptance/wakir-pilot-acceptance.sh'
@@ -76,7 +76,7 @@
 #   2  Bootstrap-Phase-Fehler
 #   3  Acceptance-Verifikation fehlgeschlagen
 #
-# -- Tomás
+# -- dev-engineering
 
 set -eu -o pipefail
 

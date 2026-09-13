@@ -10,15 +10,14 @@ License. Full text: https://creativecommons.org/licenses/by/4.0/
 
 Schema-Version: `wat-manifest/2.0`
 Schema-`$id`: `https://wakir.dev/wirelang/schema/wat-manifest-v2/0.1.0`
-Status: **draft / Sprint-2 prep** — schema and pin-tests landed
-Phase-1b Tag-26 / Tag-27, aggregator code-touchpoint scheduled
-Sprint-2 Tag-1.
+Status: **draft** — schema and pin-tests landed in Phase-1b; the
+aggregator code-touchpoint is scheduled.
 Audience: implementers of independent verifiers and external auditors
 who want to validate Wakir Audit Trail receipts produced by v2-aware
 aggregators without depending on the reference runtime.
 
 This document is the public, externally-stable companion to the
-internal Sprint-2 trigger memo at
+internal trigger memo at
 `docs/wat-manifest-v2-multi-cap-stub.md`. Where the stub describes
 **why** v2 is being introduced and what code-touchpoints land in
 which sprint, this spec describes **what** a v2 manifest looks like
@@ -163,7 +162,7 @@ The `version` enum is closed; schema-validators reject any other
 value. Adding a future `wat-manifest/3.0` requires a new schema
 file with a new `$id`.
 
-### 4.4 `signature` slot (schema 0.2.0, Phase-2 Sprint-5 Tag-1)
+### 4.4 `signature` slot (schema 0.2.0, Phase-2)
 
 Schema 0.2.0 adds an additive **optional** top-level `signature`
 slot. Absence is permitted on both `wat-manifest/1.0` and
@@ -182,13 +181,13 @@ SHA-256 of the RFC-8785 JCS canonicalisation of the manifest
 payload with the `signature` slot stripped (byte-identical to the
 AIP-document and schema-registry-entry signing conventions). The
 signing primitive that emits exactly this shape is
-`wat.identity.manifest_signing.sign_manifest` (Sprint-4 Tag-6).
+`wat.identity.manifest_signing.sign_manifest`.
 
 `kid` references an AIP-document `public_keys` entry under
 `PURPOSE_WAT_ANCHOR`; the resolver bridge is
-`wat.identity.anchor_kid.resolve_wat_anchor_kid` (Sprint-4 Tag-5).
+`wat.identity.anchor_kid.resolve_wat_anchor_kid`.
 Schema-validation does NOT require the kid to resolve — that is a
-verifier-side concern (Tag-7+ wire-up).
+verifier-side concern (resolver wire-up).
 
 **Schema-version bump rationale (additive minor).** 0.1.0 → 0.2.0
 is additive only: `signature` is added to the top-level
@@ -222,12 +221,12 @@ A v2-aware verifier processing `wakir-verify <event_id>`:
    event_id appears as a key in `multi_cap_events`:
    - Re-derive `caprefs_root` over `caprefs_full` using the
      project-canonical Merkle (ordered semantics per OQ-1
-     proposal; locked by Zone-2 sign-off in Sprint-2).
+     proposal; locked by Zone-2 sign-off).
    - Compare against the `caprefs_root` claimed in the manifest.
      Mismatch → exit code `1` with reason `multi_cap_root_mismatch`.
    - In human-mode output append a line `multi_cap: <count>
      capabilities (root=<8 hex>...)`.
-   - In `--output json` mode (Sprint-1 Tag-25 pickup, frontend-engineering
+   - In `--output json` mode (frontend-engineering
      deliverable): include `caprefs_full[]` and `caprefs_root` in
      the result object.
 4. **Otherwise** (v1 manifest, or v2 manifest without the event in
@@ -244,7 +243,7 @@ path or the chain-walk through `prev_hour_root`.
 | `0`  | verified                                              | v1         |
 | `1`  | failed (leaf-hash, inclusion proof, OTS, or new: `multi_cap_root_mismatch`) | v1 (semantics extended in v2) |
 | `3`  | pending (OTS not yet finalised on Bitcoin)            | v1         |
-| `4`  | chain-mismatch (`prev_hour_root` does not match prev hour) | v1, Tag-8 |
+| `4`  | chain-mismatch (`prev_hour_root` does not match prev hour) | v1 |
 
 Exit codes are stable contract. v2 does not introduce a new exit
 code; multi-cap-root mismatch is a sub-case of generic verification
@@ -268,13 +267,13 @@ under this fallback, but the inclusion proof remains valid. Audit
 operators who need multi-cap data must upgrade their verifier; they
 do not need to re-anchor or re-emit any manifest.
 
-### 5.3 Optional manifest-signature wire-up (Phase-2 Sprint-5 Tag-2)
+### 5.3 Optional manifest-signature wire-up (Phase-2)
 
-Since Phase-2 Sprint-5 Tag-2 the reference verifier
+Since Phase-2 the reference verifier
 (`wat/verify/manifest_v2.py`) carries an **opt-in** consumer for the
-optional `signature` slot landed in Sprint-5 Tag-1 (schema 0.2.0,
+optional `signature` slot landed in (schema 0.2.0,
 §4.4). The wire-up is OFF by default to preserve backward
-compatibility for the pre-Sprint-5 test cohort and for external
+compatibility for the earlier test cohort and for external
 verifiers that have not yet adopted the optional slot. Opt-in is
 the only path; the verifier never auto-detects slot presence to
 flip into signature-checking mode, because doing so would couple
@@ -320,33 +319,33 @@ reason taxonomy. The `kid` field inside a signature slot is
 captured for downstream auditing; the kid → public-key resolver
 bridge (`wat.identity.anchor_kid.resolve_wat_anchor_kid`) is not
 yet wired into the verifier — callers supply the raw public key
-directly. Resolver wire-up is a Tag-3+ item gated on the
+directly. Resolver wire-up is a follow-up item gated on the
 Cross-Review-Zone-1 boundary with Identity-Substrate-engineering.
 
 The `--real-manifest` path **does** honour the signature kwargs
-since Phase-2 Sprint-5 Tag-5: `verify_real_manifest_file` accepts
+since Phase-2: `verify_real_manifest_file` accepts
 the same three kwargs (`verify_signature`,
 `verify_signature_public_key`, `verify_signature_mode`) and
 `RealManifestResult` carries the same `signature_status` field
 with the same six pinned values. Phase-ordering is the same
 (signature is the LAST gate, after fields, integrity,
 multi-cap-root, and OTS-anchor). The wire-up is OFF by default,
-so every pre-Tag-5 caller of `verify_real_manifest_file` sees
+so every earlier caller of `verify_real_manifest_file` sees
 identical behaviour and `signature_status` left empty.
 
 The schema-file `wakir-wat-manifest-v1.json` was bumped
-`0.1.0 → 0.2.0` on Sprint-5 Tag-5 to add the optional `signature`
+`0.1.0 → 0.2.0` on to add the optional `signature`
 top-level slot byte-for-byte identical to the v2-schema 0.2.0 slot
 (§4.4). Stock TV-2 real-manifest fixtures stay unsigned (the
 Production aggregator does not emit signed envelopes today); the
-Tag-5 hermetic tests hand-sign deep-copies in `tmp_path` and feed
+hermetic tests hand-sign deep-copies in `tmp_path` and feed
 them through the full `verify_real_manifest_file` pipeline. When
 the signing-aggregator branch lands in Phase-2+, the verifier
 already accepts its output without further change. The CLI driver
 `scripts/external_verifier_validation.py --real-tv2` does NOT yet
 expose `--verify-signature`: the cohort is unsigned, so there is
 no signed real-manifest to drive — the driver-side wire-up is a
-Sprint-6+ follow-up gated on the signing-aggregator branch
+follow-up gated on the signing-aggregator branch
 landing.
 
 ## 6. Aggregator behaviour (informational)
@@ -379,7 +378,7 @@ This shape preserves the v1 build path as the canonical default and
 adds v2 only when triggered. No regression risk for the common case.
 
 The aggregator code-touchpoint (`wat/aggregator.py` or current
-equivalent — TBD pending file walk in Sprint-2 Tag-1) is the only
+equivalent — TBD pending a file walk) is the only
 place the trigger decision is taken.
 
 ## 7. v1 → v2 migration
@@ -421,7 +420,7 @@ hour H?" gain richer answers under v2:
 - v1 manifests: query inspects `events[].capability_token_hash`,
   which is `caprefs[0]` for multi-cap frames (lossy projection).
 - v2 manifests: query inspects `multi_cap_events[event_id]
-  .caprefs_full[]` for full capability set, plus the v1-projected
+.caprefs_full[]` for full capability set, plus the v1-projected
   `caprefs[0]` in `events[].capability_token_hash` for backwards-
   compatible single-cap queries.
 
@@ -467,7 +466,7 @@ either:
 The reference verifier ships in strict mode; downstream verifiers
 choose their own posture.
 
-## 9. Open questions (must resolve before Sprint-2 implementation)
+## 9. Open questions (must resolve before implementation)
 
 These mirror the open questions in the stub spec
 (`docs/wat-manifest-v2-multi-cap-stub.md` §8) but are restated here
@@ -480,7 +479,7 @@ wirelang-engineering Cross-Review-Zone-2, 2026-05-07T11:48:09Z.
 External verifier authors MUST adopt
 the ordered convention; the reference verifier
 (`wat.verify.manifest_v2`) ships with strict-mode default ON
-since Sprint-2 Tag-4 (2026-05-07). Lenient mode
+since (2026-05-07). Lenient mode
 (`--no-strict-multi-cap-root`) remains available as an escape
 hatch for downstream verifiers that have not yet adopted the
 locked ordering.
@@ -493,7 +492,7 @@ required` clause; aggregators that generate empty `multi_cap_events`
 on v2 are buggy.
 
 **OQ-3: Verifier `--manifest-version` strict-mode override flag.**
-Current proposal: defer to Sprint-3 unless an audit-query test plan
+Current proposal: defer to unless an audit-query test plan
 demands it earlier. External verifiers do not need this flag for
 correct v1/v2 handling — version-detection from the manifest itself
 is sufficient.
@@ -502,9 +501,9 @@ is sufficient.
 Current proposal: TV-4 (multi-cap-hour Bitcoin-anchor live-stamp).
 Coordinated with qa-engineering at the QA-handover slot. External
 verifier conformance suites will pin against TV-4 once it lands
-(Sprint-2 Tag-7+).
+.
 
-**OQ-1 implementation pin (post-ratification, Sprint-2 Tag-4):**
+**OQ-1 implementation pin (post-ratification):**
 the canonical Merkle ordering is the ordered-Merkle convention
 implemented in
 `wat.verify.manifest_v2._caprefs_canonical_root_ordered`
@@ -523,13 +522,13 @@ yet adopted it MUST use lenient mode and emit a
   pinning every schema-level invariant called out in §3 / §4).
 - Stub spec / sprint trigger: `docs/wat-manifest-v2-multi-cap-stub.md`.
 - v1 spec (companion document): `docs/wat-manifest-spec.md`.
-- Aggregator implementation: `wat/aggregator.py` (Sprint-2 Tag-1
+- Aggregator implementation: `wat/aggregator.py` (
   code-touchpoint, not yet landed).
-- Event-centric verifier: `wat.verify.cli` (Sprint-2 Tag-4-5
+- Event-centric verifier: `wat.verify.cli` (
   code-touchpoint for the multi-cap-root recompute branch, not yet
   landed).
-- **Manifest verifier-stub:** `wat.verify.manifest_v2` (Sprint-2
-  Tag-1 code-touchpoint, **landed**) — single-file cross-module
+- **Manifest verifier-stub:** `wat.verify.manifest_v2`
+  (**landed**) — single-file cross-module
   integrity checker complementing the schema-only smoke tests.
   Reference fixture at
   `tests/fixtures/wat-manifest-v2/sample-multi-cap-hour.json`;
@@ -541,7 +540,7 @@ yet adopted it MUST use lenient mode and emit a
 The CLI `python -m wat.verify.manifest_v2 --output json` emits a
 single-line JSON object per run. Schema is **manifest-centric**
 (single-file outcome) and is intentionally distinct from the
-event-centric `wakir verify --output json` schema (Tag-25 pickup,
+event-centric `wakir verify --output json` schema (follow-up,
 per-event-id audit-result aggregated across an archive). Frontend
 hour-aggregate / multi-receipt snapshots aggregate on top of the
 manifest-centric record rather than expecting a 1:1 field map.
@@ -554,8 +553,8 @@ manifest-centric record rather than expecting a 1:1 field map.
 | `ok` | boolean | True iff `schema_ok` and `integrity_ok` both true. |
 | `schema_ok` | boolean | JSON-Schema validation outcome. |
 | `integrity_ok` | boolean | Cross-module integrity outcome (event-count / leaves / merkle_root / multi-cap sidecar consistency). |
-| `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"verified"` is the strict-mode default since Sprint-2 Tag-4 (OQ-1 ratified ordered-Merkle 2026-05-07); `"deferred"` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode. |
-| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 Sprint-5 Tag-2 opt-in field. Empty when signature verification not requested (default). See §5.3 for the full decision matrix. Additive within `wakir-verify-manifest-v2/0` (existing `/0` consumers see a new optional key, never a removed one). |
+| `multi_cap_root_status` | string enum: `"verified" \| "deferred" \| "mismatch" \| ""` | Empty string for v1 manifests. `"verified"` is the strict-mode default since (OQ-1 ratified ordered-Merkle 2026-05-07); `"deferred"` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode. |
+| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 opt-in field. Empty when signature verification not requested (default). See §5.3 for the full decision matrix. Additive within `wakir-verify-manifest-v2/0` (existing `/0` consumers see a new optional key, never a removed one). |
 | `failure_reason` | string | `"<phase>: <message>"` on failure where `<phase>` is one of `schema`, `integrity`, `multi_cap_root`, `signature`. Empty on success. |
 
 JSON keys are sorted (`json.dumps(..., sort_keys=True)`) so the
@@ -568,14 +567,14 @@ The CLI `python -m wat.verify.manifest_v2 --output audit-trail-entry`
 emits a single-line JSON object that matches the **paired-update
 contract** with the frontend `AuditTrailEntry` consumer
 (`infra/repos-skeleton/site/src/data/wakir-audit-trail-sample.ts`,
-published in Sprint-Frontend-1 Tag-3 outbox memo). It is shape-
+published in the frontend brand memo). It is shape-
 distinct from the manifest-centric `--output json` schema above —
 this format is for the audit-trail-browser timeline, that one is
 for single-file verifier-result snapshots.
 
 Pinned twelve keys, additive-only across `schema_version`
 `wakir-verify-manifest-v2/0` (eleven → twelve bumped in
-Phase-2 Sprint-5 Tag-3; `signature_status` added additively):
+Phase-2; `signature_status` added additively):
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -587,10 +586,10 @@ Phase-2 Sprint-5 Tag-3; `signature_status` added additively):
 | `hour_slot` | string | The manifest's `hour_slot` if available, else empty string. |
 | `event_count` | int | Number of events in the manifest, else `-1`. Never `null`. |
 | `anchor_root_hex` | string | The manifest's `merkle_root` (64 lowercase hex, NO `"sha256:"` prefix), else empty string. The frontend re-prefixes at render-time when desired. |
-| `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `verified` is the strict-mode default for clean v2 manifests since Sprint-2 Tag-4 (OQ-1 ratified). `pending` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode (escape hatch for downstream verifiers that have not yet adopted the locked ordering). |
+| `branches` | list | Exactly one entry: `{label: "manifest-validity", verdict: "verified" \| "rejected" \| "pending", detail: <human string>}`. `verified` is the strict-mode default for clean v2 manifests since (OQ-1 ratified). `pending` is emitted only under explicit `--no-strict-multi-cap-root` lenient mode (escape hatch for downstream verifiers that have not yet adopted the locked ordering). |
 | `ok` | bool | Mirror of `--output json` `ok`. Allows short-circuit without parsing `branches`. |
 | `failure_reason` | string | `"<phase>: <message>"` on failure, empty on success. Mirrors `--output json`. |
-| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 Sprint-5 Tag-3 additive key. Mirrors `--output json` `signature_status`. Empty string when signature verification was NOT requested by the caller — frontends MUST treat empty-string as "no signature verdict available" rather than "unsigned" (the unsigned states are explicit values, not empty). The `branches[]` field is unchanged — the signature phase does NOT add a branch entry; consumers that want to render the signature verdict read this top-level key directly. A future tag may add a second `branches[]` entry for the signature phase, gated on Cross-Review with frontend-engineering. |
+| `signature_status` | string enum: `"" \| "verified" \| "unsigned-permissive" \| "unsigned-strict" \| "mismatch" \| "structural-error"` | Phase-2 additive key. Mirrors `--output json` `signature_status`. Empty string when signature verification was NOT requested by the caller — frontends MUST treat empty-string as "no signature verdict available" rather than "unsigned" (the unsigned states are explicit values, not empty). The `branches[]` field is unchanged — the signature phase does NOT add a branch entry; consumers that want to render the signature verdict read this top-level key directly. A future schema version may add a second `branches[]` entry for the signature phase, gated on Cross-Review with frontend-engineering. |
 
 **Determinism guarantees:**
 
@@ -629,571 +628,14 @@ is informative only.
 
 ## 11. Change log
 
-- **2026-05-11 (Phase-2 Sprint-6 Tag-2):** Real-cohort signature-aware
-  CLI driver-mode landed. `scripts/external_verifier_validation.py`
-  gains `--verify-signature` and `--verify-signature-strict` flags
-  composable with `--real-tv2` / `--real-tv3`. When the signature flag
-  is set the driver hand-signs in-memory deep-copies of every hour-
-  receipt in the cohort with a fresh ephemeral Ed25519 keypair (via the
-  new `stage_signed_cohort()` helper, recipe lifted from
-  `tests/wat/test_tv2_real_manifest_sig_verify.py::_stage_signed_hour`),
-  writes them to a tmp directory next to byte-for-byte copies of the
-  `root.bin` + `root.bin.ots` side-files, then runs
-  `verify_real_manifest_file(verify_signature=True, ...)` against the
-  staged signed cohort. The original repo fixtures are NOT mutated;
-  the tmp directory is reaped at process exit via
-  `tempfile.TemporaryDirectory` held by a module-level holder list for
-  lifetime safety across the CLI main(). The per-hour report dict
-  carries the `signature_status` field on both unsigned and signed
-  paths (empty string on unsigned; `"verified"` on the freshly-signed
-  cohort). The report tool label surfaces the gate-mode as
-  `wat.verify.manifest_v2.verify_real_manifest_file (sig:permissive)`
-  or `(sig:strict)` for honesty. Misuse guards: `--verify-signature`
-  without `--real-tvN` exits rc=2 with a stderr message;
-  `--verify-signature-strict` without `--verify-signature` exits rc=2.
-  Test cohort: new file `tests/wat/test_external_verifier_real_tv2_sig.py`
-  (9 tests) pins the unsigned-backward-compat path, the staging
-  helper, the all-green signed-cohort run, the strict-mode-on-signed
-  pass, the TV-3 single-hour symmetric run, both misuse-guard exits,
-  the tool-label honesty, and the per-result `signature_status` key.
-  Docs: `docs/external-verifier-conformance.md` §7 (Real-cohort
-  driver-mode) added, change-log row appended. Test-count delta:
-  361/24 → 370/24 (+9 passed; same skip count). This unblocks the
-  Sprint-5 Tag-5 open-item (b) "CLI `--real-tv2 --verify-signature`
-  driver-mode" — substrate substance for the Brand-Demo TV-2 external-
-  verifier card: a third-party can verify our published hour-receipts
-  end-to-end (schema-file parity × 3 + integrity + OTS-anchor +
-  signature) with a single CLI invocation. Schema-correctness contract
-  is unchanged at $id
-  `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`
-  (no wire-form change; the driver-mode is a pure adoption-layer
-  addition).
+Schema-level history. Per-release engineering detail lives in the git
+history (tag `archive/pre-phase-4`) and in the PRs referenced below.
 
-- **2026-05-11 (Phase-2 Sprint-6 Tag-1):** External-verifier
-  conformance substrate broadened. Three substantive changes:
-  (1) Test-vector set extended 17 → 31 (+4 accept, +10 reject) in
-  `tooling/external-verifier-ajv/test-vectors.json`. New coverage
-  surface: multi-event happy-path with three leaves and three tree-
-  levels, duplicate-leaf accept-vector (semantic-allowed, not a
-  schema-correctness violation), explicit-null `prev_hour_root`
-  accept-vector (distinct from "field absent"), uppercase-hex
-  reject-vector (pattern `[0-9a-f]{64}` is lowercase-only by design),
-  over-length-merkle-root reject, non-string-merkle-root type-mismatch
-  reject, missing-event-id and empty-event-id reject (minLength: 1
-  pinned), bad-leaf-hash-length and bad-payload-hash-hex per-event
-  field rejects, events-not-array and tree-levels-not-array type-
-  mismatch rejects, object-leaves without `leaf_hash` reject. Vectors
-  curated to pin design-intent corners that escape from a casual
-  "round-trip a valid manifest" smoke. (2) Third reference validator
-  added: Python `fastjsonschema` joins Python `jsonschema` and Node.js
-  `ajv` as the third independent Draft-2020-12 implementation in the
-  parity set. `scripts/external_verifier_validation.py` gains
-  `run_fastjsonschema_validator()`, two new CLI flags
-  (`--skip-fastjsonschema`, `--require-fastjsonschema`), and an N-way
-  parity helper `compare_reports_multi()` that replaces the previous
-  two-validator-only `compare_reports()` (kept for backward-compat).
-  The three validators triangulate Python-vs-Node *and* Python-vs-
-  Python: a single-library bug now requires two independent
-  implementations to share it before the parity check goes green.
-  (3) Schema-file `examples` block added (two real-shape examples —
-  empty hour + single-event hour with anchor-height and prev-hour-
-  root); schema-file `description` updated to point external
-  implementers at the conformance vector set and parity driver.
-  Adoption doc landed at `docs/external-verifier-conformance.md`
-  (seven sections including a conformance-statement template).
-  Test cohort: `tests/wat/test_external_verifier_parity.py` grew
-  from 5 to 10 tests (3 new fastjsonschema-side tests +
-  `test_three_way_parity_python_node_fastjsonschema` +
-  `test_compare_reports_multi_handles_missing_validator` +
-  `test_compare_reports_multi_detects_disagreement`). Real-TV-2
-  cohort (4 Bitcoin-anchored hour-receipts) and real-TV-3 cohort
-  still produce 3-validator parity OK on the schema-file path
-  (`--real-tv2 --quiet` and `--real-tv3 --quiet` rc=0).
-  Test-count delta: 353/27 → 361/24 (+8 passed; 3 skipped tests
-  now run because node + fastjsonschema are in-environment).
-  Schema-correctness contract is unchanged at $id
-  `https://wakir.dev/wirelang/schema/wakir-wat-manifest-v1/0.2.0`
-  (additive-only evolution; conformance-set tightens, accept/reject
-  semantics do not).
+| Schema | Change | Reference |
+| --- | --- | --- |
+| 0.1.0 | Initial formal v1 manifest schema: hour-root, leaf count, `prev_hour_root` chaining, OTS side-file contract. | §2, §3 |
+| 0.2.0 | Additive optional `signature` slot (Ed25519 over the JCS-canonical manifest without the slot), `signature_status` on the verifier result, `--verify-signature` / `--verify-signature-strict` driver modes, multi-cap consistency check on by default. | §4.4, §5.3 |
 
-- **2026-05-11 (Phase-2 Sprint-5 Tag-5):** Real-manifest signature
-  verification wired against TV-2 cohort. The Sprint-5 Tag-2
-  `_verify_signature_slot` helper is now consumed by the
-  real-manifest path: `verify_real_manifest_file` gains three
-  optional kwargs (`verify_signature`, `verify_signature_public_key`,
-  `verify_signature_mode`) and a `signature_status` field on
-  `RealManifestResult` with the same six pinned values used by the
-  v2 path (`""` = OFF, `verified`, `unsigned-permissive`,
-  `unsigned-strict`, `mismatch`, `structural-error`). Default is OFF
-  (`verify_signature=False`), so every pre-Tag-5 caller sees
-  identical behaviour. Phase-ordering mirrors the v2 path: signature
-  is the LAST gate (fields → integrity → multi-cap-root → OTS-anchor
-  → signature) — tamper on `merkle_root` post-signing surfaces as
-  `integrity_ok=False` before the signature check runs, which is
-  asserted by `test_tv2_tampered_merkle_root_surfaces_before_signature_gate`.
-  Two enabling code-edits landed:
-  (1) `wat.identity.manifest_signing._SIGNABLE_VERSIONS` extended
-  with the real-wire-form strings `wakir-wat-manifest/v1` and
-  `wakir-wat-manifest/v2`. The two version conventions
-  (`wat-manifest/1.0` synthetic vs `wakir-wat-manifest/v1` real)
-  now both sign deterministically through the same JCS-canonical
-  pre-image. (2) Schema-file `wakir-wat-manifest-v1.json` bumped
-  `0.1.0 -> 0.2.0` with an additive optional top-level `signature`
-  slot byte-for-byte identical to the v2-schema 0.2.0 slot landed
-  in Tag-1. Test cohort: 13 new hermetic tests in
-  `test_tv2_real_manifest_sig_verify.py` exercising all four TV-2
-  hour-receipts through hand-signed deep-copies in `tmp_path` (the
-  repo fixture stays unsigned; the Production aggregator output is
-  unchanged). The signing-aggregator branch when it lands will see
-  the verifier accept its output without further change. Test-count
-  delta: 340/27 → 353/27 (+13 passed, 0 broken, 0 newly skipped).
-  Open items not closed by Tag-5: (a) Production-aggregator-side
-  signing (`wat/aggregator.py` does not emit signed envelopes
-  today; this remains a Phase-2+ aggregator-migration item).
-  (b) CLI `--real-tv2 --verify-signature` driver mode for
-  `scripts/external_verifier_validation.py` — same Production-
-  aggregator-output gap applies (no signed real-manifest to drive),
-  so the driver-side wire-up is a follow-up Sprint-6+ item once the
-  signing-aggregator branch lands. (c) `as_audit_trail_entry`
-  signature branch — Sprint-5 Tag-3 left this as a Cross-Review
-  follow-up with frontend-engineering; unchanged by Tag-5.
-
-- **2026-05-11 (Phase-2 Sprint-5 Tag-3):** Two Cross-Review items left
-  open by Tag-2 closed.
-  (1) `as_audit_trail_entry()` paired-update contract bumped from
-  eleven to twelve pinned keys — `signature_status` added additively
-  within `schema_version=wakir-verify-manifest-v2/0` (no version
-  bump; additive-only evolution rule applies). Top-level field
-  mirrors `as_dict()['signature_status']` exactly so frontend
-  AuditTrailEntry consumers (Lena, Sprint-Frontend-1 Tag-3 paired-
-  update memo) can branch on a single field. The `branches[]` field
-  remains single (`manifest-validity`) — adding a second
-  `signature` branch is gated on a follow-up Cross-Review.
-  Empty-string semantics pinned: `""` = "no verdict requested"
-  (NOT "unsigned"); explicit `unsigned-permissive` /
-  `unsigned-strict` are the unsigned states.
-  (2) Kid-Resolver-Bridge wired into the verifier. New kwargs
-  `verify_signature_aip_doc` + `verify_signature_as_of` on
-  `verify_manifest_v2_file`; new CLI flag
-  `--verify-signature-aip-doc <PATH>`. When the caller supplies an
-  AIP document (instead of a raw key), the verifier resolves the
-  signature slot's `kid` via the WAT-side
-  `wat.identity.anchor_kid.resolve_wat_anchor_kid` (Sprint-4 Tag-5),
-  which in turn delegates to the canonical Identity-Substrate
-  resolver `wirelang.identity.kid_resolver` (Reza Sprint-4 Tag-3,
-  Z-1-Cross-Review-substance). Bridge uses `importlib` so the
-  verifier remains importable when either branch is unmerged; a
-  missing canonical resolver surfaces as
-  `signature_status="structural-error"` with a "cross-branch
-  merge gap" diagnostic. Caller-supplied
-  `verify_signature_public_key=<bytes>` always wins over the bridge
-  (precedence pinned in T-WAT-KID-RESOLVER-BRIDGE-03).
-  4 hermetic wire-up tests added
-  (`tests/wat/test_manifest_v2_audit_trail_kid_resolver.py`,
-  T-WAT-AT-SIG-01..02 audit-trail + T-WAT-KID-RESOLVER-BRIDGE-01..04;
-  2 of the 4 BRIDGE tests skip cleanly when the canonical resolver
-  branch is not merged — auto-active when it merges). Sibling cohort:
-  `_PINNED_AUDIT_TRAIL_ENTRY_KEYS` and the real-manifest bridge test's
-  inline 11-key set bumped in-place to 12 keys. Test suite 333 → 337
-  passed (+4 net), 28 → 30 skipped (+2 net, cross-branch-gated).
-- **2026-05-11 (Phase-2 Sprint-5 Tag-2):** Verifier signature-slot
-  wire-up landed (`wat/verify/manifest_v2.py`). Adds the opt-in
-  consumer for the optional `signature` slot landed in Tag-1 (schema
-  0.2.0). Python API gains three kwargs (`verify_signature`,
-  `verify_signature_public_key`, `verify_signature_mode`) on
-  `verify_manifest_v2_file`. CLI gains three flags
-  (`--verify-signature`, `--verify-signature-public-key-hex`,
-  `--verify-signature-strict`) plus env-var
-  `WAKIR_VERIFY_MANIFEST_SIGNATURE=1`. `ManifestV2Result` gains the
-  `signature_status` field with six pinned values
-  (`"" | "verified" | "unsigned-permissive" | "unsigned-strict" |
-  "mismatch" | "structural-error"`); `as_dict()` exposes the new key.
-  Default-off opt-in preserves backward compatibility for the 327
-  pre-existing tests and for external verifiers that have not yet
-  adopted the slot. Phase ordering: schema → trigger-discipline →
-  event-count → leaves-match → merkle-root → multi-cap-root → signature.
-  The `--real-manifest` path does NOT yet honour `--verify-signature`
-  (real aggregator does not emit signed envelopes today); that wire-up
-  is a follow-up item. Kid → public-key resolver bridge
-  (`wat.identity.anchor_kid.resolve_wat_anchor_kid`) is not yet wired
-  into the verifier — callers supply the raw 32-byte public key
-  directly. Audit-trail-entry (`as_audit_trail_entry`, eleven-field
-  paired-update contract) is **not** extended in this Tag — that
-  shape stays at `wakir-verify-manifest-v2/0` until a Cross-Review
-  with frontend-engineering on a `signature_status` branch addition.
-  6 hermetic wire-up tests (`tests/wat/test_manifest_v2_verifier_sig_wireup.py`,
-  T-WAT-VERIFY-SIG-WIRE-01..06: signed happy path / default off /
-  unsigned PERMISSIVE / unsigned STRICT / mismatch / CLI end-to-end).
-  Sibling cohort (`test_manifest_v2_verifier_stub.test_as_dict_returns_pinned_schema_keys`)
-  bumped in-place to track the new `signature_status` key — no
-  test-count delta. Test suite 327 → 333 passed (+6 net).
-- **2026-05-11 (Phase-2 Sprint-5 Tag-1):** WAT-manifest schema-sig-slot
-  formalisation landed (`wirelang/schemas/wat-manifest-v2.json`,
-  schema `$id` bumped `…/wat-manifest-v2/0.1.0` → `…/wat-manifest-v2/0.2.0`,
-  additive-only minor). The optional top-level `signature` slot that
-  Sprint-4 Tag-6 introduced at the signing-primitive level (round-tripped
-  via `envelope_with_signature` / `envelope_to_signed_manifest`,
-  validated structurally by `wat.identity.manifest_signing`) is now
-  formally permitted by the v2-aware JSON-Schema on BOTH
-  `wat-manifest/1.0` and `wat-manifest/2.0` envelopes. Slot shape:
-  `{alg: "Ed25519", kid: <non-empty-string>, signature: <128-hex>}`
-  with `additionalProperties: false` on the slot. Absence remains
-  valid (legacy unsigned manifests continue to pass). The slot is
-  NOT added to the top-level `required` array; it stays optional.
-  The existing v1-`not.anyOf` clause that forbids `multi_cap_events`
-  / `multi_cap_summary` on v1 is unchanged — `signature` is permitted
-  on v1 (the slot is version-agnostic). The verifier
-  (`wat/verify/manifest_v2.py`) is NOT wired to consume the signature
-  today; that remains a Tag-2+ Phase-2 Sprint-5 item, gated on the
-  Cross-Review-Zone-1 boundary with Identity-Substrate-engineering
-  (entblockt durch Z-1-Sprint-4-Anhang T-A-KONSENS, ratifiziert
-  2026-05-11 17:30 CEST). 5 hermetic schema-validation tests
-  (`tests/wat/test_manifest_signing_schema.py`,
-  T-WAT-MAN-SIG-SCHEMA-01..05) + 1 round-trip pin test
-  (T-WAT-MAN-SIG-SCHEMA-RT-01) — total +6 new tests. Sibling cohort
-  (`test_manifest_v2_schema_smoke.test_schema_id_pinned`) is bumped
-  in-place to track the new 0.2.0 ``$id`` URL — no test-count delta.
-  Test suite 321 → 327 passed (+6 net).
-- **2026-05-11 (Sprint-4 Tag-6):** WAT-manifest signing layer landed
-  (`wat/identity/manifest_signing.py`). Adds the WAT-side Ed25519
-  signing primitive (`sign_manifest`, `verify_manifest_signature`),
-  the `SignedWatManifest` wrapper dataclass, the
-  `WatManifestSignatureError` typed exception, the `VerifyMode`
-  policy surface (`PERMISSIVE` / `STRICT`) and the envelope-codec
-  helpers (`envelope_with_signature`, `envelope_to_signed_manifest`).
-  The signing primitive is shape-byte-identical to
-  `wirelang.identity.aip_signing` and to the
-  Identity-Substrate-engineering schema-registry-entry-signing layer
-  (`wirelang.schemas.entry_signing`, Phase-2 Sprint-4 Tag-1): JCS +
-  SHA-256 + Ed25519 over the manifest payload minus the `signature`
-  slot. The hour-manifest envelope gains an OPTIONAL top-level
-  `signature` field; the schema URI is unchanged (no v3), the slot
-  is additive on both `wat-manifest/1.0` and `wat-manifest/2.0`.
-  This Tag-6 ships only the signing primitive — formalisation of the
-  optional `signature` slot in `wirelang/schemas/wat-manifest-v2.json`
-  is a follow-up coordination item with Identity-Substrate-engineering
-  (the schema-file lives under their Cross-Review-Zone-1 boundary).
-  The verifier (`wat/verify/manifest_v2.py`) is NOT wired to consume
-  the signature today; that is a Tag-7+ item. 8 hermetic determinism
-  tests (`tests/wat/test_manifest_signing.py`, T-WAT-MAN-SIG-01..08).
-- **2026-05-11 (Sprint-4 Tag-5):** WAT-side Identity-Layer landed
-  (`wat/identity/anchor_kid.py`). Adds the WAT-domain anchor-kid
-  reference shape (`WatAnchorKidRef`), the WAT-domain typed
-  exception (`WatAnchorKidError`), the canonical-resolver bridge
-  (`resolve_wat_anchor_kid`) and the WAT-side `PURPOSE_WAT_ANCHOR`
-  re-export. The bridge delegates the 6-step filter (mapping-shape,
-  kid-found, single-match, alg-Ed25519, key_hex-shape, validity-
-  window) to the canonical Identity-Substrate kid-resolver
-  (`wirelang.identity.kid_resolver.resolve_kid`,
-  Identity-Substrate-engineering Phase-2 Sprint-4 Tag-3) under the
-  `require_purpose="wat-anchor"` filter —
-  DRY-consistent with spec §5.9, no resolver-logic re-implementation.
-  Deferred import (`importlib`) keeps the WAT-side primitives
-  importable when the canonical resolver has not merged yet; a
-  cross-branch merge-gap surfaces as a clean `WatAnchorKidError`
-  with the missing-module name in the diagnostic. The `wat-anchor`
-  purpose-tag is byte-pinned to the enum in
-  `wirelang/schemas/aip-document.json` §public_keys.purpose via a
-  schema-read drift detector test. 6 hermetic tests
-  (`tests/wat/test_anchor_kid_resolver.py`, T-WAT-ANCHOR-KID-01..06)
-  split into a standalone cohort (3 tests, always run) and a
-  bridge cohort (3 tests, `pytest.importorskip`-gated on the
-  canonical resolver). Manifest-level wire-up (adding an
-  `anchor_kid` optional field to `wat-manifest-v2.json`) is
-  intentionally deferred — that requires Cross-Review-Zone-1
-  coordination with Identity-Substrate-engineering on the canonical
-  reference shape inside
-  the AIP-document schema.
-- **2026-05-11 (Sprint-4 Tag-4):** Brand-Demo-Verifier Cross-Module
-  byte-coordination pinned. A hypothetical Brand-Demo-Snapshot emitter
-  (per `docs/wat-brand-asset-snapshot-spec.md` §3.5, §4) spans three
-  layers: the WAT-Identity-Layer verifier (`wat.verify.manifest_v2`),
-  the v1+v2 schema-files (`wirelang/schemas/wakir-wat-manifest-v1.json`
-  and `wat-manifest-v2.json`), and real OTS receipts (e.g. the TV-3
-  T17 fixture). Existing tests cover each layer in isolation. Tag-4
-  adds six Cross-Module tests that pin byte-coordination across layer
-  boundaries: (1) `manifest.merkle_root` hex equals `root.bin.hex()`
-  and `len(root.bin) == 32`; (2) `verify_real_manifest_file(...,
-  use_schema_file=True)` passes the TV-3 wire-form against the v1
-  schema-file end-to-end (schema + in-code fields + integrity rebuild
-  + OTS side-files); (3) feeding the v1 wire-form through
-  `verify_manifest_v2_file` correctly rejects at the schema layer
-  (`additionalProperties: false` on `prev_hour_root`, version enum
-  mismatch), pinning the intentional v1-vs-v2 wire-form divergence as
-  a test invariant; (4) the v2 sample-multi-cap-hour fixture passes
-  full v2 pipeline with `multi_cap_root_status == "verified"` under
-  strict mode; (5) the four Brand-Snapshot anchor fields (`hour_slot`,
-  `merkle_root`, `prev_hour_root`, `event_count`) are byte-pluckable
-  from the TV-3 manifest, satisfy v1-schema regex constraints
-  (`^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}$` for `hour_slot`,
-  `^[0-9a-f]{64}$` for `merkle_root`), and are byte-consistent with
-  `root.bin`; (6) end-to-end pipeline against a hermetic `tmp_path`
-  copy of TV-3 T17 with independent byte-pin of the OpenTimestamps
-  magic-header bytes (`\x00OpenTimestamps\x00`, 16 bytes) before the
-  verifier touches the file, asserting every `OtsAnchorCheck`
-  discriminator (`root_bin_present`, `root_bin_matches_manifest`,
-  `ots_present`, `ots_magic_ok`). All six tests are hermetic; tests
-  using the schema-file path use `pytest.importorskip("jsonschema")`
-  so they skip cleanly when the optional dependency is absent. New
-  module `tests/wat/test_brand_demo_cross_module_anchor_pins.py`
-  (6 tests). Test-suite delta +6 (304 -> 310 passed; 25 skipped
-  unchanged). Acceptance-belege Phase-1b -> 1c: this is the first
-  test module that asserts Cross-Module byte-coordination across all
-  three Brand-Demo-relevant layers in one place, replacing implicit
-  per-layer assumptions with explicit assertions.
-- **2026-05-11 (Sprint-4 Tag-2):** hermetic live-path coverage for the
-  off-default `ots verify`-Voll-Integration (Sprint-3 Tag-4). The
-  existing Tag-4 hermetic suite (`test_ots_full_verify.py`) monkey-
-  patches `wat.anchor.ots_anchor.verify_receipt` at the wrapper
-  surface; that pins the manifest-v2 verifier-contract but leaves
-  `verify_receipt` itself covered only by the live-gated
-  `OTS_INTEGRATION_TEST=1` smokes (real `ots` CLI on `$PATH`, real
-  network round-trip to Esplora). Tag-2 adds five hermetic tests that
-  mock the two boundaries below `verify_receipt` instead: the
-  `subprocess.run` call into the `ots` CLI (intercepted by patching
-  `ots_anchor.subprocess.run` plus `ots_anchor._resolve_ots_binary`)
-  and `wat.anchor.esplora.lookup_block_with_cache`. The five shapes
-  are (1) local-node `ots verify` returns `Success!`; (2) local-node
-  pending plus `ots info` yields one `BitcoinBlockHeaderAttestation`
-  height and Esplora confirms; (3) `ots info` yields zero heights,
-  truly unfinalised, hard reject; (4) heights present but Esplora
-  raises `EsploraError`, hard reject (no soft skip); (5) `ots verify`
-  raises `subprocess.TimeoutExpired`, translated to `AnchorError`,
-  surfaced as `full_verify_skipped_reason`, `ok` stays True at the
-  magic-header pin. Each test pins the
-  (`full_verify_attempted`, `full_verify_ok`, `full_verify_skipped_reason`)
-  discriminator triple, not just `ok`, so a future refactor that
-  silently re-classifies a hard reject as a soft skip breaks a test.
-  New module `tests/wat/test_ots_full_verify_live_path_hermetic.py`
-  (5 tests). Test-suite delta +5 (299 -> 304 passed; 25 skipped
-  unchanged).
-- **2026-05-11 (Sprint-4 Tag-1):** TV-3 receipt-persistence edge-case
-  coverage extended by six hermetic shapes against the on-disk side-
-  files: empty `root.bin` (0 bytes); `root.bin` removed entirely;
-  `root.bin.ots` removed entirely; `root.bin.ots` with the wrong magic
-  header at the correct length (16 bytes of `\xff`); `root.bin` padded
-  to 64 bytes; `root.bin` with all-bits-cleared permissions. Each test
-  pins the specific `OtsAnchorCheck` discriminator (`root_bin_present`,
-  `root_bin_matches_manifest`, `ots_present`, `ots_magic_ok`) so a
-  future verifier refactor that silently re-classifies a branch will
-  break a test. Tied to a small verifier hardening:
-  `_check_ots_anchor_side_files` now wraps both sidecar `read_bytes()`
-  calls in `try/except OSError` and surfaces a structured rejection
-  (`failure_reason` populated, `ots_anchor.ok` False) rather than
-  leaking `PermissionError`/`OSError` up the stack. This is additive
-  to the Tag-3 edge cluster (three shapes: truncated `root.bin`,
-  truncated `root.bin.ots`, `root.bin` flipped vs `merkle_root`) in
-  `tests/wat/test_tv3_real_manifest_live_run.py`; the Tag-3 module is
-  unchanged. New module `tests/wat/test_tv3_receipt_persistence_edges.py`
-  (6 tests). Test-suite delta +6 (293 -> 299 passed; 25 skipped
-  unchanged).
-- **2026-05-07 (Sprint-3 Tag-4):** off-default `ots verify`-Voll-
-  Integration landed. The pin-anchor side-file check (Sprint-2 Tag-5)
-  stops at the OpenTimestamps magic header for hermeticity reasons —
-  enough to assert that `root.bin.ots` is a well-formed proof file but
-  silent on whether the receipt is actually finalised on Bitcoin. The
-  new `--ots-full-verify` CLI flag, the `WAKIR_OTS_FULL_VERIFY=1` env
-  var, and the `ots_full_verify` keyword on
-  `verify_real_manifest_file` opt callers into invoking
-  `wat.anchor.ots_anchor.verify_receipt`, which shells out to the
-  `ots` CLI and consults the Esplora HTTP fallback for cross-
-  validation when no local Bitcoin node is reachable. Three new
-  fields land on `OtsAnchorCheck` and the JSON output schema:
-  `full_verify_attempted`, `full_verify_ok`, and
-  `full_verify_skipped_reason`. Soft-failure semantics are explicit:
-  a soft skip (`ots` CLI missing, receipt still pending) does not
-  flip `ok` because the magic-header pin still holds; a hard reject
-  (verifier returned False against a real receipt) does flip `ok`
-  with a populated `failure_reason`. The Bitcoin-RPC dependency is
-  thereby gated to a single off-default code path; the default
-  invocation surface stays hermetic. Test module
-  `tests/wat/test_ots_full_verify.py` lands six hermetic tests
-  (default magic-header path unchanged, kwarg-green, kwarg-hard-
-  reject, AnchorError-soft-skipped, env-flag-flips-on, CLI-flag-
-  flows-through-with-JSON-keys) and three live-gated tests under
-  `OTS_INTEGRATION_TEST=1` (TV-2 + TV-3 fixture full-verify contract,
-  CLI smoke). Test-suite delta +6 (290 -> 296).
-- **2026-05-07 (Sprint-3 Tag-3):** TV-3 real-manifest cohort + receipt-
-  persistence edge-case hardening landed. The single-hour TV-3
-  close-out run hour-receipt (run 2026-05-07T07:25:38Z, hour-slot
-  `2026-05-26T17`, run-genesis with `prev_hour_root: null`) is
-  committed under `tests/fixtures/wat-tv3-real/` as a second
-  Bitcoin-anchored reference cohort alongside TV-2. New test module
-  `tests/wat/test_tv3_real_manifest_live_run.py` (12 tests) covers
-  the same per-hour pipeline the TV-2 module asserts plus three new
-  receipt-persistence edge-case rejects: a `root.bin` truncated to
-  16 bytes; a one-byte-truncated `root.bin.ots`; and a `root.bin`
-  whose first byte is flipped relative to `merkle_root` (a side-file
-  that lies about the stamped root). The shape pair (TV-2 four-hour
-  multi-hop chain + TV-3 single-hour run-genesis) is what proves the
-  verifier path is not coincidentally tuned to TV-2 specifics; the
-  edge-case cluster is hardening substance proving the OTS-anchor
-  side-file check rejects realistic on-disk corruptions, not only
-  schema-side and integrity-rebuild errors. Driver
-  `scripts/external_verifier_validation.py` gains a parallel
-  `--real-tv3` mode plus a generic
-  `run_real_manifest_pipeline_for(fixture_root, hour_slots, tag, ...)`
-  helper; the legacy `--real-tv2` and `run_real_manifest_pipeline()`
-  surfaces are preserved as backward-compat wrappers. Test-suite
-  delta +12 (278 -> 290).
-- **2026-05-07 (Sprint-3 Tag-2):** Real-manifest live-run validation
-  cohort landed. The four hour-receipts produced by the TV-2
-  multi-hour audit-trail run (2026-05-06; submit
-  2026-05-06T17:37:26Z, close-out 2026-05-07T06:44:13Z, four
-  hour-slots `2026-05-27T00..T03`, all four OpenTimestamps calendar
-  branches finalised on each receipt within ~13 h) are committed
-  under `tests/fixtures/wat-tv2-real/` as the canonical
-  Bitcoin-anchored reference cohort. Each hour-receipt directory
-  carries the production triple `manifest.json` + `root.bin` (32
-  bytes equal to `bytes.fromhex(merkle_root)`) + `root.bin.ots`.
-  New test module `tests/wat/test_tv2_real_manifest_live_run.py`
-  (17 tests) asserts: per-hour `verify_real_manifest_file
-  (use_schema_file=True, check_ots_anchor=True)` returns fully
-  green; the formal v1 JSON-Schema accepts each hour-manifest
-  directly; `root.bin` matches the `merkle_root` field;
-  cross-hour `prev_hour_root` chain is contiguous (T00 is genesis
-  with `prev_hour_root: null`, T01..T03 each chain back); two
-  negative-path tests against mutated copies of the T00 fixture
-  exercise the integrity-rebuild and schema-enum reject paths.
-  Driver `scripts/external_verifier_validation.py` gains
-  `--real-tv2` mode that wraps the four real manifests as
-  accept-vectors, runs them through both schema-side validators
-  AND the `verify_real_manifest_file` pipeline (with
-  OTS-side-file smoke), and asserts cross-tool parity plus
-  pipeline-green. This is the acceptance evidence for the
-  Phase-1b→1c criterion that the v1 schema-file plumbing accepts
-  artefacts produced by the production aggregator against real
-  Bitcoin-anchored side-files, not only hand-authored synthetic
-  vectors. Test-suite delta +17 (261 → 278). Cross-tool parity on
-  the four real hour-receipts: clean.
-- **2026-05-07 (Sprint-3 Tag-1):** External-verifier validation
-  substrate landed. The formal v1 schema file
-  `wirelang/schemas/wakir-wat-manifest-v1.json` is now exercised by
-  two independent JSON-Schema validators against a shared test-vector
-  set: the Python `jsonschema` Draft-2020-12 reference (already in
-  use) and a Node.js `ajv` implementation under
-  `tooling/external-verifier-ajv/`. The shared vectors file
-  `tooling/external-verifier-ajv/test-vectors.json` carries 17
-  vectors (5 accept + 12 reject) covering required-field coverage,
-  pattern pins (hour_slot, merkle_root, prev_hour_root), enum
-  closure (version), additionalProperties closure, anchor_height
-  domain, and both leaves shapes (hex strings + full-event objects).
-  Driver `scripts/external_verifier_validation.py` runs every
-  vector through both validators and asserts identical per-vector
-  verdicts; cross-tool parity is the schema-correctness contract.
-  Pytest wrapper `tests/wat/test_external_verifier_parity.py` gates
-  on the same contract (Node.js side `pytest.mark.skipif` when
-  `node` or `node_modules` unavailable; Python side always runs).
-  Net new: 1 schema-smoke-test module
-  (`tests/wat/test_manifest_v1_schema_smoke.py`, 26 tests covering
-  the v1 schema directly), 1 parity test module (5 tests, 4 of
-  which require Node.js), 1 reference driver script, 1 Node.js
-  tooling package, 1 cross-validator vectors file. Test-suite delta
-  +31 (230 → 261) when Node.js + ajv are installed; +27 (230 → 257)
-  Python-only. The Node.js side remains substrate (not a hard CI
-  gate) for Sprint-3; promoting it to `--require-node` is a
-  follow-up Open-Item once a CI step pins the node toolchain.
-- **2026-05-07 (Sprint-2 Tag-6):** Formal v1 JSON-Schema file
-  `wirelang/schemas/wakir-wat-manifest-v1.json` landed as the sibling
-  of `wat-manifest-v2.json`. Pins the eight mandatory fields
-  (`version`, `hour_slot`, `merkle_root`, `event_count`, `events`,
-  `leaves`, `tree_levels`, `build_time`) plus the optional
-  `anchor_height` (positive integer when present) and `prev_hour_root`
-  (null or 64-lower-hex). The `version` enum reserves both
-  `wakir-wat-manifest/v1` and `wakir-wat-manifest/v2`; the v2 producer
-  will not require a schema-file edit when it lands. The schema file
-  faithfully describes the v1 wire-form including the `leaf_hash`
-  field on each event and the leaves-as-objects shape (one-of:
-  64-lower-hex string OR object with `leaf_hash` and arbitrary
-  additional B1-tuple fields). Verifier-stub gains a
-  `use_schema_file` parameter and `--use-schema-file` CLI flag (both
-  off-default); when set, the schema-file validator runs *before* the
-  in-code field-by-field validator. The in-code path remains the
-  redundant hermetic-no-deps fallback so a missing `jsonschema`
-  install does not block real-manifest verification. New
-  `DEFAULT_REAL_SCHEMA_PATH` module constant; new `--real-schema`
-  CLI flag for path override. Cross-reference: `docs/verifier-cli-
-  schema-sync.md` will pin the schema-file path for the frontend-side
-  TypeScript-interface generator (Tag-7+ hook). 10 additional
-  hermetic tests (57 total in the stub suite, 230 / 19 across the
-  full repo).
-- **2026-05-07 (Sprint-2 Tag-5):** Verifier-stub gains real-manifest
-  mode for the on-disk wire-form emitted by today's aggregator
-  (`wakir-wat-manifest/v1`). New `verify_real_manifest_file()` API
-  and `--real-manifest` CLI flag. Real-manifest mode performs
-  field-by-field validation (mandatory fields,
-  `version` ∈ {`wakir-wat-manifest/v1`, `wakir-wat-manifest/v2`},
-  `merkle_root` 64-lower-hex pattern, `event_count` non-negative int,
-  optional `anchor_height` positive int when present), handles the
-  `leaf_hash`-vs-`leaf` field-name divergence and the
-  leaves-as-objects shape, and re-runs the same Merkle-rebuild
-  + multi-cap consistency check (strict default ON since Tag-4) when
-  `multi_cap_events` is present. New OTS-pin-anchor side-file check
-  (`--check-ots-anchor`, default ON) verifies `root.bin` (32 raw
-  bytes equal to `merkle_root`) and `root.bin.ots` (OpenTimestamps
-  magic header `\x00OpenTimestamps\x00`) exist next to `manifest.json`;
-  full Bitcoin-attestation completeness is delegated to `ots verify`
-  (not in-scope for the hermetic stub). New `RealManifestResult` +
-  `OtsAnchorCheck` dataclasses; `--output json` and
-  `--output audit-trail-entry` work in real-manifest mode and emit
-  the same `wakir-verify-manifest-v2/0` schema-version (audit-trail-
-  entry bridges via the existing eleven-field paired-update
-  contract). 15 additional hermetic tests (47 total in the stub
-  suite, 220 / 19 across the full repo). New fixture at
-  `tests/fixtures/wat-real-manifest/` (manifest.json + root.bin +
-  root.bin.ots, verbatim copy of a real TV-3 archive hour).
-- **2026-05-07 (Sprint-2 Tag-4):** OQ-1 ratified
-  (wirelang-engineering Cross-Review-Zone-2, sign-off
-  2026-05-07T11:48:09Z): canonical Merkle for `caprefs_root` is
-  **ordered Merkle** (Variante A — preserves producer / issuance
-  intent). Reference verifier `wat.verify.manifest_v2`
-  default-flips strict-mode ON (`strict_multi_cap_root=True` is
-  the new default in `verify_manifest_v2_file`; CLI flag now
-  `argparse.BooleanOptionalAction` — `--strict-multi-cap-root`
-  default ON, `--no-strict-multi-cap-root` lenient escape
-  hatch). Zero-line implementation patch on the recompute
-  itself: `_caprefs_canonical_root_ordered` was already the
-  ratified algorithm. Spec §9 OQ-1 status moves from "open" to
-  "RATIFIED"; §10 verifier-stub-schema and audit-trail-entry
-  status descriptions updated; 3 additional hermetic tests
-  (32 total in the stub suite, 205 / 19 across the full repo).
-  Frontend audit-trail-entry consumer gets `verdict="verified"`
-  for clean v2 manifests by default; lenient `verdict="pending"`
-  remains available under explicit `--no-strict-multi-cap-root`.
-- **2026-05-07 (Sprint-2 Tag-3):** Verifier-stub gains
-  `--output audit-trail-entry` CLI mode and
-  `ManifestV2Result.as_audit_trail_entry()`. Eleven-field
-  paired-update contract pinned in §10 sub-section "Audit-trail-
-  entry export contract" (`kind: "wat-tv-pin-pack"`,
-  `schema_version: "wakir-verify-manifest-v2/0"`). 13 additional
-  hermetic tests (29 total in the stub suite); field-by-field-
-  determinism + dump-roundtrip-byte-stability covered. Frontend
-  Sprint-Frontend-1 Tag-3 paired-update unblocked — `AuditTrailEntry`
-  TypeScript interface for `wat-tv-pin-pack` kind can converge on
-  this shape without schema invention.
-- **2026-05-07 (Sprint-2 Tag-2):** Verifier-stub gains
-  `--output {human,json}` CLI mode and `ManifestV2Result.as_dict()`.
-  JSON schema pinned in §10 sub-section "Verifier-stub JSON-output
-  schema" (`schema_version: "wakir-verify-manifest-v2/0"`,
-  manifest-centric). 5 additional hermetic tests (16 total in the
-  stub suite). Frontend cross-review-sync handover unblocked
-  (manifest-centric vs event-centric distinction documented).
-- **2026-05-07 (Sprint-2 Tag-1):** Verifier-stub
-  `wat.verify.manifest_v2` landed. Implements schema-validation +
-  cross-module integrity (events/leaves/tree_levels/merkle_root
-  rebuild + multi-cap sidecar consistency) with a
-  `--strict-multi-cap-root` flag for the OQ-1-provisional ordered-
-  Merkle recompute. 11 hermetic tests added; reference fixture at
-  `tests/fixtures/wat-manifest-v2/sample-multi-cap-hour.json`. OQ-1
-  still open; lenient mode is the default until Zone-2 sign-off.
-- **2026-05-07 (Tag-27.5):** Initial draft of this consolidated
-  external-verifier spec. Schema-File and 22 pin-tests already
-  landed in Tag-26 / Tag-27. OQ-1 still open pending Zone-2.
-- **2026-05-06 (Tag-26):** Schema file `wat-manifest-v2.json` and
-  inline smoke tests (4) landed.
-- **2026-05-07 (Tag-27):** Pin-test suite expanded to 22 tests in
-  `tests/wat/test_manifest_v2_schema_smoke.py`.
-
----
-
-— Tomás
+Compatibility rule for every future entry: a schema bump that adds an
+optional key is additive and MUST keep earlier manifests verifiable;
+anything else is a new major schema id.

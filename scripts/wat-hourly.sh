@@ -73,7 +73,7 @@ SPOOL_FILE="${EVENT_SPOOL}/${HOUR_SLOT}.jsonl"
 HOUR_ARCHIVE="${RECEIPT_ARCHIVE}/${HOUR_SLOT}"
 mkdir -p "${HOUR_ARCHIVE}"
 
-# --- 2a. Previous-hour root discovery (Phase-1a-Tag-8 / consensus A5).
+# --- 2a. Previous-hour root discovery (/ consensus A5).
 #
 # Look up the immediately preceding hour's manifest in the same archive
 # tree and extract its ``merkle_root`` for the chain-check reservation
@@ -112,7 +112,7 @@ else
     log "prev_hour_root=null (no manifest at ${PREV_HOUR_MANIFEST})"
 fi
 
-# --- 3. Sealed-rename (Phase-1a-Tag-7 bridge contract).
+# --- 3. Sealed-rename (bridge contract).
 #
 # Per ``docs/wat-spool-spec.md`` §5 the bridge must seal the open
 # hour-spool file before the aggregator reads it. Sealing is an
@@ -159,7 +159,7 @@ log "event_count=${EVENT_COUNT} spool=${SEALED_FILE}"
 # ``docs/wat-manifest-spec.md``. Empty hours produce a manifest with
 # ``merkle_root: null`` and skip the anchor.
 #
-# Sprint-5-Tag-4 (OI-9 environment-state-fix): prefer the
+# (OI-9 environment-state-fix): prefer the
 # ``wakir-merkle`` console-script when the editable install is active,
 # but fall back to ``python -m wat.cmd.aggregator_cli`` when the
 # console-script is not on PATH (e.g. a venv without
@@ -168,7 +168,7 @@ log "event_count=${EVENT_COUNT} spool=${SEALED_FILE}"
 # ``wat.cmd.aggregator_cli:main`` entrypoint, so the manifest output
 # is byte-identical. The fallback removes the "skip-statt-pass" drift
 # in ``tests/wat/test_aggregator_prev_hour_root.py`` that
-# container-engineering Sprint-5-Tag-3 surfaced as open-item OI-9
+# container-engineering surfaced as open-item OI-9
 # (environment-state-dependent skip-message ambiguity).
 MANIFEST_FILE="${HOUR_ARCHIVE}/manifest.json"
 BUILD_ARGS=(
@@ -179,7 +179,7 @@ BUILD_ARGS=(
 if [[ -n "${PREV_HOUR_ROOT}" ]]; then
     BUILD_ARGS+=(--prev-hour-root "${PREV_HOUR_ROOT}")
 fi
-# Sprint-6-Tag-7 (F-5 fix): "presence on PATH" is not the same as
+# (F-5 fix): "presence on PATH" is not the same as
 # "actually invocable". When the operator works in a fresh worktree
 # (per ADR-0049) the editable install's __editable__.*.pth finder
 # may still point at a previous worktree path that has since been

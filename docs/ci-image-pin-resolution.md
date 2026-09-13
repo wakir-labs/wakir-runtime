@@ -1,9 +1,9 @@
 # CI-Note: Idempotent Image-Pin Resolution
 
-**Status:** Live as of Phase-2 Sprint-9 Tag-5 (2026-05-13).
+**Status:** Live as of Phase-2 (2026-05-13).
 **Scope:** `.github/workflows/resolve-image-pins-ci.yml`,
 `scripts/image-pin-idempotent-resolver.sh`.
-**Owner:** Tomás (dev-engineering Matrix-Lead).
+**Owner:** dev-engineering.
 
 ---
 
@@ -13,7 +13,7 @@ The `infra/spire/federation/proxmox/resolve-image-pins.sh`
 Operator-Hand resolver lives ON the Pilot-VM and mutates files on
 that host. The repo source-of-truth pins still carry
 `DIGEST_PENDING_TOMAS_REVIEW` until somebody Operator-Hand opens a
-follow-up PR. Sprint-9 Tag-4 closed at this exact gap: the
+follow-up PR. The gap was closed by the
 wakir-provisioner image landed on GHCR + Public, but the repo's
 Quadlet pin stayed on the placeholder. We had no idempotent way to
 say "is the repo pin in sync with the registry?" without manual
@@ -127,7 +127,5 @@ upstream SPIRE release was announced:
 2. Check the SPIRE release feed + Sigstore transparency log
    (rekor) for the new digest.
 3. If the new digest is unsigned or signed by an unfamiliar
-   identity, escalate to Mira and pin the previous digest manually
+   identity, escalate to the CEO persona and pin the previous digest manually
    while the investigation runs.
-
-— Tomás

@@ -3,12 +3,11 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Regenerate the signed TV-2 sub-cohort under ``tests/fixtures/
 wat-tv2-real-signed/`` from the stock ``wat-tv2-real/*`` fixtures.
-
-Sprint-6-Tag-5 follow-up to Sprint-6-Tag-3 Item 1 (Mira-multi-item-
-box Tag-5 Item 1): pre-bake signed Variants of the TV-2 hour-receipt
+ follow-up to Item 1 (the operator-multi-item-
+box Item 1): pre-bake signed Variants of the TV-2 hour-receipt
 cohort so verifier tests no longer have to hand-sign manifest copies
 on the hot path of every run. The stock unsigned cohort is preserved
-unchanged -- backward-compat for the Sprint-3 Tag-2 / Sprint-5 Tag-5
+unchanged -- backward-compat for the /
 tests that assert on the unsigned default behaviour.
 
 What this script does
@@ -34,8 +33,7 @@ For each hour-slot in ``tests/fixtures/wat-tv2-real/``:
 Why a sub-cohort (and not in-place replacement)
 -----------------------------------------------
 
-The stock ``wat-tv2-real/*`` cohort underwrites the Sprint-5 Tag-5
-unsigned-strict / signature_status="" backward-compat tests
+The stock ``wat-tv2-real/*`` cohort underwrites the unsigned-strict / signature_status="" backward-compat tests
 (``test_tv2_strict_rejects_stock_unsigned_real_manifest``,
 ``test_tv2_stock_cohort_signature_status_empty_under_default``).
 Replacing those fixtures in-place would break those guarantees.
@@ -83,7 +81,7 @@ DST_ROOT_DEFAULT = REPO_ROOT / "tests" / "fixtures" / "wat-tv2-real-signed"
 # README.md alongside the regenerated cohort. Any party can re-derive
 # the corresponding public key and re-verify the signed fixtures.
 #
-# The Sprint-6-Tag-5 regeneration uses this seed so the on-disk
+# The regeneration uses this seed so the on-disk
 # signature bytes are stable across re-runs and across operators --
 # CI in particular needs byte-deterministic fixtures.
 DEMO_SEED_HEX = (
@@ -119,7 +117,7 @@ def _readme_body(public_key_hex: str, hour_slots: list[str]) -> str:
         "\n"
         "This directory holds the Aggregator-signed Variants of the\n"
         "stock ``../wat-tv2-real/`` TV-2 hour-receipt cohort. Pre-baking\n"
-        "the signed manifests on-disk is the Sprint-6-Tag-5 simplification\n"
+        "the signed manifests on-disk is the simplification\n"
         "of the verifier test substrate: tests no longer need to hand-\n"
         "sign manifest copies on the hot path; they consume the\n"
         "checked-in signed manifests directly.\n"

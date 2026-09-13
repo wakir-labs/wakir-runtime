@@ -2,11 +2,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Derive cross-lang fixture vectors for bridge-audit-replay canonical-trace.
-
-Tag-37 Phase-3a 14. Modul fixture-derivation script.  Mirrors the
+ Phase-3a 14. Modul fixture-derivation script. Mirrors the
 shape of ``scripts/derive-bridge-audit-diff-engine-fixtures.py``
-(Tag-36 13. Modul) and ``scripts/derive-v907-verify-fixtures.py``
-(Tag-35 12. Modul).
+(13. Modul) and ``scripts/derive-v907-verify-fixtures.py``
+(12. Modul).
 
 Output file
 -----------
@@ -199,7 +198,7 @@ def main() -> None:
     document = {
         "_comment": (
             "Cross-lang fixture vectors for the persona-engine "
-            "bridge-audit-replay canonical-trace (Tag-37 Mini-Welle "
+            "bridge-audit-replay canonical-trace (increment "
             "Phase-3a Python-sync, 14. Modul, closes the bridge-audit "
             "trilogy: writer/diff-engine/replay). Six outcomes "
             "covered: empty-stream success, single-record success, "

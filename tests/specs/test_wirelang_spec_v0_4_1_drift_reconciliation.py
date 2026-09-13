@@ -26,7 +26,7 @@ SPEC_V041 = REPO_ROOT / "wirelang" / "specs" / "wirelang-spec-v0-4-1.md"
 RUST_CRATES_DIR = REPO_ROOT / "wirelang-rust" / "crates"
 PIN_PACK_PATH = REPO_ROOT / "infra" / "persona-engine" / "pin-pack-0.5.0-pre-cutover.yaml"
 AUDIT_REPORT_PATH = (
-    REPO_ROOT / "reports" / "audit" / "phase-3a-15-crate-consistency-2026-05-19.md"
+    REPO_ROOT / "docs" / "archive" / "evidence" / "audits" / "phase-3a-15-crate-consistency-2026-05-19.md"
 )
 
 

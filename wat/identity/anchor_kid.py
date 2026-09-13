@@ -18,7 +18,7 @@ delegates to it under the ``require_purpose="wat-anchor"`` filter and
 re-raises errors as :class:`WatAnchorKidError` so WAT-domain callers
 do not have to depend on Identity-Substrate exception types directly.
 
-DRY-consistency vs. Identity-Substrate-Sprint-4-Tag-3 (spec §5.9):
+DRY-consistency vs. the kid-resolver spec (§5.9):
 
 The WAT-side does NOT re-implement the resolver. The filter chain
 inside :func:`resolve_wat_anchor_kid` is exactly one canonical
@@ -36,15 +36,15 @@ Cross-Review-Zone-1 boundary:
   Identity-Substrate-engineering-owner-domain — NOT edited here, only imported.
 - WAT-domain reference shape (this module) is dev-engineering-owner-
   domain. The manifest-level wire-up (adding an ``anchor_kid`` field
-  to ``wat-manifest-v2.json``) is intentionally NOT done in Sprint-4
-  Tag-5 — that requires Cross-Review-Zone-1 coordination with
+  to ``wat-manifest-v2.json``) is intentionally NOT done here —
+  that requires Cross-Review-Zone-1 coordination with
   Identity-Substrate-engineering on the canonical reference shape
   inside the AIP-document schema.
 
 Import strategy:
 
 The canonical resolver lives on a sibling Identity-Substrate branch
-that has not yet merged to ``main`` at Sprint-4 Tag-5 publish time.
+that has not yet merged to ``main`` at publish time.
 This module uses a deferred-import pattern (``importlib`` inside the
 function bodies) so that:
 
@@ -173,7 +173,7 @@ def validate_anchor_kid_ref_shape(kid_ref: Any) -> None:
     canonical resolver.
 
     Useful for early-fail in a manifest-parse path where the resolver
-    is not on the import path yet (Sprint-4 Tag-5 cross-branch state)
+    is not on the import path yet (cross-branch state)
     or where the caller wants to fail fast before hitting an AIP-
     document fetch.
 
@@ -208,8 +208,7 @@ def is_kid_resolver_available() -> bool:
 
     Use this as a short-circuit probe in code paths that want a clean
     skip when the resolver branch has not merged yet (e.g. CI gates
-    running on ``main`` before the Identity-Substrate Sprint-4 Tag-3
-  branch merges).
+    running on ``main`` before the branch merges).
     """
     try:
         importlib.import_module(_CANONICAL_RESOLVER_MODULE)
@@ -259,8 +258,8 @@ def resolve_wat_anchor_kid(
         raise WatAnchorKidError(
             f"canonical kid-resolver not available: "
             f"{_CANONICAL_RESOLVER_MODULE} is not importable "
-            f"(cross-branch merge gap; Identity-Substrate Sprint-4 "
-            f"Tag-3 must merge before WAT-Side resolution can run): "
+            f"(cross-branch merge gap; the Identity-Substrate kid-resolver "
+            f"must merge before WAT-Side resolution can run): "
             f"{exc}"
         ) from exc
 

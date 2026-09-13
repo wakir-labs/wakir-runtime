@@ -316,9 +316,9 @@ def test_t_g1g2_06_g2_token_exact_match(
 
 
 def test_t_g1g2_07_zone_c_cross_review(guide_text: str) -> None:
-    """Both G1 and G2 PRs require Tomás Zone-C cross-review per
-    ADR-0020 Zone-C (Container-Image-Pipeline x OTS-Anchoring).
-    The guide must name Tomás + Zone-C for both PR commit-templates.
+    """Both G1 and G2 PRs require a Zone-C cross-review per ADR-0020
+    Zone-C (Container-Image-Pipeline x OTS-Anchoring). The guide must
+    name the reviewing function + Zone-C for both PR commit-templates.
     """
 
     # Count Zone-C mentions — at least 3 expected:
@@ -330,8 +330,8 @@ def test_t_g1g2_07_zone_c_cross_review(guide_text: str) -> None:
         f"Guide must reference Zone-C cross-review at least 3 times "
         f"(G1 PR, G2 PR, joint sign-off); found {zone_c_mentions}."
     )
-    assert "Tomás" in guide_text, (
-        "Guide must name Tomás as the Zone-C reviewer."
+    assert "dev engineering" in guide_text, (
+        "Guide must name dev engineering as the Zone-C reviewer."
     )
 
 
@@ -407,17 +407,16 @@ def test_t_g1g2_10_link_to_drift_probe(guide_text: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_t_g1g2_11_kai_signoff(guide_text: str) -> None:
-    """All Kai-authored runbooks end with the '— Kai' signoff line per
-    the persona-definition convention. Pin it as part of the doc
-    contract.
+def test_t_g1g2_11_no_persona_signoff(guide_text: str) -> None:
+    """Public-surface runbooks carry no persona sign-off line
+    (ADR-0072 Phase-4 archaeology rule). The guide must end on
+    substance, not on an author signature.
     """
 
-    # Allow either em-dash or hyphen — author convention.
-    assert (
-        guide_text.rstrip().endswith("— Kai")
-        or guide_text.rstrip().endswith("- Kai")
-    ), "Operator-Setup-Guide must close with the '— Kai' sign-off line."
+    tail = guide_text.rstrip().splitlines()[-1]
+    assert not tail.lstrip().startswith(("— ", "- —", "-- ")), (
+        f"Operator-Setup-Guide must not close with a sign-off line: {tail!r}"
+    )
 
 
 # ---------------------------------------------------------------------------

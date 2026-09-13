@@ -5,14 +5,14 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # WAT Manifest v2 — Multi-Cap Trigger (Stub Spec)
 
-Status: **stub / draft**, Phase-1b Sprint-2 prep
+Status: **stub / draft**, Phase-1b prep
 Owner: dev-engineering / matrix-lead
-Origin: Tag-22 closeout-hygiene Item 4 (deferred), Tag-23 followup
+Origin: closeout-hygiene Item 4 (deferred) followup
 Bezug: WAT-Phase-1a-Spec §3.4.1 multi-cap-ordering, ADR-0009 §3
 acceptance, wirelang-engineering Cross-Review Zone 2 (capability-token × wat-leaf
 sync).
 
-This stub is **not** an implementation directive. It is the Sprint-2
+This stub is **not** an implementation directive. It is the
 trigger surface so wirelang-engineering, frontend-engineering and pengine-engineering can review the proposed v2
 manifest shape before code lands.
 
@@ -116,7 +116,7 @@ Design notes:
     matches the manifest claim.
   - Print an additional line `multi_cap: <count> capabilities
     (root=<8 hex>...)` in human-mode output.
-  - In `--output json` mode (Sprint-1 Tag-25 pickup): include
+  - In `--output json` mode (pickup): include
     `caprefs_full[]` and `caprefs_root` in the result object.
 - **If not**: behaviour identical to v1.
 
@@ -132,10 +132,10 @@ Exit codes:
 - `3` — pending.
 - `4` — chain-mismatch.
 
-## 5. Aggregator behaviour (the actual code-touchpoint for Sprint-2)
+## 5. Aggregator behaviour (the actual code-touchpoint for)
 
 `wat/aggregator.py` (or wherever the v1 manifest gets built today —
-TBD pending file walk in Sprint-2 Tag-1) gets a new branch:
+TBD pending file walk in) gets a new branch:
 
 ```python
 def build_manifest(events, hour_slot, ...):
@@ -159,7 +159,7 @@ def build_manifest(events, hour_slot, ...):
 This keeps the v1 build path the canonical default and adds v2 only
 when triggered. No regression risk for the common case.
 
-## 6. Test plan (Sprint-2)
+## 6. Test plan
 
 - `test_manifest_v2_trigger`: frames with `caprefs=[]` and
   `caprefs=["sha256:aaa..."]` only → v1 manifest emitted, no
@@ -183,14 +183,14 @@ when triggered. No regression risk for the common case.
 | -------- | --------------------------------------------------------------------- |
 | wirelang-engineering     | **Zone 2 review needed** — confirm `caprefs_root` ordered-vs-sorted, confirm v2 schema fits Wirelang capability-token-projection spec. |
 | container-engineering      | None — manifests stay event-payload, no NATS/Container-bridge effect. |
-| frontend-engineering     | Frontend: `--output json` schema (Tag-25 pickup) gains optional       |
+| frontend-engineering     | Frontend: `--output json` schema (pickup) gains optional       |
 |          | `multi_cap` block. Brand-page-embed unaffected for v1-only hours.     |
 | sre-engineering      | None — SRE pipeline indifferent to manifest version.                  |
 | pengine-engineering    | **Maybe** — PEngine V-907 cache-pointer may want to opt into          |
 |          | `caprefs_full` for replay; needs pengine-engineering-PEngine-Bridge review.         |
 | qa-engineering    | QA test-vector additions (TV-x for multi-cap hour).                   |
 
-## 8. Open questions (must resolve before Sprint-2 implementation)
+## 8. Open questions (must resolve before implementation)
 
 1. Ordered vs. sorted `caprefs_root` Merkle? **Proposal: ordered**.
    wirelang-engineering-Zone-2 sign-off needed.
@@ -199,22 +199,22 @@ when triggered. No regression risk for the common case.
    forced v2)? **Proposal: never. Trigger condition is strict** —
    you only see v2 if at least one frame actually has >1 caprefs.
 3. Backwards-compatible verifier strict-mode flag (`--manifest-version`
-   override) for downgrade testing? **Proposal: defer to Sprint-3**
+   override) for downgrade testing? **Proposal: defer to**
    unless an audit query test plan demands it earlier.
 4. Test-vector for multi-cap hour: which is the canonical TV
    shorthand — TV-4? Discuss with qa-engineering at QA-handover.
 
 ## 9. Implementation timeline (proposed)
 
-- **Sprint-1 Tag-25:** `--output json` for verifier (frontend-engineering pickup,
-  Tag-23 inbox-memo) lands first. v1-only payload, but the JSON
+- **:** `--output json` for verifier (frontend-engineering pickup,
+  inbox-memo) lands first. v1-only payload, but the JSON
   schema is forward-compatible with §4 multi-cap additions.
-- **Sprint-2 Tag-1-3:** v2 manifest aggregator + tests (this stub
+- **:** v2 manifest aggregator + tests (this stub
   becomes implementation directive after open-question resolution).
-- **Sprint-2 Tag-4-5:** verifier v2-aware path + tests.
-- **Sprint-2 Tag-6:** Cross-Review Zone 2 (wirelang-engineering), Zone E (frontend-engineering),
+- **:** verifier v2-aware path + tests.
+- **:** Cross-Review Zone 2 (wirelang-engineering), Zone E (frontend-engineering),
   Zone K (pengine-engineering) sign-off.
-- **Sprint-2 Tag-7+:** Brand-demo-memo update with first multi-cap
+- **:** Brand-demo-memo update with first multi-cap
   hour Bitcoin-anchored.
 
 ---

@@ -4,7 +4,8 @@
 
 These tests encode the numeric and string assertions of the Tag-56
 production-readiness audit report
-(``reports/audit/persona-engine-0-5-2-production-readiness-2026-05-19.md``)
+(``docs/archive/evidence/audits/
+persona-engine-0-5-2-production-readiness-2026-05-19.md``)
 as executable invariants. A divergence between the audit report and
 the substrate trips the suite in the next CI cycle.
 
@@ -74,8 +75,10 @@ CARGO_WORKSPACE_PATH = REPO_ROOT / "wirelang-rust" / "Cargo.toml"
 CRATES_ROOT = REPO_ROOT / "wirelang-rust" / "crates"
 AUDIT_REPORT_PATH = (
     REPO_ROOT
-    / "reports"
-    / "audit"
+    / "docs"
+    / "archive"
+    / "evidence"
+    / "audits"
     / "persona-engine-0-5-2-production-readiness-2026-05-19.md"
 )
 

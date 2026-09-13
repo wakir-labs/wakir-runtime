@@ -172,5 +172,5 @@ documented in `docs/wat-manifest-spec.md` §"Empty hours".
 
 - Reader (aggregator side): `wat.cmd.aggregator_cli` (`wakir-merkle build`).
 - Hash core: `wat.merkle.aggregator.compute_leaf_hash`.
-- Bridge: not yet shipped — Phase-1a-Tag-7 implementation per the
+- Bridge: not yet shipped — Phase-1a implementation per the
   tag-6 spec hand-off.

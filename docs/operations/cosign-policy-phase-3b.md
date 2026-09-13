@@ -14,7 +14,7 @@ persona-engine production-default switch subprocess-bridges to
 **Source of truth:** `policies/cosign-policy-phase-3b.yaml`.
 **Sibling docs:** `infra/spire/federation/IMAGE_PINS.md` (SPIRE +
 provisioner image pins), `docs/operations/branch-protection-required-status-checks.md`,
-`docs/operations/quadlets-phase-3b-rust-cli.md` (Tag-22/24/29/31
+`docs/operations/quadlets-phase-3b-rust-cli.md` (/24/29/31
 Quadlet installer; same 9-binary inventory).
 
 ---
@@ -23,8 +23,8 @@ Quadlet installer; same 9-binary inventory).
 
 Phase-3b lands nine ENV-gated subprocess-bridges from the
 persona-engine Python orchestrator to compiled Rust-CLI binaries
-(PRs #167, #169, #171, #175, #181, #184, #191 + Tag-29 SVID
-image-build + Tag-31 bridge-audit-writer image-build). The bridges
+(PRs #167, #169, #171, #175, #181, #184, #191 + SVID
+image-build + bridge-audit-writer image-build). The bridges
 live in `wirelang/persona_engine/rust_backend_switch.py` and resolve
 to the canonical paths
 `/opt/wakir/bin/wakir-persona-engine-{recovery,state-backing,fsm,v907-verify,bridge-diff,subscribe-loop,anchor-emitter,svid-workload-identity,bridge-audit-writer}`.
@@ -32,55 +32,55 @@ These nine binaries are the **production-mode hot-path** when
 operators flip `WAKIR_*_BACKEND=rust` in the Quadlet drop-in;
 unverified binaries on that hot-path are a supply-chain breach.
 
-> **Tag-23 Mini-Welle update.** Inventory extended from 4 to 5
-> binaries; `bridge-diff` (Tag-20 PR #175) is now a first-class
-> policy entry. The Tag-22 Quadlet installer
+> **mini wave update.** Inventory extended from 4 to 5
+> binaries; `bridge-diff` (PR #175) is now a first-class
+> policy entry. The Quadlet installer
 > (`quadlet/wakir-rust-cli.container`, PR #180) already iterated
 > all five binaries; this update closes the cross-substrate
 > inventory gap — both files now list the same five binaries
 > byte-for-byte.
 
-> **Tag-24 Mini-Welle update (ADR-0065 Phase-3c Trigger-Gate 2+3).**
+> **mini wave update (ADR-0065 Phase-3c Trigger-Gate 2+3).**
 > Inventory extended from 5 to 7 binaries in lock-step with the
-> Quadlet installer. Added `subscribe-loop` (Tag-22 PR #181 wired
+> Quadlet installer. Added `subscribe-loop` (PR #181 wired
 > the Python production-default switch) and `anchor-emitter`
-> (Tag-23 PR #184 wired the switch). Both bridges follow the same
+> (PR #184 wired the switch). Both bridges follow the same
 > Sigstore-keyless-OIDC pattern as the prior five and ship inside
 > the same carrier image. The cross-substrate parity test
 > (`test_cross_substrate_parity_with_quadlet_installer`) enforces
 > the agreement at policy-author time.
 
-> **Tag-29 Mini-Welle update (ADR-0066 Welle-2 image-build).**
+> **mini wave update (ADR-0066 wave-2 image-build).**
 > Inventory extended from 7 to 8 binaries: `svid-workload-identity`
-> (Tag-25 PR #191 wired the Python resolver; Tag-29 ships the Rust
+> (PR #191 wired the Python resolver; ships the Rust
 > crate skeleton + image-build pipeline). SPIFFE Workload-API
 > socket-presence probe bridge.
 
-> **Tag-31 Mini-Welle update (ADR-0066 Welle-3 image-build).**
+> **mini wave update (ADR-0066 wave-3 image-build).**
 > Inventory extended from 8 to 9 binaries: `bridge-audit-writer`
-> (Tag-31 Mini-Welle ships the writer-half of the Doppelbetrieb-
+> (mini wave ships the writer-half of the Doppelbetrieb-
 > Shadow EngineeringOutputEvent envelope substrate; PR #131
 > bridge-diff + PR #147 bridge-audit-replay landed the replay-half
 > earlier). Binary lives in the existing
 > `persona-engine-bridge-audit-replay` crate alongside the
 > sibling `replay_cli`.
 
-> **Tag-45 Mini-Welle update (Phase-3a-Foundation 14 + 15 closeout).**
+> **mini wave update (Phase-3a-Foundation 14 + 15 closeout).**
 > Carrier-image inventory extended from 9 to 11 binaries
-> (Cosign-Policy 13 -> 15 with the Welle-4..7 dedicated images
-> unchanged). Two additions in a single Mini-Welle bundle:
-> `bridge-audit-replay` (Tag-37 PR #246, Phase-3a-Foundation 14.
+> (Cosign-Policy 13 -> 15 with the wave-4..7 dedicated images
+> unchanged). Two additions in a single mini wave bundle:
+> `bridge-audit-replay` (PR #246, Phase-3a-Foundation 14.
 > Modul — deterministic-replay-oracle canonical-trace bridge) and
-> `migrate-version` (Tag-38 PR #250, Phase-3a-Foundation 15. Modul —
+> `migrate-version` (PR #250, Phase-3a-Foundation 15. Modul —
 > engine-version migration pre-flight decision canonical-trace,
 > closes the Phase-3a-Foundation sweep at 15/15). Both are
 > CANONICAL-only bridges (no live state-backing I/O on the Rust
 > side; the Python sibling holds the live workflow and the Rust
 > binary returns the canonical-trace projection for byte-paritätische
-> comparison). The Tag-45 Operator-Hand recipe lives in
+> comparison). The Operator-Hand recipe lives in
 > `docs/phase-3c/quadlet-cosign-15-binary-installer.md` (Installer-
 > Sequence + Cosign-Verification + Rollback-Pfad pro Binary +
-> Cross-Welle-Coordination).
+> Cross-wave-Coordination).
 
 Cosign-policy answers two operator questions, both of which the
 existing `IMAGE_PINS.md` substrate does NOT cover for the
@@ -191,16 +191,16 @@ podman run --rm --entrypoint /bin/sh \
         echo OK'
 ```
 
-If the carrier image is the Sprint-Pengine-13 `0.5.0-pilot` tag
+If the carrier image is the `0.5.0-pilot` tag
 (current inventory baseline), several of the seven binaries will be
 **present but not yet wired into a `[[bin]]`-target Cargo.toml
-section** — the crates ship `[lib]` only as of Tag-19. The probe
+section** — the crates ship `[lib]` only as of. The probe
 above therefore expects the `[[bin]]`-promotion follow-up to land
 before the policy moves out of the placeholder-digest state. The
 test surface marks this expectation explicitly with a SKIP for the
 live-probe path and a hard assertion on the policy-shape path.
 
-The Tag-22/24 Quadlet installer (`quadlet/wakir-rust-cli.container`)
+The/24 Quadlet installer (`quadlet/wakir-rust-cli.container`)
 iterates the same seven binaries in alphabetical-by-component order
 (`anchor-emitter`, `bridge-diff`, `fsm`, `recovery`, `state-backing`,
 `subscribe-loop`, `v907-verify`); the probe above iterates in
@@ -221,7 +221,7 @@ returns a value that differs from the pinned digest:
       - tag re-push (registry serves a different digest under the
         same tag),
       - or a maliciously-signed image was pushed.
-  * **Zone-C cross-review.** Tomás (Zone-C owner per `agents/kai.md`
+  * **Zone-C cross-review.** dev engineering (Zone-C owner per `agents/kai.md`
     §"Vier Cross-Review-Zonen A-D") reviews the upstream signing
     event in the Sigstore Rekor transparency log against the
     GitHub-Actions OIDC identity of the build workflow.
@@ -303,16 +303,16 @@ operational surface.
 
 Per `agents/kai.md` §"Vier Cross-Review-Zonen A-D":
 
-  * **Zone C — Container-Image-Pipeline x Tomás-OTS-Anchoring.**
+  * **Zone C — Container-Image-Pipeline x OTS-Anchoring.**
     The carrier image (`wakir-persona-engine`) is on the same
-    image-build pipeline that Tomás's OTS-anchoring chain already
+    image-build pipeline that dev engineering's OTS-anchoring chain already
     coordinates with; this policy adds the Rust-CLI binary
     surface as a first-class inventory item but does not change
     the image-build path or the digest-resolver workflow
     (`.github/workflows/resolve-image-pins-ci.yml`). No new
-    Zone-C event; the Sprint-9 Tag-4 wakir-provisioner policy
+    Zone-C event; the wakir-provisioner policy
     landed under the same posture.
-  * **Zone D — Phala-Cloud-Setup x Reza-V-904-Identity-Bridge.**
+  * **Zone D — Phala-Cloud-Setup x V-904-Identity-Bridge.**
     Phase-3b binaries are NOT in scope for V-904 / TEE-attestation
     yet — those land in Phase-3 substantive (V-904 Annex,
     ADR-0023b). The policy YAML's `schema_version` is bumped from
@@ -341,12 +341,12 @@ sequence. The hermetic tests
 the set invariant on each side; a binary added to one substrate
 without the other is rejected.
 
-> **Note on Tag-24 lock-step landing (ADR-0065 Phase-3c).** The
-> Tag-22 Mini-Welle landed the `subscribe-loop` Rust bridge
+> **Note on lock-step landing (ADR-0065 Phase-3c).** The
+> mini wave landed the `subscribe-loop` Rust bridge
 > (PR #181, ENV-switch production-default flip; module-level
-> constant `DEFAULT_RUST_SUBSCRIBE_LOOP_BIN`); the Tag-23
-> Mini-Welle landed the `anchor-emitter` Rust bridge (PR #184,
-> `DEFAULT_RUST_ANCHOR_EMITTER_BIN`). The Tag-24 Mini-Welle
+> constant `DEFAULT_RUST_SUBSCRIBE_LOOP_BIN`); the
+> mini wave landed the `anchor-emitter` Rust bridge (PR #184,
+> `DEFAULT_RUST_ANCHOR_EMITTER_BIN`). The mini wave
 > extends BOTH substrates (this Cosign-Policy AND the Quadlet
 > installer) in lock-step to a 7-binary inventory — ADR-0065
 > Phase-3c Trigger-Gate 2 (Cosign-Policy) and Trigger-Gate 3
@@ -354,5 +354,3 @@ without the other is rejected.
 > parity test (`test_cross_substrate_parity_with_quadlet_installer`)
 > stays green. An out-of-sequence policy bump that leaves the
 > Quadlet behind (or vice versa) is rejected by the parity test.
-
-— Kai

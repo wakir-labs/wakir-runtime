@@ -7,20 +7,20 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 **Status:** Living operations document.
 **Scope:** Build, sign and publish the
-`wakir-persona-engine-fsm` Rust-CLI container image (Welle-5
+`wakir-persona-engine-fsm` Rust-CLI container image (wave-5
 `lifecycle_state_machine` cutover substrate).
-**ADR anchor:** ADR-0066 §Phase-3c Welle-5
-`lifecycle_state_machine` (approved 2026-05-17). Tag-33 Mini-Welle.
+**ADR anchor:** ADR-0066 §Phase-3c wave-5
+`lifecycle_state_machine` (approved 2026-05-17).
 **Sibling docs:**
-- `docs/operations/v907-verify-image-build.md` (Welle-1).
-- `docs/operations/svid-workload-identity-image-build.md` (Welle-2).
-- `docs/operations/bridge-audit-writer-image-build.md` (Welle-3).
-- `docs/operations/state-backing-image-build.md` (Welle-4 sibling,
-  same Tag-33 Mini-Welle).
-- `docs/operations/subscribe-loop-image-build.md` (Welle-6 sibling,
-  same Tag-33 Mini-Welle).
-- `docs/operations/recovery-workflow-image-build.md` (Welle-7 sibling,
-  same Tag-33 Mini-Welle).
+- `docs/operations/v907-verify-image-build.md` (wave-1).
+- `docs/operations/svid-workload-identity-image-build.md` (wave-2).
+- `docs/operations/bridge-audit-writer-image-build.md` (wave-3).
+- `docs/operations/state-backing-image-build.md` (wave-4 sibling,
+  same mini wave).
+- `docs/operations/subscribe-loop-image-build.md` (wave-6 sibling,
+  same mini wave).
+- `docs/operations/recovery-workflow-image-build.md` (wave-7 sibling,
+  same mini wave).
 - `docs/operations/cosign-policy-phase-3b.md` (13-binary inventory
   now includes this image as `fsm-welle5`).
 
@@ -29,12 +29,12 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 ## 1. Why this image exists
 
 ADR-0066 (approved 2026-05-17) accelerates Phase-3c to 4 weeks. The
-Tag-33 Mini-Welle ships the **Welle-5 image-build** substrate: a
+mini wave ships the **wave-5 image-build** substrate: a
 dedicated single-binary Rust-CLI container image for the persona-
 engine lifecycle state-machine operator surface
 (persona-engine-format-spec §3.3, six states, nine transitions).
 
-The Welle-5 cutover step will pin this image in a dedicated Quadlet,
+The wave-5 cutover step will pin this image in a dedicated Quadlet,
 flip the `WAKIR_FSM_BACKEND=rust` operator flag and migrate the
 production-default backend from Python
 (`wirelang.persona_engine.lifecycle_state_machine`) to the Rust

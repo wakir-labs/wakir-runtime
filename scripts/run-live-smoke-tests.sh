@@ -2,8 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Live-NATS-Test-Mode driver for the Phase-2 Sprint-4 Tag-1 orchestrator
-# smoke contract (ADR-0051-rejected; Mira-Hand operative practice retained).
+# Live-NATS-Test-Mode driver for the orchestrator
+# smoke contract (ADR-0051-rejected; operator-hand operative practice retained).
 #
 # What this script does
 # ---------------------
@@ -46,9 +46,9 @@
 #     Pre-flight probes are localhost-only by default; a remote NATS
 #     can be targeted via ``WAKIR_NATS_URL`` but the operator must
 #     own the consequences.
-#   * It does NOT run inside the Mira-Sandbox. The Mira-Sandbox cannot
+# * It does NOT run inside the sandbox. The sandbox cannot
 #     reach the host NATS substrate (ADR-0051-rejected; operative
-#     Mira-Hand-Regel). Drive this script from the operator hand.
+# operator-hand Regel). Drive this script from the operator hand.
 #
 # Usage
 # -----
@@ -77,7 +77,7 @@
 #   3   bad CLI argument
 #
 # Verification stamp (P5/P7): authoring date 2026-05-11
-# (Sprint-4 Tag-1), substrate baseline ``nats:2.11-alpine``
+#, substrate baseline ``nats:2.11-alpine``
 # (Phase-1b production pin; see runbook §1).
 
 set -euo pipefail

@@ -7,15 +7,14 @@
 """WAT-side identity layer — anchor-kid reference + resolver bridge.
 
 This package is the WAT-side parallel to the Identity-Substrate
-``kid``-resolver (``wirelang.identity.kid_resolver``, Phase-2 Sprint-4
-Tag-3, Identity-Substrate-engineering owner). It carries the
+``kid``-resolver (``wirelang.identity.kid_resolver``, Identity-Substrate-engineering owner). It carries the
 **WAT-domain reference shape** that
 binds a hour-manifest to the AIP-document key that authorised the
 anchor, and a thin resolver bridge that re-uses the canonical
 Identity-Substrate resolver under the ``purpose == "wat-anchor"``
 filter.
 
-Cross-Review-Zone-1 alignment (DRY-consistent with Identity-Substrate-Sprint-4-Tag-3):
+Cross-Review-Zone-1 alignment (DRY-consistent with the kid-resolver spec):
 
 - The canonical resolver lives in ``wirelang.identity.kid_resolver``.
   This package does NOT re-implement the resolution algorithm; the
@@ -33,15 +32,15 @@ Cross-Review-Zone-1 alignment (DRY-consistent with Identity-Substrate-Sprint-4-T
 
 References:
 
-- Identity-Substrate-Sprint-4-Tag-3 kid-resolver spec §5.9 (operational contract):
+- kid-resolver spec §5.9 (operational contract):
   ``wirelang/identity/kid_resolver.py`` module docstring.
-- Z-1-K-Sprint-4-1 (kid-Resolver-Shape) — closed by Identity-Substrate-Sprint-4-Tag-3.
-- Z-1-K-Sprint-4-3 (two-curve-stack reinforced) — WAT-side anchor
+- Z-1-K-1 (kid-Resolver-Shape) — closed by the kid-resolver spec.
+- Z-1-K-3 (two-curve-stack reinforced) — WAT-side anchor
   consumes Ed25519 only, inherited from canonical resolver.
 - AIP-document schema purpose-enum:
   ``wirelang/schemas/aip-document.json`` §public_keys.purpose.
 
-This package is intentionally minimal in Sprint-4 Tag-5: it pins the
+This package is intentionally minimal: it pins the
 WAT-side reference shape + bridge contract. Manifest-level wire-up
 (adding an ``anchor_kid`` optional field to ``wat-manifest-v2.json``
 and a verifier-side resolver call) is a future slot — it requires

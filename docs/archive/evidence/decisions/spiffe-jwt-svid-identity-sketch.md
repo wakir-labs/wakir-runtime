@@ -502,14 +502,14 @@ registriert:
 
 > §7.8 SPIFFE/SPIRE Z-A JWT-SVID Container-Identity-Skizze
 > (Phase-2 Sprint-4 Tag-6 Origin + Sprint-6-Tag-5 Re-Write nach
-> Reza-Z-A-Ack 2026-05-11T21:16Z, docs/spiffe-z-a-jwt-svid-skizze.md).
+> Reza-Z-A-Ack 2026-05-11T21:16Z, docs/spiffe-jwt-svid-identity.md).
 > Cross-Review-Zone-A-Konsens vier Slots beantwortet (Aisha-Marker-
 > Recording pending). Keine Substrate-Änderung; reine Doku-Skizze
 > plus 3 hermetic Format-Konstanten-Tests. Phase-2-Sprint-5/6
 > Workload-API-Adapter-Implementation entblockt nach Aisha-Marker.
 
 Die §7.8-Sektion im Runbook-Body führt die Skizze als
-"siehe docs/spiffe-z-a-jwt-svid-skizze.md" mit Bucket-summary
+"siehe docs/spiffe-jwt-svid-identity.md" mit Bucket-summary
 auf, ähnlich wie §7.4 das Tag-2-First-Time-Live-Smoke-Execution-
 Record führt.
 

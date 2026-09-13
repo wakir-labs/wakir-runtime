@@ -1,25 +1,25 @@
-# 15-Binary SBOM Baseline Refresh — Operator Runbook (Tag-49)
+# 15-Binary SBOM Baseline Refresh — Operator Runbook
 
-**Owner:** Kai Hoffmann (Dev-Engineering-3)
-**Audience:** Operator-Hand + AR-Hand-Gate sign-off
-**Cadence:** On dependency-tree change accepted by AR; on Welle
+**Owner:** infrastructure engineering
+**Audience:** Operator-Hand + operator-hand-Gate sign-off
+**Cadence:** On dependency-tree change accepted by AR; on wave
 sign-off; ad-hoc on supply-chain advisory.
 
 ## What this runbook covers
 
-The Tag-49 SBOM-Verification-Workflow
+The SBOM-Verification-Workflow
 (`.github/workflows/sbom-verification-daily.yml`) compares the
 daily-generated 15-binary SBOMs against the pinned baseline in
 `tooling/baselines/sbom-baseline/`. When the verdict is non-GREEN, a
-Mira-Notify event is emitted with `severity=page` (RED) or
+Notify event is emitted with `severity=page` (RED) or
 `severity=warning` (YELLOW).
 
 This runbook is what the operator runs when AR has approved the
 new dependency-tree state and the baseline must be refreshed.
 
-## Tag-50 — automated path
+## — automated path
 
-The Tag-50 refresh CLI
+The refresh CLI
 (`scripts/observability/refresh-15-binary-sbom-baseline.py`)
 collapses the seven-step manual sequence below into a single
 invocation guarded by an `--approval-token` argument:
@@ -38,8 +38,8 @@ python3 scripts/observability/refresh-15-binary-sbom-baseline.py \
 
 The CLI:
 
-1. Runs the Tag-48 generator with `--generator-ts 0.0` (deterministic).
-2. Runs the Tag-49 verifier in pre-refresh mode → captures drift.
+1. Runs the generator with `--generator-ts 0.0` (deterministic).
+2. Runs the verifier in pre-refresh mode → captures drift.
 3. Blocks if `checksum-changed` drift is present unless
    `--allow-checksum-changed` is also supplied.
 4. Copies the generated SBOMs into `tooling/baselines/sbom-baseline/`.
@@ -64,14 +64,14 @@ and as the authoritative narrative of the refresh semantics.
 - The drift is a `checksum-changed` event on a `crates.io`
   package. **Stop.** That is a supply-chain integrity signal —
   the same `(name, version)` pair must NEVER produce a different
-  SHA-256 tarball hash. Escalate to Internal Audit (Henrik) and
-  CTO (Priya) before any refresh.
+  SHA-256 tarball hash. Escalate to Internal Audit (internal audit) and
+  CTO (the CTO) before any refresh.
 
 ## When TO run this
 
-- AR approved a new Welle that adds/removes/updates Rust deps.
+- AR approved a new wave that adds/removes/updates Rust deps.
 - A planned `cargo update` was merged and AR signed off.
-- A new binary was added to the Tag-45 inventory (in which case
+- A new binary was added to the inventory (in which case
   the inventory in `scripts/observability/generate-15-binary-sbom.py`
   must be updated first — separate PR).
 
@@ -87,7 +87,7 @@ Record the value. The new baseline will embed it.
 
 ### 2. Run the generator to produce a fresh bundle
 
-The same generator the Tag-48 daily workflow runs. Use
+The same generator the daily workflow runs. Use
 `--generator-ts 0.0` for deterministic embedded metadata so the
 baseline files compare byte-for-byte across machines:
 
@@ -120,14 +120,14 @@ exact diff the operator hands AR for sign-off.
 
 ### 4. Capture the AR sign-off
 
-In the PR description (or AR-Hand-Gate doc) capture:
+In the PR description (or operator-hand-Gate doc) capture:
 
 - The cargo-lock SHA-256 before and after.
 - The list of components added / removed / version-changed.
 - Any `checksum-changed` entries — these MUST be justified
   (yanked-then-republished crate? confirmed via crates.io
   metadata + Internal Audit review).
-- AR sign-off line: `AR-Hand-Gate: approved <date> <name>`.
+- External-audit sign-off line: `Audit-Gate: approved <date> <name>`.
 
 ### 5. Refresh the baseline files
 
@@ -160,7 +160,7 @@ git add tooling/baselines/sbom-baseline/
 git commit -m "ops(sbom-baseline): refresh Tag-NN baseline after AR sign-off"
 ```
 
-PR description must reference the AR-Hand-Gate sign-off, the
+PR description must reference the operator-hand-Gate sign-off, the
 cargo-lock SHA-256 before/after, and the drift summary.
 
 ## Failure-mode catalog
@@ -170,11 +170,11 @@ cargo-lock SHA-256 before/after, and the drift summary.
 | `component-added` only | YELLOW | Standard AR-sign-off; refresh expected. |
 | `component-removed` only | YELLOW | Confirm intentional; refresh after AR. |
 | `version-changed` only | YELLOW | Confirm `cargo update` was intentional; refresh after AR. |
-| `checksum-changed` | RED | STOP. Supply-chain event. Escalate to Henrik + Priya. |
+| `checksum-changed` | RED | STOP. Supply-chain event. Escalate to internal audit + the CTO. |
 | `MISSING-BASELINE` | RED | A baseline file is missing. Restore from previous commit; do NOT refresh forward to hide the deletion. |
 | Per-binary `current_cargo_lock_sha256` differs from aggregate | RED | Substrate inconsistency. Re-run generator; if persists, file Internal Audit ticket. |
 
-## Mira-Notify event surface
+## Notify event surface
 
 When the daily workflow detects non-GREEN, it emits one event with:
 
@@ -184,17 +184,15 @@ When the daily workflow detects non-GREEN, it emits one event with:
 - `labels.verdict={GREEN,YELLOW,RED}`
 - `source=sbom-verification-daily-workflow`
 
-The Mira-Notify receiver materialises an inbox file in
+The Notify receiver materialises an inbox file in
 `agents-workspaces/mira/inbox/`. Operator-Hand reads the inbox
 file + Job-Summary + envelope artefact to triage.
 
 ## Anchors
 
-- ADR-0066 §AR-Hand-Gate — pre-cutover sign-off bundle.
-- Tag-48 PR #310 — 15-binary SBOM generator.
-- Tag-49 — this verifier + workflow + baseline state.
+- ADR-0066 §operator-hand-Gate — pre-cutover sign-off bundle.
+- PR #310 — 15-binary SBOM generator.
+- — this verifier + workflow + baseline state.
 - `feedback_sandbox_host_trennung.md` — no live cargo I/O.
 - `docs/observability/pre-mortem-failure-mode-notify-catalog.md` —
-  Mira-Notify event-schema reference.
-
-— Kai
+  Notify event-schema reference.

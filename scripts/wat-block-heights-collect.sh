@@ -9,7 +9,7 @@
 # writes a balance report (counts pending vs finalised, lists block
 # heights per calendar). Designed for two roles:
 #
-#   1. After a Tag-22-style smoke run, populate the audit log with
+# 1. After a style smoke run, populate the audit log with
 #      the actual Bitcoin block heights that anchor the hour.
 #   2. As an operator one-shot during incident response, when the
 #      backfill timer is paused and a human wants to see which
@@ -100,7 +100,7 @@ for receipt in "${RECEIPTS[@]}"; do
 
     # Parse ots info for block heights and pending markers per calendar.
     #
-    # NOTE on pipefail (Tag-14 fix): with ``set -euo pipefail`` an empty
+    # NOTE on pipefail: with ``set -euo pipefail`` an empty
     # ``grep`` (no matches) returns exit 1 inside a ``$(...)`` substitution
     # and kills the whole script before the report block ever runs. That
     # is exactly the pending-receipt path. We therefore wrap each pipeline

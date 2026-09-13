@@ -109,13 +109,13 @@ want to touch the public network at all.
 
 * **`--output-format json`** (default): stable structured output
   matching `AnchorVerification.to_dict()`. Designed to be piped to
-  `jq` or stored next to the anchor for audit trail. Tag-1 contract.
-* **`--output-format text`** (Tag-2): 2-3 sentences per pole with
+  `jq` or stored next to the anchor for audit trail.
+* **`--output-format text`**: 2-3 sentences per pole with
   ASCII status symbol (`[+]` / `[-]`) plus a `Quorum conclusion`
   block at the end. Operator-Plattform wording (ADR-0055): "operator
   endpoint", "audit trail", "third-party auditor" — no "user" /
   "consumer-app" language. Use this for brand-demo and
-  Aufsichtsrat-readable verification reports.
+  reviewer-readable verification reports.
 
 ## Witness-capture mode
 
@@ -153,8 +153,8 @@ tests.
 ## Operator-hand recipe: end-to-end live capture against a real TV-1 receipt
 
 When `pyopentimestamps` and the upstream `ots` CLI are installed on
-the operator host, the full Tag-2 brand-demo workflow runs as
-follows. This is the recipe the Aufsichtsrat sees during a brand-
+the operator host, the full brand-demo workflow runs as
+follows. This is the recipe an external reviewer sees during a brand-
 proof demo; it requires outbound HTTP to mempool.space and
 blockstream.info, so it is an operator-host action, not a sandbox
 action.

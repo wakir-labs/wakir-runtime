@@ -7,14 +7,14 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 **Status:** Living operations document.
 **Scope:** All three public repos under `wakir-labs/` org.
-**Last audit:** 2026-05-17 (Kai, Tag-16 Pfad A path-filter precision-add;
+**Last audit:** 2026-05-17 (infrastructure engineering Pfad A path-filter precision-add;
 widened the `cross-repo-drift-audit.yml` path-filter from the original
 4-entry narrow set to an 8-entry set, closing the forever-PENDING
 reach-asymmetry that hit PRs #153, #158, #160, #161 — each one had
 needed an ad-hoc no-op `wirelang/__init__.py` touch as workaround).
-Prior audit: 2026-05-17 (Kai, Sprint-Branch-Protection-cross-repo-
+Prior audit: 2026-05-17 (infrastructure engineering, branch-protection cross-repo
 drift-Required-MINI; promoted §4.2 `cross-repo drift` from "recommendation"
-to "ready-to-apply, Mira-Hand-pending", subsequently applied 04:35 CEST).
+to "ready-to-apply, Hand-pending", subsequently applied 04:35 CEST).
 **Source of truth:** `gh api repos/wakir-labs/<repo>/branches/main/protection`.
 
 ---
@@ -32,7 +32,7 @@ This document is the operator's cross-repo reference so that:
 
 * a) the actual required-set in each repo is visible without an API call,
 * b) the convergence-gap to a shared Sollstellung is visible,
-* c) a Mira-Hand operator can re-apply the recommended set in one
+* c) an operator can re-apply the recommended set in one
   copy-paste step per repo when Branch-Protection drifts.
 
 The document is hermetic (no live API calls); the consistency test
@@ -54,12 +54,12 @@ Post-§4.2-promotion stand (re-verified 2026-05-17 04:35 CEST via
 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | `wirelang suite with rfc8785 + jsonschema` |
 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` (replaces `cross-repo drift (wakir-runtime ↔ wakir-protocol)`, ADR-0072 W4) |
 
-§4.2 promotion applied 2026-05-17 04:35 CEST (Mira-Hand-Operator, AR-
+§4.2 promotion applied 2026-05-17 04:35 CEST (Hand-Operator, AR-
 authorised via "Ja, aktiviere Branch-Protection wakir-runtime/main"
-2026-05-16 17:08 CEST + §4.2 Mira-Hand-pending in PR #144 doc).
+2026-05-16 17:08 CEST + §4.2 Hand-pending in PR #144 doc).
 
-The Tag-3 candidate `Hash-Derivate-Drift Gate (Sprint-Stability Tag-3)`
-was **not** promoted to required in the Tag-4 timeframe (intentional
+The candidate `Hash-Derivate-Drift Gate`
+was **not** promoted to required in the timeframe (intentional
 withdrawal — see §4.4 anti-pattern). The workflow remains in-tree and
 runs on its narrow path-filter, but its Required-status promotion was
 held back because the path-filter is too tight to satisfy the
@@ -86,7 +86,7 @@ Identical to `wakir-verify` (same three checks, same workflow filenames,
 same gate flags). The repo was split out of `wakir-verify` under
 ADR-0062 Phase 2 and inherited the CI/protection topology 1:1.
 
-Post-Tag-4 stand (re-verified 2026-05-16 ~19:36 CEST): unchanged from
+Post stand (re-verified 2026-05-16 ~19:36 CEST): unchanged from
 the original 2026-05-16 audit; `wakir-verify` and `wakir-protocol`
 required-sets remain at 3 contexts each.
 
@@ -138,16 +138,16 @@ All three repos should converge on three classes of required-check:
      if the matrix mirrors the verify-side) to required after a
      burn-in PR confirms the check-name.
 
-### 4.1 Withdrawn (Tag-3 → Tag-4): Hash-Derivate-Drift Gate
+### 4.1 Withdrawn (→): Hash-Derivate-Drift Gate
 
 PR #101 (2026-05-15) added `hash-derivate-gate.yml` with job display-name
-`Hash-Derivate-Drift Gate (Sprint-Stability Tag-3)`. Its functional
+`Hash-Derivate-Drift Gate`. Its functional
 purpose — preventing schema-fixture hash-derivative drift that would
 silently break the external-verifier-conformance lane — is sound and
 the workflow stays in-tree.
 
 The original 2026-05-16 audit recommended promoting this gate to
-Required. **That recommendation is withdrawn** as of the post-Tag-4
+Required. **That recommendation is withdrawn** as of the post
 refresh. Rationale: the workflow's path-filter is intentionally tight
 (`wirelang/schemas/**`, `tests/fixtures/schema-registry/**`, the
 hash-derivate test file, the workflow YAML itself). On any PR that
@@ -163,7 +163,7 @@ reach rule that supersedes the §4.1 recommendation.
 
 ### 4.2 Score-bewegung — `cross-repo drift` Required-promotion (wakir-runtime)
 
-**Status as of 2026-05-17: ready-to-apply, Mira-Hand-pending.**
+**Status as of 2026-05-17: ready-to-apply, Hand-pending.**
 (Promoted from "recommendation" to "ready-to-apply" after PR #105/#111/
 #117 have been merged and the workflow has burned in for one stable
 period without check-name drift.)
@@ -174,7 +174,7 @@ The gate enforces that any classification-drift of a wirelang substance
 on `wakir-runtime` is mirrored on `wakir-protocol` or explicitly
 allowlisted in `.cross-repo-drift-allowlist.yaml`.
 
-Its path-filter (after Tag-16 Pfad A precision-add, 2026-05-17):
+Its path-filter (after Pfad A precision-add, 2026-05-17):
 
 ```
 wirelang/**
@@ -187,7 +187,7 @@ dashboards/**
 .github/workflows/cross-repo-drift-audit.yml
 ```
 
-Reach analysis (§4.5, post-Tag-16): the filter covers `wirelang/**`,
+Reach analysis (§4.5, post): the filter covers `wirelang/**`,
 `wirelang-rust/**`, `pyproject.toml`, `tests/**`, `scripts/**`, and
 `dashboards/**`, which together intersect every code-, test-, and
 dashboard-substance PR in the repo. Doc-only PRs (`docs/**`) and
@@ -201,7 +201,7 @@ and (b) the other Required gates (`wirelang suite`,
 license/legal-hygiene drift that could ride in via documentation
 edits.
 
-**Tag-16 Pfad A rationale.** The original 4-entry path-filter (only
+**Pfad A rationale.** The original 4-entry path-filter (only
 `wirelang/**` + `pyproject.toml` + allowlist + own YAML) left every
 PR that did not touch those paths in forever-PENDING — the Required
 context never reported because the workflow never ran. This shape hit
@@ -221,7 +221,7 @@ from 8/9 = 0.889 → 9/9 = 1.0 once promotion is applied (the
 `wakir-verify` / `wakir-protocol`, since they have no second repo to
 mirror against). See §4.3 for both readings.
 
-**Pre-flight checklist (Mira-Hand-Operator must confirm before
+**Pre-flight checklist (Hand-Operator must confirm before
 applying):**
 
 1. PR #105, #111, #117 all merged into `wakir-labs/wakir-runtime/main`
@@ -239,7 +239,7 @@ applying):**
    matches the operator's intent. Run:
    `pytest tests/infra/test_branch_protection_consistency_audit.py -v`.
 
-**Mira-Hand-Operator command block.** Run literally, one repo, one
+**Hand-Operator command block.** Run literally, one repo, one
 branch (no force-flags, no `-y`). Note the Unicode arrow `↔` (U+2194)
 in the context string — copy-paste directly from this block; do not
 re-type:
@@ -310,7 +310,7 @@ The Sollstellung uses two reading-modes:
   `wakir-protocol` keep {license, code, security}. `wakir-runtime`
   swaps the still-open security axis (§7 CodeQL gap, out-of-scope
   for this sprint) for the cross-repo-symmetry axis, since the
-  Mira-Hand-§4.2 promotion is what is actually achievable in the
+  The §4.2 promotion is what is actually achievable in the
   current operator-stretch. Denominator stays 3 per repo; the
   org-wide denominator stays 9.
 
@@ -328,7 +328,7 @@ because pre-promotion the runtime's cross-repo-symmetry slot is also
 0 and the swap of {security → cross-repo-symmetry} on runtime is
 0-for-0.
 
-**Post-promotion stand (once §4.2 Mira-Hand-Operator command-block
+**Post-promotion stand (once §4.2 Hand-Operator command-block
 is applied):**
 
 | Repo | License | Code | Security | Cross-Repo-Sym | Uniform-3-axis | In-scope-axes |
@@ -384,7 +384,7 @@ path-filter `wirelang/schemas/**`, `tests/fixtures/schema-registry/**`,
 its own test file, its own YAML. A PR touching only `wirelang/wat/**`
 (legitimate Merkle-tree work) does not trigger this workflow. If the
 gate were Required, that PR would stall forever-PENDING. The
-2026-05-15 Tag-3 recommendation to promote this gate predated the
+2026-05-15 recommendation to promote this gate predated the
 path-filter-reach analysis below and is withdrawn (§4.1).
 
 **Concrete failure-history.** Three PRs today exhibited the
@@ -426,7 +426,7 @@ Reach-matrix (✓ = workflow triggers on this PR-class, ✗ = does not):
 | `tests.yml` (wirelang suite) | ✓ | ✓ | ~ (only listed workflows) | ✓ | ✓ |
 | `license-gate.yml` (License-Hygiene) | ✓ | ✓ | ~ (only listed workflows) | ✓ | ✓ |
 | `hash-derivate-gate.yml` | ~ (only schemas+fixtures) | ~ (only its test) | ~ (only itself) | ✗ | ✗ |
-| `cross-repo-drift-audit.yml` (post Tag-16 Pfad A) | ✓ (via `wirelang/**` + `wirelang-rust/**`) | ✓ (via `tests/**`) | ~ (only itself) | ✗ (by design) | ✓ (via `dashboards/**`) |
+| `cross-repo-drift-audit.yml` (post Pfad A) | ✓ (via `wirelang/**` + `wirelang-rust/**`) | ✓ (via `tests/**`) | ~ (only itself) | ✗ (by design) | ✓ (via `dashboards/**`) |
 | `phase-2-validation-gate.yml` | ~ (only `wirelang/**`) | ~ (only its test) | ~ (only itself) | ~ (only `docs/quality-gates/**`) | ✗ |
 
 Legend: ✓ = full class triggers; ~ = partial trigger; ✗ = no trigger.
@@ -440,12 +440,12 @@ in its own filter). They are appropriate as Required.
 `hash-derivate-gate.yml` has ✗ on the dashboard-only and doc-only
 classes and partial on the rest — **not Required-fit** per §4.4.
 
-`cross-repo-drift-audit.yml` (post Tag-16 Pfad A path-filter
+`cross-repo-drift-audit.yml` (post Pfad A path-filter
 precision-add, 2026-05-17): now ✓ on code-only, test-only, dashboard-
 only; ✗ on doc-only (intentional — see Path-Filter-Reach-Mapping
 below) and on foreign-workflow-only (intentional — by construction
 out-of-scope of the substance audit). Required-fit unconditionally
-under §4.5 reach analysis. Pre-Tag-16 it was ✓ only on code-only and
+under §4.5 reach analysis. Pre it was ✓ only on code-only and
 classified as conditionally-fit (§4.2-pending); the path-filter
 expansion closed the reach-asymmetry that caused forever-PENDING
 blocks on PRs #153, #158, #160, #161.
@@ -455,10 +455,10 @@ and per the reach-matrix it should not become one without a path-filter
 widen (or a deliberate decision that Phase-2 validation only matters
 on `wirelang/**` PRs — defensible but should be explicit).
 
-#### Path-Filter-Reach-Mapping (Tag-16 update, 2026-05-17)
+#### Path-Filter-Reach-Mapping (update, 2026-05-17)
 
 The `cross-repo-drift-audit.yml` workflow path-filter is the
-operational lesson of Tag-16. The original 4-entry narrow filter
+operational lesson. The original 4-entry narrow filter
 worked-by-design for substance-classification PRs but failed-by-
 design for every other PR-class once the workflow's display-name was
 promoted to a Required-status-check on `wakir-runtime/main` (§4.2,
@@ -467,7 +467,7 @@ promoted to a Required-status-check on `wakir-runtime/main` (§4.2,
 unblocked by an ad-hoc no-op `wirelang/__init__.py` touch (PRs #153,
 #158, #160, #161 — four occurrences in one operator-stretch).
 
-The Tag-16 Pfad A precision-add widens the filter to also cover
+The Pfad A precision-add widens the filter to also cover
 `wirelang-rust/**` (Rust crate sibling of the Python `wirelang/`
 package), `tests/**` (so test-only PRs no longer need the workaround
 touch), `scripts/**` (so scripts-only PRs likewise), and
@@ -480,7 +480,7 @@ also remain non-reach by design.
 **Reach-closure regression-anchors.** TV-BPC-09 +
 TV-BPC-11 + TV-BPC-13 + TV-BPC-14 in
 `tests/infra/test_branch_protection_consistency_audit.py` pin the
-post-Tag-16 reach shape. Any future YAML-edit that drops a Pfad-A
+post reach shape. Any future YAML-edit that drops a Pfad-A
 entry surfaces under a single-entry-failure message ("entry X is
 missing") in TV-BPC-13. Any future re-addition of the workflow to
 the narrow-by-design cohort surfaces in TV-BPC-14. Any new
@@ -501,11 +501,11 @@ TV-BPC-12.
 
 ---
 
-## 5. Mira-Hand operator steps
+## 5. Operator steps
 
 These steps are **not** automated. Branch-protection edits sit with
 the operator under the continuous-mode rule
-`feedback_anti_eskalations_drift` (operator-touch on Mira-Hand-Operator,
+`feedback_anti_eskalations_drift` (operator-touch on Hand-Operator,
 no AR sighting needed for routine apply).
 
 ### 5.1 Re-discover the exact check-display-name
@@ -575,9 +575,9 @@ embedded in the test file.
 
 ## 7. Open items
 
-* **Ready-to-apply (Mira-Hand-Operator-pending, 2026-05-17):** promote
+* **Ready-to-apply (Hand-Operator-pending, 2026-05-17):** promote
   `cross-repo drift (wakir-runtime ↔ wakir-protocol)` to required on
-  `wakir-runtime/main`. Pre-flight checklist + Mira-Hand-Operator
+  `wakir-runtime/main`. Pre-flight checklist + operator
   command-block in §4.2. Score-bewegung 8/9 (3-axis) → 9/9 (4-axis).
   Post-apply doc-sync: update §2.1 + §4.3 table + flip TV-BPC-01
   fixture in the consistency test (§4.2 last paragraph).
@@ -596,5 +596,3 @@ embedded in the test file.
 * Decide whether `phase-2-validation-gate` becomes Required after a
   path-filter audit (§4.5 row) — currently reach is too partial for
   Required-status.
-
-— Kai

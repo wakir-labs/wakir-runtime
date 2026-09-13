@@ -3,8 +3,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreStart
 """Pre-commit SPDX-header check for newly-added substance files.
-
-Tag-32 EXT-AUDIT-FOLGE companion hook. Reads the list of staged
+ EXT-AUDIT-FOLGE companion hook. Reads the list of staged
 files passed by ``pre-commit`` on the command line, filters down to
 *added* files (status ``A`` from ``git diff --cached --name-status``)
 and verifies every survivor carries an ``SPDX-License-Identifier:``
@@ -36,9 +35,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Files whose SPDX-presence is enforced by this hook. The list mirrors
-# the file-types-of-substance enumerated in the server-side license-
-# gate path-filter (`.github/workflows/license-gate.yml`).
+# Files whose SPDX-presence is enforced by this hook. The list is the
+# file-types-of-substance the server-side License-Hygiene Gate checks
+# (`.github/workflows/license-gate.yml`, which runs on every pull
+# request and carries no `paths:` filter since ADR-0072 W5).
 SUBSTANCE_SUFFIXES = frozenset(
     {
         ".py",

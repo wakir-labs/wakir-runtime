@@ -5,30 +5,29 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # WAT Brand-Asset Snapshot — JSON Schema Spec (Stub)
 
-Status: **stub / draft**, KW-21-Brand-Launch-Vorbereitung
-Owner: dev-engineering / matrix-lead
-Origin: Tag-24 Item 4 (Brand-Demo-Snapshot-Distribution-Vorbereitung,
-Tag-23-followup), Sprint-Frontend-2-Trigger-Surface
-Bezug: `agents-workspaces/dev-engineering/outbox/2026-05-07-brand-demo-anker-tv2-vollanker.md`
-(Tag-23 Brand-Demo-Memo, TV-2 4-of-4-Voll-Anker), Sprint-Frontend-1
-Brand-Asset-Embed-Item, ADR-0009 §3 Acceptance, ADR-0047
-Live-Run-Vollanker.
+Status: **stub / draft**, brand-launch preparation
+Owner: dev-engineering
+Origin: brand-demo snapshot-distribution preparation; frontend
+trigger-surface item
+Context: brand-demo memo (TV-2 four-of-four full anchor), frontend
+brand-asset embed item, ADR-0009 §3 Acceptance, ADR-0047 live-run
+full anchor.
 
 This stub is **not** an implementation directive. It is the
-JSON-Schema-Surface so frontend-engineering can plan the Sprint-Frontend-2-Item
+JSON-Schema-Surface so frontend engineering can plan the item
 "brand-page consumes structured snapshot" without waiting for the
-JSON-mode Tag-25-Verifier-Pickup.
+JSON-mode verifier pickup.
 
 ---
 
 ## 1. Problem statement
 
-The Tag-23 Brand-Demo-Memo
+The Brand-Demo-Memo
 (`outbox/2026-05-07-brand-demo-anker-tv2-vollanker.md`) is markdown
-and human-readable. The Sprint-Frontend-1-Item embeds the markdown
-prose directly into the brand page. That works for KW-20 mockups.
+and human-readable. The frontend brand-page item embeds the markdown
+prose directly into the brand page. That works for mockups.
 
-For KW-21 brand-launch and beyond, the brand page should consume a
+For brand-launch and beyond, the brand page should consume a
 **structured JSON snapshot** with the same facts, so:
 
 1. Frontend can render the live-anchored facts without re-parsing
@@ -39,14 +38,14 @@ For KW-21 brand-launch and beyond, the brand page should consume a
    snapshot URL and verify against the chain independently.
 
 The snapshot schema is **separate** from the verifier `--output json`
-schema (Tag-25 pickup, per-event-id verification result). This is
+schema (pickup, per-event-id verification result). This is
 a hour-aggregate, multi-receipt, brand-display-oriented payload —
 the verifier-result schema is per-event-id and audit-oriented.
 
 ## 2. Snapshot schema (proposed)
 
 JSON file, served at `https://wakir.dev/brand/snapshot.json` (or
-similar; URL-stability is a Sprint-Frontend-2 decision).
+similar; URL stability is a frontend decision).
 
 ```json
 {
@@ -148,7 +147,7 @@ without iterating `hours[]`. All values are derived from `hours[]`
 
 - `headline`: short copy-paste-fähige Aussage. Default DE; optional
   i18n via separate `summary_i18n: {locale: {headline, ...}}` block
-  if frontend needs it (Sprint-Frontend-3-Item).
+  if frontend needs it (later frontend item).
 - `hours_anchored`: `len(hours)`.
 - `calendars_per_hour`: derived `len(hours[0].calendar_anchors)`,
   assumes all hours have the same calendar set (true for TV-2-style
@@ -159,7 +158,7 @@ without iterating `hours[]`. All values are derived from `hours[]`
 - `block_height_min`, `block_height_max`, `block_height_span_blocks`:
   obvious min/max/diff.
 - `closure_latency_hours`: hours from first calendar-submit to
-  4-of-4-finalisation (Tag-22-style ~13 h for TV-2). Integer hours,
+  four-of-four finalisation (~13 h for TV-2). Integer hours,
   rounded down. v1.1 may add minutes.
 - `first_anchored_at_utc`: when the first calendar-submit happened
   (= run-start-time, RFC 3339).
@@ -206,7 +205,7 @@ omit them (CSP / link-policy decision).
 Free-text list of brand-disclosed limitations. Examples:
 
 - "Snapshot is a static export of one successful run; chain-tip
-  moves on."
+  moves."
 - "Verifier exit-codes are stable; archive layout may evolve."
 - "Reorg risk on `block_height_max - chain_tip < 6` blocks is
   noted at generation time but not auto-tracked."
@@ -219,7 +218,7 @@ JSON to stdout. Invocation:
 
 ```bash
 python -m wat.cmd.brand_snapshot \
-  --archive-dir .runtime/wat-tv2-archive/20260506T173726Z \
+  --archive-dir.runtime/wat-tv2-archive/20260506T173726Z \
   --tv-marker tv2 \
   --headline "Multi-Hour Audit-Trail in Bitcoin verankert" \
   > docs/brand/snapshot-tv2-20260506.json
@@ -250,7 +249,7 @@ Exit codes: `0` on success, `1` on archive-malformed, `2` on
 Esplora-fetch-fail, `3` on no-finalised-receipts (= run hasn't
 closed yet; brand page should keep the previous snapshot).
 
-## 5. Sprint-Frontend-2 Trigger-Surface
+## 5. Frontend trigger surface
 
 Frontend consumption:
 
@@ -261,13 +260,13 @@ Frontend consumption:
   Section-3b-style table, `external_explorer_links[]` as outbound
   links.
 - Cache-control: 24 h; snapshot regenerated at most daily during
-  KW-21-launch period.
+  launch period.
 
 Frontend does **not** validate Bitcoin attestations. The snapshot
 is the trust surface; independent verification is the
 `verify.cli_command_template` for users who want to re-check.
 
-## 6. Open questions (must resolve before Sprint-Frontend-2 implementation)
+## 6. Open questions (must resolve before the frontend implementation)
 
 1. **Snapshot URL stability:** `wakir.dev/brand/snapshot.json` vs
    `wakir.dev/brand/snapshot-<run-id>.json` (with index)? Mein
@@ -279,9 +278,9 @@ is the trust surface; independent verification is the
    `summary_i18n.de`. Comms-Cross-Review-Zone-G sign-off.
 3. **Caveat curation:** wer freigibt die `caveats[]`-Liste vor
    Brand-Launch? Mein Vorschlag: comms / brand-voice owner +
-   internal-audit reviewer. Beide vor KW-21-Launch.
+   internal-audit reviewer. Both before launch.
 4. **Multi-cap-events forward-compat:** wenn Manifest-v2 emerges
-   (post-Sprint-2), erweitert Snapshot um `multi_cap_events_count`
+   (post), erweitert Snapshot um `multi_cap_events_count`
    in `summary` und optional `caprefs_root` per hour. Schema-Bump
    `wakir-brand-snapshot/1.1` (additive, kein Major).
 
@@ -289,7 +288,7 @@ is the trust surface; independent verification is the
 
 | Persona      | Impact                                                                 |
 | ------------ | ---------------------------------------------------------------------- |
-| frontend     | **Sprint-Frontend-2 Trigger** — consumes JSON, renders brand page.     |
+| frontend     | **Frontend trigger** — consumes JSON, renders brand page.             |
 | comms        | **OQ-2 + OQ-3** — i18n default + caveat curation.                      |
 | wirelang     | None for v1.0; OQ-4 (multi-cap forward-compat) is v1.1.                |
 | sre          | Snapshot generation runs on cron post-Voll-Anker-run; SRE-Pipeline-    |
@@ -299,19 +298,19 @@ is the trust surface; independent verification is the
 
 ## 8. Implementation timeline (proposed)
 
-- **Sprint-1 Tag-25:** verifier `--output json` (frontend-engineering
-  pickup, Tag-23-Inbox-Memo) lands. **Different schema** (per-event-
+- **:** verifier `--output json` (frontend-engineering
+  pickup) lands. **Different schema** (per-event-
   id result), but shares `verify.exit_codes` semantics with this
   snapshot.
-- **Sprint-2 Tag-1-2:** `wat/cmd/brand_snapshot.py` scaffold, walks
+- **:** `wat/cmd/brand_snapshot.py` scaffold, walks
   TV-2-archive, emits v1.0 JSON. Tests against TV-2 archive fixture.
-- **Sprint-2 Tag-3:** Esplora-fetch integration, block-hash + tx-hash
+- **:** Esplora-fetch integration, block-hash + tx-hash
   enrichment. Cache.
-- **Sprint-2 Tag-4:** OQ-1/2/3 resolution (Cross-Review Zone E + G),
+- **:** OQ-1/2/3 resolution (Cross-Review Zone E + G),
   schema-frozen.
-- **Sprint-Frontend-2 (parallel):** Frontend consumes snapshot,
+- **Frontend (parallel):** Frontend consumes snapshot,
   hero + Section-3b-collapsible.
-- **KW-21:** Brand-launch with snapshot-driven page.
+- **:** Brand-launch with snapshot-driven page.
 
 ---
 

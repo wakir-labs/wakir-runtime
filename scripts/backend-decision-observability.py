@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""backend-decision-observability — Tag-22 Backend-Decision-Aggregator (SRE).
+"""backend-decision-observability — Backend-Decision-Aggregator (SRE).
 
 Background
 ----------
 
-Phase-3b production-default switches (Tag-17 through Tag-21) wire five
+Phase-3b production-default switches (through) wire five
 ``BackendDecision`` emit points in
 :mod:`wirelang.persona_engine.rust_backend_switch`, one per
 component:
 
-  * ``recovery``      — Tag-17 (PR #168)
-  * ``state_backing`` — Tag-17 (PR #168, twin emit-point)
-  * ``fsm``           — Tag-18 (PR #169)
-  * ``v907_verify``   — Tag-19 (PR #171)
-  * ``bridge_diff``   — Tag-20 (PR #175)
+  * ``recovery`` — (PR  #168)
+  * ``state_backing`` — (PR  #168, twin emit-point)
+  * ``fsm`` — (PR  #169)
+  * ``v907_verify`` — (PR  #171)
+  * ``bridge_diff`` — (PR  #175)
 
 Each engine boot emits one ``BackendDecision`` record per component
 through :func:`log_backend_decision` into the engine's log_sink. The
@@ -33,7 +33,7 @@ on-disk schema (see ``log_backend_decision`` in
         "bin_path": "<path>|null"
     }
 
-Until this Tag-22 aggregator lands, there is no centralized
+Until this aggregator lands, there is no centralized
 observability over these records: an operator who wants to know
 "what share of Phase-3b boots are still falling back to Python on
 the v907_verify component" has to grep the JSONL by hand. This
@@ -41,11 +41,11 @@ aggregator is the SRE-side substrate that turns the per-boot
 records into a five-component dashboard.
 
 It is the **per-component-backend parallel** to the existing
-per-routing-mode aggregator (Noa Tag-16, PR #161) and per-model
-cost aggregator (Noa PR #110). Together those three views answer
-"which model did the router pick" (Tag-16), "what did each model
+per-routing-mode aggregator (the SRE track-16, PR  #161) and per-model
+cost aggregator. Together those three views answer
+"which model did the router pick", "what did each model
 cost" (PR #110), and now "which language backend did each engine
-component boot under" (Tag-22).
+component boot under".
 
 The companion Grafana dashboard is
 ``dashboards/persona-engine-backend-decisions.json``.
@@ -141,7 +141,7 @@ Run mode
 
 Stdlib-only. Driven by a 5-minute systemd-user-timer cadence
 inside the ``claude-dev`` toolbox container — the same substrate
-Kai already runs for the cost, cache, and routing aggregators.
+DevOps already runs for the cost, cache, and routing aggregators.
 
 Exit codes
 ----------
@@ -699,7 +699,7 @@ def build_argparser() -> argparse.ArgumentParser:
             "the Phase-3b production-default switches in "
             "wirelang.persona_engine.rust_backend_switch. Outputs JSON "
             "for operators or Prometheus exposition for the "
-            "node-exporter textfile collector. Tag-22 SRE artefact."
+            "node-exporter textfile collector. SRE artefact."
         ),
     )
     p.add_argument(
