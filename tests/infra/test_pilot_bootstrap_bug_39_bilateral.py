@@ -172,10 +172,10 @@ def test_step_15_wired_after_step_8(bootstrap_source: str) -> None:
     s8_idx = main_body.find('"step_8_smoke"')
     s15_idx = main_body.find("step_15_bilateral_precheck")
     assert s8_idx > 0 and s15_idx > 0, (
-        "step_8_smoke and step_15_bilateral_precheck must both be in main()"
+        "step_8_smoke and step_15_bilateral_precheck must both be in main"
     )
     assert s15_idx > s8_idx, (
-        "step_15_bilateral_precheck must be wired AFTER step_8_smoke in main()"
+        "step_15_bilateral_precheck must be wired AFTER step_8_smoke in main"
     )
 
 
@@ -204,5 +204,5 @@ def test_decision_note_content(decision_note_text: str) -> None:
     )
     # AR decision-points section.
     assert "AR" in decision_note_text and "Decision-points" in decision_note_text, (
-        "Decision-note must include AR/Mira decision-points section"
+        "Decision-note must include AR/the CEO decision-points section"
     )

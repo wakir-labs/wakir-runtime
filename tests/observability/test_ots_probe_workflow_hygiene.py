@@ -104,7 +104,7 @@ def probe_job(workflow_doc: dict) -> dict:
     jobs = workflow_doc.get("jobs")
     assert isinstance(jobs, dict) and jobs, "workflow must declare jobs"
     assert list(jobs.keys()) == ["ots-pre-anchor-activation-probe"], (
-        "Tag-70 invariant: exactly one job named "
+        "invariant: exactly one job named "
         "'ots-pre-anchor-activation-probe'"
     )
     job = jobs["ots-pre-anchor-activation-probe"]
@@ -126,7 +126,7 @@ def step_names(probe_job: dict) -> list[str]:
 
 def test_01_workflow_file_exists() -> None:
     assert WORKFLOW_PATH.is_file(), (
-        f"Tag-70 invariant: workflow must live at "
+        f"invariant: workflow must live at "
         f"'.github/workflows/ots-pre-anchor-activation-probe.yml' "
         f"(got {WORKFLOW_PATH})"
     )
@@ -148,7 +148,7 @@ def test_03_exactly_one_probe_job(probe_job: dict) -> None:
 def test_04_install_pytest_step_present(step_names: list[str]) -> None:
     matches = [n for n in step_names if n.lower().startswith("install pytest")]
     assert len(matches) == 1, (
-        f"Tag-70 fix marker missing: expected exactly one step whose name "
+        f"fix marker missing: expected exactly one step whose name "
         f"starts with 'Install pytest', got {matches!r} in {step_names!r}"
     )
 
@@ -172,7 +172,7 @@ def test_05_install_pytest_step_ordered_correctly(probe_job: dict) -> None:
     )
     assert setup_idx >= 0, "missing actions/setup-python step"
     assert install_idx >= 0, "missing Install pytest step"
-    assert test_step_idx >= 0, "missing 'Run hermetic Tag-59 test-suite' step"
+    assert test_step_idx >= 0, "missing 'Run hermetic test-suite' step"
     assert setup_idx < install_idx < test_step_idx, (
         f"ordering invariant violated: setup-python @ {setup_idx}, "
         f"install-pytest @ {install_idx}, test-step @ {test_step_idx}"
@@ -186,18 +186,18 @@ def test_06_pytest_version_pin(probe_job: dict) -> None:
     )
     run_body = install_step.get("run", "")
     assert "pytest>=7,<9" in run_body, (
-        "Tag-70 invariant: pytest must be pinned to '>=7,<9' "
+        "invariant: pytest must be pinned to '>=7,<9' "
         "(prevents unannounced major-version drift). "
         f"run-body was:\n{run_body}"
     )
     assert "PyYAML>=6,<7" in run_body, (
-        "Tag-70 invariant: PyYAML must be pinned to '>=6,<7' "
-        "(Tag-59 test-suite imports yaml; PyYAML is non-stdlib). "
+        "invariant: PyYAML must be pinned to '>=6,<7' "
+        "(test-suite imports yaml; PyYAML is non-stdlib). "
         f"run-body was:\n{run_body}"
     )
     # Hard guard against unbounded install.
     assert re.search(r"pip install\s+pytest\s*$", run_body, re.MULTILINE) is None, (
-        "Tag-70 invariant: no unbounded 'pip install pytest' line "
+        "invariant: no unbounded 'pip install pytest' line "
         "(version range must be quoted)"
     )
 
@@ -209,15 +209,15 @@ def test_07_install_pytest_upgrades_pip(probe_job: dict) -> None:
     )
     run_body = install_step.get("run", "")
     assert "pip install --upgrade pip" in run_body, (
-        "Tag-70 hygiene: install-step must upgrade pip first for a "
+        "hygiene: install-step must upgrade pip first for a "
         "deterministic resolver baseline"
     )
     assert "python3 -m pytest --version" in run_body, (
-        "Tag-70 hygiene: install-step must self-verify by printing "
+        "hygiene: install-step must self-verify by printing "
         "pytest --version (smoke-evidence in the workflow log)"
     )
     assert "import yaml" in run_body and "yaml.__version__" in run_body, (
-        "Tag-70 hygiene: install-step must self-verify PyYAML by "
+        "hygiene: install-step must self-verify PyYAML by "
         "printing yaml.__version__ (smoke-evidence in the workflow log)"
     )
 
@@ -233,7 +233,7 @@ def test_08_bug_target_line_preserved(probe_job: dict) -> None:
         "tests/ci/test_ots_pre_anchor_activation_probe.py -v"
     )
     assert expected in run_body, (
-        f"Tag-70 minimal-fix invariant: the bug-target call shape "
+        f"minimal-fix invariant: the bug-target call shape "
         f"{expected!r} must be preserved verbatim — fix must NOT refactor "
         f"the call. Got:\n{run_body}"
     )
@@ -244,15 +244,15 @@ def test_09_stages_remain_stdlib_only(probe_job: dict) -> None:
     stage_steps = [
         s for s in steps if str(s.get("name", "")).startswith("Stage ")
     ]
-    assert stage_steps, "expected at least one 'Stage N — ...' step"
+    assert stage_steps, "expected at least one 'Stage N —...' step"
     for s in stage_steps:
         body = s.get("run", "") or ""
         assert "pip install" not in body, (
-            f"Tag-70 hygiene: stage step {s.get('name')!r} must remain "
+            f"hygiene: stage step {s.get('name')!r} must remain "
             f"stdlib-only (no pip install in body)"
         )
         assert "import pytest" not in body, (
-            f"Tag-70 hygiene: stage step {s.get('name')!r} must not "
+            f"hygiene: stage step {s.get('name')!r} must not "
             f"import pytest"
         )
 
@@ -260,7 +260,7 @@ def test_09_stages_remain_stdlib_only(probe_job: dict) -> None:
 def test_10_permissions_unchanged(workflow_doc: dict) -> None:
     perms = workflow_doc.get("permissions")
     assert perms == {"contents": "read"}, (
-        f"Tag-70 invariant: permissions block must remain "
+        f"invariant: permissions block must remain "
         f"{{contents: read}} (least-privilege). Got {perms!r}"
     )
 
@@ -272,11 +272,11 @@ def test_11_workflow_self_path_filter(workflow_doc: dict) -> None:
     push_paths = trigger_block.get("push", {}).get("paths", []) or []
     pr_paths = trigger_block.get("pull_request", {}).get("paths", []) or []
     assert self_path in push_paths, (
-        f"Tag-70 invariant: workflow must self-trigger on push when "
+        f"invariant: workflow must self-trigger on push when "
         f"'{self_path}' changes (otherwise this very fix never re-runs)"
     )
     assert self_path in pr_paths, (
-        f"Tag-70 invariant: workflow must self-trigger on pull_request "
+        f"invariant: workflow must self-trigger on pull_request "
         f"when '{self_path}' changes"
     )
 
@@ -314,6 +314,6 @@ def test_13_test_suite_is_hermetic() -> None:
                 seen.add(node.module.split(".")[0])
     leaks = seen & banned
     assert not leaks, (
-        f"Tag-70 hermetic invariant: test-suite imports network-I/O "
+        f"hermetic invariant: test-suite imports network-I/O "
         f"modules {leaks!r}"
     )

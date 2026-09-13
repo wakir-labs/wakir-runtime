@@ -735,7 +735,7 @@ def test_e2e_phase_6_resume_is_idempotent(tmp_path: Path) -> None:
     assert not deltas, (
         "Phase-6 second run produced state-mutating delta:\n"
         + "\n".join(deltas)
-        + "\n\nThis is Bug 5 from the 2026-05-13 Mira-Bug-Bilanz: "
+        + "\n\nThis is Bug 5 from the 2026-05-13 operator-Bug-Bilanz: "
         "Phase 6 is not idempotent on re-run."
     )
 

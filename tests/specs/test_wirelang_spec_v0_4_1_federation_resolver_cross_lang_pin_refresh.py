@@ -109,7 +109,7 @@ def test_t01_python_sibling_exists_and_nontrivial() -> None:
     assert PY_SIBLING.is_file(), f"Python sibling missing: {PY_SIBLING}"
     loc = sum(1 for _ in PY_SIBLING.read_text().splitlines())
     assert loc >= 100, (
-        f"Python sibling has only {loc} LoC; Tag-49 contract requires "
+        f"Python sibling has only {loc} LoC; contract requires "
         f">=100 LoC for federation_resolver_canonical.py (it is the "
         f"Python authority for the byte-stable snapshot surface)."
     )
@@ -123,7 +123,7 @@ def test_t02_rust_crate_exists_and_nontrivial() -> None:
     assert RUST_LIB.is_file(), f"Rust crate lib.rs missing: {RUST_LIB}"
     loc = sum(1 for _ in RUST_LIB.read_text().splitlines())
     assert loc >= 100, (
-        f"Rust crate lib.rs has only {loc} LoC; Tag-49 contract requires "
+        f"Rust crate lib.rs has only {loc} LoC; contract requires "
         f">=100 LoC for persona-engine-federation-resolver/src/lib.rs."
     )
 
@@ -316,7 +316,7 @@ def test_t12_spec_v041_row_16_acknowledges_federation_resolver() -> None:
         "Spec v0.4.1 does not mention persona-engine-federation-resolver"
     )
     assert "Off-Welle (boot)" in spec_text, (
-        "Spec v0.4.1 missing Off-Welle (boot) Welle classification "
+        "Spec v0.4.1 missing Off-wave (boot) wave classification "
         "for row 16"
     )
 
@@ -351,7 +351,7 @@ def test_t15_fixture_file_pin_date_consistent_with_tag_24() -> None:
     """The fixture file's documented pin-date is 2026-05-17
     (mini-wave), as cited by the Python sibling docstring."""
     assert "2026-05-17" in FIXTURE_FILE.read_text(), (
-        "Fixture file does not document Tag-24 pin date 2026-05-17 "
+        "Fixture file does not document pin date 2026-05-17 "
         "in its _comment field; pin lineage cannot be verified."
     )
 

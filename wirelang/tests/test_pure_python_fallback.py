@@ -129,8 +129,8 @@ def test_jcs_pure_matches_rfc8785_per_vector(vector_idx: int) -> None:
     lib = rfc8785.dumps(body)
     assert pure == lib, (
         f"vector {vector_idx} mismatch:\n"
-        f"  pure: {pure!r}\n"
-        f"  lib:  {lib!r}"
+        f" pure: {pure!r}\n"
+        f" lib: {lib!r}"
     )
 
 

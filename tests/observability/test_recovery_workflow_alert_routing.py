@@ -142,7 +142,7 @@ def test_tag75_alerts_live_in_welle_7_group(alerts_doc: dict) -> None:
         g for g in alerts_doc["groups"] if g["name"] == "welle-7-alerts"
     ]
     assert len(welle_7_groups) == 1, (
-        "expected exactly one welle-7-alerts group"
+        "expected exactly one wave 7 alerts group"
     )
     rule_names = [r["alert"] for r in welle_7_groups[0]["rules"]]
     assert "WakirPhase3Welle7FinalSealingComplete" in rule_names
@@ -256,7 +256,7 @@ def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
         assert "ntfy:ar-hand-info" in notify
         assert "activity-log:append" in notify
         assert "pagerduty" not in notify, (
-            f"info Tag-75 alert {name} must NOT page on-call"
+            f"info alert {name} must NOT page on-call"
         )
 
 
@@ -439,7 +439,7 @@ def test_alerts_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed alerts copy is byte-equal."""
     assert alerts_text == alerts_mirror_text, (
-        "alerts mirror drifted from primary; Tag-75 cross-repo "
+        "alerts mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 
@@ -449,7 +449,7 @@ def test_bridge_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed bridge copy is byte-equal."""
     assert bridge_text == bridge_mirror_text, (
-        "bridge mirror drifted from primary; Tag-75 cross-repo "
+        "bridge mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 

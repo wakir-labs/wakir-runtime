@@ -172,7 +172,7 @@ def test_policy_at_15_binary_inventory(policy: dict) -> None:
         "policy.binaries: must be a list"
     )
     assert len(binaries) == EXPECTED_POLICY_BINARY_COUNT, (
-        f"Tag-45 policy inventory drift: expected "
+        f"policy inventory drift: expected "
         f"{EXPECTED_POLICY_BINARY_COUNT} entries, got {len(binaries)}"
     )
 
@@ -220,11 +220,11 @@ def test_quadlet_installer_at_11_binary_carrier_image(
     # both.
     expected_set = set(EXPECTED_CARRIER_BINARIES)
     assert basenames == expected_set, (
-        f"Tag-45 carrier-image installer set drift: expected "
+        f"carrier-image installer set drift: expected "
         f"{sorted(expected_set)}, got {sorted(basenames)}"
     )
     assert len(basenames) == EXPECTED_CARRIER_BINARY_COUNT, (
-        f"Tag-45 carrier-image installer count drift: expected "
+        f"carrier-image installer count drift: expected "
         f"{EXPECTED_CARRIER_BINARY_COUNT}, got {len(basenames)}"
     )
 
@@ -259,22 +259,22 @@ def test_tag45_additions_present_in_policy(policy: dict) -> None:
     by_name = {b["name"]: b for b in policy["binaries"]}
     for tag45_name in TAG45_BINARIES:
         assert tag45_name in by_name, (
-            f"Tag-45 binary {tag45_name!r} missing from policy"
+            f"binary {tag45_name!r} missing from policy"
         )
         entry = by_name[tag45_name]
         missing = REQUIRED_KEYS - set(entry.keys())
         assert not missing, (
-            f"Tag-45 binary {tag45_name!r} missing required keys: "
+            f"binary {tag45_name!r} missing required keys: "
             f"{missing}"
         )
         # Path + env-switch shape pins.
         assert entry["in_image_path"] == TAG45_IN_IMAGE_PATHS[tag45_name], (
-            f"Tag-45 binary {tag45_name!r} in_image_path drift: "
+            f"binary {tag45_name!r} in_image_path drift: "
             f"{entry['in_image_path']!r} vs expected "
             f"{TAG45_IN_IMAGE_PATHS[tag45_name]!r}"
         )
         assert entry["env_switch"] == TAG45_ENV_SWITCHES[tag45_name], (
-            f"Tag-45 binary {tag45_name!r} env_switch drift: "
+            f"binary {tag45_name!r} env_switch drift: "
             f"{entry['env_switch']!r} vs expected "
             f"{TAG45_ENV_SWITCHES[tag45_name]!r}"
         )
@@ -306,7 +306,7 @@ def test_tag45_additions_present_in_quadlet_exec_loop(
     for tag45_name in TAG45_BINARIES:
         canonical_basename = f"wakir-persona-engine-{tag45_name}"
         assert canonical_basename in exec_line, (
-            f"Tag-45 binary basename {canonical_basename!r} missing "
+            f"binary basename {canonical_basename!r} missing "
             f"from Quadlet Exec= shell loop"
         )
 
@@ -349,12 +349,12 @@ def test_tag45_additions_have_default_rust_bin_constants() -> None:
         )
         match = single_line or paren_continued
         assert match, (
-            f"Tag-45 constant {const_name} not found in "
+            f"constant {const_name} not found in "
             f"rust_backend_switch.py"
         )
         observed = match.group(1)
         assert observed == expected_path, (
-            f"Tag-45 path drift for {tag45_name}: "
+            f"path drift for {tag45_name}: "
             f"{const_name}={observed!r} vs expected {expected_path!r}"
         )
 
@@ -378,7 +378,7 @@ def test_tag45_env_switches_documented_in_operations_doc() -> None:
     for tag45_name in TAG45_BINARIES:
         env_switch = TAG45_ENV_SWITCHES[tag45_name]
         assert env_switch in text, (
-            f"Tag-45 ENV-switch {env_switch!r} missing from "
+            f"ENV-switch {env_switch!r} missing from "
             f"operations doc"
         )
 
@@ -404,12 +404,12 @@ def test_tag45_in_image_paths_match_quadlet_install_loop(
         entry = by_name[tag45_name]
         in_image_path = entry["in_image_path"]
         assert in_image_path.startswith("/opt/wakir/bin/"), (
-            f"Tag-45 binary {tag45_name!r} in_image_path not under "
+            f"binary {tag45_name!r} in_image_path not under "
             f"/opt/wakir/bin/: {in_image_path!r}"
         )
         basename = in_image_path[len("/opt/wakir/bin/"):]
         assert basename in quadlet_text, (
-            f"Tag-45 binary {tag45_name!r} basename {basename!r} "
+            f"binary {tag45_name!r} basename {basename!r} "
             f"missing from Quadlet installer"
         )
         # And: the full canonical path must also appear in the
@@ -438,16 +438,16 @@ def test_tag45_crate_paths_exist_on_disk(policy: dict) -> None:
         entry = by_name[tag45_name]
         expected_path = TAG45_CRATE_PATHS[tag45_name]
         assert entry["crate_path"] == expected_path, (
-            f"Tag-45 binary {tag45_name!r} crate_path drift: "
+            f"binary {tag45_name!r} crate_path drift: "
             f"{entry['crate_path']!r} vs expected {expected_path!r}"
         )
         crate_dir = REPO_ROOT / entry["crate_path"]
         assert crate_dir.is_dir(), (
-            f"Tag-45 binary {tag45_name!r} crate_path does not exist "
+            f"binary {tag45_name!r} crate_path does not exist "
             f"on disk: {crate_dir}"
         )
         assert (crate_dir / "Cargo.toml").exists(), (
-            f"Tag-45 binary {tag45_name!r} crate has no Cargo.toml: "
+            f"binary {tag45_name!r} crate has no Cargo.toml: "
             f"{crate_dir}"
         )
 
@@ -496,8 +496,8 @@ def test_tag45_carrier_image_set_is_11_not_15(quadlet_text: str) -> None:
             forbidden = f"wakir-persona-engine-{component}{suffix}"
             assert forbidden not in exec_line, (
                 f"carrier-image installer must NOT deploy the "
-                f"Welle-4..7 dedicated binary {forbidden!r}; deploy "
-                f"it via the per-Welle Quadlet instead"
+                f"wave 4..7 dedicated binary {forbidden!r}; deploy "
+                f"it via the per-wave Quadlet instead"
             )
 
 
@@ -523,7 +523,7 @@ def test_tag45_landed_pr_anchors_correct(policy: dict) -> None:
         entry = by_name[tag45_name]
         expected_pr = TAG45_LANDED_PR_ANCHORS[tag45_name]
         assert entry["landed_pr"] == expected_pr, (
-            f"Tag-45 binary {tag45_name!r} landed_pr drift: "
+            f"binary {tag45_name!r} landed_pr drift: "
             f"{entry['landed_pr']!r} vs expected {expected_pr!r}"
         )
 
@@ -545,14 +545,14 @@ def test_tag45_sandbox_boundary_stamp_preserved(policy: dict) -> None:
     raw = POLICY_FILE.read_text(encoding="utf-8")
     assert "feedback_sandbox_host_trennung.md" in raw, (
         "policy file lost the sandbox-host-trennung feedback anchor "
-        "during the Tag-45 substrate refresh"
+        "during the substrate refresh"
     )
     assert "Operator-Hand" in raw, (
         "policy file lost the Operator-Hand boundary declaration "
-        "during the Tag-45 substrate refresh"
+        "during the substrate refresh"
     )
     # Negative assertion: no run_in_sandbox flag.
     assert "run_in_sandbox" not in policy, (
-        "policy gained a run_in_sandbox flag during the Tag-45 "
+        "policy gained a run_in_sandbox flag during the "
         "substrate refresh — sandbox boundary violation"
     )

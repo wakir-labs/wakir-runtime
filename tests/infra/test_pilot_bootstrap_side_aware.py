@@ -76,10 +76,10 @@ def test_wakir_side_documented_in_usage_banner(bootstrap_source: str):
     # MUST appear there for operators who run --help.
     # We look for the substring "WAKIR_SIDE" within the usage body.
     usage_match = re.search(r"usage\(\)\s*\{(.*?)^\}", bootstrap_source, re.DOTALL | re.MULTILINE)
-    assert usage_match, "usage() function not found"
+    assert usage_match, "usage function not found"
     usage_body = usage_match.group(1)
     assert "WAKIR_SIDE" in usage_body, (
-        "WAKIR_SIDE must be listed in the usage() env-var section"
+        "WAKIR_SIDE must be listed in the usage env-var section"
     )
 
 
@@ -146,11 +146,11 @@ def test_step_6_quadlet_uses_wakir_side_variable(bootstrap_source: str):
     step_6_match = re.search(
         r'step_6_quadlet\(\)\s*\{(.*?)^\}', bootstrap_source, re.DOTALL | re.MULTILINE
     )
-    assert step_6_match, "step_6_quadlet() function not found"
+    assert step_6_match, "step_6_quadlet function not found"
     body = step_6_match.group(1)
     # The hardcoded form MUST NOT be present.
     assert 'local side="wakir"' not in body, (
-        "step_6_quadlet still hardcodes side='wakir' — Sprint-10 Tag-1 substance regression"
+        "step_6_quadlet still hardcodes side='wakir' — substance regression"
     )
     # The parametrised form MUST be present.
     assert 'local side="${WAKIR_SIDE}"' in body, (
@@ -260,8 +260,8 @@ def test_orbit_configs_are_structural_mirror_of_wakir_configs():
     # Wakir + orbit peer with each other (asymmetric trust-domain literals).
     assert re.search(r'federates_with\s+"orbit\.test"', wakir) or \
            re.search(r'federates_with\s+"partner\.test"', wakir), (
-        "wakir-side must federate with orbit.test (Sprint-10) "
-        "OR partner.test (Sprint-8 baseline; bootstrap-switch §5.3 open-item)"
+        "wakir-side must federate with orbit.test "
+        "OR partner.test ( baseline; bootstrap-switch §5.3 open-item)"
     )
     assert re.search(r'federates_with\s+"wakir\.test"', orbit), (
         "orbit-side must federate with wakir.test"

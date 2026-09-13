@@ -258,7 +258,7 @@ async def test_iterator_processes_msg_arriving_after_quiet_period():
 
     assert loop.processed_count == 1, (
         "Bug-42 regression: a message arriving after a quiet period was lost. "
-        f"loop.processed_count={loop.processed_count}, sink={writer_sink.getvalue()}"
+        f"loop.processed_count={loop.processed_count}, sink={writer_sink.getvalue}"
     )
 
 

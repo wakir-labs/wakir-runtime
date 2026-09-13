@@ -420,7 +420,7 @@ def test_doc_companion_anchors_present() -> None:
     # The doc must cite PR #167 by number — the Phase-3b lane exists
     # to validate that PR. A future copy-rename that loses the
     # cross-reference is a documentation regression.
-    assert "PR #167" in body, "doc must cite PR #167 (Tag-17 Rust-default-switches)"
+    assert "PR #167" in body, "doc must cite PR #167 (Rust-default-switches)"
     # The doc must mention the ENV-var names the lane drives.
     assert "WAKIR_RECOVERY_BACKEND" in body
     assert "WAKIR_STATE_BACKING_BACKEND" in body

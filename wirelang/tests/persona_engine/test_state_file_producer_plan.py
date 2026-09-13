@@ -151,10 +151,10 @@ def test_plan_doc_cross_anchors_tag_67_schema():
     """Plan-doc §4 references the QA zone's schema-pin doc."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "welle-n-state-file-conventions.md" in text, (
-        "plan-doc must cross-anchor to Tag-67 schema-pin doc"
+        "plan-doc must cross-anchor to schema-pin doc"
     )
     assert "verify_welle_state_file_conventions.py" in text, (
-        "plan-doc must cross-anchor to Tag-67 verifier helper"
+        "plan-doc must cross-anchor to verifier helper"
     )
     assert "tag-67-v1" in text, (
         "plan-doc must reference the frozen schema_version literal"
@@ -182,10 +182,10 @@ def test_plan_doc_marks_tag_68_as_doc_form_only():
     """Plan-doc §1 declares doc-form-only discipline."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "doc-form-only" in text.lower() or "doc form only" in text.lower(), (
-        "plan-doc must declare doc-form-only discipline for Tag-68"
+        "plan-doc must declare doc-form-only discipline for "
     )
     assert "Tag-69" in text, (
-        "plan-doc must reference Tag-69+ implementation roadmap"
+        "plan-doc must reference + implementation roadmap"
     )
 
 
@@ -193,14 +193,14 @@ def test_plan_doc_documents_cross_review_gates():
     """Plan-doc §5 enumerates Zone-K + Zone-N cross-review gates."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "Zone-K" in text, (
-        "plan-doc §5 must reference Zone-K (Tomas) cross-review"
+        "plan-doc §5 must reference Zone-K cross-review"
     )
     assert "Zone-N" in text, (
-        "plan-doc §5 must reference Zone-N (Henrik) cross-review"
+        "plan-doc §5 must reference Zone-N cross-review"
     )
     assert "Zone-L" in text, (
-        "plan-doc §5 must reference Zone-L (Reza) cross-review for "
-        "Tag-71+ OTS-anchor backfill"
+        "plan-doc §5 must reference Zone-L cross-review for "
+        "+ OTS-anchor backfill"
     )
 
 
@@ -290,7 +290,7 @@ def test_helper_stub_is_stdlib_only():
             mod = line.split()[1].split(".")[0].rstrip(",")
         assert mod in allowed_stdlib, (
             f"helper-stub imports non-stdlib module {mod!r} "
-            f"(line: {line!r}); Tag-68 helper must be stdlib-only"
+            f"(line: {line!r}); helper must be stdlib-only"
         )
 
 
@@ -310,8 +310,8 @@ def test_helper_stub_render_stub_returns_dict_with_required_keys():
         "audit_trail_anchor",
     }
     assert set(out.keys()) == required_keys, (
-        f"render_stub keys diverge from Tag-67 schema: "
-        f"got {set(out.keys())!r}, expected {required_keys!r}"
+        f"render_stub keys diverge from schema: "
+        f"got {set(out.keys)!r}, expected {required_keys!r}"
     )
     assert out["status"] == "pending"
     assert out["cutover_iso"] == ""
@@ -337,7 +337,7 @@ def test_plan_doc_references_tag_68_test_filename():
     """Plan-doc references this test-suite by filename."""
     text = PLAN_DOC.read_text(encoding="utf-8")
     assert "test_state_file_producer_plan.py" in text, (
-        "plan-doc must reference Tag-68 test-suite filename"
+        "plan-doc must reference test-suite filename"
     )
 
 

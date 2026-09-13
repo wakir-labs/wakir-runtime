@@ -149,14 +149,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-45 manifest missing at {MANIFEST_PATH}; cutover gate "
+        f"manifest missing at {MANIFEST_PATH}; cutover gate "
         "cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-45 pin pack missing at {PIN_PACK_PATH}; "
+        f"pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 

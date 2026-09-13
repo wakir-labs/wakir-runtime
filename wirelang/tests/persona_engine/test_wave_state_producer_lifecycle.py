@@ -442,10 +442,10 @@ def test_handle_welle_5_signoff_event_hardcodes_welle_number_5(tmp_path):
     )
 
     assert target_4.read_bytes() == sibling_4_before, (
-        "welle-4 must be untouched by a welle-5 sign-off"
+        "wave 4 must be untouched by a wave 5 sign-off"
     )
     assert target_6.read_bytes() == sibling_6_before, (
-        "welle-6 must be untouched by a welle-5 sign-off"
+        "wave 6 must be untouched by a wave 5 sign-off"
     )
     on_disk_5 = json.loads(target_5.read_text(encoding="utf-8"))
     assert on_disk_5["welle_number"] == 5

@@ -266,13 +266,13 @@ def test_01_state_backing_emits_before_boot_is_called(tmp_path: Path) -> None:
     eng, log_sink = _make_engine(tmp_path)
     # Critical: boot has NOT been called yet.
     assert not hasattr(eng, "_recovery_backend_decision"), (
-        "Pre-condition: boot() must not have run yet (no boot-fan-out "
+        "Pre-condition: boot must not have run yet (no boot-fan-out "
         "decision attributes should exist on the engine)."
     )
     domains = _decision_domains_in_order(log_sink)
     assert domains == [PRE_BOOT_DOMAIN], (
         f"Pre-boot emit set must be exactly {[PRE_BOOT_DOMAIN]}; "
-        f"got {domains}. If state_backing has been moved into boot() "
+        f"got {domains}. If state_backing has been moved into boot "
         f"or another resolver has been moved into __init__, the "
         f"engine's Stage-0 contract has drifted."
     )
@@ -292,21 +292,21 @@ def test_02_nine_other_decisions_emit_only_inside_boot(tmp_path: Path) -> None:
     pre_boot_domains = set(_decision_domains_in_order(log_sink))
     for domain in BOOT_DOMAINS:
         assert domain not in pre_boot_domains, (
-            f"{domain!r} BackendDecision must NOT emit before boot(); "
+            f"{domain!r} BackendDecision must NOT emit before boot; "
             f"got pre-boot domains={sorted(pre_boot_domains)}"
         )
     eng.boot()
     post_boot_domains = _decision_domains_in_order(log_sink)
     for domain in BOOT_DOMAINS:
         assert domain in post_boot_domains, (
-            f"{domain!r} BackendDecision must emit during boot(); "
+            f"{domain!r} BackendDecision must emit during boot; "
             f"got post-boot domains={post_boot_domains}"
         )
     # Each of the nine emits exactly once per boot.
     for domain in BOOT_DOMAINS:
         count = post_boot_domains.count(domain)
         assert count == 1, (
-            f"{domain!r} emitted {count}× during a single boot(); "
+            f"{domain!r} emitted {count}× during a single boot; "
             f"the engine fan-out must be idempotent — one emit per "
             f"resolver per boot."
         )
@@ -331,8 +331,8 @@ def test_03_full_ten_record_emit_order_single_boot(tmp_path: Path) -> None:
     domains = _decision_domains_in_order(log_sink)
     assert domains == EXPECTED_EMIT_ORDER, (
         f"Emit order drift detected.\n"
-        f"  expected ({len(EXPECTED_EMIT_ORDER)}): {EXPECTED_EMIT_ORDER}\n"
-        f"  got      ({len(domains)}): {domains}"
+        f" expected ({len(EXPECTED_EMIT_ORDER)}): {EXPECTED_EMIT_ORDER}\n"
+        f" got ({len(domains)}): {domains}"
     )
 
 
@@ -358,9 +358,9 @@ def test_04_emit_order_deterministic_over_three_boot_cycles(
         sequences.append(_decision_domains_in_order(log_sink))
     assert sequences[0] == sequences[1] == sequences[2], (
         f"Emit order drift across boot cycles — non-determinism!\n"
-        f"  cycle 0: {sequences[0]}\n"
-        f"  cycle 1: {sequences[1]}\n"
-        f"  cycle 2: {sequences[2]}"
+        f" cycle 0: {sequences[0]}\n"
+        f" cycle 1: {sequences[1]}\n"
+        f" cycle 2: {sequences[2]}"
     )
     # And — defensively — every cycle MUST also match the canonical
     # expected order (catches the case where all three cycles agree on
@@ -388,7 +388,7 @@ def test_05_exactly_ten_records_per_cold_start(tmp_path: Path) -> None:
     assert len(records) == TOTAL_DECISION_COUNT, (
         f"Expected {TOTAL_DECISION_COUNT} backend-decision records per "
         f"cold-start; got {len(records)}.\n"
-        f"  records: {[r.get('domain') for r in records]}"
+        f" records: {[r.get('domain') for r in records]}"
     )
 
 
@@ -548,7 +548,7 @@ def test_09_boot_attribute_population_matches_emit_order(
     ]
     missing = [a for a in expected_attrs if not hasattr(eng, a)]
     assert not missing, (
-        f"boot() must populate every per-resolver decision attribute; "
+        f"boot must populate every per-resolver decision attribute; "
         f"missing: {missing}"
     )
 

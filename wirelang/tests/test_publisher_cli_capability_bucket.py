@@ -338,7 +338,7 @@ class TestTSRPUBCB01BucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["signed"] is True
         assert receipt["gate_policy_source"] == "bucket"
@@ -372,7 +372,7 @@ class TestTSRPUBCB02SignGateBucketHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "lww"
         assert receipt["revision"] == 1
@@ -625,7 +625,7 @@ class TestTSRPUBCB09DryRunBucket:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "dry-run"
         assert receipt["signed"] is True
@@ -706,7 +706,7 @@ class TestTSRPUBCB10CrossSourceEquality:
             stdout=out_a,
             stderr=err_a,
         )
-        assert code_a == int(ExitCode.OK), err_a.getvalue()
+        assert code_a == int(ExitCode.OK), err_a.getvalue
         receipt_a = json.loads(out_a.getvalue())
 
         # Bucket-path run.
@@ -722,7 +722,7 @@ class TestTSRPUBCB10CrossSourceEquality:
             stdout=out_b,
             stderr=err_b,
         )
-        assert code_b == int(ExitCode.OK), err_b.getvalue()
+        assert code_b == int(ExitCode.OK), err_b.getvalue
         receipt_b = json.loads(out_b.getvalue())
 
         # Only difference is the policy-source axis.
@@ -765,7 +765,7 @@ class TestAuxBucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         assert cleanup_log == ["cleanup"]
 
     def test_cleanup_called_on_poisoned_envelope(self, tmp_path):
@@ -825,7 +825,7 @@ class TestAuxBucketLoader:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         # The first policy (sorted by key) is "default" with
         # biscuit-root-1; the gate matches there.

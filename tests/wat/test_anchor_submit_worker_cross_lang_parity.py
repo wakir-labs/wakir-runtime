@@ -481,8 +481,8 @@ def test_t11_per_vector_ledger_byte_parity(fixture_name: str) -> None:
     for i, (got, want) in enumerate(zip(derived["ledger"], expected_ledger)):
         assert got["decision_record"] == want["decision_record"], (
             f"{fixture_name} entry #{i} decision_record mismatch:\n"
-            f"  got={got['decision_record']}\n"
-            f"  want={want['decision_record']}"
+            f" got={got['decision_record']}\n"
+            f" want={want['decision_record']}"
         )
         assert got["decision_jcs_b64"] == want["decision_jcs_b64"], (
             f"{fixture_name} entry #{i} JCS bytes mismatch (b64)"

@@ -160,11 +160,11 @@ def _extract_step_5_skip_cosign_branch(source: str) -> str:
     391, one in step-5 around line 767. We need the step-5 one.
     """
     step_5_start = source.find("step_5_image_pins()")
-    assert step_5_start > 0, "step_5_image_pins() function not found"
+    assert step_5_start > 0, "step_5_image_pins function not found"
     step_5_end = source.find("\n# ---", step_5_start + 10)
     if step_5_end < 0:
         step_5_end = source.find("step_6", step_5_start + 10)
-    assert step_5_end > step_5_start, "step_5_image_pins() end not found"
+    assert step_5_end > step_5_start, "step_5_image_pins end not found"
 
     step_5_body = source[step_5_start:step_5_end]
 
@@ -289,7 +289,7 @@ def test_skip_cosign_provisioner_optional_when_unpublished(
         r"image may not be published yet", branch, re.IGNORECASE
     ), (
         "Bug-36 fix: skip-cosign branch must log a not-yet-published "
-        "fallback for wakir-provisioner (Sprint-9 Tag-4 baseline parity)"
+        "fallback for wakir-provisioner ( baseline parity)"
     )
 
 
@@ -454,7 +454,7 @@ def test_bug_37_disagree_note_documented(bootstrap_source: str) -> None:
     # Mention of x509pop must exist with explicit rationale.
     assert "x509pop" in bootstrap_source, (
         "Bug-37 disagree-note: the x509pop alternative must be named "
-        "in the source comment for Reza-Cross-Review context"
+        "in the source comment for the protocol zone-Cross-Review context"
     )
     # The rationale must mention that join-token is the existing-
     # pattern with minimal delta.
@@ -468,7 +468,7 @@ def test_bug_37_disagree_note_documented(bootstrap_source: str) -> None:
     assert re.search(
         r"Reza-Cross-Review", bootstrap_source, re.IGNORECASE
     ), (
-        "Bug-37 disagree-note: Reza-Cross-Review must be named so the "
+        "Bug-37 disagree-note: the protocol zone-Cross-Review must be named so the "
         "review-trail is discoverable from the source"
     )
 

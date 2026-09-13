@@ -89,7 +89,7 @@ def test_t02_spec_v042_frontmatter_extends_v041():
     ), "extends must be 0.4.1"
     assert re.search(
         r"^date:\s*2026-05-19\s*$", body, re.M
-    ), "date must be 2026-05-19 (Tag-50)"
+    ), "date must be 2026-05-19 "
 
 
 # ---------------------------------------------------------------------------

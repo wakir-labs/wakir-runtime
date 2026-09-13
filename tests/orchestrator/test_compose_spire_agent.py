@@ -133,7 +133,7 @@ def test_compose_has_exactly_two_spire_services_phase_2_2(
     services = compose_doc["services"]
     assert set(services.keys()) == {"spire-server", "spire-agent"}, (
         f"Phase-2.2 must declare exactly {{'spire-server', 'spire-agent'}}; "
-        f"got {set(services.keys())!r}"
+        f"got {set(services.keys)!r}"
     )
 
 
@@ -177,7 +177,7 @@ def test_agent_image_has_cosign_digest_pin_form(
     image = agent_service["image"]
     tag_part, sep, digest_part = image.partition("@")
     assert sep == "@", (
-        f"Tag-9 agent image-pin must be digest-pinned 'tag@sha256:<digest>'; "
+        f"agent image-pin must be digest-pinned 'tag@sha256:<digest>'; "
         f"got: {image!r}"
     )
     assert digest_part.startswith("sha256:"), (
@@ -217,7 +217,7 @@ def test_agent_pinned_tag_matches_server_version(
         f"must use the same version"
     )
     assert agent_ver == "1.14.6", (
-        f"Phase-2.2 pins SPIRE to 1.14.6 (Sprint-6 box-briefing); "
+        f"Phase-2.2 pins SPIRE to 1.14.6 ( box-briefing); "
         f"got: {agent_ver!r}"
     )
 
@@ -557,6 +557,6 @@ def test_tag_9_contributes_twenty_tests_to_spire_compose_suite() -> None:
         if name.startswith("test_")
     ]
     assert len(test_fns) == 20, (
-        f"Tag-9 spire-agent file must contribute exactly 20 tests; "
+        f"spire-agent file must contribute exactly 20 tests; "
         f"got {len(test_fns)}: {test_fns!r}"
     )

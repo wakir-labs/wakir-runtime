@@ -522,17 +522,17 @@ def test_tv_s9t7_18_step_7_daemon_reload_before_start() -> None:
         src,
         flags=re.DOTALL,
     )
-    assert m is not None, "step_7_bucket_init() body not found"
+    assert m is not None, "step_7_bucket_init body not found"
     body = m.group(1)
 
     # The body MUST contain a daemon-reload call.
     assert "daemon-reload" in body, (
-        "step_7_bucket_init() is missing daemon-reload"
+        "step_7_bucket_init is missing daemon-reload"
     )
     # The systemctl start must reference the bucket-init unit by name.
     start_marker = "start wakir-nats-kv-bucket-init.service"
     assert start_marker in body, (
-        f"step_7_bucket_init() does not start the bucket-init unit "
+        f"step_7_bucket_init does not start the bucket-init unit "
         f"({start_marker!r})"
     )
     reload_pos = body.find("daemon-reload")

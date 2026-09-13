@@ -268,9 +268,9 @@ def test_hermetic_to_json_is_byte_stable_across_invocations(mod):
     first = _run_planner(js, mod, dry_run=True)
     second = _run_planner(js, mod, dry_run=True)
     assert first == second, (
-        "to_json() output diverged between two consecutive invocations "
+        "to_json output diverged between two consecutive invocations "
         "against an unchanged mock cluster; the live cross-validation "
-        "contract cannot hold unless to_json() is byte-stable."
+        "contract cannot hold unless to_json is byte-stable."
     )
 
 

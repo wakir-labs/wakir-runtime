@@ -222,7 +222,7 @@ def test_tv_s9t5_04_agent_single_org_insecure_bootstrap_true() -> None:
     ), (
         "single-org agent config MUST declare ``insecure_bootstrap = "
         "true``. The single-org Pilot-VM has no federated-bundles "
-        "volume to source a pre-staged trust-anchor from; the agent "
+        "volume to source a pre-staged trust-anchor ; the agent "
         "obtains the local server's trust-bundle via the join-token "
         "attestation handshake instead."
     )
@@ -371,7 +371,7 @@ def test_tv_s9t5_11_server_quadlet_health_start_period_60s() -> None:
     period_seconds = int(m.group(1))
     assert period_seconds >= 60, (
         f"server-federation Quadlet HealthStartPeriod={period_seconds}s "
-        f"is too short for cold Pilot-VM CA-init; Sprint-9-Tag-5 "
+        f"is too short for cold Pilot-VM CA-init; "
         f"target is 60s (Bug 7 H3 fix)."
     )
 
@@ -389,7 +389,7 @@ def test_tv_s9t5_12_agent_quadlet_health_start_period_60s() -> None:
     assert period_seconds >= 60, (
         f"agent-federation Quadlet HealthStartPeriod={period_seconds}s "
         f"is too short for cold Pilot-VM CA-init + attestation "
-        f"handshake; Sprint-9-Tag-5 target is 60s (Bug 7 H3 fix)."
+        f"handshake; target is 60s (Bug 7 H3 fix)."
     )
 
 
@@ -525,7 +525,7 @@ def test_tv_s9t5_16_federation_configs_preserved(preserved_conf: Path) -> None:
     dual-side bring-up (``WAKIR_PILOT_MODE=federation``)."""
     assert preserved_conf.exists(), (
         f"federation config {preserved_conf} MUST be preserved by the "
-        f"Sprint-9-Tag-5 fix (used for WAKIR_PILOT_MODE=federation)."
+        f" fix (used for WAKIR_PILOT_MODE=federation)."
     )
     text = preserved_conf.read_text(encoding="utf-8")
     # Sanity: the federation server configs MUST still carry the

@@ -97,7 +97,7 @@ def test_hdc_00_at_least_one_fixture_discovered() -> None:
     fixtures = _fixture_dirs()
     assert fixtures, (
         f"hash-derivate-gate: no fixtures under {FIXTURES_DIR}. "
-        "If the layout moved, update _fixture_dirs() and this test."
+        "If the layout moved, update _fixture_dirs and this test."
     )
 
 
@@ -122,11 +122,11 @@ def test_hdc_01_anchor_manifest_schema_file_sha256_matches_live(
     live = hashlib.sha256(schema_path.read_bytes()).hexdigest()
     assert declared == live, (
         f"schema_file_sha256 drift in {fixture_dir.name}:\n"
-        f"  declared : {declared}\n"
-        f"  live     : {live}\n"
-        f"  schema   : {schema_rel}\n"
+        f" declared: {declared}\n"
+        f" live: {live}\n"
+        f" schema: {schema_rel}\n"
         f"Fix: re-derive the manifest hash-derivatives in the same PR "
-        f"that modifies the schema (Sprint-Stability Tag-3 invariant)."
+        f"that modifies the schema (-Stability invariant)."
     )
 
 
@@ -148,9 +148,9 @@ def test_hdc_02_anchor_manifest_schema_file_bytes_matches_live(
     live = len(schema_path.read_bytes())
     assert declared == live, (
         f"schema_file_bytes drift in {fixture_dir.name}:\n"
-        f"  declared : {declared}\n"
-        f"  live     : {live}\n"
-        f"  schema   : {schema_rel}"
+        f" declared: {declared}\n"
+        f" live: {live}\n"
+        f" schema: {schema_rel}"
     )
 
 
@@ -235,9 +235,9 @@ def test_hdc_07_sha256_bin_matches_live_schema_digest(
     bin_bytes = bin_path.read_bytes()
     assert bin_bytes == live_digest, (
         f"schema.sha256.bin drift in {fixture_dir.name}:\n"
-        f"  bin (hex)  : {bin_bytes.hex()}\n"
-        f"  live (hex) : {live_digest.hex()}\n"
-        f"  schema     : {schema_rel}\n"
+        f" bin (hex): {bin_bytes.hex}\n"
+        f" live (hex): {live_digest.hex}\n"
+        f" schema: {schema_rel}\n"
         f"Fix: rewrite {bin_path.name} with the live raw 32-byte "
         f"digest in the same PR that modified the schema."
     )

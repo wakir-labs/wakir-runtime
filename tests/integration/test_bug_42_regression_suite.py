@@ -288,7 +288,7 @@ def test_b2_seven_nats_subjects_inventory_pinned(audit_result) -> None:
         s for s in audit_result.subjects if s.verdict == "ok"
     ]
     assert len(nats_subjects) == 7, (
-        f"Expected 7 NATS-subject hits (Tag-43 baseline), got "
+        f"Expected 7 NATS-subject hits (baseline), got "
         f"{len(nats_subjects)}: {[(s.file, s.line, s.literal) for s in nats_subjects]}"
     )
 
@@ -345,7 +345,7 @@ def test_b4_subjects_cover_expected_event_axes(audit_result) -> None:
     concrete = [lit for lit in literals if "{" not in lit]
     assert any(lit.endswith((".tomas", ".reza")) for lit in concrete), (
         f"expected at least one concrete persona-slug literal "
-        f"(.tomas / .reza); concretes: {concrete}"
+        f".tomas / .reza); concretes: {concrete}"
     )
 
 
@@ -387,7 +387,7 @@ def test_b6_subject_inventory_seven_hits_distributed_across_languages(audit_resu
     assert len(rs_hits) >= 1, f"Rust NATS-subject hits: {rs_hits}"
     assert len(py_hits) + len(rs_hits) == 7, (
         f"py={len(py_hits)} + rs={len(rs_hits)} != 7 "
-        f"(expected Tag-43 baseline split)"
+        f"(expected baseline split)"
     )
 
 
@@ -430,8 +430,8 @@ def test_c2_machine_readable_failure_mode_by_pair_maps_two_broken() -> None:
     assert mapping[(pmc.PUBLISH_MODE_CORE, pmc.SUBSCRIBE_SURFACE_JS_PULL)] == "F-1"
     assert mapping[(pmc.PUBLISH_MODE_CORE, pmc.SUBSCRIBE_SURFACE_JS_PUSH)] == "F-2"
     assert set(mapping.values()) == {"F-1", "F-2"}, (
-        f"_FAILURE_MODE_BY_PAIR.values() drifted from {{F-1, F-2}}: "
-        f"{set(mapping.values())}"
+        f"_FAILURE_MODE_BY_PAIR.values drifted from {{F-1, F-2}}: "
+        f"{set(mapping.values)}"
     )
     # Pair-static dispatch has exactly 2 entries.
     assert len(mapping) == 2

@@ -293,7 +293,7 @@ def test_t_sr_pub_03_publish_lww(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     assert err.getvalue() == ""
 
     receipt = json.loads(out.getvalue())
@@ -326,7 +326,7 @@ def test_t_sr_pub_04_publish_cas_success(tmp_path):
         stdout=out0,
         stderr=err0,
     )
-    assert code0 == int(ExitCode.OK), err0.getvalue()
+    assert code0 == int(ExitCode.OK), err0.getvalue
     rev0 = json.loads(out0.getvalue())["revision"]
 
     # Second pass: CAS-pin against the observed revision.
@@ -337,7 +337,7 @@ def test_t_sr_pub_04_publish_cas_success(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     receipt = json.loads(out.getvalue())
     assert receipt["mode"] == "cas"
     assert receipt["expected_revision"] == rev0
@@ -409,7 +409,7 @@ def test_t_sr_pub_06_publish_create_only_success(tmp_path):
         stdout=out,
         stderr=err,
     )
-    assert code == int(ExitCode.OK), err.getvalue()
+    assert code == int(ExitCode.OK), err.getvalue
     receipt = json.loads(out.getvalue())
     assert receipt["mode"] == "create-only"
     assert receipt["expected_revision"] == 0

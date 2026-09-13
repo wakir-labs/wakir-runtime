@@ -125,9 +125,9 @@ def test_t08_spec_v041_documents_off_welle_classification_for_row_16():
     body = SPEC_V041.read_text(encoding="utf-8")
     # The Off-wave phrase must appear in close proximity to row 16's
     # federation-resolver content.
-    assert "Off-Welle" in body, "v0.4.1 must classify row 16 as Off-Welle"
+    assert "Off-Welle" in body, "v0.4.1 must classify row 16 as Off-wave"
     # Either §3.1.16 subsection or the §3.1 row itself documents it.
-    assert "Off-Welle (boot)" in body, "Off-Welle classifier (boot) must be present"
+    assert "Off-Welle (boot)" in body, "Off-wave classifier (boot) must be present"
 
 
 def test_t09_spec_v041_documents_recovery_replay_companion_footnote():
@@ -227,7 +227,7 @@ def test_t16_open_items_section_present():
     assert "## 6. Open items" in body, "open items section must be present"
     # wave 0 deferral.
     assert "Welle-0" in body or "Welle 0" in body, (
-        "Welle-0 boot-fan-out classification deferral must be noted"
+        "wave 0 boot-fan-out classification deferral must be noted"
     )
 
 

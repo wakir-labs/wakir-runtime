@@ -78,7 +78,7 @@ def helper():
 
 def test_helper_file_exists():
     assert HELPER_PATH.is_file(), (
-        f"Helper missing at {HELPER_PATH} - Tag-61 substance not in tree."
+        f"Helper missing at {HELPER_PATH} - substance not in tree."
     )
 
 
@@ -88,7 +88,7 @@ def test_helper_file_exists():
 
 def test_workflow_file_exists():
     assert WORKFLOW_PATH.is_file(), (
-        f"Workflow missing at {WORKFLOW_PATH} - Tag-61 wiring incomplete."
+        f"Workflow missing at {WORKFLOW_PATH} - wiring incomplete."
     )
 
 
@@ -435,7 +435,7 @@ def test_historical_noa_trip_is_detected(tmp_path, helper):
     f.write_text(_HISTORICAL_NOA_TRIP_FIXTURE, encoding="utf-8")
     findings = helper._scan_file(f)
     assert len(findings) >= 2, (
-        f"Historical Noa trip must surface >=2 findings, got: {findings!r}"
+        f"Historical the observability zone trip must surface >=2 findings, got: {findings!r}"
     )
 
 
@@ -463,7 +463,7 @@ def test_historical_noa_fix_suppresses_findings(tmp_path, helper):
     f.write_text(_HISTORICAL_NOA_FIXED_FIXTURE, encoding="utf-8")
     findings = helper._scan_file(f)
     assert findings == [], (
-        f"Wrapped historical Noa trip must be clean, got: {findings!r}"
+        f"Wrapped historical the observability zone trip must be clean, got: {findings!r}"
     )
 
 

@@ -168,14 +168,14 @@ def allowlist_doc():
 def test_t01_allowlist_path_exists():
     """The refreshed allowlist file is on disk and reachable."""
     assert ALLOWLIST_PATH.is_file(), (
-        f"Tag-67 refresh: allowlist file missing at {ALLOWLIST_PATH}"
+        f"refresh: allowlist file missing at {ALLOWLIST_PATH}"
     )
 
 
 def test_t02_allowlist_schema_version_bumped_to_three(allowlist_doc):
     """bumps the allowlist _schema.version from 2 to 3."""
     assert allowlist_doc["_schema"]["version"] == 3, (
-        "Tag-67 refresh must bump _schema.version to 3"
+        "refresh must bump _schema.version to 3"
     )
 
 
@@ -183,7 +183,7 @@ def test_t03_allowlist_schema_tag_mentions_tag_67(allowlist_doc):
     """The schema tag field names as the current refresh anchor."""
     tag_field = allowlist_doc["_schema"]["tag"]
     assert "Tag-67" in tag_field, (
-        f"Tag-67 refresh: _schema.tag must mention Tag-67, got {tag_field!r}"
+        f"refresh: _schema.tag must mention, got {tag_field!r}"
     )
 
 
@@ -193,7 +193,7 @@ def test_t04_allowlist_audit_history_has_four_entries(allowlist_doc):
     assert isinstance(history, list)
     tags = [h["tag"] for h in history]
     assert tags == ["Tag-60", "Tag-62", "Tag-63", "Tag-67"], (
-        f"Tag-67 refresh: audit_history must be the four-entry chain, got {tags}"
+        f"refresh: audit_history must be the four-entry chain, got {tags}"
     )
 
 
@@ -233,7 +233,7 @@ def test_t07_every_entry_path_exists():
         if not p.is_file():
             missing.append(entry["path"])
     assert not missing, (
-        f"Tag-67 refresh found entries pointing at non-existent files: "
+        f"refresh found entries pointing at non-existent files: "
         f"{missing}"
     )
 
@@ -256,7 +256,7 @@ def test_t08_every_entry_path_still_carries_a_stale_literal():
         if not any(lit in text for lit in STALE_LITERALS):
             empty_entries.append(entry["path"])
     assert not empty_entries, (
-        "Tag-67 audit-loop: the following allowlist entries no longer "
+        "audit-loop: the following allowlist entries no longer "
         "contain ANY stale-literal context and have become obsolete; "
         "they MUST be removed in a follow-up cleanup tag: "
         f"{empty_entries}"
@@ -282,8 +282,8 @@ def test_t09_never_allowlistable_surfaces_are_not_allowlisted(allowlist_doc):
     for path in forbidden:
         assert path not in entries_by_path, (
             f"never_allowlistable surface {path} appears as an allowlist "
-            "entry; this is forbidden by Tag-60 Allowlist-Waechter-"
-            "Disziplin (Tag-59 Hot-Fix #381 lesson)."
+            "entry; this is forbidden by Allowlist-Waechter-"
+            "Disziplin (Hot-Fix #381 lesson)."
         )
 
 
@@ -323,9 +323,9 @@ def test_t11_v907_baseline_still_sealed_at_rc1():
     """
     data = json.loads(V907_BASELINE_PATH.read_text(encoding="utf-8"))
     assert data["engine_version"] == "0.5.3-rc1", (
-        "Tag-67 audit: V-907 baseline engine_version has drifted from "
-        f"the Tag-59 seal contract; expected '0.5.3-rc1', got "
-        f"{data['engine_version']!r}. Any refresh requires Tomas "
+        "audit: V-907 baseline engine_version has drifted from "
+        f"the seal contract; expected '0.5.3-rc1', got "
+        f"{data['engine_version']!r}. Any refresh requires the engineering zone "
         "Zone-K cross-review."
     )
 
@@ -333,7 +333,7 @@ def test_t11_v907_baseline_still_sealed_at_rc1():
 def test_t12_active_version_is_zero_five_three(scanner):
     """The scanner's ACTIVE_VERSION is the rc1-suffix-drop literal."""
     assert scanner.ACTIVE_VERSION == "0.5.3", (
-        f"scanner.ACTIVE_VERSION drifted from Tag-62 final-bump: "
+        f"scanner.ACTIVE_VERSION drifted from final-bump: "
         f"{scanner.ACTIVE_VERSION!r}"
     )
 
@@ -362,7 +362,7 @@ def test_t14_scanner_exits_zero_on_refreshed_allowlist(scanner, capsys):
     rc = scanner.main([])
     capsys.readouterr()  # drain captured output
     assert rc == 0, (
-        f"drift scanner exited {rc} against the Tag-67 refreshed "
+        f"drift scanner exited {rc} against the refreshed "
         "allowlist; refresh introduced un-allowlisted findings."
     )
 
@@ -378,8 +378,8 @@ def test_t15_tag58_historical_fixture_still_carries_rc1_constant():
     """
     text = TAG58_RC1_TEST_PATH.read_text(encoding="utf-8")
     assert 'RC1_VERSION = "0.5.3-rc1"' in text, (
-        "Tag-58 historical fixture lost its RC1_VERSION constant — "
-        "this would break the Tag-62 final-bump rc1-suffix-drop "
+        "historical fixture lost its RC1_VERSION constant — "
+        "this would break the final-bump rc1-suffix-drop "
         "negative-assertion contract."
     )
 
@@ -412,7 +412,7 @@ def test_t17_entry_count_is_twenty_seven_post_refresh(allowlist_doc):
     """
     entries = allowlist_doc["entries"]
     assert len(entries) == 27, (
-        f"Tag-67 refresh changed entry cardinality unexpectedly: "
+        f"refresh changed entry cardinality unexpectedly: "
         f"{len(entries)} entries (expected 27 = 26 carried + 1 new "
         "for this refresh-audit test)."
     )
@@ -445,5 +445,5 @@ def test_t19_scanner_strict_mode_still_exits_one_with_allowlisted_findings(
     # 252 allowlisted hits exist; strict-mode must exit 1.
     assert rc == 1, (
         f"strict-mode scanner exited {rc} despite 252 allowlisted "
-        "hits being present; Tag-60 contract violated."
+        "hits being present; contract violated."
     )

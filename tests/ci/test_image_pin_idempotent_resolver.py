@@ -177,8 +177,8 @@ def test_second_run_is_noop(repo_copy: Path) -> None:
     )
     state_after_second = _snapshot(repo_copy)
     assert state_after_first == state_after_second, (
-        "idempotent re-run mutated files; this is the bug Sprint-9 "
-        "Tag-5 Teil 2 was meant to close"
+        "idempotent re-run mutated files; this is the bug "
+        "Teil 2 was meant to close"
     )
 
 
@@ -328,14 +328,14 @@ def test_pins_inventory_wakir_provisioner_is_bare_base(repo_copy: Path) -> None:
         in text
     ), (
         "PINS inventory must carry the bare wakir-provisioner base "
-        "(no :<tag> suffix) for tag-tolerant drift detection"
+        "(no:<tag> suffix) for tag-tolerant drift detection"
     )
     # The legacy tag-pinned form must NOT linger.
     assert (
         "ghcr.io/wakir-labs/wakir-provisioner:0.1.2|" not in text
     ), (
         "PINS inventory still carries the legacy tag-pinned "
-        "wakir-provisioner row; Sprint-9 Tag-6 contract requires "
+        "wakir-provisioner row; contract requires "
         "the bare-base form"
     )
 
@@ -411,8 +411,8 @@ def test_pins_inventory_carries_wakir_persona_engine_row() -> None:
         in text
     ), (
         "PINS inventory must carry the bare wakir-persona-engine row "
-        "(no :<tag> suffix) so the resolver tolerates the "
-        "0.1.0-pilot -> 0.2.0-pilot rotation when the Sprint-Pengine-8 "
+        "(no:<tag> suffix) so the resolver tolerates the "
+        "0.1.0-pilot -> 0.2.0-pilot rotation when the -Pengine-8 "
         "axis lands the full engine"
     )
     # The row must point at the engineering zone-pilot Quadlet (the consumer).
@@ -451,7 +451,7 @@ def test_resolver_substitutes_kai_cross_review_placeholder(
     )
     proc = _run_resolver(repo_copy, FAKE_DIGESTS)
     assert proc.returncode == 10, (
-        f"resolver did not detect drift on Kai-cross-review "
+        f"resolver did not detect drift on the infrastructure zone-cross-review "
         f"placeholder: stdout={proc.stdout!r} stderr={proc.stderr!r}"
     )
     text = quadlet.read_text()
@@ -503,7 +503,7 @@ def test_resolver_idempotent_on_persona_engine_pin(
     state_after_second = _snapshot(repo_copy)
     assert state_after_first == state_after_second, (
         "idempotent re-run mutated files; persona-engine row "
-        "violates the Sprint-9 Tag-5 idempotency contract"
+        "violates the idempotency contract"
     )
 
 
@@ -570,7 +570,7 @@ def test_persona_engine_real_containerfile_present() -> None:
     cf = REPO_ROOT / "infra" / "persona-engine" / "Containerfile.real"
     assert cf.is_file(), (
         f"missing persona-engine real Containerfile: {cf}; "
-        f"Sprint-Pengine-8 image swap path is incomplete"
+        f"-Pengine-8 image swap path is incomplete"
     )
 
 

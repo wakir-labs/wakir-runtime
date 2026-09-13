@@ -231,7 +231,7 @@ def test_alert_carries_info_severity_and_routing_class(alerts_text: str) -> None
     # Take the next 2000 chars; the block is well below that.
     block = alerts_text[alert_start:alert_start + 2500]
     assert re.search(r"severity:\s*info", block), (
-        "Tag-71 alert must be severity=info, not warning/page"
+        "alert must be severity=info, not warning/page"
     )
     assert "routing_class: welle-3-pre-auditor-info" in block
     assert "tag: tag-71" in block
@@ -290,7 +290,7 @@ def test_alert_is_in_b3_group_not_new_group(alerts_text: str) -> None:
     )
     c1_idx = alerts_text.index(c1_group_marker)
     assert group_idx < new_alert_idx < c1_idx, (
-        "Tag-71 alert must live inside the B3 group, before the "
+        "alert must live inside the B3 group, before the "
         "C1 group"
     )
 

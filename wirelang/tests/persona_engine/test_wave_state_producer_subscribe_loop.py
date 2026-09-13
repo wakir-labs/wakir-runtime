@@ -776,7 +776,7 @@ def test_w5_anchor_fix_reconciliation_doc_committed():
         / "welle-5-kw-anchor-reconciliation-tag74.md"
     )
     assert reconciliation_doc.exists(), (
-        f"Tag-74 reconciliation doc missing at {reconciliation_doc}; "
+        f"reconciliation doc missing at {reconciliation_doc}; "
         "the engine-side audit-trail anchor for the W4+W5 KW-anchor "
         "alignment lives in this file."
     )

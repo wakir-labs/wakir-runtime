@@ -91,10 +91,10 @@ def _require_adr(name: str) -> Path:
 def test_t_adr_s_01_audit_report_exists() -> None:
     """T-ADR-S-01: audit report file is present at the canonical path."""
     assert AUDIT_REPORT.exists(), (
-        f"Tag-54 audit report missing at {AUDIT_REPORT}"
+        f"audit report missing at {AUDIT_REPORT}"
     )
     assert AUDIT_REPORT.stat().st_size > 1000, (
-        "Tag-54 audit report is suspiciously small (<1 kB)"
+        "audit report is suspiciously small (<1 kB)"
     )
 
 
@@ -103,7 +103,7 @@ def test_t_adr_s_02_audit_cites_correct_main_tip() -> None:
     text = _audit_text()
     assert "f713e75" in text, "audit report must cite main-tip commit"
     assert "#345" in text or "Tag-53" in text, (
-        "audit report must cite Tag-53 PR #345 lineage"
+        "audit report must cite PR #345 lineage"
     )
 
 

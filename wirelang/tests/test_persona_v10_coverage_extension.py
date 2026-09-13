@@ -265,13 +265,13 @@ def test_v2_schema_accepts_full_field_union_simultaneously(
     # top-level: 5 mandatory + 2 additive-optional + 3 reserved = 10.
     assert len(doc) == 5 + 2 + 3, (
         f"expected 10 top-level keys, got {len(doc)}: "
-        f"{sorted(doc.keys())}"
+        f"{sorted(doc.keys)}"
     )
     # identity_pinned: 3 mandatory + 3 additive-optional = 6.
     assert len(doc["identity_pinned"]) == 3 + 3, (
         f"expected 6 identity_pinned keys, got "
         f"{len(doc['identity_pinned'])}: "
-        f"{sorted(doc['identity_pinned'].keys())}"
+        f"{sorted(doc['identity_pinned'].keys)}"
     )
     # Total v2-defined field surface = 13 (= 10 top-level + 3 nested-
     # additive; identity_pinned itself is counted as 1 of the 10

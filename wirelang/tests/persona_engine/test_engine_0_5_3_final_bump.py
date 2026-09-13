@@ -172,7 +172,7 @@ def test_t01_version_module_pins_0_5_3_final() -> None:
     literal = _extract_assignment_literal(source, "__version__")
     assert literal == EXPECTED_VERSION, (
         f"__version__.py pins {literal!r}, expected "
-        f"{EXPECTED_VERSION!r} (Tag-62 rc1-suffix-drop)"
+        f"{EXPECTED_VERSION!r} (rc1-suffix-drop)"
     )
 
 
@@ -191,7 +191,7 @@ def test_t02_version_module_release_notes_relpath_points_to_final_file() -> None
         "0-5-3-final-release-notes.md"
     ), (
         f"RELEASE_NOTES_RELPATH={relpath_literal!r} does not point at "
-        f"the Tag-62 final-release-notes filename"
+        f"the final-release-notes filename"
     )
     notes_path = REPO_ROOT / relpath_literal
     assert notes_path.is_file(), (
@@ -293,13 +293,13 @@ def test_t07_manifest_section_zero_dot_one_preserves_rc1_history() -> None:
     # Either ###/## numbering is acceptable; the author chose ###.
     assert (
         "### 0.1" in source or "## 0.1" in source
-    ), "Manifest §0.1 Tag-58 history sub-section missing"
+    ), "Manifest §0.1 history sub-section missing"
     sub_idx = source.find("### 0.1")
     if sub_idx < 0:
         sub_idx = source.find("## 0.1")
     section_one_idx = source.index("## 1.", sub_idx)
     subsection = source[sub_idx:section_one_idx]
-    assert "Tag-58" in subsection, "§0.1 must reference Tag-58 explicitly"
+    assert "Tag-58" in subsection, "§0.1 must reference explicitly"
     assert PREDECESSOR_VERSION in subsection, (
         f"§0.1 must reference {PREDECESSOR_VERSION!r} as historical anchor"
     )
@@ -332,7 +332,7 @@ def test_t08_cli_module_docstring_carries_bumped_version() -> None:
     # __version__.py docstring history block, not in cli.py).
     assert PREDECESSOR_VERSION not in source, (
         f"cli.py must not carry the stale {PREDECESSOR_VERSION!r} "
-        f"literal after the Tag-62 bump"
+        f"literal after the bump"
     )
 
 
@@ -357,7 +357,7 @@ def test_t09_engine_async_async_engine_version_literal() -> None:
     # narrative is bounded to __version__.py docstring history.
     assert PREDECESSOR_VERSION not in source, (
         f"engine_async.py must not carry the stale "
-        f"{PREDECESSOR_VERSION!r} literal after the Tag-62 bump"
+        f"{PREDECESSOR_VERSION!r} literal after the bump"
     )
 
 
@@ -400,7 +400,7 @@ def test_t10_engine_py_canonical_anchor_import_comment() -> None:
 def test_t11_final_release_notes_file_exists_at_canonical_path() -> None:
     """``docs/persona-engine/0-5-3-final-release-notes.md`` must exist."""
     assert RELEASE_NOTES_PATH.is_file(), (
-        f"Tag-62 final-release-notes file missing: {RELEASE_NOTES_PATH}"
+        f"final-release-notes file missing: {RELEASE_NOTES_PATH}"
     )
 
 
@@ -442,11 +442,11 @@ def test_t13_final_release_notes_records_g5_compositum_achievement() -> None:
     source = _read(RELEASE_NOTES_PATH)
     assert "G5-PRE-CUTOVER-READY" in source, (
         "final release-notes does not record the G5-PRE-CUTOVER-READY "
-        "compositum verdict from Tag-61 PR #391"
+        "compositum verdict from PR #391"
     )
     # PR #391 is the substrate authority for the promotion.
     assert "#391" in source, (
-        "final release-notes does not reference Tag-61 PR #391 as the "
+        "final release-notes does not reference PR #391 as the "
         "upstream authority for the rc1 → final promotion"
     )
 
@@ -473,7 +473,7 @@ def test_t14_drift_scanner_active_version_mirrors_canonical_anchor(
     )
     assert scanner_module.ACTIVE_VERSION == EXPECTED_VERSION, (
         f"scanner ACTIVE_VERSION={scanner_module.ACTIVE_VERSION!r} "
-        f"!= Tag-62 expected {EXPECTED_VERSION!r}"
+        f"!= expected {EXPECTED_VERSION!r}"
     )
 
 
@@ -487,7 +487,7 @@ def test_t15_drift_scanner_hunts_rc1_as_stale_literal(
 ) -> None:
     """extension: ``0.5.3-rc1`` joins the hunted ``STALE_VERSIONS``."""
     assert PREDECESSOR_VERSION in scanner_module.STALE_VERSIONS, (
-        f"Tag-62 scanner extension missing — {PREDECESSOR_VERSION!r} "
+        f"scanner extension missing — {PREDECESSOR_VERSION!r} "
         f"is not in STALE_VERSIONS={scanner_module.STALE_VERSIONS!r}"
     )
     # Longest-first invariant must still hold (test_03 also
@@ -496,7 +496,7 @@ def test_t15_drift_scanner_hunts_rc1_as_stale_literal(
         scanner_module.STALE_VERSIONS, key=len, reverse=True
     )
     assert list(scanner_module.STALE_VERSIONS) == stale_by_len, (
-        "STALE_VERSIONS must be sorted longest-first; Tag-62 "
+        "STALE_VERSIONS must be sorted longest-first; "
         f"extension violated invariant: {scanner_module.STALE_VERSIONS!r}"
     )
 
@@ -535,8 +535,8 @@ def test_t17_drift_scanner_allowlist_covers_v907_baseline_seal(
     allowlist = scanner_module.load_allowlist(ALLOWLIST_PATH)
     baseline_relpath = "wirelang/persona_engine/v907-hash-baseline.json"
     assert baseline_relpath in allowlist, (
-        f"Tag-62 allowlist must register {baseline_relpath!r} as a "
-        f"legitimate rc1-surviving artefact (Tag-59 seal)"
+        f"allowlist must register {baseline_relpath!r} as a "
+        f"legitimate rc1-surviving artefact (seal)"
     )
     entry = allowlist[baseline_relpath]
     assert "v907-baseline-pin" in entry.categories, (
@@ -562,8 +562,8 @@ def test_t18_v907_baseline_seal_unchanged_engine_version_metadata() -> None:
     baseline = json.loads(_read(V907_BASELINE_PATH))
     assert baseline["engine_version"] == PREDECESSOR_VERSION, (
         f"V-907 baseline engine_version drifted to "
-        f"{baseline['engine_version']!r}; Tag-62 must NOT refresh the "
-        f"Tag-59 seal (Zone-K cross-review required for refresh)"
+        f"{baseline['engine_version']!r}; must NOT refresh the "
+        f"seal (Zone-K cross-review required for refresh)"
     )
     # And the composite_hash field must still be present (seal-shape
     # intact).
@@ -600,9 +600,9 @@ def test_t20_final_release_notes_pins_scope_discipline_j_k_l() -> None:
 def test_t21_rc1_release_notes_file_preserved_as_historical_artefact() -> None:
     """The rc1 release-notes file must remain in the repo as historical."""
     assert RC1_RELEASE_NOTES_PATH.is_file(), (
-        f"Tag-62 must preserve the rc1 historical artefact: "
+        f"must preserve the rc1 historical artefact: "
         f"{RC1_RELEASE_NOTES_PATH} (deleting it would erase the public "
-        f"record of the Tag-58 substrate)"
+        f"record of the substrate)"
     )
 
 
@@ -674,8 +674,8 @@ def test_t23_tag62_bump_does_not_touch_cross_zone_substrate() -> None:
         "infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml"
         in section_zero
     ), (
-        "Pin-pack YAML reference in §0 must stay at the Tag-52 "
-        "filename (carry-forward, Kai-Zone-J coordination respected)"
+        "Pin-pack YAML reference in §0 must stay at the "
+        "filename (carry-forward, the infrastructure zone-Zone-J coordination respected)"
     )
 
 
@@ -696,7 +696,7 @@ def test_t24_allowlist_schema_version_bumped_to_2() -> None:
     schema_version = allowlist_data.get("_schema", {}).get("version")
     assert isinstance(schema_version, int) and schema_version >= 2, (
         f"allowlist _schema.version={schema_version!r}, expected >= 2 "
-        f"(Tag-62 extension contract; Tag-67 refresh bumped to v3)"
+        f"(extension contract; refresh bumped to v3)"
     )
 
 
@@ -710,5 +710,5 @@ def test_t25_allowlist_tag_field_records_tag62() -> None:
     allowlist_data = json.loads(_read(ALLOWLIST_PATH))
     schema_tag = allowlist_data.get("_schema", {}).get("tag", "")
     assert "Tag-62" in schema_tag, (
-        f"allowlist _schema.tag={schema_tag!r} does not record Tag-62"
+        f"allowlist _schema.tag={schema_tag!r} does not record "
     )

@@ -170,7 +170,7 @@ def test_resolver_help_documents_tag_6_version_flag() -> None:
     assert rc.returncode == 0
     # addition.
     assert "--wakir-provisioner-version" in rc.stdout, (
-        "resolver --help must document the Sprint-9 Tag-6 "
+        "resolver --help must document the "
         "--wakir-provisioner-version flag"
     )
     # The pre-flag stays documented.
@@ -450,7 +450,7 @@ def test_resolver_help_documents_provisioner_only_flag() -> None:
     )
     assert rc.returncode == 0
     assert "--provisioner-only" in rc.stdout, (
-        "resolver --help must document the Sprint-10 Tag-5 Bug-33 "
+        "resolver --help must document the Bug-33 "
         "--provisioner-only flag"
     )
 

@@ -124,7 +124,7 @@ def tmp_runtime(tmp_path: pathlib.Path) -> pathlib.Path:
 
 def test_01_helper_python_module_exists() -> None:
     assert HELPER_PATH.is_file(), (
-        "Tag-53 deliverable missing: Python helper module"
+        "deliverable missing: Python helper module"
     )
     assert HELPER_PATH.stat().st_mode & 0o111, (
         "Python helper module not marked executable"
@@ -133,7 +133,7 @@ def test_01_helper_python_module_exists() -> None:
 
 def test_02_helper_bash_wrapper_exists() -> None:
     assert WRAPPER_PATH.is_file(), (
-        "Tag-53 deliverable missing: Bash entry wrapper"
+        "deliverable missing: Bash entry wrapper"
     )
     assert WRAPPER_PATH.stat().st_mode & 0o111, (
         "Bash wrapper not marked executable"
@@ -174,7 +174,7 @@ def test_04_pre_rotation_canonical_tree_is_ok(repo_root: pathlib.Path) -> None:
     report = HELPER.pre_rotation_hash_check(repo_root)
     assert report.overall is HELPER.Severity.OK, (
         "pre-check unexpectedly failed on canonical tree: "
-        + json.dumps(report.to_dict(), indent=2)
+        + json.dumps(report.to_dict, indent=2)
     )
     assert report.from_manifest_sha256 is not None
     assert report.to_manifest_sha256 is not None

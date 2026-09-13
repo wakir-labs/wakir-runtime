@@ -540,8 +540,8 @@ def test_t11_cross_lang_fixture_byte_parity(
     exp_bytes = base64.b64decode(exp["snapshot_jcs_bytes_b64"])
     assert bytes_ == exp_bytes, (
         f"fixture {fixture_name!r}: canonical JCS bytes drifted.\n"
-        f"got     {bytes_.decode()!r}\n"
-        f"expect  {exp_bytes.decode()!r}"
+        f"got {bytes_.decode!r}\n"
+        f"expect {exp_bytes.decode!r}"
     )
     assert len(bytes_) == exp["snapshot_jcs_bytes_len"]
     assert resolver_snapshot_sha256_hex(snap) == exp["snapshot_sha256_hex"]
@@ -606,7 +606,7 @@ def test_list_entries_returns_defensive_copy() -> None:
     list_1.clear()
     list_3 = r.list_entries()
     assert len(list_3) == 1, (
-        "mutating the returned list_entries() output must not affect the resolver"
+        "mutating the returned list_entries output must not affect the resolver"
     )
 
 

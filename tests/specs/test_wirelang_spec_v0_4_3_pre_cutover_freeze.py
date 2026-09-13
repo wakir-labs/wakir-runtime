@@ -102,7 +102,7 @@ def test_t02_spec_v043_frontmatter_declares_freeze_marker():
         re.M,
     ), "frontmatter must declare freeze-anchor: persona-engine-0.5.2-final-pre-cutover"
     assert re.search(r"^date:\s*2026-05-19\s*$", body, re.M), (
-        "frontmatter must declare date: 2026-05-19 (Tag-53)"
+        "frontmatter must declare date: 2026-05-19 "
     )
 
 
@@ -251,10 +251,10 @@ def test_t08_spec_v043_cites_engine_side_freeze_anchor():
         "v0.4.3 must cite the engine binary tag persona-engine-0.5.2-final-pre-cutover"
     )
     assert "Tag-52" in body, (
-        "v0.4.3 must cite Tag-52 (the engine-side freeze counterpart)"
+        "v0.4.3 must cite (the engine-side freeze counterpart)"
     )
     assert "PR #336" in body or "#336" in body, (
-        "v0.4.3 must cite PR #336 (Tag-52 engine-side freeze) for traceability"
+        "v0.4.3 must cite PR #336 (engine-side freeze) for traceability"
     )
 
 
@@ -267,9 +267,9 @@ def test_t09_spec_v043_cites_v042_substance_baseline():
     """T-09: v0.4.3 must cite PR #320 (v0.4.2 substance baseline)."""
     body = SPEC_V043.read_text(encoding="utf-8")
     assert "v0.4.2" in body, "v0.4.3 must cite v0.4.2 (substance baseline)"
-    assert "Tag-50" in body, "v0.4.3 must cite Tag-50 (v0.4.2 release)"
+    assert "Tag-50" in body, "v0.4.3 must cite (v0.4.2 release)"
     assert "PR #320" in body or "#320" in body, (
-        "v0.4.3 must cite PR #320 (Tag-50 v0.4.2 substance baseline)"
+        "v0.4.3 must cite PR #320 (v0.4.2 substance baseline)"
     )
 
 
@@ -306,7 +306,7 @@ def test_t11_spec_v043_declares_kw_24_cutover_gate():
     """T-11: v0.4.3 must declare the calendar week 24-cutover-gate identity."""
     body = SPEC_V043.read_text(encoding="utf-8")
     assert "kw-24-cutover-gate" in body.lower() or "kw 24" in body.lower() or "kw-24" in body.lower(), (
-        "v0.4.3 must declare the KW-24 cutover-gate identity"
+        "v0.4.3 must declare the calendar week 24 cutover-gate identity"
     )
     assert "Phase-3c" in body or "phase-3c" in body.lower(), (
         "v0.4.3 must reference Phase-3c (the cutover phase)"

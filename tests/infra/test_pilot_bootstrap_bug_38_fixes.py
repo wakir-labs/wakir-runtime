@@ -136,10 +136,10 @@ def _extract_step_8_smoke(source: str) -> str:
     """Body of ``step_8_smoke()`` in the bootstrap (from the function
     header through the closing brace at column 0)."""
     start = source.find("step_8_smoke()")
-    assert start > 0, "step_8_smoke() function not found"
+    assert start > 0, "step_8_smoke function not found"
     after = source[start:]
     m = re.search(r"\n\}\s*\n", after)
-    assert m, "step_8_smoke() closing brace not found"
+    assert m, "step_8_smoke closing brace not found"
     return after[: m.end()]
 
 
@@ -400,7 +400,7 @@ def test_acceptance_script_documents_bug_38_lineage(
     archaeology."""
     header = "\n".join(acceptance_source.splitlines()[:60])
     assert "Bug-38" in header or "Tag-8" in header, (
-        "Acceptance script header must reference the Sprint-10 Tag-8 "
+        "Acceptance script header must reference the "
         "Bug-38 cleanup for trace-back."
     )
     assert "Bug-38" in acceptance_source, (

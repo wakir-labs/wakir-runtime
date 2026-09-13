@@ -158,7 +158,7 @@ def test_v2_script_json_mode_well_formed(
     assert report["failed_checks"] == 0
     # v2-specific baseline string.
     assert "Tag-50" in report["boot_baseline"], (
-        f"boot_baseline does not advertise Tag-50: "
+        f"boot_baseline does not advertise: "
         f"{report['boot_baseline']!r}"
     )
 

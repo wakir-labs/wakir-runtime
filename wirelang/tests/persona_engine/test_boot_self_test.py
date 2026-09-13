@@ -277,6 +277,6 @@ def test_boot_fingerprint_changes_on_env_flip(boot_self_test_module):
     assert fp_default != fp_explicit_python, (
         "fingerprint did not change when WAKIR_RECOVERY_BACKEND=python; "
         "either the selector is ignored or the fingerprint is too coarse "
-        "(post-Welle-7 the default is rust, so an explicit-python flip "
+        "(post-wave 7 the default is rust, so an explicit-python flip "
         "is the diagnostic)"
     )

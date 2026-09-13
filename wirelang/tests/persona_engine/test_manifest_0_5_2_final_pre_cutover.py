@@ -171,14 +171,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-52 manifest missing at {MANIFEST_PATH}; Pre-KW-24 "
+        f"manifest missing at {MANIFEST_PATH}; Pre-calendar week 24 "
         "cutover gate cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-52 pin pack missing at {PIN_PACK_PATH}; "
+        f"pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 
@@ -195,11 +195,11 @@ def test_04_historical_anchors_still_present() -> None:
     they stay on-disk as the Doppelbetrieb regression-comparison
     baseline."""
     assert HISTORICAL_MANIFEST_051.is_file(), (
-        "Tag-48 0.5.1-pre-cutover manifest must remain on-disk as "
+        "0.5.1-pre-cutover manifest must remain on-disk as "
         "the regression-comparison baseline for the Doppelbetrieb gate."
     )
     assert HISTORICAL_PIN_PACK_051.is_file(), (
-        "Tag-48 0.5.1-pre-cutover pin-pack must remain on-disk as "
+        "0.5.1-pre-cutover pin-pack must remain on-disk as "
         "the regression-comparison baseline for the Doppelbetrieb gate."
     )
 
@@ -291,7 +291,7 @@ def test_12_manifest_documents_tag48_50_51_absorption(
     ]
     missing = [r for r in expected_refs if r not in manifest_text]
     assert not missing, (
-        f"Manifest §7 must absorb Tag-48 + Tag-50 + Tag-51 + DRIFT-S4 "
+        f"Manifest §7 must absorb + + + DRIFT-S4 "
         f"+ Resilience by reference; missing refs: {missing}"
     )
 
@@ -415,7 +415,7 @@ def test_24_pin_pack_selector_envs_consistent(pin_pack: dict) -> None:
         # DRIFT-S4 invariant: no _PE_ infix.
         assert "WAKIR_PE_" not in sel, (
             f"Crate {crate['name']} selector_env {sel!r} must NOT use "
-            "the legacy WAKIR_PE_*_BACKEND prefix (Tag-50 DRIFT-S4)."
+            "the legacy WAKIR_PE_*_BACKEND prefix (DRIFT-S4)."
         )
 
 
@@ -426,9 +426,9 @@ def test_25_pin_pack_resilience_contract_pinned(pin_pack: dict) -> None:
     assert rc, "Pin pack must declare resilience_contract block."
     assert "test_tag51_10_decision_engine_resilience" in rc.get(
         "pinned_test_module", ""
-    ), "Resilience contract must pin Tag-51 PR #327 test module."
+    ), "Resilience contract must pin PR #327 test module."
     assert rc.get("pinned_test_count") == 36, (
-        "Resilience contract must pin the 36-test count from Tag-51 PR #327."
+        "Resilience contract must pin the 36-test count from PR #327."
     )
 
 
@@ -438,7 +438,7 @@ def test_26_pin_pack_spec_sot_pinned(pin_pack: dict) -> None:
     sot = pin_pack.get("spec_source_of_truth")
     assert sot, "Pin pack must declare spec_source_of_truth block."
     assert sot.get("drift_id") == "DRIFT-S4", (
-        "spec_source_of_truth must reference DRIFT-S4 (Tag-50)."
+        "spec_source_of_truth must reference DRIFT-S4."
     )
     assert sot.get("section") == "4.1", (
         "spec_source_of_truth must reference spec §4.1."
@@ -501,7 +501,7 @@ def test_30_containerfile_references_manifest(
     containerfile_text: str,
 ) -> None:
     assert "MANIFEST-0.5.2-final-pre-cutover.md" in containerfile_text, (
-        "Containerfile.real must reference the Tag-52 manifest in "
+        "Containerfile.real must reference the manifest in "
         "its header comment / description for operator traceability."
     )
 
@@ -510,7 +510,7 @@ def test_31_containerfile_references_pin_pack(
     containerfile_text: str,
 ) -> None:
     assert "pin-pack-0.5.2-final-pre-cutover.yaml" in containerfile_text, (
-        "Containerfile.real must reference the Tag-52 pin pack in "
+        "Containerfile.real must reference the pin pack in "
         "its header comment / description for operator traceability."
     )
 
@@ -580,9 +580,9 @@ def test_34_pin_pack_boot_wired_consistent_with_051(
         for c in pin_pack["boot_wired_crates"]
     ]
     assert current_wired == historical_wired, (
-        "Tag-52 boot_wired_crates must be byte-identical to Tag-48 "
+        "boot_wired_crates must be byte-identical to "
         f"0.5.1-pre-cutover; diff detected:\n"
-        f"current : {current_wired}\n"
+        f"current: {current_wired}\n"
         f"historical: {historical_wired}"
     )
 
@@ -601,7 +601,7 @@ def test_35_pin_pack_unwired_consistent_with_051(pin_pack: dict) -> None:
         for c in pin_pack["boot_unwired_crates"]
     }
     assert current_unwired == historical_unwired, (
-        "Tag-52 boot_unwired_crates must be byte-identical to Tag-48; "
+        "boot_unwired_crates must be byte-identical to; "
         f"diff: current={current_unwired}, historical={historical_unwired}"
     )
 
@@ -612,10 +612,10 @@ def test_36_containerfile_documents_tag52_consolidation(
     """The Containerfile.real header must announce the
     Pre-calendar week 24-Final consolidation marker for operator traceability."""
     assert "Tag-52" in containerfile_text, (
-        "Containerfile.real header must reference Tag-52 for the "
+        "Containerfile.real header must reference for the "
         "consolidation-marker audit trail."
     )
     assert "Pre-KW-24" in containerfile_text or "KW-24" in containerfile_text or "kw 24" in containerfile_text.lower() or "kw-24" in containerfile_text.lower(), (
-        "Containerfile.real header must reference the KW-24 cutover "
+        "Containerfile.real header must reference the calendar week 24 cutover "
         "window for operator traceability."
     )

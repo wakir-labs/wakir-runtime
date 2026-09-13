@@ -465,5 +465,5 @@ def test_compose_file_still_exists_alongside_quadlet() -> None:
     assert COMPOSE_FILE.exists(), (
         "compose/nats.yaml is the primary Phase-2 contract surface and "
         "MUST stay alongside the Quadlet dual-track. Removing it requires "
-        "a Phase-3-trigger decision (Scenario C in the Skizze)."
+        "a Phase-3-trigger decision (Scenario C in the sketch)."
     )

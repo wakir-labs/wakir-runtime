@@ -376,7 +376,7 @@ def test_audit_doc_records_finding_f3_numbering_off_by_one():
     # The mapping table in §1 must show at least one off-by-one row.
     assert "Spec-Gate-2.2" in text and "Test-Gate-2-1" in text, (
         "audit-doc Finding F-3 must show the §2.2 ⇔ Test-Gate-2-1 "
-        "off-by-one example so Henrik's audit-sample can replicate it."
+        "off-by-one example so internal audit's audit-sample can replicate it."
     )
 
 

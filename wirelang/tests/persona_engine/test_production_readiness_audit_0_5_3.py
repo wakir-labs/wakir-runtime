@@ -516,9 +516,9 @@ class TestV907PinStability:
         # The engine_version field is the cross-review-gated documentation
         # surface; "0.5.3-rc1" is the intentional carry-forward.
         assert v907_baseline["engine_version"] == "0.5.3-rc1", (
-            "Tag-59 baseline engine_version drifted away from the "
+            "baseline engine_version drifted away from the "
             "intentional carry-forward '0.5.3-rc1'; refresh requires "
-            "Selin-Hand + Tomás Zone-K cross-review."
+            "the engine zone-Hand + the engineering zone Zone-K cross-review."
         )
 
 
@@ -654,7 +654,7 @@ def test_cross_audit_report_present_at_canonical_path_with_verdict():
     )
     text = AUDIT_REPORT_PATH.read_text(encoding="utf-8")
     assert "Production-Readiness Audit (Tag-63" in text, (
-        "Audit report headline missing Tag-63 marker"
+        "Audit report headline missing marker"
     )
     assert "PRODUCTION-READY-WITH-OPEN" in text, (
         "Audit report verdict line missing PRODUCTION-READY-WITH-OPEN"
@@ -690,7 +690,7 @@ def test_cross_0_5_3_engine_version_anchor_consistent_across_surfaces():
     # engine.py's import comment (it appears only as a documented
     # rc1-dropped marker).
     assert "rc1 dropped" in engine_py, (
-        "engine.py missing the Tag-62 'rc1 dropped' anchor comment"
+        "engine.py missing the 'rc1 dropped' anchor comment"
     )
 
     engine_async_py = ENGINE_ASYNC_PY_PATH.read_text(encoding="utf-8")
@@ -706,7 +706,7 @@ def test_cross_0_5_3_engine_version_anchor_consistent_across_surfaces():
     manifest = MANIFEST_PATH.read_text(encoding="utf-8")
     # Manifest §0 Version Header (rewrite) must record 0.5.3 as
     # the active engine version.
-    assert "Tag-62" in manifest, "Manifest §0 missing Tag-62 marker"
+    assert "Tag-62" in manifest, "Manifest §0 missing marker"
     assert (
         f"Engine version (Python source of truth) | `{CANONICAL_ENGINE_VERSION}`"
         in manifest

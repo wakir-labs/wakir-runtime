@@ -145,14 +145,14 @@ def containerfile_text() -> str:
 
 def test_01_manifest_file_exists() -> None:
     assert MANIFEST_PATH.is_file(), (
-        f"Tag-48 manifest missing at {MANIFEST_PATH}; cutover gate "
+        f"manifest missing at {MANIFEST_PATH}; cutover gate "
         "cannot hash an absent source."
     )
 
 
 def test_02_pin_pack_file_exists() -> None:
     assert PIN_PACK_PATH.is_file(), (
-        f"Tag-48 pin pack missing at {PIN_PACK_PATH}; "
+        f"pin pack missing at {PIN_PACK_PATH}; "
         "cross-substrate-parity-gate workflow has no input."
     )
 
@@ -355,7 +355,7 @@ def test_20_manifest_self_identifies_with_image_tag(
     points at it.
     """
     assert EXPECTED_IMAGE_TAG in manifest_text, (
-        f"Tag-48 manifest must self-reference its own image tag "
+        f"manifest must self-reference its own image tag "
         f"'{EXPECTED_IMAGE_TAG}' for traceability."
     )
 
@@ -366,7 +366,7 @@ def test_21_manifest_references_pin_pack(
     """the manifest §3 must reference its companion pin pack
     YAML file path for operator traceability."""
     assert "pin-pack-0.5.1-pre-cutover.yaml" in manifest_text, (
-        "Tag-48 manifest must reference its companion pin pack in §3."
+        "manifest must reference its companion pin pack in §3."
     )
 
 

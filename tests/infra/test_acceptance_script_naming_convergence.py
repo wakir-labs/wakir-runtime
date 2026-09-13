@@ -246,7 +246,7 @@ def test_tv_acc_conv_05_unknown_mode_rejected_with_clear_error(
     assert default_arm is not None, "default case-arm not found"
     body = default_arm.group(1)
     assert "fail" in body, (
-        "default arm must call fail() — silent fallthrough not allowed"
+        "default arm must call fail — silent fallthrough not allowed"
     )
     assert "unknown" in body.lower(), (
         "default arm error message should mention 'unknown'"

@@ -147,7 +147,7 @@ def test_welle_5_five_moduln_rust(mocked_quadlet_env) -> None:
     rust_count = sum(1 for v in env.values() if v == "rust")
     python_count = sum(1 for v in env.values() if v == "python")
     assert rust_count == 5 and python_count == 2, (
-        f"Welle-5 mixed-state must have exactly 5 rust + 2 python; "
+        f"wave 5 mixed-state must have exactly 5 rust + 2 python; "
         f"got rust={rust_count}, python={python_count}"
     )
 

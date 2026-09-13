@@ -178,8 +178,8 @@ def test_e1_persona_file_not_found_stderr_byte_equal_full_line(
     expected = f"{STDERR_PREFIX_BY_MARKER['E1_NOT_FOUND']}{missing}\n"
     assert stderr == expected, (
         f"{subcommand}: E1 stderr byte-equal failed.\n"
-        f"  expected: {expected!r}\n"
-        f"  actual:   {stderr!r}"
+        f" expected: {expected!r}\n"
+        f" actual: {stderr!r}"
     )
 
 
@@ -204,8 +204,8 @@ def test_e1_stderr_starts_with_pinned_prefix(
     prefix = STDERR_PREFIX_BY_MARKER["E1_NOT_FOUND"]
     assert stderr.startswith(prefix), (
         f"{subcommand}: stderr does not start with E1 prefix.\n"
-        f"  expected prefix: {prefix!r}\n"
-        f"  actual stderr:   {stderr!r}"
+        f" expected prefix: {prefix!r}\n"
+        f" actual stderr: {stderr!r}"
     )
 
 
@@ -263,8 +263,8 @@ def test_e3_migrate_hash_drift_prefix_match(tmp_path: Path) -> None:
     prefix = STDERR_PREFIX_BY_MARKER["E3_HASH_DRIFT"]
     assert stderr.startswith(prefix), (
         f"E3: stderr does not start with hash-drift prefix.\n"
-        f"  expected prefix: {prefix!r}\n"
-        f"  actual stderr:   {stderr!r}"
+        f" expected prefix: {prefix!r}\n"
+        f" actual stderr: {stderr!r}"
     )
 
 
@@ -295,8 +295,8 @@ def test_e4_migrate_failure_prefix_match(tmp_path: Path) -> None:
     prefix = STDERR_PREFIX_BY_MARKER["E4_MIG_FAIL"]
     assert stderr.startswith(prefix), (
         f"E4: stderr does not start with migration-failed prefix.\n"
-        f"  expected prefix: {prefix!r}\n"
-        f"  actual stderr:   {stderr!r}"
+        f" expected prefix: {prefix!r}\n"
+        f" actual stderr: {stderr!r}"
     )
 
 
@@ -323,8 +323,8 @@ def test_e5_inspect_failure_prefix_match(tmp_path: Path) -> None:
     prefix = STDERR_PREFIX_BY_MARKER["E5_INSP_FAIL"]
     assert stderr.startswith(prefix), (
         f"E5: stderr does not start with inspect-failed prefix.\n"
-        f"  expected prefix: {prefix!r}\n"
-        f"  actual stderr:   {stderr!r}"
+        f" expected prefix: {prefix!r}\n"
+        f" actual stderr: {stderr!r}"
     )
 
 
@@ -350,8 +350,8 @@ def test_e6_pin_failure_prefix_match(tmp_path: Path) -> None:
     prefix = STDERR_PREFIX_BY_MARKER["E6_PIN_FAIL"]
     assert stderr.startswith(prefix), (
         f"E6: stderr does not start with pin-failed prefix.\n"
-        f"  expected prefix: {prefix!r}\n"
-        f"  actual stderr:   {stderr!r}"
+        f" expected prefix: {prefix!r}\n"
+        f" actual stderr: {stderr!r}"
     )
 
 

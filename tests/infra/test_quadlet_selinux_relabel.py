@@ -163,8 +163,8 @@ def test_inventory_matches_expected_set(quadlet_inventory: list[Path]) -> None:
     }
     assert found == EXPECTED_QUADLET_FILES, (
         f"Quadlet inventory drift.\n"
-        f"  found    = {sorted(found)}\n"
-        f"  expected = {sorted(EXPECTED_QUADLET_FILES)}"
+        f" found = {sorted(found)}\n"
+        f" expected = {sorted(EXPECTED_QUADLET_FILES)}"
     )
 
 
@@ -189,8 +189,8 @@ def test_every_volume_line_has_selinux_relabel_flag(
                     f"options={opts!r}; line={line!r}"
                 )
     assert not failures, (
-        "Quadlet :Z-discipline violations (Sprint-9-Tag-8 Bug-20):\n  "
-        + "\n  ".join(failures)
+        "Quadlet :Z-discipline violations ( Bug-20):\n "
+        + "\n ".join(failures)
     )
 
 
@@ -316,8 +316,8 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
                 "lack :Z/:z relabel flag"
             )
     assert not missing, (
-        "Bug-20 known-target relabel-flag regressions:\n  "
-        + "\n  ".join(missing)
+        "Bug-20 known-target relabel-flag regressions:\n "
+        + "\n ".join(missing)
     )
 
 
@@ -410,8 +410,8 @@ def test_every_user1000_named_volume_has_U_flag(
                     f"flag — options={opts!r}; line={line!r}"
                 )
     assert not failures, (
-        "Bug-26 :U-discipline violations (Sprint-9-Tag-11):\n  "
-        + "\n  ".join(failures)
+        "Bug-26 :U-discipline violations:\n "
+        + "\n ".join(failures)
     )
 
 
@@ -489,6 +489,6 @@ def test_bug26_known_targets_have_U_flag() -> None:
                 "lack :U chown-to-container-user flag"
             )
     assert not missing, (
-        "Bug-26 known-target :U-flag regressions:\n  "
-        + "\n  ".join(missing)
+        "Bug-26 known-target :U-flag regressions:\n "
+        + "\n ".join(missing)
     )

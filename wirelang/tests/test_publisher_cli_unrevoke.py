@@ -288,7 +288,7 @@ class TestTSRUREV01HappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["cmd"] == "unrevoke"
         assert receipt["mode"] == "lww"
@@ -355,7 +355,7 @@ class TestTSRUREV02BundlePreservation:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         key = key_for_policy_pair("wirelang-eng", "default")
         live = _envelope_to_record(kv.store[key].value)
@@ -504,7 +504,7 @@ class TestTSRUREV06UnrevokeReasonAuditOnly:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["unrevoke_reason"] == (
             "ticket-12345: revocation rescinded by IR"
@@ -590,7 +590,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out1,
             stderr=err1,
         )
-        assert code1 == int(ExitCode.OK), err1.getvalue()
+        assert code1 == int(ExitCode.OK), err1.getvalue
         revoke_receipt = json.loads(out1.getvalue())
         assert revoke_receipt["cmd"] == "revoke"
         assert revoke_receipt["revoked_at"] == _REVOKED_AT_STR
@@ -603,7 +603,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out2,
             stderr=err2,
         )
-        assert code2 == int(ExitCode.OK), err2.getvalue()
+        assert code2 == int(ExitCode.OK), err2.getvalue
         unrevoke_receipt = json.loads(out2.getvalue())
         assert unrevoke_receipt["cmd"] == "unrevoke"
         # Audit-trail correlation: unrevoke records the prior revoked_at
@@ -651,7 +651,7 @@ class TestTSRUREV08RevokeUnrevokeRoundTrip:
             stdout=out3,
             stderr=err3,
         )
-        assert code3 == int(ExitCode.OK), err3.getvalue()
+        assert code3 == int(ExitCode.OK), err3.getvalue
         revoke2_receipt = json.loads(out3.getvalue())
         assert revoke2_receipt["revoked_at"] == "2026-05-13T12:00:00Z"
         # Final bucket state: re-revoked.
@@ -700,7 +700,7 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         # Decode the rewritten record from the bucket and verify the
         # marker is on the wire with the prior revocation captured.
@@ -741,7 +741,7 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         key = key_for_policy_pair("wirelang-eng", "default")
         live = _envelope_to_record(kv.store[key].value)
@@ -808,7 +808,7 @@ class TestTSRUREV09UnrevokeAuditMarkerOnWire:
             stdout=out2,
             stderr=err2,
         )
-        assert code2 == int(ExitCode.OK), err2.getvalue()
+        assert code2 == int(ExitCode.OK), err2.getvalue
 
         # Marker is GONE after re-revoke (revoke does not carry it;
         # the record constructor would reject a marker on a still-

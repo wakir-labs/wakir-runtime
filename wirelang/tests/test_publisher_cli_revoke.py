@@ -303,7 +303,7 @@ class TestTSRREV01CasAutoPin:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["cmd"] == "revoke"
         assert receipt["mode"] == "cas"
@@ -354,7 +354,7 @@ class TestTSRREV02ExpectedRevisionHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["expected_revision"] == live_revision
         assert receipt["previous_revision"] == live_revision
@@ -417,7 +417,7 @@ class TestTSRREV04LwwHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "lww"
         assert receipt["expected_revision"] is None
@@ -553,7 +553,7 @@ class TestTSRREV07IdempotentRewrite:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "cas"
         assert receipt["revocation_reason"] == (
@@ -730,7 +730,7 @@ class TestTSRREV12CapabilityBundlePreservation:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
 
         live = _envelope_to_record(
             kv.store[

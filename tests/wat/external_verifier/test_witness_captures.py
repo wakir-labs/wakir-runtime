@@ -163,11 +163,11 @@ def test_witness_capture_dir_has_documented_files():
     """The witness_captures dir must hold the brand-demo and mock files."""
     assert LIVE_CAPTURE.exists(), (
         "live-capture fixture missing; expected the 2026-05-13 capture "
-        "against block 948183 to be checked in."
+        "against block 948183 to be checked ."
     )
     assert MOCK_DIVERGENCE_CAPTURE.exists(), (
         "mock-divergence fixture missing; expected the explicit-mock "
-        "tampered-witness companion to be checked in."
+        "tampered-witness companion to be checked ."
     )
     mock = _load_capture(MOCK_DIVERGENCE_CAPTURE)
     assert "_comment_mock_marker" in mock, (

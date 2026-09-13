@@ -74,7 +74,7 @@ pytestmark = pytest.mark.phase_3c_doppel_welle_acceptance
 def test_doppel_welle_4_5_anchored_to_kw_26() -> None:
     """Sanity: this file targets the ADR-0066 calendar week 26 dual-run wave pair."""
     assert EXPECTED_KW == "KW26", (
-        f"Doppel-Welle-4+5 must anchor to KW26 per ADR-0066 §Beschluss; "
+        f"dual-run wave-4+5 must anchor to calendar week 26 per ADR-0066 §Beschluss; "
         f"got {EXPECTED_KW!r}"
     )
 
@@ -600,7 +600,7 @@ def test_doppel_welle_4_5_cmd_ac_2_oracles_anchor_to_adr_0066() -> None:
         "python-rust-welle-4-only",
     ), (
         f"CMD-AC-2 oracle-set anchored to ADR-0066 — must be "
-        f"(python-python-baseline, python-rust-welle-4-only); got "
+        f"(python-python-baseline, python-rust-wave 4 only); got "
         f"{CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES!r}"
     )
 

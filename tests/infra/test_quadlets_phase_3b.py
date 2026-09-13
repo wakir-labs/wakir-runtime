@@ -118,7 +118,7 @@ def container_text() -> str:
     """Read the installer Quadlet (container unit) once
     per test-module."""
     assert QUADLET_CONTAINER.exists(), (
-        f"Tag-22 container Quadlet missing at {QUADLET_CONTAINER}"
+        f"container Quadlet missing at {QUADLET_CONTAINER}"
     )
     return QUADLET_CONTAINER.read_text(encoding="utf-8")
 
@@ -128,7 +128,7 @@ def volume_text() -> str:
     """Read the host-bin Quadlet (volume unit) once per
     test-module."""
     assert QUADLET_VOLUME.exists(), (
-        f"Tag-22 volume Quadlet missing at {QUADLET_VOLUME}"
+        f"volume Quadlet missing at {QUADLET_VOLUME}"
     )
     return QUADLET_VOLUME.read_text(encoding="utf-8")
 
@@ -230,11 +230,11 @@ def test_all_seven_binaries_listed(container_text: str) -> None:
     # Reife close-out that lets the Pilot-VM host actually consume
     # them.
     assert "wakir-persona-engine-subscribe-loop" in exec_line, (
-        "Tag-22 subscribe-loop binary missing from Tag-24 installer "
+        "subscribe-loop binary missing from installer "
         "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
     )
     assert "wakir-persona-engine-anchor-emitter" in exec_line, (
-        "Tag-23 anchor-emitter binary missing from Tag-24 installer "
+        "anchor-emitter binary missing from installer "
         "Exec= loop — see docs/operations/quadlets-phase-3b-rust-cli.md §2"
     )
 
@@ -306,11 +306,11 @@ def test_image_pin_matches_cosign_policy(container_text: str) -> None:
     policy_text = COSIGN_POLICY.read_text(encoding="utf-8")
     assert f"expected_tag: {EXPECTED_CARRIER_IMAGE_TAG}" in policy_text, (
         "Cosign-Policy carrier_image.expected_tag does not match the "
-        "Tag-22 Quadlet Image= tag — Zone-C parity violation"
+        "Quadlet Image= tag — Zone-C parity violation"
     )
     assert EXPECTED_CARRIER_IMAGE_REPO in policy_text, (
         "Cosign-Policy carrier_image.repository does not match the "
-        "Tag-22 Quadlet Image= repository — Zone-C parity violation"
+        "Quadlet Image= repository — Zone-C parity violation"
     )
 
 
@@ -352,7 +352,7 @@ def test_selinux_and_uid_remap_flags(container_text: str) -> None:
 
     assert "Z" in options_set, (
         f"host-bin Volume= missing :Z SELinux relabel-private flag "
-        f"(Sprint-9-Tag-8 Bug-20 discipline): {volume_line!r}"
+        f"( Bug-20 discipline): {volume_line!r}"
     )
     assert "U" in options_set, (
         f"host-bin Volume= missing :U uid-remap flag "
@@ -455,11 +455,11 @@ def test_operations_doc_present_and_references_quadlets() -> None:
     )
     readme_text = quadlet_readme.read_text(encoding="utf-8")
     assert "wakir-rust-cli.container" in readme_text, (
-        "quadlet/README.md does not reference the Tag-22 installer "
+        "quadlet/README.md does not reference the installer "
         "Quadlet — inventory drift"
     )
     assert "quadlets-phase-3b-rust-cli.md" in readme_text, (
-        "quadlet/README.md does not link to the Tag-22 operations doc"
+        "quadlet/README.md does not link to the operations doc"
     )
 
 

@@ -150,7 +150,7 @@ def test_workflow_dispatch_push_input(on_block: dict) -> None:
     assert "push" in inputs, "workflow_dispatch must accept push input"
     # Default MUST be 'false' — keep the publish path explicit.
     assert inputs["push"].get("default") == "false", (
-        "workflow_dispatch push input default must be 'false' (Operator-Hand opt-in)"
+        "workflow_dispatch push input default must be 'false' (Operator-Hand opt-)"
     )
 
 

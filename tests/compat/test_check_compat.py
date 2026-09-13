@@ -355,7 +355,7 @@ def test_vector_level_no_vectors_is_red(tmp_path: Path, verify):
 
 def test_full_run_passes_on_consistent_mock(repos, verify):
     report = _run(repos)
-    assert not report.has_fail(), report.render_text()
+    assert not report.has_fail(), report.render_text
     levels = {f.level for f in report.findings}
     assert {"setup", "schema", "vector", "manifest", "proof"} <= levels
     by_subject = _by_subject(report.findings, "manifest")

@@ -88,7 +88,7 @@ def test_image_has_cosign_digest_pin_form(spire_service: dict) -> None:
     image = spire_service["image"]
     _, sep, digest_part = image.partition("@")
     assert sep == "@", (
-        f"Tag-8 image-pin must be digest-pinned form 'tag@sha256:<digest>'; "
+        f"image-pin must be digest-pinned form 'tag@sha256:<digest>'; "
         f"got: {image!r}"
     )
     assert digest_part.startswith("sha256:"), (
@@ -125,7 +125,7 @@ def test_pinned_tag_matches_briefing_version(spire_service: dict) -> None:
     image = spire_service["image"]
     tag_part, _, _ = image.partition("@")
     assert tag_part.endswith(":1.14.6"), (
-        f"tag must be exactly 1.14.6 per Sprint-6 box-briefing; got: {tag_part!r}"
+        f"tag must be exactly 1.14.6 per box-briefing; got: {tag_part!r}"
     )
 
 
@@ -136,21 +136,21 @@ def test_pinned_tag_matches_briefing_version(spire_service: dict) -> None:
 
 def test_read_only_root_fs(spire_service: dict) -> None:
     assert spire_service.get("read_only") is True, (
-        "Tag-8 hardening: container root filesystem must be read-only"
+        "hardening: container root filesystem must be read-only"
     )
 
 
 def test_runs_as_non_root_user(spire_service: dict) -> None:
     user = spire_service.get("user")
     assert user == "1000:1000", (
-        f"Tag-8 hardening: container must run as uid:gid 1000:1000; got: {user!r}"
+        f"hardening: container must run as uid:gid 1000:1000; got: {user!r}"
     )
 
 
 def test_tmpfs_for_run_spire(spire_service: dict) -> None:
     tmpfs = spire_service.get("tmpfs")
     assert tmpfs is not None, (
-        "Tag-8 hardening: tmpfs mount for /run/spire must be declared "
+        "hardening: tmpfs mount for /run/spire must be declared "
         "since the rootfs is read-only"
     )
     entries = tmpfs if isinstance(tmpfs, list) else [tmpfs]
@@ -175,7 +175,7 @@ def test_api_port_bound_to_localhost_only(spire_service: dict) -> None:
     """
     ports = spire_service.get("ports")
     assert ports is not None, (
-        "Tag-8 substrate must declare an explicit ports mapping for the gRPC API"
+        "substrate must declare an explicit ports mapping for the gRPC API"
     )
     api_port_entries = [p for p in ports if "8081" in p]
     assert len(api_port_entries) == 1, (
@@ -213,6 +213,6 @@ def test_tag_8_adds_nine_cosign_pin_tests_on_top_of_tag_6_sixteen() -> None:
         if name.startswith("test_")
     ]
     assert len(test_fns) == 9, (
-        f"Tag-8 cosign-pin file must contribute exactly 9 tests; "
+        f"cosign-pin file must contribute exactly 9 tests; "
         f"got {len(test_fns)}: {test_fns!r}"
     )

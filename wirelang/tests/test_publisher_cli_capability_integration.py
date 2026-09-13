@@ -379,7 +379,7 @@ class TestTSRPUBCG02SignHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         assert err.getvalue() == ""
         receipt = json.loads(out.getvalue())
         assert receipt["signed"] is True
@@ -417,7 +417,7 @@ class TestTSRPUBCG02SignHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["signed"] is True
 
@@ -470,7 +470,7 @@ class TestTSRPUBCG03SignGateHappyPath:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         assert err.getvalue() == ""
         receipt = json.loads(out.getvalue())
         assert receipt["signed"] is True
@@ -770,7 +770,7 @@ class TestTSRPUBCG09DryRunSignGate:
             stdout=out,
             stderr=err,
         )
-        assert code == int(ExitCode.OK), err.getvalue()
+        assert code == int(ExitCode.OK), err.getvalue
         receipt = json.loads(out.getvalue())
         assert receipt["mode"] == "dry-run"
         assert receipt["signed"] is True

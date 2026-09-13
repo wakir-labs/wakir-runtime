@@ -339,7 +339,7 @@ def test_decision_order_matches_manifest_cardinality():
     """The matrix in this file MUST list exactly 10 entries — one per
     BackendDecision the manifest §1 documents."""
     assert len(DECISION_ORDER) == 10, (
-        "Tag-51 matrix size must equal the manifest's 10-record floor; "
+        "matrix size must equal the manifest's 10-record floor; "
         f"got {len(DECISION_ORDER)}"
     )
 
@@ -348,7 +348,7 @@ def test_boot_fan_out_decisions_are_nine():
     """The engine boot method explicitly fans out nine resolvers
     (state_backing resolves inside __init__)."""
     assert len(BOOT_FAN_OUT_DECISIONS) == 9, (
-        f"boot() fan-out must touch nine resolvers; "
+        f"boot fan-out must touch nine resolvers; "
         f"got {len(BOOT_FAN_OUT_DECISIONS)}"
     )
 

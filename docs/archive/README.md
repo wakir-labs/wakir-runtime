@@ -62,5 +62,6 @@ git checkout archive/pre-phase-4 -- docs/phase-3c/   # restore a directory
 | `dead-migration-tooling/verify_marathon_closeout.py` | Closeout aggregator that bundled the seven per-wave verifier verdicts into one MARATHON-CLOSEOUT verdict | staged for deletion — the migration it closed out completed on 2026-05-20 |
 | `dead-dashboards/phase-3c-cutover-day-live-stream.json` | Live-stream dashboard for the migration cutover day | staged for deletion — its aggregator is archived with it |
 | `dead-tests/` (6 files) | The QA suites that pinned the archived migration tooling above: per-wave heatmap, live-stream aggregator, watch-day practice run and verdict, marathon closeout verifier | staged for deletion together with the code they pin — a test is the only thing that kept this bundle in the tree |
+| `dead-fixtures/branch-protection-walking-skeleton-7-pool/` (3 files), `branch-protection-walking-skeleton-8-pool/` (4 files) | Pre/post snapshots of the GitHub branch-protection state used by the bulk-activation walking-skeleton acceptance gate | staged for deletion — the tooling that consumed them (`tooling/ops/_bulk_activate_required_checks.py`) was removed in the infrastructure sweep; nothing in the tree references either set |
 Design knowledge extracted from deleted workflows lives in
 `docs/design-notes/` (e.g. `backend-rollback.md`), not here.

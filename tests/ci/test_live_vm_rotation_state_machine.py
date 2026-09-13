@@ -314,7 +314,7 @@ def test_t15_envelope_shape_matches_schema(sim_module):
         "recovery_paths_terminate",
     }
     assert required <= set(env.keys()), (
-        f"envelope missing keys: {required - set(env.keys())}"
+        f"envelope missing keys: {required - set(env.keys)}"
     )
     assert env["schema_version"] == sim_module.SCHEMA_VERSION
     assert env["from_version"] == "0.5.1"

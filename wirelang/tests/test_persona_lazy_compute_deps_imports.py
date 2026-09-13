@@ -319,12 +319,12 @@ def test_v907_verify_install_hint_surface_when_deps_absent():
 
     msg = str(excinfo.value)
     assert "wakir-runtime[persona]" in msg, (
-        f"Sprint-Stability Tag-2 contract violation: error message "
+        f"-Stability contract violation: error message "
         f"must direct the operator to the [persona] extra. Got: {msg!r}"
     )
     assert "mis-built" not in msg, (
-        f"Sprint-Stability Tag-2 contract violation: error message must "
-        f"NOT use the misleading pre-Tag-2 'mis-built engine image' "
+        f"-Stability contract violation: error message must "
+        f"NOT use the misleading pre-'mis-built engine image' "
         f"text for a missing-wheel cause. Got: {msg!r}"
     )
 
@@ -351,7 +351,7 @@ def test_pyproject_persona_extra_carries_pyyaml_and_rfc8785():
 
     extras = data["project"]["optional-dependencies"]
     assert "persona" in extras, (
-        "Sprint-Stability Tag-2 contract: pyproject.toml must declare "
+        "-Stability contract: pyproject.toml must declare "
         "the [project.optional-dependencies] persona extra"
     )
 
@@ -386,7 +386,7 @@ def test_pyproject_pyyaml_not_in_top_level_dependencies():
     assert not any(
         "PyYAML" in p or "pyyaml" in p.lower() for p in top_level_deps
     ), (
-        f"Sprint-Stability Tag-2 contract: PyYAML must NOT be in "
+        f"-Stability contract: PyYAML must NOT be in "
         f"top-level dependencies; it lives in the [persona] extra. "
         f"Got top-level deps: {top_level_deps!r}"
     )

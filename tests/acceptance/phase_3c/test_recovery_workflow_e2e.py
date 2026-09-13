@@ -149,7 +149,7 @@ def test_welle_7_we_2_quadlet_all_seven_rust(mocked_quadlet_env) -> None:
     env = mocked_quadlet_env(WELLE_NAME, flipped_moduln=all_moduln)
     rust_count = sum(1 for v in env.values() if v == "rust")
     assert rust_count == 7, (
-        f"WE-2: all 7 moduln must be rust post-Welle-7; got rust_count={rust_count}"
+        f"WE-2: all 7 moduln must be rust post-wave 7; got rust_count={rust_count}"
     )
     for _, modul in WELLE_ORDER:
         key = f"WAKIR_ENGINE_{modul.upper()}_BACKEND"

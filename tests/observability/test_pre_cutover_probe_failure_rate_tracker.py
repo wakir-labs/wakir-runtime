@@ -139,7 +139,7 @@ def test_rollup_per_welle_empty_input_returns_pending_per_welle():
         # wave 5..-7 have deps; with empty inputs they are blocked.
         if r.welle in ("welle-5", "welle-6", "welle-7"):
             assert r.coupling_pre_conditions_met is False
-            assert r.coupling_blockers, f"{r.welle} should list blockers"
+            assert r.coupling_blockers, f"{r.wave} should list blockers"
         else:
             assert r.coupling_pre_conditions_met is True
 

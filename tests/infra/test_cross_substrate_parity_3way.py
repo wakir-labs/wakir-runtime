@@ -321,7 +321,7 @@ def test_resolver_known_extras_are_documented(
     assert not undocumented, (
         f"Undocumented resolver backends: {sorted(undocumented)}. "
         f"Either land a Cosign / Quadlet entry for them in the same "
-        f"Mini-Welle, or add to RESOLVER_KNOWN_EXTRAS in "
+        f"Mini-wave, or add to RESOLVER_KNOWN_EXTRAS in "
         f"{Path(__file__).name} with an ADR-anchor comment."
     )
 
@@ -431,18 +431,18 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
         "Inventory-constant drift between this test file and the "
         f"sibling cosign-policy test (canonical 9). "
         f"local={EXPECTED_BINARIES_9}, "
-        f"sibling[:9]={sibling_canonical_9}. A Mini-Welle MUST "
+        f"sibling[:9]={sibling_canonical_9}. A Mini-wave MUST "
         "update both tuples in lock-step."
     )
     assert sibling_extras == COSIGN_QUADLET_KNOWN_EXTRAS, (
-        "Tag-33 Welle-4..7 extras drift between this test file's "
+        "wave 4..7 extras drift between this test file's "
         "COSIGN_QUADLET_KNOWN_EXTRAS and the sibling cosign-policy "
         f"test's EXPECTED_BINARIES tail (positions 9..13). "
         f"local={COSIGN_QUADLET_KNOWN_EXTRAS}, "
         f"sibling[9:13]={sibling_extras}."
     )
     assert sibling_tag45 == COSIGN_QUADLET_TAG45_ADDITIONS, (
-        "Tag-45 Phase-3a-Foundation 14 + 15 additions drift between "
+        "Phase-3a-Foundation 14 + 15 additions drift between "
         "this test file's COSIGN_QUADLET_TAG45_ADDITIONS and the "
         "sibling cosign-policy test's EXPECTED_BINARIES tail "
         f"(positions 13..15). "
@@ -468,7 +468,7 @@ def test_runbook_documents_three_way_pflicht() -> None:
     """
     assert RUNBOOK_DOC.exists(), (
         f"Runbook missing at {RUNBOOK_DOC}. The 3-way parity Gate "
-        "must have an operator-facing runbook per ADR-0066 Welle-3 "
+        "must have an operator-facing runbook per ADR-0066 wave 3 "
         "Mitigation."
     )
     text = RUNBOOK_DOC.read_text(encoding="utf-8")

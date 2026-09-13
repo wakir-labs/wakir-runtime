@@ -371,8 +371,8 @@ def test_every_named_volume_mount_has_selinux_relabel_flag(
                     )
     assert not failures, (
         "Bootstrap podman-volume :Z-discipline violations "
-        "(Sprint-9-Tag-9 Bug-24, named-volume class):\n  "
-        + "\n  ".join(failures)
+        "( Bug-24, named-volume class):\n "
+        + "\n ".join(failures)
     )
 
 
@@ -412,8 +412,8 @@ def test_every_host_bind_mount_is_on_allow_list(
                 )
     assert not failures, (
         "Bootstrap host-bind mount allow-list violations "
-        "(Sprint-9-Tag-9 Bug-24, host-bind class):\n  "
-        + "\n  ".join(failures)
+        "( Bug-24, host-bind class):\n "
+        + "\n ".join(failures)
     )
 
 
@@ -466,8 +466,8 @@ def test_production_script_inventory_matches_expected() -> None:
             discovered.add(rel)
     assert discovered == set(EXPECTED_PRODUCTION_SCRIPTS), (
         f"Production-script inventory drift.\n"
-        f"  discovered = {sorted(discovered)}\n"
-        f"  expected   = {sorted(EXPECTED_PRODUCTION_SCRIPTS)}\n"
+        f" discovered = {sorted(discovered)}\n"
+        f" expected = {sorted(EXPECTED_PRODUCTION_SCRIPTS)}\n"
         f"Update EXPECTED_PRODUCTION_SCRIPTS in the same PR that moves "
         f"or renames a production shell script."
     )
@@ -522,7 +522,7 @@ def test_mutation_vectors_documented() -> None:
     populated so QA's Zone-X handshake has a stable reference.
     """
     assert len(_MUTATION_VECTORS) >= 4, (
-        "mutation-vector index must list ≥4 vectors so Amara's "
+        "mutation-vector index must list ≥4 vectors so the QA zone's "
         "Zone-X mutation-test methodology has full structural coverage"
     )
     seen: set[str] = set()

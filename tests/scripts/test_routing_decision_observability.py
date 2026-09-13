@@ -447,7 +447,7 @@ def test_main_json_format_round_trip_via_cli(tmp_path: Path):
             ],
             env={},
         )
-    assert rc == 0, f"stderr: {buf_err.getvalue()}"
+    assert rc == 0, f"stderr: {buf_err.getvalue}"
     parsed = json.loads(buf_out.getvalue())
     assert parsed["sample_size"] == 3
     assert parsed["window_size"] == 100
@@ -492,7 +492,7 @@ def test_main_prometheus_dry_run_writes_to_stdout(tmp_path: Path):
             ],
             env={},
         )
-    assert rc == 0, f"stderr: {buf_err.getvalue()}"
+    assert rc == 0, f"stderr: {buf_err.getvalue}"
     payload = buf_out.getvalue()
     assert "persona_engine_routing_decisions_sample_size 1" in payload
     assert "persona_engine_routing_scrape_timestamp_seconds 1747000000" in payload

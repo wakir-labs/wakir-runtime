@@ -456,7 +456,7 @@ def assert_rd_2_audit_record_documents_rollback(
     )
     assert rec.cutover_cycle_id, (
         f"RD-2[{modul}]: audit-record cutover_cycle_id must be non-"
-        f"empty for Henrik-Audit-Trail consistency"
+        f"empty for internal-audit-Trail consistency"
     )
     assert rec.operator_actor, (
         f"RD-2[{modul}]: audit-record operator_actor must be populated "

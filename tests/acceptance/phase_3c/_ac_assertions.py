@@ -76,7 +76,7 @@ def assert_ac_1_bridge_audit_consistency(
     observed_days = sorted(by_day.keys())
     expected_days = list(range(CONSISTENCY_REPORT_WINDOW_DAYS))
     assert observed_days == expected_days, (
-        f"AC-1[{welle}]: must observe all {CONSISTENCY_REPORT_WINDOW_DAYS} "
+        f"AC-1[{wave}]: must observe all {CONSISTENCY_REPORT_WINDOW_DAYS} "
         f"days of the consistency-report window; got {observed_days}"
     )
 
@@ -97,7 +97,7 @@ def assert_ac_1_bridge_audit_consistency(
                     )
 
     assert green_days >= CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS, (
-        f"AC-1[{welle}]: Bridge-Audit-Writer-Konsistenz-Report requires "
+        f"AC-1[{wave}]: Bridge-Audit-Writer-Konsistenz-Report requires "
         f"{CONSISTENCY_REPORT_REQUIRED_GREEN_DAYS}/{CONSISTENCY_REPORT_WINDOW_DAYS} "
         f"green days; got {green_days}. Drift records: {drift_records}"
     )
@@ -116,7 +116,7 @@ def assert_ac_2_performance_headroom(
     """
     budget_ms = python_baseline_p95_ms * PERFORMANCE_HEADROOM_FACTOR
     assert rust_observed_p95_ms <= budget_ms, (
-        f"AC-2[{welle}]: Rust-backend P95-Latency {rust_observed_p95_ms:.2f}ms "
+        f"AC-2[{wave}]: Rust-backend P95-Latency {rust_observed_p95_ms:.2f}ms "
         f"exceeds Python-baseline+20% headroom budget {budget_ms:.2f}ms "
         f"(python-baseline {python_baseline_p95_ms:.2f}ms × "
         f"{PERFORMANCE_HEADROOM_FACTOR})"
@@ -133,7 +133,7 @@ def assert_ac_3_bug_rate(
     """
     total = s0_count + s1_count
     assert total <= BUG_RATE_S0_S1_THRESHOLD, (
-        f"AC-3[{welle}]: S0/S1 bug-count {total} exceeds threshold "
+        f"AC-3[{wave}]: S0/S1 bug-count {total} exceeds threshold "
         f"{BUG_RATE_S0_S1_THRESHOLD} (S0={s0_count}, S1={s1_count})"
     )
 
@@ -151,12 +151,12 @@ def assert_ac_4_cross_review_consensus(
         if p not in record.consenting_personas
     )
     assert not missing, (
-        f"AC-4[{welle}]: Cross-Review-Session missing persona-consent: "
+        f"AC-4[{wave}]: Cross-Review-Session missing persona-consent: "
         f"{missing}. Required: {CROSS_REVIEW_REQUIRED_PERSONAS}, "
         f"observed: {record.consenting_personas}"
     )
     assert record.moderator == "aisha", (
-        f"AC-4[{welle}]: Cross-Review-Session-Moderator must be Aisha "
+        f"AC-4[{wave}]: Cross-Review-Session-Moderator must be the org zone "
         f"(HR-Protokoll); got {record.moderator!r}"
     )
 
@@ -170,11 +170,11 @@ def assert_ac_5_v907_pin_validation(
     (Cache-Konflikt-Free, ADR-0064 §Risiken).
     """
     assert persona_def_count > 0, (
-        f"AC-5[{welle}]: must validate against a non-empty Persona-Def set"
+        f"AC-5[{wave}]: must validate against a non-empty Persona-Def set"
     )
     pass_rate = pin_validation_pass_count / persona_def_count
     assert pass_rate >= V907_PIN_VALIDATION_REQUIRED_RATE, (
-        f"AC-5[{welle}]: V-907 Pin-Validation pass-rate {pass_rate:.4f} "
+        f"AC-5[{wave}]: V-907 Pin-Validation pass-rate {pass_rate:.4f} "
         f"below required {V907_PIN_VALIDATION_REQUIRED_RATE} "
         f"({pin_validation_pass_count}/{persona_def_count})"
     )
@@ -215,12 +215,12 @@ def assert_dw_ac_1_both_moduln_boot_rust(
     """
     assert boot.boot_succeeded, (
         f"DW-AC-1[{welle_pair_label}]: engine-boot must succeed under "
-        f"Doppel-Welle cutover; got failure-record {boot}"
+        f"dual-run wave cutover; got failure-record {boot}"
     )
     for modul in (modul_a, modul_b):
         observed = boot.backend_per_modul.get(modul)
         assert observed == "rust", (
-            f"DW-AC-1[{welle_pair_label}]: Doppel-Welle modul {modul!r} "
+            f"DW-AC-1[{welle_pair_label}]: dual-run wave modul {modul!r} "
             f"must boot on rust-backend; got {observed!r}"
         )
     extra_rust = [
@@ -229,7 +229,7 @@ def assert_dw_ac_1_both_moduln_boot_rust(
         if b == "rust" and m not in (modul_a, modul_b)
     ]
     assert not extra_rust, (
-        f"DW-AC-1[{welle_pair_label}]: Doppel-Welle must flip ONLY the "
+        f"DW-AC-1[{welle_pair_label}]: dual-run wave must flip ONLY the "
         f"pair ({modul_a!r}, {modul_b!r}); extra rust-flipped moduln: "
         f"{extra_rust}"
     )
@@ -284,7 +284,7 @@ def assert_dw_ac_3_asymmetric_rollback(
     rolled = rollback.rolled_back_modul
     assert rolled in (modul_a, modul_b), (
         f"DW-AC-3[{welle_pair_label}]: rolled_back_modul {rolled!r} must "
-        f"be a member of the welle-pair ({modul_a!r}, {modul_b!r})"
+        f"be a member of the wave-pair ({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if rolled == modul_a else modul_a
 
@@ -352,7 +352,7 @@ def assert_dw_ac_5_backend_decision_audit_two_records_consistent(
     records_list = list(records)
     assert len(records_list) == 2, (
         f"DW-AC-5[{welle_pair_label}]: Backend-Decision-Audit must emit "
-        f"exactly 2 records on Doppel-Welle cutover; got "
+        f"exactly 2 records on dual-run wave cutover; got "
         f"{len(records_list)}: {records_list}"
     )
     observed_moduln = {r.modul for r in records_list}
@@ -559,7 +559,7 @@ def assert_cross_modul_drift_ac_4_atomic_flip_rollback(
     high_drift = record.high_drift_modul
     assert high_drift in (modul_a, modul_b), (
         f"CMD-AC-4[{welle_pair_label}]: high_drift_modul {high_drift!r} "
-        f"must be a member of the welle-pair ({modul_a!r}, {modul_b!r})"
+        f"must be a member of the wave-pair ({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if high_drift == modul_a else modul_a
 
@@ -649,7 +649,7 @@ def assert_henrik_caution_ac_1_independent_oracle_validation(
     """
     records_list = list(records)
     assert records_list, (
-        f"HC-AC-1[{welle}]: must observe at least one independent-"
+        f"HC-AC-1[{wave}]: must observe at least one independent-"
         f"oracle validation record; got empty set"
     )
 
@@ -671,17 +671,17 @@ def assert_henrik_caution_ac_1_independent_oracle_validation(
             )
 
     assert not self_referential, (
-        f"HC-AC-1[{welle}]: bridge_audit_writer self-validation "
+        f"HC-AC-1[{wave}]: bridge_audit_writer self-validation "
         f"rejected — oracle must be independent; self-referential "
         f"records: {self_referential}"
     )
     assert not invalid_oracle_sources, (
-        f"HC-AC-1[{welle}]: oracle-source must be one of "
+        f"HC-AC-1[{wave}]: oracle-source must be one of "
         f"{list(HENRIK_CAUTION_INDEPENDENT_ORACLE_SOURCES)}; got "
         f"invalid sources: {invalid_oracle_sources}"
     )
     assert not drift, (
-        f"HC-AC-1[{welle}]: Rust-writer/independent-oracle drift "
+        f"HC-AC-1[{wave}]: Rust-writer/independent-oracle drift "
         f"at requests: {drift}"
     )
 
@@ -732,31 +732,31 @@ def assert_henrik_caution_ac_2_atomic_rollback(
         record.threshold_divergence_pct
         == HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD
     ), (
-        f"HC-AC-2[{welle}]: threshold_divergence_pct must equal the "
+        f"HC-AC-2[{wave}]: threshold_divergence_pct must equal the "
         f"ADR-0066-fixed {HENRIK_CAUTION_DIVERGENCE_PCT_THRESHOLD}pp; "
         f"got {record.threshold_divergence_pct}"
     )
 
     if record.rollback_fired:
         assert record.flip_was_atomic, (
-            f"HC-AC-2[{welle}]: rollback fired but flip was non-atomic "
+            f"HC-AC-2[{wave}]: rollback fired but flip was non-atomic "
             f"(multi-restart-cycle); atomic-flip discipline broken"
         )
         assert (
             record.flip_elapsed_seconds <= HENRIK_CAUTION_ROLLBACK_SLA_SECONDS
         ), (
-            f"HC-AC-2[{welle}]: rollback elapsed "
+            f"HC-AC-2[{wave}]: rollback elapsed "
             f"{record.flip_elapsed_seconds:.1f}s exceeds "
             f"{HENRIK_CAUTION_ROLLBACK_SLA_SECONDS:.0f}s SLA"
         )
         assert record.post_flip_backend == "python", (
-            f"HC-AC-2[{welle}]: post-rollback backend must be python; "
+            f"HC-AC-2[{wave}]: post-rollback backend must be python; "
             f"got {record.post_flip_backend!r}"
         )
     else:
         # No-trigger steady-state: backend stays rust.
         assert record.post_flip_backend == "rust", (
-            f"HC-AC-2[{welle}]: no-trigger steady-state must keep "
+            f"HC-AC-2[{wave}]: no-trigger steady-state must keep "
             f"backend=rust; got {record.post_flip_backend!r}"
         )
 
@@ -778,14 +778,14 @@ def assert_henrik_caution_ac_3_pre_cutover_window(
     """
     records_list = list(records)
     assert records_list, (
-        f"HC-AC-3[{welle}]: must observe at least one pre-cutover "
+        f"HC-AC-3[{wave}]: must observe at least one pre-cutover "
         f"window day; got empty set"
     )
 
     observed_days = sorted({rec.day_index for rec in records_list})
     expected_days = list(range(HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS))
     assert observed_days == expected_days, (
-        f"HC-AC-3[{welle}]: pre-cutover-window must observe all "
+        f"HC-AC-3[{wave}]: pre-cutover-window must observe all "
         f"{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS} days (0..{HENRIK_CAUTION_PRE_CUTOVER_WINDOW_DAYS - 1}); "
         f"got {observed_days}"
     )
@@ -802,11 +802,11 @@ def assert_henrik_caution_ac_3_pre_cutover_window(
             )
 
     assert not empty_days, (
-        f"HC-AC-3[{welle}]: pre-cutover-window observed empty days "
+        f"HC-AC-3[{wave}]: pre-cutover-window observed empty days "
         f"(total_request_count=0): {empty_days}"
     )
     assert not below_floor, (
-        f"HC-AC-3[{welle}]: pre-cutover per-day consistency-rate "
+        f"HC-AC-3[{wave}]: pre-cutover per-day consistency-rate "
         f"below {floor:.4f} floor: {below_floor}"
     )
 
@@ -953,7 +953,7 @@ def assert_cross_modul_drift_welle_6_7_ac_4_atomic_flip_rollback(
     high_drift = record.high_drift_modul
     assert high_drift in (modul_a, modul_b), (
         f"CMD-AC-6-7-4[{welle_pair_label}]: high_drift_modul "
-        f"{high_drift!r} must be a member of the welle-pair "
+        f"{high_drift!r} must be a member of the wave-pair "
         f"({modul_a!r}, {modul_b!r})"
     )
     partner = modul_b if high_drift == modul_a else modul_a

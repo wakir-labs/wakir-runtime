@@ -314,7 +314,7 @@ def test_T13_frontmatter_still_post_cutover_reserve_draft(spec_text: str):
     fm = _extract_frontmatter_block(spec_text)
     assert re.search(
         r"^status:\s*post-cutover-reserve-draft\s*$", fm, re.MULTILINE
-    ), "Tag-63 status invariant must be preserved"
+    ), "status invariant must be preserved"
 
 
 def test_T14_frontmatter_does_not_carry_pre_cutover_freeze(spec_text: str):
@@ -365,7 +365,7 @@ def test_T17_v0_4_3_freeze_seal_intact():
     actual = hashlib.sha256(SPEC_V043.read_bytes()).hexdigest()
     assert actual == expected_sha, (
         f"v0.4.3 SHA-256 drift detected: expected {expected_sha}, "
-        f"got {actual}. Tag-64 MUST NOT alter v0.4.3."
+        f"got {actual}. MUST NOT alter v0.4.3."
     )
 
 
@@ -378,7 +378,7 @@ def test_T18_tag63_res_dn_sub_sections_preserved(spec_text: str):
     for n in range(1, 6):
         pat = rf"^###\s+6\.{n}\s+RES-D{n}:"
         assert re.search(pat, spec_text, re.MULTILINE), (
-            f"§6.{n} RES-D{n} parent heading missing (Tag-63 invariant)"
+            f"§6.{n} RES-D{n} parent heading missing (invariant)"
         )
 
 

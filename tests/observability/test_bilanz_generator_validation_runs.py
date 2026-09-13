@@ -278,8 +278,8 @@ def _build_bilanz(
 def _assert_schema_valid(bilanz: Dict[str, Any]) -> None:
     errors = validator_mod.validate_bilanz_dict(bilanz)
     assert errors == [], (
-        "Bilanz failed schema validation; errors:\n  "
-        + "\n  ".join(errors)
+        "Bilanz failed schema validation; errors:\n "
+        + "\n ".join(errors)
     )
 
 

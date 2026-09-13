@@ -71,7 +71,7 @@ def test_doppel_welle_1_2_anchored_to_kw_24() -> None:
     calls with wrong pair-identity.
     """
     assert EXPECTED_KW == "KW24", (
-        f"Doppel-Welle-1+2 must anchor to KW24 per ADR-0066 §Beschluss; "
+        f"dual-run wave-1+2 must anchor to calendar week 24 per ADR-0066 §Beschluss; "
         f"got {EXPECTED_KW!r}"
     )
 

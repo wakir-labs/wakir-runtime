@@ -139,7 +139,7 @@ def _canonical_self_test_args(report_path: Path, **overrides: str) -> list[str]:
 def test_driver_script_exists_and_is_executable() -> None:
     """The driver script lives at the canonical path the workflow uses."""
     assert DRIVER_PATH.exists(), (
-        f"driver script missing at {DRIVER_PATH}; the Tag-18 workflow at "
+        f"driver script missing at {DRIVER_PATH}; the workflow at "
         f".github/workflows/live-vm-acceptance.yml:647 hard-codes this path."
     )
     assert os.access(DRIVER_PATH, os.X_OK), (
@@ -257,8 +257,8 @@ def test_self_test_default_ok_emits_canonical_schema(tmp_path: Path) -> None:
         "backend_decision_record",
     }
     assert set(report.keys()) == expected_keys, (
-        f"report schema drift: extra={set(report.keys()) - expected_keys}, "
-        f"missing={expected_keys - set(report.keys())}"
+        f"report schema drift: extra={set(report.keys) - expected_keys}, "
+        f"missing={expected_keys - set(report.keys)}"
     )
 
     # Field-value contract for the default-ok path.
@@ -403,7 +403,7 @@ def test_self_test_component_fsm_maps_to_recovery(tmp_path: Path) -> None:
         report["backend_decision_record"]["component_focus"] == "recovery"
     ), (
         "component=fsm should map to component_focus=recovery in the "
-        "backend_decision_record (Tag-19 placeholder for Phase-3c)"
+        "backend_decision_record (placeholder for Phase-3c)"
     )
 
 

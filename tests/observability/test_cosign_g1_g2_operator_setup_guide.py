@@ -508,6 +508,6 @@ def test_t_g1g2_13_welle_n_image_enum(guide_text: str) -> None:
             f"wakir-persona-engine-{binary}-{welle}"
         )
         assert canonical_image in guide_text, (
-            f"Guide §3 must reference the Welle-N image "
+            f"Guide §3 must reference the wave N image "
             f"'{canonical_image}' as a distinct digest resolution slot."
         )

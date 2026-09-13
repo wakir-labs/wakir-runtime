@@ -516,7 +516,7 @@ def test_post_write_state_file_passes_amara_tag_67_verifier(tmp_path):
     report = module.Report()
     module.validate_rollup(str(target), data, report)
     assert report.ok, (
-        f"Tag-67 verifier reports violations on Tag-69 producer "
+        f"verifier reports violations on producer "
         f"output: {[str(v) for v in report.violations]}"
     )
 

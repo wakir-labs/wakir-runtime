@@ -166,11 +166,11 @@ def test_welle_6_six_moduln_rust(mocked_quadlet_env) -> None:
     rust_count = sum(1 for v in env.values() if v == "rust")
     python_count = sum(1 for v in env.values() if v == "python")
     assert rust_count == 6 and python_count == 1, (
-        f"Welle-6 mixed-state must have exactly 6 rust + 1 python; "
+        f"wave 6 mixed-state must have exactly 6 rust + 1 python; "
         f"got rust={rust_count}, python={python_count}"
     )
     assert env["WAKIR_ENGINE_RECOVERY_WORKFLOW_BACKEND"] == "python", (
-        "Welle-6 must leave recovery_workflow on python (Welle-7 only)"
+        "wave 6 must leave recovery_workflow on python (wave 7 only)"
     )
 
 

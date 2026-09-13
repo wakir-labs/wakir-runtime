@@ -170,7 +170,7 @@ def test_python_and_node_verdicts_agree_per_vector():
     assert node_report is not None
 
     parity_ok, diffs = mod.compare_reports(py_report, node_report)
-    assert parity_ok, "cross-tool parity violation:\n  " + "\n  ".join(diffs)
+    assert parity_ok, "cross-tool parity violation:\n " + "\n ".join(diffs)
 
 
 @pytest.mark.skipif(
@@ -258,7 +258,7 @@ def test_python_and_fastjsonschema_verdicts_agree_per_vector():
     assert fjs_report is not None
 
     parity_ok, diffs = mod.compare_reports_multi([py_report, fjs_report])
-    assert parity_ok, "python-vs-fastjsonschema parity violation:\n  " + "\n  ".join(diffs)
+    assert parity_ok, "python-vs-fastjsonschema parity violation:\n " + "\n ".join(diffs)
 
 
 @pytest.mark.skipif(
@@ -289,7 +289,7 @@ def test_three_way_parity_python_node_fastjsonschema():
         [py_report, node_report, fjs_report]
     )
     assert parity_ok, (
-        "three-way parity violation:\n  " + "\n  ".join(diffs)
+        "three-way parity violation:\n " + "\n ".join(diffs)
     )
 
 
@@ -351,7 +351,7 @@ def test_ajv_and_hyperjump_verdicts_agree_per_vector():
         [node_report, hyperjump_report]
     )
     assert parity_ok, (
-        "ajv-vs-hyperjump parity violation:\n  " + "\n  ".join(diffs)
+        "ajv-vs-hyperjump parity violation:\n " + "\n ".join(diffs)
     )
 
 
@@ -395,7 +395,7 @@ def test_four_way_parity_python_node_fastjsonschema_hyperjump():
         [py_report, node_report, fjs_report, hyperjump_report]
     )
     assert parity_ok, (
-        "four-way parity violation:\n  " + "\n  ".join(diffs)
+        "four-way parity violation:\n " + "\n ".join(diffs)
     )
 
 

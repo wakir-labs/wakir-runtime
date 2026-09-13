@@ -78,6 +78,6 @@ def test_wirelang_side_leaf_hash_matches_vector(name: str, vector: dict) -> None
     )
     assert digest.hex() == vector["expected_leaf_hash"], (
         f"{name}: cross-module drift\n"
-        f"  got:      {digest.hex()}\n"
-        f"  expected: {vector['expected_leaf_hash']}"
+        f" got: {digest.hex}\n"
+        f" expected: {vector['expected_leaf_hash']}"
     )

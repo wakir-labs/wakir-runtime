@@ -300,7 +300,7 @@ def test_09_auftrag_alias_dispatches_to_resolver() -> None:
 def test_10_engine_imports_resolver(engine_src: str) -> None:
     """engine.py imports ``resolve_bridge_audit_writer_backend``."""
     assert "resolve_bridge_audit_writer_backend" in engine_src, (
-        "Tag-48 wire-in requires engine.py to import the resolver from "
+        "wire-in requires engine.py to import the resolver from "
         "rust_backend_switch."
     )
 
@@ -313,7 +313,7 @@ def test_11_engine_invokes_resolver_in_boot(engine_src: str) -> None:
         r"resolve_bridge_audit_writer_backend\s*\(",
     )
     assert pattern.search(engine_src), (
-        "engine.py must invoke resolve_bridge_audit_writer_backend() in "
+        "engine.py must invoke resolve_bridge_audit_writer_backend in "
         "the boot fan-out (not just import it)."
     )
 

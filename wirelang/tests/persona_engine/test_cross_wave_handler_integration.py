@@ -379,7 +379,7 @@ def test_green_marathon_per_welle_trigger_is_canonical(tmp_path):
     for welle_number, expected_trigger in EXPECTED_SIGNOFF_TRIGGER.items():
         record = signoff_records_by_welle[welle_number]
         assert record.trigger == expected_trigger, (
-            f"welle-{welle_number}: expected trigger={expected_trigger!r}, "
+            f"wave-{welle_number}: expected trigger={expected_trigger!r}, "
             f"got {record.trigger!r}"
         )
 
@@ -685,7 +685,7 @@ def test_canonical_cutover_iso_satisfies_cross_welle_monotonicity():
     for welle_number in sorted_wellen:
         current_iso = CANONICAL_CUTOVER_ISO[welle_number]
         assert prior_iso <= current_iso, (
-            f"welle-{welle_number}: cutover_iso={current_iso!r} < "
+            f"wave-{welle_number}: cutover_iso={current_iso!r} < "
             f"prior={prior_iso!r}"
         )
         prior_iso = current_iso

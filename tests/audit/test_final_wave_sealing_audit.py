@@ -247,7 +247,7 @@ def test_t02_helper_spdx_and_signature() -> None:
     )
     # REUSE-IgnoreEnd
     assert "-- Reza" in text, (
-        "helper must carry '-- Reza' signature line"
+        "helper must carry '-- the protocol zone' signature line"
     )
 
 

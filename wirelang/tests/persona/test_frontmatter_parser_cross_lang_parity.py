@@ -257,7 +257,7 @@ def test_t06_fixture_file_structure_pin() -> None:
     doc = _load_fixtures()
     assert doc["schema_version"] == FRONTMATTER_TRACE_SCHEMA
     fixtures = doc["fixtures"]
-    assert len(fixtures) == 7, "Tag-34 cross-lang vector count is 7 (3 ok + 4 error paths)"
+    assert len(fixtures) == 7, "cross-lang vector count is 7 (3 ok + 4 error paths)"
     required_top_keys = {"name", "input_md_b64", "expected"}
     required_expected_keys = {
         "accepted_status",

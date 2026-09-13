@@ -166,7 +166,7 @@ def k2_module():
 def test_p01_helper_still_stdlib_only():
     imports = _toplevel_imports(K2_EMIT)
     extras = imports - STDLIB_ALLOW
-    assert not extras, f"Tag-59 helper has non-stdlib imports: {extras}"
+    assert not extras, f"helper has non-stdlib imports: {extras}"
 
 
 # ----------------------------------------------------------------------
@@ -550,5 +550,5 @@ def test_p16_probe_never_imports_network_modules():
     imports = _toplevel_imports(K2_EMIT)
     forbidden = imports & NETWORK_FORBIDDEN
     assert not forbidden, (
-        f"Tag-59 helper imports network/subprocess modules: {forbidden}"
+        f"helper imports network/subprocess modules: {forbidden}"
     )

@@ -214,7 +214,7 @@ def test_all_seven_tag78_alerts_present_in_yaml(alerts_text: str) -> None:
     """All seven alerts are appended to the alerts YAML."""
     for name in TAG78_ALERTS:
         assert name in alerts_text, (
-            f"Tag-78 marathon-closeout alert {name} missing from YAML"
+            f"marathon-closeout alert {name} missing from YAML"
         )
 
 
@@ -488,7 +488,7 @@ def test_bridge_catalog_has_each_tag78_alert(
     """
     cat = bridge_module.ALERT_CATALOG
     assert alert_name in cat, (
-        f"Tag-78 alert {alert_name} missing from ALERT_CATALOG"
+        f"alert {alert_name} missing from ALERT_CATALOG"
     )
     entry = cat[alert_name]
     assert entry["severity"] == expected_severity
@@ -646,7 +646,7 @@ def test_failure_mode_id_tag78_prefix(
         f"{alert_name} missing failure_mode_id in catalog"
     )
     assert fmi.startswith("Tag-78-"), (
-        f"{alert_name} failure_mode_id={fmi!r} missing Tag-78- prefix"
+        f"{alert_name} failure_mode_id={fmi!r} missing - prefix"
     )
 
 
@@ -660,7 +660,7 @@ def test_alerts_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed alerts copy is byte-equal."""
     assert alerts_text == alerts_mirror_text, (
-        "alerts mirror drifted from primary; Tag-78 cross-repo "
+        "alerts mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 
@@ -670,7 +670,7 @@ def test_bridge_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed bridge copy is byte-equal."""
     assert bridge_text == bridge_mirror_text, (
-        "bridge mirror drifted from primary; Tag-78 cross-repo "
+        "bridge mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 
@@ -869,7 +869,7 @@ def test_tag78_alerts_not_in_welle_n_groups(alerts_doc: dict) -> None:
         if group["name"] in welle_group_names:
             for rule in group["rules"]:
                 assert rule["alert"] not in TAG78_ALERTS, (
-                    f"Tag-78 alert {rule['alert']} leaked into "
+                    f"alert {rule['alert']} leaked into "
                     f"{group['name']} (cross-layer-contamination)"
                 )
 

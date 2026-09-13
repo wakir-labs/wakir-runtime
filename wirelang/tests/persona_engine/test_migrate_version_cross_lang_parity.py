@@ -298,7 +298,7 @@ def test_t08_fixture_file_structure(fixtures_json):
     for fx in fixtures_json["fixtures"]:
         assert set(fx.keys()) == expected_keys, (
             f"fixture {fx.get('name')} key set drift: "
-            f"{set(fx.keys())} vs {expected_keys}"
+            f"{set(fx.keys)} vs {expected_keys}"
         )
 
 

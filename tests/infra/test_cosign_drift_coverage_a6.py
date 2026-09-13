@@ -444,7 +444,7 @@ def test_a6_coverage_matrix_doc_exists_and_named(
         "classification it closes."
     )
     assert "COVERED" in a6_coverage_doc_text, (
-        "A6 coverage matrix doc must declare the post-Tag-46 COVERED "
+        "A6 coverage matrix doc must declare the post-COVERED "
         "classification."
     )
     # All 15 binaries named in the matrix.

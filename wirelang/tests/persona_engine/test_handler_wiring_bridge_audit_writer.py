@@ -463,7 +463,7 @@ def test_handle_welle_3_signoff_event_hardcodes_welle_number_3(tmp_path):
     )
 
     sibling_after = target_4.read_bytes()
-    assert sibling_before == sibling_after, "welle-4 must be untouched"
+    assert sibling_before == sibling_after, "wave 4 must be untouched"
     on_disk_3 = json.loads(target_3.read_text(encoding="utf-8"))
     assert on_disk_3["welle_number"] == 3
     assert on_disk_3["status"] == STATUS_SIGNED_OFF

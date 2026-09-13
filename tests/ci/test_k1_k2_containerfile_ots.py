@@ -334,7 +334,7 @@ def test_t10_k2_marker_schema(tmp_path: Path, k2_module):
         "operator_hand_next_step",
     }
     assert set(payload.keys()) == expected_keys, (
-        f"unexpected top-level keys: {set(payload.keys()) ^ expected_keys}"
+        f"unexpected top-level keys: {set(payload.keys) ^ expected_keys}"
     )
     assert payload["schema_version"] == 1
     assert payload["kind"] == "manifest-hash-ots-anchor-marker"

@@ -103,7 +103,7 @@ def test_tv_pil_fsm_01_states_match_spec_six_states() -> None:
     ), (
         "lifecycle FSM states drifted from spec §3.3; if intentional, "
         "the changing PR must also bump the audit-trail-schema version "
-        "and update Henrik's audit-sample template."
+        "and update internal audit's audit-sample template."
     )
 
 
@@ -386,7 +386,7 @@ def test_tv_pil_dop_04_score_schema_id_pinned() -> None:
     """
     assert SCORE_SCHEMA == "wakir.doppelbetrieb.score/1", (
         "Doppelbetrieb-Score schema-id drift; if intentional, the "
-        "wirelang schema-registry entry + Henrik's audit-sample "
+        "wirelang schema-registry entry + internal audit's audit-sample "
         "template + the Phase-2 quality-gate doc must all bump in "
         "the same PR."
     )

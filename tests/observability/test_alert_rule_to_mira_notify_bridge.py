@@ -593,7 +593,7 @@ def test_end_to_end_alert_to_inbox(tmp_path, alert_a1_firing):
         if p.is_file() and p.name.startswith("notify-page-")
     ]
     assert len(inbox_files) == 1, (
-        f"expected one notify-page-*.md, got: {list(inbox.iterdir())}"
+        f"expected one notify-page-*.md, got: {list(inbox.iterdir)}"
     )
     body = inbox_files[0].read_text(encoding="utf-8")
     assert (

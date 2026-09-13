@@ -231,9 +231,9 @@ def test_tv_bringup_01_server_federation_volume_filename_resolves(
     assert not missing, (
         f"server-federation-container for side={side!r} references "
         f"volume unit(s) the bootstrap does NOT install: {sorted(missing)}\n"
-        f"  bootstrap-installed basenames (post-rename): "
+        f" bootstrap-installed basenames (post-rename): "
         f"{sorted(installed)}\n"
-        f"This is Bug 2 from the 2026-05-13 Mira-Bug-Bilanz."
+        f"This is Bug 2 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -343,9 +343,9 @@ def test_tv_bringup_02_agent_references_existing_server_bundles_volume(
     assert not missing, (
         f"agent-federation-container for side={side!r} references "
         f"server volume(s) that the bootstrap does NOT install:\n"
-        f"  missing: {missing}\n"
-        f"  bootstrap-installed (post-rename): {sorted(installed)}\n\n"
-        f"This is Bug 3 from the 2026-05-13 Mira-Bug-Bilanz: agent +\n"
+        f" missing: {missing}\n"
+        f" bootstrap-installed (post-rename): {sorted(installed)}\n\n"
+        f"This is Bug 3 from the 2026-05-13 operator-Bug-Bilanz: agent +\n"
         f"server templates must agree on the per-side volume basename\n"
         f"the bootstrap installs."
     )
@@ -399,7 +399,7 @@ def test_tv_bringup_03_agent_requires_match_server_federation_service(
         f"agent-federation-container for side={side!r} requires server "
         f"service(s) {mismatched!r} but the bootstrap installs the\n"
         f"server unit as {expected_server_service!r}.\n\n"
-        f"This is Bug 4 from the 2026-05-13 Mira-Bug-Bilanz."
+        f"This is Bug 4 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -489,7 +489,7 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
         "Reference pattern: Phase 7 (bucket-init) already does\n"
         "``if ! cmp -s \"$src\" \"$dst\" 2>/dev/null; then install -m 644 ...``.\n"
         "Apply the same pattern (any variable names) to 6b/6c/6d/6e.\n\n"
-        "This is Bug 5 from the 2026-05-13 Mira-Bug-Bilanz."
+        "This is Bug 5 from the 2026-05-13 operator-Bug-Bilanz."
     )
 
 
@@ -718,7 +718,7 @@ def test_tv_bringup_05_bucket_init_has_no_cryptography_dependency_path() -> None
         "The bucket-init container's ``python:3.13-slim`` base image does "
         "not ship cryptography, so the container will crash on start with "
         "``ModuleNotFoundError: No module named 'cryptography'``.\n\n"
-        "Resolution options (Mira-Bug-Bilanz, Bug 6): "
+        "Resolution options: "
         "A) image with cryptography baked in (e.g. "
         "``ghcr.io/wakir-labs/wakir-provisioner``); "
         "B) Exec-time pip install; "

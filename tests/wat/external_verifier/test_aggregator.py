@@ -93,10 +93,10 @@ def test_tv_ev_1_known_good_anchor_default_quorum(tmp_path):
     assert isinstance(result, AnchorVerification)
     assert result.quorum is True
     assert result.quorum_policy == QuorumPolicy.THREE_OF_FOUR
-    assert all(pr.ok for pr in result.pole_results.values()), result.to_dict()
+    assert all(pr.ok for pr in result.pole_results.values()), result.to_dict
     assert all(
         pr.verdict == "verified" for pr in result.pole_results.values()
-    ), result.to_dict()
+    ), result.to_dict
 
 
 def test_tv_ev_1_known_good_anchor_strict_all_policy(tmp_path):

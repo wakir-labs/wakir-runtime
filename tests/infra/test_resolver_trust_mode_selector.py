@@ -203,7 +203,7 @@ def test_step_5_logs_trust_mode_banner(bootstrap_source: str) -> None:
     """
     # Anchor inside step_5_image_pins.
     s5_start = bootstrap_source.find("step_5_image_pins()")
-    assert s5_start > 0, "step_5_image_pins() not found"
+    assert s5_start > 0, "step_5_image_pins not found"
     s5_end = bootstrap_source.find("step_6_quadlet()", s5_start)
     s5 = bootstrap_source[s5_start:s5_end]
     assert "resolver trust-mode:" in s5, (

@@ -172,7 +172,7 @@ def test_t6_phase_3c_seven_wellen(spec_text: str) -> None:
     rows = re.findall(r"^\|\s*(\d+)\s*\|", block, flags=re.MULTILINE)
     nums = [int(r) for r in rows]
     assert nums == list(range(1, 8)), (
-        f"expected 7 numbered welle rows 1..7 in §5.1, got {nums}"
+        f"expected 7 numbered wave rows 1..7 in §5.1, got {nums}"
     )
 
 

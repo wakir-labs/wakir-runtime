@@ -111,7 +111,7 @@ def test_cosign_login_runs_before_sign(build_steps: list[dict]) -> None:
     sign_idx = _step_index(build_steps, "Sigstore-keyless sign")
     assert login_idx < sign_idx, (
         "Cosign login MUST precede Sigstore-keyless sign; reordering "
-        "regresses the Sprint-9 Tag-5 UNAUTHORIZED fix"
+        "regresses the UNAUTHORIZED fix"
     )
 
 

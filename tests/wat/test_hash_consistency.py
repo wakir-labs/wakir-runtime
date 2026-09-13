@@ -84,8 +84,8 @@ def test_leaf_hash_matches_vector(name: str, vector: dict) -> None:
     )
     assert digest.hex() == vector["expected_leaf_hash"], (
         f"{name}: leaf hash drift\n"
-        f"  got:      {digest.hex()}\n"
-        f"  expected: {vector['expected_leaf_hash']}"
+        f" got: {digest.hex}\n"
+        f" expected: {vector['expected_leaf_hash']}"
     )
 
 
@@ -120,7 +120,7 @@ def test_vectors_carry_underscore_metadata_keys() -> None:
     for name, vector in VECTORS:
         assert "x-spdx-license-identifier" in vector, (
             f"{name}: missing 'x-spdx-license-identifier' metadata key "
-            f"(Sprint-Hygiene-Tag-2 SPDX-migration convention)"
+            f"(-Hygiene-SPDX-migration convention)"
         )
         assert "x-spdx-file-copyright-text" in vector, (
             f"{name}: missing 'x-spdx-file-copyright-text' metadata key"

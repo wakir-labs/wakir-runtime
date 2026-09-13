@@ -196,9 +196,9 @@ def test_02_workflow_job_display_name_is_required_status_check_name(
     job = jobs["cross-substrate-parity-gate"]
     assert job.get("name") == REQUIRED_STATUS_CHECK_NAME, (
         f"Job display name drift. Expected exactly:\n"
-        f"  {REQUIRED_STATUS_CHECK_NAME!r}\n"
+        f" {REQUIRED_STATUS_CHECK_NAME!r}\n"
         f"Got:\n"
-        f"  {job.get('name')!r}\n"
+        f" {job.get('name')!r}\n"
         f"Branch-protection required-status-check would fail to match."
     )
 
@@ -309,8 +309,8 @@ def test_10_canonical_boot_order_consistent_three_witnesses(
 
     assert normalised_pin_pack == list(CANONICAL_BOOT_ORDER), (
         f"Pin-pack canonical boot order drift.\n"
-        f"  Expected: {list(CANONICAL_BOOT_ORDER)}\n"
-        f"  Got:      {normalised_pin_pack}"
+        f" Expected: {list(CANONICAL_BOOT_ORDER)}\n"
+        f" Got: {normalised_pin_pack}"
     )
 
     # Every canonical name must appear in manifest §1 AND engine.py.
@@ -335,10 +335,10 @@ def test_11_runbook_documents_open_j1_closeout(runbook_text: str) -> None:
     # plus must appear in the runbook so a future operator
     # can trace the green-on-PR contract.
     assert "OPEN-J1" in runbook_text, (
-        "Runbook must reference OPEN-J1 to anchor Tag-57 closeout."
+        "Runbook must reference OPEN-J1 to anchor closeout."
     )
     assert "Tag-57" in runbook_text, (
-        "Runbook must reference Tag-57 to anchor the green-on-PR "
+        "Runbook must reference to anchor the green-on-PR "
         "widening (10-BackendDecision-parity stage + path triggers)."
     )
 

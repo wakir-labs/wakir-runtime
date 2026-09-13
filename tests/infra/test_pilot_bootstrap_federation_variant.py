@@ -118,7 +118,7 @@ def test_peer_side_documented_in_usage_banner(bootstrap_source: str) -> None:
     m = re.search(
         r"usage\(\)\s*\{(.*?)^\}", bootstrap_source, re.DOTALL | re.MULTILINE
     )
-    assert m, "usage() function not found"
+    assert m, "usage function not found"
     assert "WAKIR_PEER_SIDE" in m.group(1)
     assert "WAKIR_PEER_HOST" in m.group(1)
 

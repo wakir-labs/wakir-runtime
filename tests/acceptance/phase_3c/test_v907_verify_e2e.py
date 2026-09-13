@@ -172,10 +172,10 @@ def test_welle_1_boot_flips_only_v907_verify(
     """
     boot = mocked_engine_boot(WELLE_NAME)
     assert boot.boot_succeeded, (
-        f"welle-1 boot must succeed; got failure-record {boot}"
+        f"wave 1 boot must succeed; got failure-record {boot}"
     )
     assert boot.backend_per_modul[WELLE_NAME] == "rust", (
-        f"welle-1 modul {WELLE_NAME} must be on rust-backend post-flip; "
+        f"wave 1 modul {WELLE_NAME} must be on rust-backend post-flip; "
         f"got {boot.backend_per_modul[WELLE_NAME]!r}"
     )
     other_rust = [
@@ -184,7 +184,7 @@ def test_welle_1_boot_flips_only_v907_verify(
         if b == "rust" and m != WELLE_NAME
     ]
     assert not other_rust, (
-        f"welle-1 must flip ONLY {WELLE_NAME}; other rust-flipped moduln: "
+        f"wave 1 must flip ONLY {WELLE_NAME}; other rust-flipped moduln: "
         f"{other_rust}"
     )
 
@@ -192,7 +192,7 @@ def test_welle_1_boot_flips_only_v907_verify(
     assert env[f"WAKIR_ENGINE_{WELLE_NAME.upper()}_BACKEND"] == "rust"
     rust_env_keys = [k for k, v in env.items() if v == "rust"]
     assert len(rust_env_keys) == 1, (
-        f"welle-1 Quadlet-state must have exactly 1 rust-flipped ENV-key; "
+        f"wave 1 Quadlet-state must have exactly 1 rust-flipped ENV-key; "
         f"got {rust_env_keys}"
     )
 

@@ -88,7 +88,7 @@ def test_t01_rc1_release_notes_file_preserved_as_historical_artefact() -> None:
     add new release-notes files alongside.
     """
     assert RC1_RELEASE_NOTES_PATH.is_file(), (
-        f"Tag-58 rc1 release-notes file missing — Tag-62 final-bump must "
+        f"rc1 release-notes file missing — final-bump must "
         f"preserve historical artefacts: {RC1_RELEASE_NOTES_PATH}"
     )
 
@@ -144,13 +144,13 @@ def test_t04_rc1_release_notes_marks_tag57_closeouts_and_open_j2() -> None:
     source = _read(RC1_RELEASE_NOTES_PATH)
     for closed_marker in ("OPEN-K1", "OPEN-K2", "OPEN-J1"):
         assert closed_marker in source, (
-            f"rc1 release-notes missing Tag-57 closeout marker {closed_marker}"
+            f"rc1 release-notes missing closeout marker {closed_marker}"
         )
     assert "OPEN-J2" in source, (
         "rc1 release-notes missing OPEN-J2 (Operator-Hand cutover-day) marker"
     )
     assert "Closed in Tag-57" in source, (
-        "rc1 release-notes must mark K1/K2/J1 as closed in Tag-57"
+        "rc1 release-notes must mark K1/K2/J1 as closed in "
     )
 
 
@@ -164,7 +164,7 @@ def test_t05_rc1_release_notes_references_tag56_tag57_pr_substrate() -> None:
     source = _read(RC1_RELEASE_NOTES_PATH)
     for pr in ("#362", "#363", "#366", "#367"):
         assert pr in source, (
-            f"rc1 release-notes missing Tag-56/57 PR substrate reference {pr}"
+            f"rc1 release-notes missing /57 PR substrate reference {pr}"
         )
 
 
@@ -182,8 +182,8 @@ def test_t06_manifest_preserves_tag58_history_subsection() -> None:
     """
     source = _read(MANIFEST_PATH)
     assert "### 0.1" in source or "## 0.1" in source, (
-        "Manifest missing §0.1 history sub-section — Tag-62 rewrite must "
-        "preserve a sub-section narrating the Tag-58 rc1 substrate"
+        "Manifest missing §0.1 history sub-section — rewrite must "
+        "preserve a sub-section narrating the rc1 substrate"
     )
     # Find the §0.1 block (between the §0.1 heading and the next ##/### at
     # the same or higher level).
@@ -195,7 +195,7 @@ def test_t06_manifest_preserves_tag58_history_subsection() -> None:
     section_one_idx = source.index("## 1.", sub_idx)
     subsection = source[sub_idx:section_one_idx]
     assert "Tag-58" in subsection, (
-        "Manifest §0.1 must reference Tag-58 explicitly"
+        "Manifest §0.1 must reference explicitly"
     )
     assert RC1_VERSION in subsection, (
         f"Manifest §0.1 must reference the rc1 version literal {RC1_VERSION!r}"
@@ -251,7 +251,7 @@ def test_t09_rc1_release_notes_signed_by_selin() -> None:
     """The rc1 file ends with the engine zone signature line."""
     source = _read(RC1_RELEASE_NOTES_PATH)
     assert "— Selin" in source or "- Selin" in source, (
-        "rc1 release-notes missing the Selin signature line"
+        "rc1 release-notes missing the engine zone signature line"
     )
 
 

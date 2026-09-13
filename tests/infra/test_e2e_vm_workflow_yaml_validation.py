@@ -112,15 +112,15 @@ def test_pr_trigger_paths_match_push_trigger_paths() -> None:
     pr_paths = set(doc["on"]["pull_request"].get("paths", []))
     assert push_paths == pr_paths, (
         f"push vs pull_request path-filter divergence:\n"
-        f"  push-only: {push_paths - pr_paths}\n"
-        f"  pr-only:   {pr_paths - push_paths}"
+        f" push-only: {push_paths - pr_paths}\n"
+        f" pr-only: {pr_paths - push_paths}"
     )
 
 
 def test_jobs_topology_is_harness_logic_then_real_vm() -> None:
     doc = _load()
     jobs = doc["jobs"]
-    assert set(jobs.keys()) == {"harness-logic", "real-vm"}, list(jobs.keys())
+    assert set(jobs.keys()) == {"harness-logic", "real-vm"}, list(jobs.keys)
 
     harness = jobs["harness-logic"]
     assert harness["runs-on"] == "ubuntu-latest"

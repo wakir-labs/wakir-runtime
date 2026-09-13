@@ -704,7 +704,7 @@ def test_bpc_required_workflows_reach_typical_pr_classes(
         f"`feedback_branch_protection_check_names`. Either widen the "
         f"path-filter or de-Required the check (operations doc §4.4). "
         f"For `cross-repo-drift-audit.yml` specifically: the §4.2 "
-        f"Mira-Hand-Operator promotion recommendation becomes INVALID "
+        f"operator-Hand-Operator promotion recommendation becomes INVALID "
         f"if its in-scope `code-only` reach regresses."
     )
 
@@ -803,7 +803,7 @@ def test_bpc_cross_repo_drift_reaches_code_only_class() -> None:
         ), (
             f"cross-repo-drift-audit.yml no longer reaches {cls!r} "
             "PRs. Operations doc §4.2 Required-promotion validity "
-            "regressed after Tag-16 Pfad A path-filter precision-add. "
+            "regressed after Pfad A path-filter precision-add. "
             "Either restore the path-filter (preferred) or de-Required "
             "the check (operations doc §4.4)."
         )
@@ -1131,7 +1131,7 @@ def test_bpc_pfad_a_precision_add_entries_listed() -> None:
             f"Pfad-A precision-add entry {entry!r} is missing from "
             f"the cross-repo-drift-audit.yml path-filter fixture. "
             f"Either the YAML was narrowed back (revert) or the "
-            f"fixture is stale (re-sync from the YAML). Tag-16 Pfad A "
+            f"fixture is stale (re-sync from the YAML). Pfad A "
             "(2026-05-17) added this entry to close the forever-"
             "PENDING reach-asymmetry on PRs #153, #158, #160, #161 — "
             "do NOT drop without an explicit Tag-N sprint."
@@ -1141,7 +1141,7 @@ def test_bpc_pfad_a_precision_add_entries_listed() -> None:
     # cannot accidentally drop an original entry).
     for entry in _PRE_PFAD_A_ORIGINAL_ENTRIES:
         assert entry in filter_entries, (
-            f"Original-narrow path-filter entry {entry!r} (pre-Tag-16) "
+            f"Original-narrow path-filter entry {entry!r} (pre-) "
             f"is missing from cross-repo-drift-audit.yml fixture. The "
             f"Pfad-A widening must STRICTLY ADD entries on top of the "
             f"original four; dropping any original entry regresses the "
@@ -1199,7 +1199,7 @@ def test_bpc_narrow_cohort_is_empty_post_pfad_a() -> None:
 
     assert _NARROW_COHORT_WORKFLOWS == frozenset(), (
         f"_NARROW_COHORT_WORKFLOWS is non-empty: "
-        f"{sorted(_NARROW_COHORT_WORKFLOWS)!r}. Tag-16 Pfad A "
+        f"{sorted(_NARROW_COHORT_WORKFLOWS)!r}. Pfad A "
         "(2026-05-17) emptied this cohort because the cross-repo-"
         "drift path-filter now satisfies the universal-cohort "
         "minimum-reach rule natively. Any re-addition must be "
@@ -1214,7 +1214,7 @@ def test_bpc_narrow_cohort_is_empty_post_pfad_a() -> None:
         "cross-repo-drift-audit.yml is back in _NARROW_COHORT_WORKFLOWS. "
         "Re-narrowing the cohort would silently relax TV-BPC-12's "
         "minimum-reach rule for this workflow back to `code-only` "
-        "only — which contradicts the Tag-16 Pfad A path-filter "
+        "only — which contradicts the Pfad A path-filter "
         "precision-add and TV-BPC-09's expanded "
         "`_NARROW_REACH_CLASSES_CROSS_REPO_DRIFT` parametrisation. "
         "Revert."

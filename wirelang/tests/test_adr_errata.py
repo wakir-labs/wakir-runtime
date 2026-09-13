@@ -71,10 +71,10 @@ def _errata_text() -> str:
 def test_t_err_01_errata_doc_exists() -> None:
     """T-ERR-01: errata addendum file is present at canonical path."""
     assert ERRATA_DOC.exists(), (
-        f"Tag-55 errata addendum missing at {ERRATA_DOC}"
+        f"errata addendum missing at {ERRATA_DOC}"
     )
     assert ERRATA_DOC.stat().st_size > 1500, (
-        "Tag-55 errata addendum is suspiciously small (<1.5 kB)"
+        "errata addendum is suspiciously small (<1.5 kB)"
     )
 
 
@@ -124,7 +124,7 @@ def test_t_err_05_parser_dir_does_not_exist() -> None:
     """T-ERR-05: drift-pin — ``wirelang/parser/`` must remain absent."""
     parser_dir = REPO_ROOT / "wirelang" / "parser"
     assert not parser_dir.exists(), (
-        "wirelang/parser/ reappeared — Tag-54 audit DRIFT claim "
+        "wirelang/parser/ reappeared — audit DRIFT claim "
         "regressed; ADR-0034 / ADR-0062 ERR-S2 needs re-evaluation"
     )
 
@@ -235,7 +235,7 @@ def test_t_err_11_errata_cross_refs_audit_report() -> None:
     """T-ERR-11: errata addendum cites the audit report path."""
     text = _errata_text()
     assert AUDIT_REPORT_REL in text, (
-        "errata addendum must cross-reference the Tag-54 audit report "
+        "errata addendum must cross-reference the audit report "
         f"at {AUDIT_REPORT_REL}"
     )
     # PR #349 is the audit-report PR.

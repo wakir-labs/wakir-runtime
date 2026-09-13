@@ -204,7 +204,7 @@ def test_t05_fixture_file_structure_pin() -> None:
     assert doc["schema_version"] == BRIDGE_DIFF_TRACE_SCHEMA
     fixtures = doc["fixtures"]
     assert len(fixtures) == 6, (
-        "Tag-36 cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
+        "cross-lang vector count is 6 (1 byte-identical + 5 drift paths)"
     )
     required_top_keys = {
         "name",

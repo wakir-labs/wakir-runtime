@@ -792,7 +792,7 @@ def test_cross_substrate_parity_with_quadlet_installer(policy: dict) -> None:
     # And: the agreed-on set must be exactly the five we expect.
     assert policy_basenames == set(EXPECTED_BINARIES), (
         f"Cosign-Policy + Quadlet agree on {sorted(policy_basenames)}, "
-        f"but the canonical Tag-23 inventory is "
+        f"but the canonical inventory is "
         f"{sorted(EXPECTED_BINARIES)} — both substrates have drifted "
         "from the EXPECTED_BINARIES contract in the same direction."
     )

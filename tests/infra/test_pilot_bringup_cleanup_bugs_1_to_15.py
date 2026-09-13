@@ -234,7 +234,7 @@ def test_tv_s9t6_04_skip_cosign_still_passes_provisioner_digest() -> None:
     # pre-banner WARNING block (which carries the same env-var
     # literal).
     step_5_start = text.find("step_5_image_pins()")
-    assert step_5_start > 0, "bootstrap.sh MUST define step_5_image_pins()"
+    assert step_5_start > 0, "bootstrap.sh MUST define step_5_image_pins"
     # Walk forward until the next ``^step_`` header at column 0 (or
     # end-of-step-comment marker) — this is the function body bound.
     step_5_end_match = re.search(

@@ -181,7 +181,7 @@ def test_welle_3_idempotent_double_write_yields_same_anchor(
     pass_1 = mocked_wat_anchor_sink(WELLE_NAME, request_ids=("req-idem-a",))
     pass_2 = mocked_wat_anchor_sink(WELLE_NAME, request_ids=("req-idem-a",))
     assert pass_1 == pass_2, (
-        f"Welle-3 WAT-Anchor double-write must be idempotent; got "
+        f"wave 3 WAT-Anchor double-write must be idempotent; got "
         f"pass_1={pass_1} pass_2={pass_2}"
     )
 

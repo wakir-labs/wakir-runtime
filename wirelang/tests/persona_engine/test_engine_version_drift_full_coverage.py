@@ -209,7 +209,7 @@ def test_04_scan_globs_cover_engine_async_and_cli(scanner_module) -> None:
         "wirelang/persona_engine/cli.py",
     ):
         assert must_have in rels, (
-            f"scan globs do not reach {must_have} (the Tag-59 hot-fix "
+            f"scan globs do not reach {must_have} (the hot-fix "
             "drift surfaces)"
         )
 
@@ -223,7 +223,7 @@ def test_05_scan_globs_cover_persona_engine_test_corpus(scanner_module) -> None:
     # the scanner must see at least that many tests under the glob.
     assert len(test_hits) >= 7, (
         f"scan-globs reach only {len(test_hits)} persona_engine tests; "
-        "Tag-59 hot-fix #381 had to sweep seven test files"
+        "hot-fix #381 had to sweep seven test files"
     )
 
 
@@ -274,7 +274,7 @@ def test_09_repo_scan_is_clean_under_default_allowlist(scanner_module) -> None:
     result = scanner_module.scan_repo(REPO_ROOT, allowlist)
     assert not result.findings, (
         f"un-allowlisted drift on main: "
-        f"{[f.as_record() for f in result.findings]}"
+        f"{[f.as_record for f in result.findings]}"
     )
 
 
@@ -288,7 +288,7 @@ def test_10_scan_file_engine_async_returns_no_stale_literals(
     )
     assert hits == [], (
         f"engine_async.py carries stale literals: "
-        f"{[h.as_record() for h in hits]}"
+        f"{[h.as_record for h in hits]}"
     )
 
 
@@ -300,7 +300,7 @@ def test_11_scan_file_cli_docstring_returns_no_stale_literals(
         REPO_ROOT / "wirelang" / "persona_engine" / "cli.py", REPO_ROOT
     )
     assert hits == [], (
-        f"cli.py carries stale literals: {[h.as_record() for h in hits]}"
+        f"cli.py carries stale literals: {[h.as_record for h in hits]}"
     )
 
 
@@ -440,7 +440,7 @@ def test_18_cli_exit_code_zero_on_clean_repo(scanner_module) -> None:
                 str(ALLOWLIST_PATH),
             ]
         )
-    assert rc == 0, f"CLI returned {rc} on clean repo. Output: {buf.getvalue()}"
+    assert rc == 0, f"CLI returned {rc} on clean repo. Output: {buf.getvalue}"
 
 
 def test_19_cli_exit_code_one_on_unallowlisted_drift(
@@ -465,7 +465,7 @@ def test_19_cli_exit_code_one_on_unallowlisted_drift(
                 str(empty_allowlist),
             ]
         )
-    assert rc == 1, f"CLI returned {rc} on drifty repo. Output: {buf.getvalue()}"
+    assert rc == 1, f"CLI returned {rc} on drifty repo. Output: {buf.getvalue}"
 
 
 def test_20_cli_exit_code_two_on_invariant_violation(

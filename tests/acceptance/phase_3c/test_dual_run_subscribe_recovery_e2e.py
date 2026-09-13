@@ -75,7 +75,7 @@ pytestmark = pytest.mark.phase_3c_doppel_welle_acceptance
 def test_doppel_welle_6_7_anchored_to_kw_27() -> None:
     """Sanity: this file targets the ADR-0066 calendar week 27 dual-run wave pair."""
     assert EXPECTED_KW == "KW27", (
-        f"Doppel-Welle-6+7 must anchor to KW27 per ADR-0066 §Beschluss; "
+        f"dual-run wave-6+7 must anchor to calendar week 27 per ADR-0066 §Beschluss; "
         f"got {EXPECTED_KW!r}"
     )
 

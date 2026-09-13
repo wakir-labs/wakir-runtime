@@ -162,7 +162,7 @@ def test_tag74_alerts_live_in_welle_6_group(alerts_doc: dict) -> None:
         g for g in alerts_doc["groups"] if g["name"] == "welle-6-alerts"
     ]
     assert len(welle_6_groups) == 1, (
-        "expected exactly one welle-6-alerts group"
+        "expected exactly one wave 6 alerts group"
     )
     rule_names = [r["alert"] for r in welle_6_groups[0]["rules"]]
     assert "WakirPhase3Welle6SubscribeLoopHealthy" in rule_names
@@ -275,7 +275,7 @@ def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
         assert "ntfy:ar-hand-info" in notify
         assert "activity-log:append" in notify
         assert "pagerduty" not in notify, (
-            f"info/warning Tag-74 alert {name} must NOT page on-call"
+            f"info/warning alert {name} must NOT page on-call"
         )
 
 
@@ -457,7 +457,7 @@ def test_alerts_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed alerts copy is byte-equal."""
     assert alerts_text == alerts_mirror_text, (
-        "alerts mirror drifted from primary; Tag-74 cross-repo "
+        "alerts mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 
@@ -467,7 +467,7 @@ def test_bridge_mirror_byte_equal(
 ) -> None:
     """The protocol-mirror-seed bridge copy is byte-equal."""
     assert bridge_text == bridge_mirror_text, (
-        "bridge mirror drifted from primary; Tag-74 cross-repo "
+        "bridge mirror drifted from primary; cross-repo "
         "invariant broken"
     )
 
@@ -583,12 +583,12 @@ def test_pre_commit_config_has_tag74_enforce_hook(
             local_hooks.extend(repo.get("hooks", []))
     hook_ids = [h["id"] for h in local_hooks]
     assert "reuse-wrap-pre-merge-lint-enforce" in hook_ids, (
-        "Tag-74 enforce-mode hook missing from local hooks"
+        "enforce-mode hook missing from local hooks"
     )
     # hint-mode hook must still be present (additive,
     # not replacement).
     assert "reuse-wrap-pre-merge-lint" in hook_ids, (
-        "Tag-61 hint-mode hook regression: must remain present"
+        "hint-mode hook regression: must remain present"
     )
 
 
@@ -605,11 +605,11 @@ def test_pre_commit_enforce_hook_runs_enforce_mode(
     entry = enforce_hook["entry"]
     assert "tooling/ci/lint_reuse_ignore_wrap_pattern.py" in entry
     assert "--mode enforce" in entry, (
-        "Tag-74 enforce-mode hook must pass --mode enforce; "
+        "enforce-mode hook must pass --mode enforce; "
         f"got entry={entry}"
     )
     assert "--mode hint" not in entry, (
-        "Tag-74 enforce-mode hook must NOT pass --mode hint"
+        "enforce-mode hook must NOT pass --mode hint"
     )
 
 
@@ -666,7 +666,7 @@ def test_pre_commit_config_carries_tag74_header_comment(
         or "Tag-74 - REUSE-IgnoreStart/End wrap pre-merge lint"
         in pre_commit_text
         or "Tag-74" in pre_commit_text
-    ), "Tag-74 header comment missing from .pre-commit-config.yaml"
+    ), "header comment missing .pre-commit-config.yaml"
     # The the engineering zone-follow-up attribution must be referenced.
     assert "Tomás" in pre_commit_text or "Tomas" in pre_commit_text
 

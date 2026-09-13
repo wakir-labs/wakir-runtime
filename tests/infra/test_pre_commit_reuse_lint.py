@@ -94,7 +94,7 @@ def test_pre_commit_config_declares_canonical_hook_ids() -> None:
     expected = {"reuse", "spdx-header-check", "reuse-toml-annotation-drift"}
     missing = expected - hook_ids
     assert not missing, (
-        f"missing canonical hook-IDs in .pre-commit-config.yaml: {missing}"
+        f"missing canonical hook-IDs .pre-commit-config.yaml: {missing}"
     )
 
 

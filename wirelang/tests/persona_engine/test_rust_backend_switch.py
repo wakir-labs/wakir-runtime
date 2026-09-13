@@ -1863,7 +1863,7 @@ def _load_bridge_diff_fixtures() -> dict:
     p = _bridge_diff_fixture_path()
     assert p.exists(), (
         f"bridge-diff cross-lang fixture missing at {p}; "
-        "the Tag-20 test depends on the same pin-table that the "
+        "the test depends on the same pin-table that the "
         "Rust cross_lang_field_diff_test.rs consumes"
     )
     return json.loads(p.read_text(encoding="utf-8"))

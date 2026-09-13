@@ -507,8 +507,8 @@ def test_pre_start_sweep_covers_kind_volume_set(
     chowned_vol_names = sorted({Path(p).name for p in chowned_dirs})
     assert chowned_vol_names == sorted(expected_vols), (
         f"sweep kind={kind}: chowned volumes mismatch.\n"
-        f"  expected={sorted(expected_vols)}\n"
-        f"  actual  ={chowned_vol_names}"
+        f" expected={sorted(expected_vols)}\n"
+        f" actual ={chowned_vol_names}"
     )
 
 

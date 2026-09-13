@@ -231,7 +231,7 @@ class TestWelle4to7Workflow:
         ), "workflow_dispatch must accept push input"
         assert inputs["push"].get("default") == "false", (
             "workflow_dispatch push input default must be 'false' "
-            "(Operator-Hand opt-in)"
+            "(Operator-Hand opt-)"
         )
 
     def test_workflow_dispatch_version_tag_default(
@@ -690,6 +690,6 @@ def test_all_four_workflows_have_unique_image_names() -> None:
     # And no two workflows ship the same image name.
     distinct = set(image_names.values())
     assert len(distinct) == len(image_names), (
-        f"duplicate GHCR image names across Welle-4..7 workflows: "
+        f"duplicate GHCR image names across wave 4..7 workflows: "
         f"{image_names}"
     )

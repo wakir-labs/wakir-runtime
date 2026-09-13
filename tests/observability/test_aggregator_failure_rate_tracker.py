@@ -407,8 +407,8 @@ def test_legacy_required_names_match_aggregator_inventory():
     tracker_names = set(tracker.LEGACY_REQUIRED_NAMES)
     assert tracker_names == inventory_names, (
         f"Tracker legacy names diverge from aggregator inventory.\n"
-        f"  tracker - aggregator: {tracker_names - inventory_names}\n"
-        f"  aggregator - tracker: {inventory_names - tracker_names}"
+        f" tracker - aggregator: {tracker_names - inventory_names}\n"
+        f" aggregator - tracker: {inventory_names - tracker_names}"
     )
 
 
@@ -630,7 +630,7 @@ def test_build_gh_cli_get_cmd_embeds_query_in_path():
         query={"per_page": 100, "page": 3},
     )
     # No -f flags (the bug).
-    assert "-f" not in cmd, f"Found regressed -f flag in: {cmd}"
+    assert "-f" not in cmd, f"Found regressed -f flag : {cmd}"
     # -X GET present (the fix).
     assert "-X" in cmd and "GET" in cmd
     # Path argument contains the embedded query.

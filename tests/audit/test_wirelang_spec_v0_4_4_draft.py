@@ -311,7 +311,7 @@ def test_T12_v0_4_3_freeze_seal_intact():
     actual = hashlib.sha256(SPEC_V043.read_bytes()).hexdigest()
     assert actual == expected_sha, (
         f"v0.4.3 SHA-256 drift detected: expected {expected_sha}, got {actual}. "
-        "The Tag-63 draft work MUST NOT alter v0.4.3."
+        "the draft work MUST NOT alter v0.4.3."
     )
 
 
