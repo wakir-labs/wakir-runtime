@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build + sign + push the wakir-v907-verify image (Tag-26 Mini-Welle,
-# ADR-0065 Welle-1 `v907_verify` pre-cutover image).
+# Build + sign + push the wakir-v907-verify image (
+# ADR-0065 wave-1 `v907_verify` pre-cutover image).
 #
 # Posture
 # -------
@@ -47,7 +47,7 @@
 #      GHCR and Sigstore-keyless-signs the published digest against
 #      the GitHub-Actions OIDC identity.
 #   7. Emits the resulting digest as a workflow output so the
-#      Welle-1 cutover step can copy it into the Quadlet pin.
+#      wave-1 cutover step can copy it into the Quadlet pin.
 #
 # Sandbox boundary
 # ----------------
@@ -106,7 +106,7 @@ jobs:
         # On workflow_dispatch: tag + push come from inputs.
         # Substrate-fence: refuse free-form values that do not match
         # the known ``MAJOR.MINOR.PATCH-pilot`` shape on
-        # workflow_dispatch (Sprint-Pengine-13 pattern). Push-to-main
+        # workflow_dispatch (pattern). Push-to-main
         # tags are not subject to the suffix check because they are
         # never published.
         run: |
@@ -334,7 +334,7 @@ jobs:
             if [[ "${{ steps.inputs.outputs.push }}" == "true" ]]; then
               echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
               echo ""
-              echo "Welle-1 cutover pin substitution recipe:"
+              echo "wave-1 cutover pin substitution recipe:"
               echo ""
               echo "    scripts/image-pin-idempotent-resolver.sh --digest-source crane"
               echo ""

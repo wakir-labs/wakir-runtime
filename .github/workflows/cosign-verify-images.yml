@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Cosign + digest-resolver pre-build verification of the SPIRE-Federation
-# image pins (Phase-2 Sprint-9 Tag-3, Tomás follow-up to Sprint-8 Tag-4).
+# image pins (Tomás follow-up to).
 #
 # Posture:
 #   workflow_dispatch ONLY for the pilot phase. The job pulls from
 #   GHCR / DockerHub on every run, which is a supply-chain network
 #   egress that needs Zone-C cross-review before we wire it onto the
 #   PR-trigger surface. Activating push / pull_request triggers is a
-#   follow-up ADR (Tomás Zone-C) — until then the workflow is
+#   follow-up ADR (image-pipeline review) — until then the workflow is
 #   Operator-Hand: an authorised operator clicks "Run workflow" in
 #   the GitHub UI when they want to recheck the pins.
 #
@@ -182,7 +182,7 @@ jobs:
         id: pin
         run: |
           set -euo pipefail
-          # Sprint-9 Tag-4: the python pin moved from the Quadlet to
+          #: the python pin moved from the Quadlet to
           # the wakir-provisioner Containerfile's FROM line.
           PIN=$(grep -oE 'docker\.io/library/python:[^@ "]+@sha256:[^ "]+' \
               infra/spire/federation/provisioner/Containerfile | head -n1)
@@ -238,7 +238,7 @@ jobs:
   # ------------------------------------------------------------------
   # Job 3: ghcr.io/wakir-labs/wakir-provisioner — GHCR + Sigstore
   #        keyless cosign verify against the build workflow's OIDC
-  #        identity. Added in Phase-2 Sprint-9 Tag-4.
+  #        identity. Added in.
   # ------------------------------------------------------------------
   cosign-verify-wakir-provisioner:
     name: cosign verify wakir-provisioner
@@ -295,7 +295,7 @@ jobs:
       - name: Cross-check digest (advisory — Cosign-Verify is the gate)
         run: |
           set -euo pipefail
-          # Tag-80 Note: ghcr.io applies a Sigstore-signature-manifest
+          # Note: ghcr.io applies a Sigstore-signature-manifest
           # wrapper around the cosign-signed image, producing two distinct
           # registry-side digests:
           #   - cosign-signed payload-digest (what we pin)

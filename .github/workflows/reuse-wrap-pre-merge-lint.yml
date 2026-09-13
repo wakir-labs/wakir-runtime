@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# REUSE-IgnoreStart/End Wrap Pre-Merge Lint (Tag-61)
+# REUSE-IgnoreStart/End Wrap Pre-Merge Lint
 # --------------------------------------------------
 #
 # Three consecutive hot-fix episodes on the License-Hygiene Gate
 # (`license-gate.yml`, ADR-0061 Schritt 8) confirmed a Pattern:
 #
-#   * Tag-56 Kai hot-fix    a58f6e9 (his own test file)
-#   * Tag-59 Mira hot-fix   046a5e5 (Noa's Tag-58 test file)
-#   * Tag-60 Kai self-fix   211dbfb (his own Tag-60 test file)
+#   * Kai hot-fix a58f6e9 (his own test file)
+#   * Mira hot-fix 046a5e5 (the SRE test file)
+#   * Kai self-fix 211dbfb (his own test file)
 #
 # All three were "freshly-merged test contains SPDX-string-literal
 # payload outside REUSE-IgnoreStart/End markers, license-gate goes
@@ -27,7 +27,7 @@
 # `REUSE-WRAP-MISSING`, post the patch suggestion as a PR comment.
 # In sandbox mode (`REUSE_WRAP_LINT_SANDBOX` == `1`) the comment
 # step is skipped; the patch is logged to the workflow run instead,
-# matching the Mira-Sandbox-vs-Host-Operations rule.
+# matching the sandbox-vs-host-operations boundary rule.
 #
 # Stage 3 (Verdict): emit the canonical verdict line. In enforce
 # mode a `REUSE-WRAP-MISSING` verdict fails the job; in hint mode
@@ -95,7 +95,7 @@ jobs:
             cat "${REPORT_PATH}"
             echo "----- end patch-suggestion -----"
           else
-            echo "::notice::non-sandbox-mode - PR-comment step would run here (not wired in Tag-61)."
+            echo "::notice::non-sandbox-mode - PR-comment step would run here (not wired in)."
             cat "${REPORT_PATH}"
           fi
 

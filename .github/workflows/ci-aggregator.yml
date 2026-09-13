@@ -20,13 +20,13 @@
 # AND zero ``FAILURE`` => aggregator ``SUCCESS``.
 #
 # The aggregator's own GitHub-Actions job has display-name
-# ``ci-aggregator`` — that is the single name Mira-Hand will set as
+# ``ci-aggregator`` — that is the single name operator-hand will set as
 # Required-Status-Check after this workflow lands on main.
 #
 # Why this exists
 # ===============
 #
-# Tag-34/35/36 surfaced the "Forever-Pending" pattern repeatedly: a PR
+# surfaced the "Forever-Pending" pattern repeatedly: a PR
 # changes only paths that no Required-Check's path-filter intersects,
 # so the Required-Check never reports, so Branch-Protection blocks the
 # merge indefinitely. Workarounds were trigger-file touches and admin-
@@ -38,7 +38,7 @@
 #
 # - ADR-0068 §Beschluss (approved 2026-05-18) — this workflow is the
 #   ``Folgeartefakt`` directly cited in the ADR.
-# - Tomás-Audit Tag-35 PR #231 §Phase-C — long-term-fix recommendation
+# - Tomás-Audit PR #231 §Phase-C — long-term-fix recommendation
 #   that ADR-0068 ratified.
 # - ``feedback_branch_protection_check_names.md`` — operator-side
 #   memory item documenting the Required-vs-display-name footgun that
@@ -53,17 +53,17 @@
 # ``scripts/ci/ci_aggregator.py`` and are unit-tested in
 # ``tests/ci/test_ci_aggregator_workflow.py``.
 #
-# Migration strategy (Mira-Hand-Folge)
+# Migration strategy (operator follow-up)
 # ------------------------------------
 #
 # Step 1 (this PR): aggregator workflow lands on main alongside the
 #   existing six Required-Status-Checks. Both run in parallel; the
 #   aggregator is **not yet** Required.
-# Step 2 (post-merge, Mira-Hand): verify on the first 2-3 follow-up
+# Step 2 (post-merge, operator-hand): verify on the first 2-3 follow-up
 #   PRs that ``ci-aggregator`` produces a verdict matching the union
 #   of the six individual sub-workflow verdicts. No false-positive,
 #   no false-negative.
-# Step 3 (Mira-Hand cutover, ~1 week observation window): remove the
+# Step 3 (operator-hand cutover, ~1 week observation window): remove the
 #   six legacy Required-Status names from Branch-Protection, add
 #   ``ci-aggregator`` as the sole Required name. From this point
 #   forward, the Forever-Pending class is structurally impossible.
@@ -110,7 +110,7 @@ jobs:
   ci-aggregator:
     # IMPORTANT: this ``name:`` field is the GitHub-Actions
     # check-run-display-name that Branch-Protection will reference as
-    # the sole Required-Status-Check after the Mira-Hand-cutover (Step
+    # the sole Required-Status-Check after the operator cutover (Step
     # 3 above). Do not rename without simultaneously updating the
     # Branch-Protection rule. The hermetic test
     # ``tests/ci/test_ci_aggregator_workflow.py::test_workflow_job_display_name_is_stable``
@@ -195,7 +195,7 @@ jobs:
             echo ""
             echo "---"
             echo ""
-            echo "**Reminder:** the ci-aggregator job is the structural fix for the Forever-Pending pattern (Tag-34/35/36)."
+            echo "**Reminder:** the ci-aggregator job is the structural fix for the Forever-Pending pattern."
             echo "If this job is RED, the root cause is in one of the sub-workflows listed above (Expected = yes, Status != success/skip-ok)."
             echo "Do not admin-bypass; fix the sub-workflow. See docs/ci/aggregator-workflow.md §Debugging."
           } >> "$GITHUB_STEP_SUMMARY"

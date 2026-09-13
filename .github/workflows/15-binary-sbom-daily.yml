@@ -1,27 +1,27 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# 15-Binary SBOM Generator Daily Workflow (Tag-48, Kai)
+# 15-Binary SBOM Generator Daily Workflow
 # -----------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Tag-45 PR #294 (Quadlet+Cosign 15-Binary substrate refresh) + Tag-46
-# PR #298 (substrate-layer A6 coverage matrix) + Tag-47 PR #307
+# PR #294 (Quadlet+Cosign 15-Binary substrate refresh) +
+# PR #298 (substrate-layer A6 coverage matrix) + PR #307
 # (Cosign-Keyless-OIDC-Drift-Probe) cover the static-shape, the
 # coverage-matrix, and the upstream-drift axes of the 15-binary
 # substrate. None of them captures the per-binary dependency tree —
 # which third-party crate versions Cargo statically links into each
 # binary.
 #
-# This workflow runs the Tag-48 15-binary SBOM generator daily at
+# This workflow runs the 15-binary SBOM generator daily at
 # 07:00 UTC (offset by 30min after the Cosign-OIDC-Drift-Probe at
 # 06:30 UTC, so an operator looking at both at the same time sees
 # distinct, non-overlapping job-summary blocks). The generator
 # reads ``wirelang-rust/Cargo.lock`` + per-crate ``Cargo.toml``
 # files and emits:
 #
-#   * One CycloneDX-1.5 JSON per binary (15 files, per the Tag-45
+#   * One CycloneDX-1.5 JSON per binary (15 files, per the
 #     inventory).
 #   * An aggregate envelope JSON for at-a-glance review.
 #   * A Prometheus textfile with per-binary transitive-dep gauge.
@@ -30,7 +30,7 @@
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §AR-Hand-Gate requires a full provenance bundle at the
+# ADR-0066 §operator sign-off gate requires a full provenance bundle at the
 # pre-cutover hand-off. The SBOM bundle is the missing
 # ``components-and-versions`` axis the operator hands AR alongside
 # the cosign-verified image digests.
@@ -42,7 +42,7 @@
 # / network egress. The generator runs in ``--mode=stdlib`` which
 # parses Cargo.lock + per-crate Cargo.toml deterministically. The
 # Operator-Hand ``--mode=cargo-cyclonedx`` fall-back lives in
-# ``docs/operations/15-binary-sbom-generator.md`` (Tag-48 operator
+# ``docs/operations/15-binary-sbom-generator.md`` (operator
 # recipe); this workflow does not invoke it.
 #
 # Trigger surface

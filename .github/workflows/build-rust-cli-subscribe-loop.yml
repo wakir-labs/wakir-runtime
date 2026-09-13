@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Build + sign + push the wakir-persona-engine-subscribe-loop image
-# (Tag-33 Mini-Welle, ADR-0066 Welle-6 `subscribe_loop` pre-cutover
-# image, parallel to ADR-0066 Welle-1 V907-verify image (PR #194),
-# Welle-2 SVID-workload-identity image (PR #201) and Welle-3
+# (ADR-0066 wave-6 `subscribe_loop` pre-cutover
+# image, parallel to ADR-0066 wave-1 V907-verify image (PR #194),
+# wave-2 SVID-workload-identity image (PR #201) and wave-3
 # bridge-audit-writer image (PR #210)).
 #
 # Posture
@@ -21,7 +21,7 @@
 #   2. ``workflow_dispatch`` with ``inputs.push='true'`` — the
 #      authorised-maintainer flow that actually publishes the image
 #      to GHCR and Cosign-signs the resulting digest. Mirrors the
-#      sibling Welle-1..3 image-build workflows.
+#      sibling waves 1..3 image-build workflows.
 #
 # What the workflow does
 # ----------------------
@@ -40,7 +40,7 @@
 #   6. (workflow_dispatch + push=true only) Pushes the image to GHCR
 #      and Sigstore-keyless-signs the published digest against the
 #      GitHub-Actions OIDC identity.
-#   7. Emits the resulting digest as a workflow output so the Welle-4
+#   7. Emits the resulting digest as a workflow output so the wave-4
 #      cutover step can copy it into the Quadlet pin.
 #
 # Sandbox boundary
@@ -295,7 +295,7 @@ jobs:
             if [[ "${{ steps.inputs.outputs.push }}" == "true" ]]; then
               echo "- pushed digest: \`${{ steps.push.outputs.digest }}\`"
               echo ""
-              echo "Welle-6 cutover pin substitution recipe:"
+              echo "wave-6 cutover pin substitution recipe:"
               echo ""
               echo "    scripts/image-pin-idempotent-resolver.sh --digest-source crane"
               echo ""

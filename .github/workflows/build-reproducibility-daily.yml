@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# 15-Binary Build-Reproducibility Audit Daily Workflow (Tag-51, Kai)
+# 15-Binary Build-Reproducibility Audit Daily Workflow
 # ------------------------------------------------------------------
 #
 # Purpose
 # -------
 #
-# Tag-45..50 covered the inventory-shape, coverage-matrix,
+#..50 covered the inventory-shape, coverage-matrix,
 # OIDC-drift, SBOM-generation, SBOM-baseline-verification, and
 # SBOM-baseline-refresh axes of the 15-binary substrate. None of
 # them captures *build-fingerprint determinism* -- the property
@@ -16,26 +16,26 @@
 # into the fingerprint would silently break supply-chain
 # provenance.
 #
-# This workflow runs the Tag-51 build-reproducibility verifier
-# daily at 07:45 UTC (offset by 45min after the Tag-48 SBOM
+# This workflow runs the build-reproducibility verifier
+# daily at 07:45 UTC (offset by 45min after the SBOM
 # generator at 07:00 UTC, so an operator looking at both at the
 # same time sees distinct, non-overlapping Job-Summary blocks).
 #
 # The verifier derives a deterministic SHA-256 build-fingerprint
 # per binary in two independent passes over Cargo.lock and
 # asserts byte-equality between passes. If any binary differs,
-# the workflow surfaces a Mira-Notify-shaped artefact and the
+# the workflow surfaces a mira-notify-shaped artefact and the
 # Job-Summary turns RED.
 #
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §AR-Hand-Gate provenance bundle now includes:
+# ADR-0066 §operator sign-off gate provenance bundle now includes:
 #
-#   * The Tag-47 Cosign-Keyless-OIDC-Drift-Probe verdict.
-#   * The Tag-48 15-binary SBOM bundle.
-#   * The Tag-49 SBOM-vs-baseline verifier verdict.
-#   * **The Tag-51 build-reproducibility verdict (this gauge).**
+#   * The Cosign-Keyless-OIDC-Drift-Probe verdict.
+#   * The 15-binary SBOM bundle.
+#   * The SBOM-vs-baseline verifier verdict.
+#   * **The build-reproducibility verdict (this gauge).**
 #
 # Sandbox posture
 # ---------------
@@ -63,7 +63,7 @@
 # Per ``feedback_branch_protection_check_names.md`` this workflow
 # tracks a daily provenance signal, not individual PR acceptance.
 # It is NOT listed as a required status check on PRs; it surfaces
-# signal only via Job-Summary + artefact + Mira-Notify event.
+# signal only via Job-Summary + artefact + mira-notify event.
 
 name: build-reproducibility-daily
 
@@ -139,7 +139,7 @@ jobs:
           #   1 -- input / argument error (treat as workflow failure).
           #   2 -- RED, one or more binaries non-deterministic.
           # We propagate rc=1 as a hard failure; rc=2 we let the
-          # next step surface via Job-Summary + Mira-Notify
+          # next step surface via Job-Summary + mira-notify
           # artefact and then fail the job at the end.
           if [ "${rc}" -eq 1 ]; then
             echo "Verifier reported input/argument error." >&2
@@ -158,13 +158,13 @@ jobs:
                 >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-      - name: Surface Mira-Notify drift event
+      - name: Surface mira-notify drift event
         if: always()
         run: |
           set -euo pipefail
           notify_path="out/build-reproducibility/mira-notify.json"
           if [ -s "${notify_path}" ]; then
-            echo "## Mira-Notify Drift Event Emitted" \
+            echo "## mira-notify Drift Event Emitted" \
                 >> "${GITHUB_STEP_SUMMARY}"
             echo '```json' >> "${GITHUB_STEP_SUMMARY}"
             cat "${notify_path}" >> "${GITHUB_STEP_SUMMARY}"

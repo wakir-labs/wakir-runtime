@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# NATS-JetStream Subjects + Publish-Mode Audit (Tag-43, Selin)
+# NATS-JetStream Subjects + Publish-Mode Audit
 # ------------------------------------------------------------
 #
 # Static audit of every publish/subscribe call site, every

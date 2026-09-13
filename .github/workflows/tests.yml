@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Wirelang production-CI lane (Phase-1b Tag-12)
+# Wirelang production-CI lane
 # ---------------------------------------------
 #
 # Purpose: prove that the wirelang test suite stays green on the FULL
 # install set (`rfc8785`, `jsonschema`, `cryptography`, `shamir-mnemonic`)
 # and that the test-count delta between this lane and the sandbox lane
 # stays within the documented envelope. Together with `sandbox-ci.yml`
-# this forms the two-sided cross-check described in the Tag-12
+# this forms the two-sided cross-check described in the
 # auftrag (sandbox = lower bound, production = upper bound).
 #
 # Lane policy
 # -----------
-# - Sandbox lane (companion workflow `sandbox-ci.yml`, Tag-11):
+# - Sandbox lane (companion workflow `sandbox-ci.yml`):
 #   minimal install set; ~291 tests pass with rfc8785/jsonschema-gated
 #   modules skipped via `pytest.importorskip`.
 # - Production lane (this workflow): full install set; ~435 tests pass
@@ -22,16 +22,16 @@
 # Drift envelope
 # --------------
 # Lineage:
-#   - Tag-11 baseline:  production 435, sandbox 291, delta 144.
-#   - Tag-14 (TV-W-1):  production 448, sandbox 303 + 86 skip,
+#   - baseline: production 435, sandbox 291, delta 144.
+#   - (TV-W-1): production 448, sandbox 303 + 86 skip,
 #     delta 145 (drift 1, no re-baseline).
-#   - Tag-15 (Phase-2 datalog ratification): production 464,
+#   - (Phase-2 datalog ratification): production 464,
 #     sandbox 315 + 90 skip, delta 149 (drift 5 = tol 5, at-edge).
 #     Re-baselined to 149 because the new schema-admission tests for
 #     `peer_org` / `federation_route` are jsonschema-gated by design;
 #     §6.3 re-baseline list item 1 in
 #     wirelang/specs/datalog-caveat-vocabulary-phase-2.md.
-#   - Phase-2 Sprint-6 Tag-8 (ADR-0052 Class-P promotion of
+#   - (ADR-0052 Class-P promotion of
 #     `caveat_hash`): five new schema-admission probes
 #     (T-V0.2.1-01..05) land jsonschema-gated;
 #     EXPECTED_DELTA re-baselined 149 → 154 per §6.3 re-baseline
@@ -48,7 +48,7 @@
 # on the same change-set. The drift-detection job runs after both lane
 # jobs complete and can therefore compare their collected-counts.
 #
-# This workflow is the Tag-12 deliverable for the Phase-1b CI
+# This workflow is the deliverable for the Phase-1b CI
 # build-out and acts as the upper-bound regression net for the
 # wirelang suite.
 
@@ -67,7 +67,7 @@ on:
       - 'dashboards/**'
       - 'docs/**'
       - 'wirelang-rust/**'
-      # Tag-32 EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
+      # EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
       - '.pre-commit-config.yaml'
       - 'scripts/pre-commit-*.py'
   pull_request:
@@ -80,7 +80,7 @@ on:
       - 'dashboards/**'
       - 'docs/**'
       - 'wirelang-rust/**'
-      # Tag-32 EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
+      # EXT-AUDIT-FOLGE — pre-commit-hook artefacts.
       - '.pre-commit-config.yaml'
       - 'scripts/pre-commit-*.py'
   workflow_dispatch: {}
@@ -193,7 +193,7 @@ jobs:
           retention-days: 14
 
       # ------------------------------------------------------------------
-      # Cross-language Bridge-Audit-Roundtrip-E2E (Tag-14 Mini-Welle).
+      # Cross-language Bridge-Audit-Roundtrip-E2E.
       # ------------------------------------------------------------------
       #
       # The integration test in `tests/integration/test_bridge_audit_
@@ -228,7 +228,7 @@ jobs:
             -v --tb=short
 
       # ------------------------------------------------------------------
-      # Tag-16 Mini-Welle: build the submit_worker binary so the
+      #: build the submit_worker binary so the
       # tests/wat/test_anchor_backend.py real-binary smoke test
       # (test_real_binary_smoke_ots_cli_path_aborts_without_ots) runs
       # instead of skipping. Same restricted-build pattern as
@@ -238,7 +238,7 @@ jobs:
       # negative path without requiring the opentimestamps-client
       # to actually be installed in CI.
       # ------------------------------------------------------------------
-      - name: Build submit_worker (Rust, Tag-16 anchor-backend bridge)
+      - name: Build submit_worker (Rust, anchor-backend bridge)
         run: |
           cargo build \
             --manifest-path wirelang-rust/Cargo.toml \
@@ -328,16 +328,16 @@ jobs:
     steps:
       - name: Compare collected-counts
         # Baseline lineage:
-        # - Tag-11: production 435, sandbox 291, delta 144.
-        # - Tag-14: production 448, sandbox 303 + 86 skip → delta 145
+        # -: production 435, sandbox 291, delta 144.
+        # -: production 448, sandbox 303 + 86 skip → delta 145
         #   (drift 1 ≤ tol 5, no re-baseline).
-        # - Tag-15: production 464, sandbox 315 + 90 skip → delta 149
+        # -: production 464, sandbox 315 + 90 skip → delta 149
         #   (drift 5 = tol 5, at-edge — re-baselined to 149 here per
         #   the §6.3 re-baseline list of
         #   datalog-caveat-vocabulary-phase-2.md, item 1: vocabulary
         #   addition `peer_org` / `federation_route` triggered the
         #   schema-admission test additions).
-        # - Phase-2 Sprint-6 Tag-8: ADR-0052 Class-P promotion of
+        # -: ADR-0052 Class-P promotion of
         #   `caveat_hash` lands five new jsonschema-gated probes in
         #   test_datalog_vocabulary_phase_2.py (T-V0.2.1-01..05);
         #   the five new ratification probes in
@@ -346,7 +346,7 @@ jobs:
         #   Re-baselined to 154 here per §6.3 re-baseline list item
         #   1 (vocabulary addition triggers schema-admission test
         #   additions).
-        # - Phase-2 Sprint-7 CI-Fix (Lena, 2026-05-13): the 16
+        # - CI-Fix: the 16
         #   `test_persona_*.py` modules are now module-level
         #   `pytest.importorskip("rfc8785"|"jsonschema")`-gated. They
         #   used to silently crash collection in the sandbox lane
@@ -358,7 +358,7 @@ jobs:
         #   crash that was hidden behind the collect-output parse
         #   bug; future drift over this baseline still warns at the
         #   same ±5 tolerance.
-        # - Tag-20 Mini-Welle (Reza, 2026-05-17): the new
+        # -: the new
         #   `test_recovery_workflow_cross_lang_parity.py` module
         #   gates on `rfc8785` via module-level
         #   `pytest.importorskip("rfc8785")` so the sandbox lane
@@ -370,7 +370,7 @@ jobs:
         #   Re-baselined 309 → 325 in the same PR that adds the
         #   gated module — exactly the deliberate-review path the
         #   workflow comment above flags.
-        # - Tag-34 Mini-Welle (Reza, 2026-05-18): the new
+        # -: the new
         #   `test_frontmatter_parser_cross_lang_parity.py` module
         #   (Phase-3a Item 11 / Modul 11) gates on `yaml` + `rfc8785`
         #   via module-level `pytest.importorskip(...)` so the sandbox
@@ -381,19 +381,19 @@ jobs:
         #   949 collected → delta 346. Re-baselined 325 → 346 in
         #   the same PR — gated-module-only addition, deliberate
         #   review path per the workflow comment above.
-        # - Tag-35 Mini-Welle (Reza, 2026-05-18): the new
+        # -: the new
         #   `test_v907_verify_cross_lang_parity.py` module (Phase-3a
         #   Item 12 / Modul 12) gates on `yaml` + `rfc8785` and adds
         #   15 tests (T01..T05 + T08..T10 = 9, plus T06..T07
         #   parametrised over 6 vectors = 6, total 9 + 6 = 15).
         #   Re-baselined 346 → 361 in PR #235.
-        # - Tag-36 Mini-Welle (Reza, 2026-05-18): the new
+        # -: the new
         #   `test_bridge_audit_diff_engine_cross_lang_parity.py`
         #   module (Phase-3a Item 13 / Modul 13) gates on `rfc8785`
         #   and adds 15 tests (T01..T05 + T07..T10 = 9, plus T06
         #   parametrised over 6 vectors = 6, total 9 + 6 = 15).
         #   Re-baselined 361 → 376 in PR #241.
-        # - Tag-37 Mini-Welle (Reza, 2026-05-18): the new
+        # -: the new
         #   `test_bridge_audit_replay_cross_lang_parity.py` module
         #   (Phase-3a Item 11 / Modul 14, closes the bridge-audit
         #   trilogy: writer/diff-engine/replay) gates on `rfc8785`
@@ -403,7 +403,7 @@ jobs:
         #   build_trace_from_report + live-engine-cross-check +
         #   kind-coverage x2 = 23 total). Re-baselined 376 → 399
         #   in PR #246.
-        # - Tag-38 Mini-Welle (Reza, 2026-05-18): the new
+        # -: the new
         #   `test_migrate_version_cross_lang_parity.py` module
         #   (Phase-3a Item 15 / Modul 15 — closes the
         #   Phase-3a-Foundation sweep at 15/15) gates on `rfc8785`
@@ -422,14 +422,14 @@ jobs:
         env:
           PRODUCTION_COUNT: ${{ needs.production-suite.outputs.collected }}
           SANDBOX_COUNT: ${{ needs.sandbox-suite-shadow.outputs.collected }}
-          # Tag-45 (2026-05-18, Selin): re-baselined 425 -> 448 because
+          #: re-baselined 425 -> 448 because
           # the new `test_manifest_0_5_0_pre_cutover.py` adds 23
           # PyYAML-gated tests (the pin-pack loader uses
           # pytest.importorskip("yaml") so all 23 collect in the
           # production lane but skip in the sandbox lane, lifting the
           # delta by exactly 23).
-          # Tag-48 (2026-05-19, Selin): re-baselined 448 -> 493 because
-          # the Tag-48 bridge-audit-writer wire-in adds two new
+          #: re-baselined 448 -> 493 because
+          # the bridge-audit-writer wire-in adds two new
           # PyYAML-gated test modules:
           #   - test_bridge_audit_writer_wire_in_tag48.py: 25 tests
           #   - test_manifest_0_5_1_pre_cutover.py: 23 tests
@@ -439,27 +439,27 @@ jobs:
           # lifts by exactly 45 (48 minus 3 superseded tests on
           # `test_manifest_0_5_0_pre_cutover.py` that no longer
           # parametrise the 10th record as "scaffolded-only").
-          # Tag-52 (2026-05-19, Selin): re-baselined 493 -> 529 because
-          # the Tag-52 0.5.2-final-pre-cutover Pre-KW-24-Final
+          #: re-baselined 493 -> 529 because
+          # the 0.5.2-final-pre-cutover final pre-cutover
           # consolidation marker adds one new PyYAML-gated test module:
           #   - test_manifest_0_5_2_final_pre_cutover.py: 36 tests
           # The module uses pytest.importorskip("yaml") for the
           # 0.5.2-final-pre-cutover pin-pack/manifest loader, so all
           # 36 collect in production but skip in sandbox -- the delta
           # lifts by exactly 36.
-          # Tag-56 (2026-05-19, Selin): re-baselined 529 -> 545 because
-          # the Tag-56 engine-0.5.2-production-readiness-audit adds
+          #: re-baselined 529 -> 545 because
+          # the engine-0.5.2-production-readiness-audit adds
           # one new PyYAML-gated test module:
           #   - test_tag56_production_readiness_audit.py: 16 tests
           # Same importorskip("yaml") pattern as the 0.5.2-final
           # manifest tests; production collects 16, sandbox skips
           # all 16. Delta lifts by exactly 16 (529 + 16 = 545).
-          # Tag-63 (2026-05-19, Selin): re-baselined 545 -> 563 because
-          # the Tag-63 engine-0.5.3-production-readiness-audit (post-
-          # Final-Bump counterpart of Tag-56) adds one new PyYAML-gated
+          #: re-baselined 545 -> 563 because
+          # the engine-0.5.3-production-readiness-audit (post-
+          # Final-Bump counterpart of) adds one new PyYAML-gated
           # test module:
           #   - test_tag63_production_readiness_audit.py: 18 tests
-          # Same importorskip("yaml") pattern as Tag-56; production
+          # Same importorskip("yaml") pattern as; production
           # collects 18, sandbox skips all 18. Delta lifts by exactly
           # 18 (545 + 18 = 563).
           EXPECTED_DELTA: '563'
@@ -478,7 +478,7 @@ jobs:
           print(f"production-lane collected:  {prod}")
           print(f"sandbox-lane collected:     {sand}")
           print(f"observed delta:             {observed}")
-          print(f"expected delta (Tag-11):    {expected}")
+          print(f"expected delta: {expected}")
           print(f"tolerance:                  ±{tol}")
           print(f"absolute drift:             {drift}")
 

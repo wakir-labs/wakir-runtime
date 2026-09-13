@@ -4,18 +4,17 @@
 # Live-VM Acceptance — Operator-Hand-getriggerter CI-Lane.
 # ========================================================
 #
-# Sprint-Live-VM-Acceptance-Workflow-MINI (2026-05-16). Closing
+# live-VM acceptance. Closing
 # triangle:
 #
-#   * PR #76  — `scripts/ci-live-vm-acceptance-wrapper.sh` (Kai)
+#   * PR #76 — `scripts/ci-live-vm-acceptance-wrapper.sh`
 #   * PR #108 — `tests/live_vm/test_phase_2_doppelbetrieb_live.py`
 #               skeleton + `tests/live_vm/conftest.py` double-gate
-#               (Amara)
 #   * PR #116 — `docs/test-plans/phase-2-live-vm-acceptance.md`
 #               operator companion + §4 pre-existing-failure-pattern
-#               catalogue (Amara)
+#               catalogue
 #
-# Tag-18 Mini-Welle (2026-05-17) extends the workflow with the
+# extends the workflow with the
 # Phase-3b backend-matrix lane that validates the Rust-default-
 # switches landed in PR #167. Two follow-on jobs run after the
 # base lane: `live-vm-acceptance-phase-3b` spawns one matrix-cell
@@ -23,14 +22,14 @@
 # emits a per-cell JSON-report; `live-vm-acceptance-phase-3b-
 # aggregate` collects the reports, enforces final-state-hash
 # equivalence across backends, and applies the operator-supplied
-# latency budget. The Tag-18 extension is opt-in: both new inputs
+# latency budget. The extension is opt-in: both new inputs
 # default to `none`, in which case the new jobs no-op.
 #
 # This workflow is the **CI invocation surface** behind those three.
 # It is `workflow_dispatch` only — there is NO automatic
 # PR-trigger and NO push-trigger. Reaching a live `192.168.178.*`
 # VM from a CI runner is an Operator-Hand decision per
-# `feedback_sandbox_host_trennung.md` (Mira-Memory). A push must
+# `feedback_sandbox_host_trennung.md`. A push must
 # never silently fan out to a real VM.
 #
 # Why this workflow exists separately
@@ -38,7 +37,7 @@
 #
 # The companion workflow `e2e-vm-acceptance-gate.yml` covers a
 # **disposable** Fedora-CoreOS QEMU VM that the harness spins up
-# itself (Sprint-9 Tag-5). This new workflow covers the
+# itself. This new workflow covers the
 # **persistent** Pilot-VM (wakir-pilot / wakir-orbit) that already
 # carries production-shaped state and is reached by SSH over the
 # LAN. Different lanes, different invariants, different gates —
@@ -72,7 +71,7 @@
 #                      test). Useful for narrowing to a single TV-LVD
 #                      vector during regression triage.
 #   * `peer_host`    — defaults to `192.168.178.116`. The dogfood-LAN
-#                      topology per Sprint-10 Tag-6 §1.2 of the test-
+#                      topology per §1.2 of the test-
 #                      plan (PR #116). Override if the operator is
 #                      running against a Phase-3 production host.
 #   * `skip_cosign_verify` — pass-through to the on-VM bootstrap.
@@ -83,9 +82,9 @@
 # ------------------
 #
 # * ADR-0058 (Pilot-Persona-Migrations-Plan) — §"Phase 4
-#   Cutover-Entscheidung" Doppelbetrieb-Score gate. This lane
+#   cutover decision" Doppelbetrieb-Score gate. This lane
 #   produces TV-LVD-evidence for that gate.
-# * Zone-N (QA × Henrik-Audit) — the Wrapper-Run summary-JSON and
+# * Zone-N (QA × internal audit) — the Wrapper-Run summary-JSON and
 #   the pytest JUnit-XML uploaded as artefact are the evidence-
 #   source for Phase-2 Audit-Sample §4-A / §4-B (PR #116 §3).
 # * Zone-M (CLI substance-bestätigung Tomás/Selin/Reza) — until
@@ -120,7 +119,6 @@
 # at fixture-time. Either outcome is the lane working as
 # documented.
 #
-# -- Kai
 
 name: live-vm-acceptance
 
@@ -155,7 +153,7 @@ name: live-vm-acceptance
         type: string
         default: '1'
       # ---------------------------------------------------------------
-      # Phase-3b Backend-Matrix inputs (Tag-18 Mini-Welle, PR follow-up
+      # Phase-3b Backend-Matrix inputs (PR follow-up
       # to #167). The Rust persona-engine-recovery + state-backing
       # crates land in PR #167 as ENV-gated production-default
       # switches. Phase-3b acceptance demands the live-VM lane prove
@@ -164,7 +162,7 @@ name: live-vm-acceptance
       # follow-on matrix-job that re-runs the on-VM acceptance under
       # each backend permutation.
       #
-      # Default = `none` keeps the lane behaviour identical to Tag-17
+      # Default = `none` keeps the lane behaviour identical to
       # for operators who only want the bare wrapper + TV-LVD run.
       # ---------------------------------------------------------------
       recovery_backend:
@@ -302,7 +300,7 @@ jobs:
       # ---------------------------------------------------------------
       # Phase A — Wrapper-driven on-VM acceptance (per selected target).
       #
-      # `scripts/ci-live-vm-acceptance-wrapper.sh` (Kai PR #76) is
+      # `scripts/ci-live-vm-acceptance-wrapper.sh` (PR #76) is
       # the SSH-driven entry point. It SSHs into the target, resets
       # /opt/wakir-runtime from source, drops the installed
       # /etc/spire-* + Quadlet copies, and invokes
@@ -376,7 +374,7 @@ jobs:
       # `docs/test-plans/phase-2-live-vm-acceptance.md` §4 to
       # distinguish. We do NOT auto-skip these in the workflow — we
       # let pytest emit the verdict so the JUnit-XML carries the
-      # signal Henrik's Phase-2 Audit-Sample §4-A/§4-B expects.
+      # signal internal audit's Phase-2 Audit-Sample §4-A/§4-B expects.
       #
       # Note on current ssh_runner status: PR #108's `ssh_runner`
       # fixture is a refusal-stub per test-plan §6 "Out of scope".
@@ -428,7 +426,7 @@ jobs:
           #     once the SSH-runner-fixture lands, or all-skipped
           #     during the current refusal-stub phase).
           #
-          # Wrapper exit codes (Kai PR #76):
+          # Wrapper exit codes (PR #76):
           #   0 = acceptance PASS
           #   1 = pre-check fail (SSH / repo-pull) — substrate
           #   2 = acceptance FAIL — substance regression
@@ -477,7 +475,7 @@ jobs:
           echo "LIVE-VM-ACCEPTANCE: PASS"
 
   # =============================================================
-  # Phase-3b Backend-Matrix lane (Tag-18 Mini-Welle).
+  # Phase-3b Backend-Matrix lane.
   # =============================================================
   #
   # Validates that the Phase-3b Rust-default-switches landed in
@@ -501,7 +499,7 @@ jobs:
   # When both are ``none``, the job no-ops cleanly so Tag-17-style
   # invocations (Phase-2-only) keep their existing semantics.
   #
-  # Sandbox boundary: identical to the Tag-17 job. No SSH key, no
+  # Sandbox boundary: identical to the job. No SSH key, no
   # target host reachable from a hermetic runner. The mocked-VM
   # surface lives in ``tests/infra/test_live_vm_acceptance_phase_3b.py``;
   # the real VM is reached only when the operator dispatches this
@@ -629,7 +627,7 @@ jobs:
       #
       # The drive-script lives in scripts/ci-live-vm-phase-3b-driver.sh
       # (separate PR-stage; this workflow declares the surface the
-      # driver fulfils). For Tag-18 the workflow tolerates the driver
+      # driver fulfils). For the workflow tolerates the driver
       # being absent by emitting a structured `driver-not-present`
       # JSON report so the artefact-upload + verdict-step always have
       # something to consume.
@@ -658,7 +656,7 @@ jobs:
             # Driver not yet present — emit a structured stub so the
             # verdict-step has a JSON to consume and the operator
             # sees a clean "driver-not-present" signal rather than a
-            # missing-step trace. This matches the Tag-17 posture
+            # missing-step trace. This matches the posture
             # where the on-VM acceptance script existed before the
             # CI wrapper was wired.
             jq -n \
@@ -710,7 +708,7 @@ jobs:
               ;;
             driver-not-present)
               echo "PERMUTATION ${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }}: SKIPPED (driver not yet implemented)"
-              echo "This matches the documented Tag-18 staging posture."
+              echo "This matches the documented staging posture."
               ;;
             fail)
               echo "::error::PERMUTATION ${{ matrix.recovery_backend }} + ${{ matrix.state_backing_backend }}: FAIL"
@@ -736,7 +734,7 @@ jobs:
   #     state_latency_ms_p95 stay under the dispatch-input budget.
   #
   # When every permutation is `driver-not-present`, the aggregation
-  # step emits a SKIPPED verdict and exits 0 — Tag-18 staging.
+  # step emits a SKIPPED verdict and exits 0 — staging.
   # =============================================================
 
   live-vm-acceptance-phase-3b-aggregate:

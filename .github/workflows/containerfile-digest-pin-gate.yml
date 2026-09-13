@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Containerfile Base-Image Digest-Pin Gate (Tag-57 OPEN-K1)
+# Containerfile Base-Image Digest-Pin Gate (OPEN-K1)
 # ---------------------------------------------------------
 #
 # Enforces the structural invariant that every Containerfile FROM
 # line under ``infra/`` carries an ``@sha256:<hex|allowed-placeholder>``
-# digest pin. Closes OPEN-K1 from Selin's Tag-56 0.5.2-final audit
+# digest pin. Closes OPEN-K1 from the persona-engine 0.5.2-final audit
 # (PR #362).
 #
 # The gate uses ``tooling/ci/verify_containerfile_base_image_digest.py``

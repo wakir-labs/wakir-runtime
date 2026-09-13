@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# SELinux-Enforcing Hermetic E2E lane (Phase-2 Sprint-9 Tag-9, Bug-24)
+# SELinux-Enforcing Hermetic E2E lane (Bug-24)
 # ====================================================================
 #
 # Purpose: defend against the Live-Bring-up-Sandbox-Gap pattern
@@ -26,13 +26,13 @@
 #   Option 3 — Static-Mock-Test of Volume-Mount-Disziplin (CHOSEN)
 #     The bootstrap's Toolbox-Container fallback uses ``podman create
 #     -v /opt:/opt -v /etc/containers/systemd:/etc/containers/systemd``
-#     — those lines live in shell, not in a Quadlet. Tomás's
-#     ``test_quadlet_selinux_relabel.py`` (Tag-8) does NOT scan them.
+#     — those lines live in shell, not in a Quadlet. the
+#     ``test_quadlet_selinux_relabel.py`` does NOT scan them.
 #     This lane sweeps every ``-v`` argument in production shell
 #     scripts, classifies it (named-volume vs. host-bind), enforces
 #     ``:Z`` discipline on named-volumes, and forces host-bind entries
 #     onto a typed allow-list with a documented rationale. The result
-#     is auditable by Amara's standard Zone-X mutation-test methodology
+#     is auditable by the QA mutation-test methodology
 #     (mutate, observe red, restore).
 #
 # Why a separate workflow file?
@@ -42,15 +42,15 @@
 # MUTATION-EQUIVALENCE-VERIFICATION lane (job ``mutation-equivalence``
 # below): on every PR that touches the static-discipline test itself,
 # the lane re-runs four canonical mutations end-to-end and asserts the
-# test goes red for each. That mechanises Amara's Zone-X handshake so
+# test goes red for each. That mechanises the QA handshake so
 # the Bug-24 regression-class cannot silently lose its detection power
 # in a future refactor.
 #
-# Cross-Review Zone-X (QA × Henrik-Audit)
+# Cross-Review Zone-X (QA × internal audit)
 # ---------------------------------------
-# Lane name is stable so Amara's mutation-test methodology can pin to
-# it. Henrik samples the mutation-equivalence job artifacts for the
-# Sprint-Closeout audit.
+# Lane name is stable so the QA mutation-test methodology can pin to
+# it. internal audit samples the mutation-equivalence job artifacts for the
+# closeout audit.
 #
 # Sandbox boundary (ADR-0051)
 # ---------------------------
@@ -60,7 +60,7 @@
 
 name: selinux-hermetic-lane
 
-# YAML key-quoting hygiene (Mira-memory feedback_yaml_frontmatter_disziplin):
+# YAML key-quoting hygiene:
 # bare ``on:`` is YAML 1.1 reserved-word. We quote defensively so both
 # resolver-paths agree.
 "on":
@@ -113,7 +113,7 @@ jobs:
             tests/infra/test_bootstrap_podman_volume_selinux_discipline.py \
             -v --color=yes
 
-      - name: Run Quadlet :Z-discipline suite (Tag-8 sibling)
+      - name: Run Quadlet :Z-discipline suite (sibling)
         run: |
           # Re-run the sibling Quadlet-side test here so the SELinux-
           # hermetic lane reports a single combined verdict. This is
@@ -126,7 +126,7 @@ jobs:
             -v --color=yes
 
   mutation-equivalence:
-    name: Mutation-equivalence — Amara Zone-X automation
+    name: Mutation-equivalence — QA mutation-test automation
     runs-on: ubuntu-latest
     # Mutation experiments require the static-discipline lane to be
     # green first; otherwise a baseline-red would mask the mutation
@@ -281,7 +281,7 @@ jobs:
         if: always()
         run: |
           echo "================================================================"
-          echo "Sprint-9-Tag-9 Bug-24 Mutation-Equivalence Verification Summary"
+          echo " Bug-24 Mutation-Equivalence Verification Summary"
           echo "================================================================"
           echo ""
           echo "M1 (bootstrap named-volume :Z)  : ${{ steps.m1.outcome }}"
@@ -289,6 +289,6 @@ jobs:
           echo "M3 (host-bind allow-list drift) : ${{ steps.m3.outcome }}"
           echo "M4 (Quadlet inventory drift)    : ${{ steps.m4.outcome }}"
           echo ""
-          echo "Cross-reference: Amara Zone-X mutation-test methodology"
+          echo "Cross-reference: QA mutation-test mutation-test methodology"
           echo "(2026-05-14 PR-#47 review)."
-          echo "Henrik audit-sample anchor: Sprint-9-Tag-9 Bug-24."
+          echo "internal audit audit-sample anchor: Bug-24."

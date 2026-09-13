@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# End-to-End Live-Bring-up CI lane (Phase-2 Sprint-9 Tag-4)
+# End-to-End Live-Bring-up CI lane
 # =========================================================
 #
 # Purpose: prove that ``wakir-pilot-bootstrap.sh`` produces a
@@ -20,7 +20,7 @@
 #   the install-path produces a Quadlet substrate matching the
 #   substituted unit references. Skipped automatically when podman is
 #   not functional.
-# - Quadlet-lint lane (``quadlet-lint``): Sprint-9-Tag-9 Bug-23 close.
+# - Quadlet-lint lane (``quadlet-lint``): Bug-23 close.
 #   Wraps ``/usr/libexec/podman/quadlet --dryrun`` against a sed-
 #   substituted snapshot of the Wakir Quadlet inventory (both wakir
 #   and partner sides). Catches the Live-Bring-up-Sandbox-Gap class
@@ -31,9 +31,9 @@
 # All three lanes are MERGE-GATING for any change touching the
 # bootstrap script or the SPIRE-Federation Quadlet templates.
 #
-# Cross-Review Zone N (QA × Henrik-Audit)
+# Cross-Review Zone N (QA × internal audit)
 # ---------------------------------------
-# This workflow produces test-evidence Henrik samples as part of any
+# This workflow produces test-evidence internal audit samples as part of any
 # major bring-up bug-fix bundle. The lane name is stable so audit-
 # sample scripts can pin to it.
 #
@@ -98,7 +98,7 @@ jobs:
           # The substance suite needs pyyaml only (for the parity
           # tests in the federation/tests/ sibling directory that share
           # the regression scope). The bring-up substance module itself
-          # has no third-party deps. The Tag-9 cleanup module is
+          # has no third-party deps. The cleanup module is
           # source-static + PATH-injected mocks — pytest only.
           pip install pytest pyyaml
 
