@@ -63,8 +63,8 @@ See `wirelang/examples/frame-domain-event-example.json` for an
 embed a Layer-2 envelope inside the `data.wirelang_layer_2_envelope`
 section.
 
-## Out of scope (Tag-1)
+## Out of scope
 
 - Layer 3 (capability tokens, AIP+Biscuit).
 - Layer 4 (WAT audit anchoring) — owned by the WAT module.
-- Identity substrate (secp256k1+Ed25519 two-curve stack) — Tag-2+ scope.
+- Identity substrate (secp256k1+Ed25519 two-curve stack) — scope.

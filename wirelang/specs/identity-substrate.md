@@ -31,21 +31,21 @@ Audience: implementers and operators. The text follows the Wakir
 brand-guide §9 convention: persona role-strings, never personal names,
 in all examples.
 
-**Version-synchronisation note (Sprint-8 Tag-2, 2026-05-13).** The
-frontmatter `version: 0.29.0` is set in lockstep with
-`schema-registry-spec.md` v0.29.0 (Sprint-8 Tag-2 consolidation
-anchor); the Sprint-7 v0.22 → v0.28 deferred-changelog batch and
-the Sprint-8 Tag-2 Cross-Org-Attenuation-Chain-Verifier hardening
-surface are folded into the companion spec's change-log. This
-identity-substrate document's content remains substrate-anchored
-on Phase-1a primitives (no Sprint-7 / Sprint-8 substance landed
-inside this file); the version bump is a synchronisation marker
-for cross-spec consistency, NOT a substance bump. Future
-substrate-substance bumps (e.g. SPIFFE-ID-Binding §5 evolution,
-real-`spiffe`-PyPI adapter functional implementation in Phase-2c)
-will track this spec independently from the schema-registry spec
-once the schema-registry tracks bucket-shape changes in its own
-versioning axis.
+**Version-synchronisation note (2026-05-13).** The frontmatter
+`version: 0.29.0` is set in lockstep with
+`schema-registry-spec.md` v0.29.0 (consolidation anchor); the
+v0.22 → v0.28 deferred-changelog batch and the
+Cross-Org-Attenuation-Chain-Verifier hardening surface are folded
+into the companion spec's change-log. This identity-substrate
+document's content remains substrate-anchored on Phase-1a
+primitives (no Sprint-7 / substance landed inside this file); the
+version bump is a synchronisation marker for cross-spec
+consistency, NOT a substance bump. Future substrate-substance
+bumps (e.g. SPIFFE-ID-Binding §5 evolution, real-`spiffe`-PyPI
+adapter functional implementation in Phase-2c) will track this
+spec independently from the schema-registry spec once the
+schema-registry tracks bucket-shape changes in its own versioning
+axis.
 
 ## 1. Two-curve stack
 
@@ -369,7 +369,7 @@ PyPI package (`spiffe.workload_api`, etc.). All SPIFFE-Workload-API
 calls go through a wirelang-owned adapter module:
 
 - **Adapter path:** `wirelang/adapters/spiffe_workload_api.py`
-  (skeleton in this Sprint-6 Tag-4; non-functional surface stub only).
+  (skeleton in this; non-functional surface stub only).
 - **Adapter surface:** wirelang-owned Workload-API surface (e.g.
   `fetch_jwt_svid(audience: str) -> JwtSvid`); the adapter delegates
   internally to `spiffe.workload_api`-equivalents.
@@ -396,10 +396,9 @@ calls go through a wirelang-owned adapter module:
    PR touching `wirelang/adapters/spiffe_workload_api.py` for an
    upstream-API-change reason is a Z-A re-coordination signal.
 
-The adapter-layer stub for Sprint-6 Tag-4 is `imports + type
-annotations only`; the full functional implementation is a Sprint-6
-Tag-5+ or Phase-2c item (paired with the DevOps-track SPIRE-server
-integration).
+The adapter-layer stub for is `imports + type annotations only`;
+the full functional implementation is a or Phase-2c item (paired
+with the DevOps-track SPIRE-server integration).
 
 ### 5.6 Capability-mint surface authority (per Component-Type)
 
@@ -421,7 +420,7 @@ surface authority follows the SPIFFE-ID structure, not a separate flag.
 
 ### 5.7 Implementation cross-references
 
-- **Wirelang-side stub (Sprint-6 Tag-4):**
+- **Wirelang-side stub:**
   `wirelang/adapters/spiffe_workload_api.py` — imports +
   type-annotations + docstring contract; not yet functional.
 - **DevOps-track owner-items (Kai, post-Z-A-Ack):**
@@ -438,14 +437,14 @@ surface authority follows the SPIFFE-ID structure, not a separate flag.
   - V-907 hash-algorithm migration (sha256 → blake3 or sha3-256), with
     the SPIFFE-ID 12-hex-char slice constant unchanged.
 
-### 5.8 RealAdapter-Mirror (Phase-2c Sprint-8 Tag-1) — NATS-Live-Anbindung mit SPIRE-Fallback-Policy
+### 5.8 RealAdapter-Mirror — NATS-Live-Anbindung mit SPIRE-Fallback-Policy
 
-**Status:** Phase-2c Sprint-8 Tag-1 (RealAdapter-Mirror landed),
+**Status:** Tag-1 (RealAdapter-Mirror landed),
 Operator-Hand-SPIRE-Substrate blockiert akzeptiert per
 Sprint-7-Closeout-Stempel M-2.
 
 **Modul:** `wirelang/adapters/real_nats_adapter/` (paired mit
-`wirelang/adapters/real_spiffe_workload_api.py` Sprint-6 Tag-7
+`wirelang/adapters/real_spiffe_workload_api.py`
 Slot-2-Mirror).
 
 **Drei Substanz-Schichten:**
@@ -456,7 +455,7 @@ Slot-2-Mirror).
   zugreifen.
 - `MockNatsConnectionAdapter` — deterministic in-process Mock,
   hermetic, no network. Pattern-Mirror auf
-  :class:`MockSpiffeWorkloadApiAdapter` (Sprint-6 Tag-5).
+  :class:`MockSpiffeWorkloadApiAdapter`.
 - `RealNatsConnectionAdapter` — Live-Adapter mit lazy-import von
   ``nats.aio.client``, Two-Stage-Gate (Reachability-Probe +
   ``nats-py``-Connect mit Exception-Mapping auf
@@ -485,10 +484,10 @@ kein ``dotenv``-Loading. Die Policy ist im Status-Surface
 auditierbar (``adapter.status().auth_mode``).
 
 **Live-Mode-Marker:** ``RealNatsConnectionAdapter.LIVE_MODE_MARKER
-= "sprint-8-tag-1-real-adapter-mirror"`` — pinned an die Sprint-8
-Tag-1 Substanz-Markierung. Cross-Trust-Domain-Bridge (Sprint-7
-Tag-3) MUSS dies in einer Production-Mode-Policy auditieren
-können (refuse-to-federate über Mock-Adapter under strict policy).
+= "sprint-8-tag-1-real-adapter-mirror"`` — pinned an die
+Substanz-Markierung. Cross-Trust-Domain-Bridge MUSS dies in einer
+Production-Mode-Policy auditieren können (refuse-to-federate über
+Mock-Adapter under strict policy).
 
 **Sandbox-Boundary:** localhost:4222 ist Operator-Hand-Fedora-Host.
 Der Persona-Container darf NICHT annehmen, dass NATS verfügbar
@@ -505,10 +504,10 @@ Skip-with-Marker-Pfad via :func:`is_nats_reachable` (TCP-Probe,
   Dieser Adapter implementiert das Coupling NICHT direkt
   (Operator-Hand-blockiert); er liefert nur das Surface-Pin und
   den Error-Pfad.
-- JetStream-Surface — der Sprint-8 Tag-1 Adapter ist
+- JetStream-Surface — der Adapter ist
   Core-NATS-only (publish). JetStream (durable-store, kv-bucket,
   consumer-pull) ist Phase-2c+ Folge-Item.
-- Reconnect-Policy — der Sprint-8 Tag-1 Adapter ist
+- Reconnect-Policy — der Adapter ist
   fail-on-disconnect (no auto-reconnect). Production-Hardening
   ist Phase-3-Item.
 

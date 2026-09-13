@@ -34,9 +34,9 @@ inter-agent messaging stack as it stands at the close of Phase-1a.
 > NATS surface they use. No frame-format or token-format change.
 
 It supersedes the per-layer drafts shipped during Phase-1a daily
-build (Tag-1 through Tag-9) and references — but does not duplicate —
-the JSON-Schema documents and supporting specifications that ship in
-the same module.
+build (through) and references — but does not duplicate — the
+JSON-Schema documents and supporting specifications that ship in the
+same module.
 
 The intent of v0.2 is **consolidation, not redesign**. The wire
 format, the semantic envelope and the trust layer are unchanged
@@ -230,15 +230,15 @@ of Wirelang spec version: vocabulary v0.1 is bound to Wirelang
 v0.1 *and* v0.2.
 
 Phase-2 vocabulary growth is ratified in
-`specs/datalog-caveat-vocabulary-phase-2.md` (Phase-1b Tag-15,
-2026-05-07). The ratified document supersedes the earlier sketch
+`specs/datalog-caveat-vocabulary-phase-2.md` (2026-05-07). The
+ratified document supersedes the earlier sketch
 (`specs/datalog-caveat-vocabulary-phase-2-skizze.md`); it
 classifies all predicates into N1 / N2 / R / P, ratifies the
 Caveat-Set Canonicalisation Rule (§4-CSC), promotes `peer_org`
 and `federation_route` to schema-admitted N2-federation
-predicates, and pins the TV-W-2 pin-stability guarantee.
-Phase-2 vocabulary changes remain additive under the
-forward-compat rule (§8).
+predicates, and pins the TV-W-2 pin-stability guarantee. Phase-2
+vocabulary changes remain additive under the forward-compat rule
+(§8).
 
 ## 7. Identity substrate
 
@@ -395,7 +395,7 @@ guide.md` §9 at v0.2 publication.
 - `specs/datalog-caveat-vocabulary.md` — vocabulary v0.1 (18+2
   predicates).
 - `specs/datalog-caveat-vocabulary-phase-2.md` — Phase-2 ratified
-  vocabulary (v0.2, Tag-15): N1/N2/R/P classification,
+  vocabulary (v0.2): N1/N2/R/P classification,
   Caveat-Set Canonicalisation Rule, V-908 federation extension,
   TV-W-2 pin-stability guarantee. **Supersedes** the sketch
   document `datalog-caveat-vocabulary-phase-2-skizze.md`.
@@ -432,8 +432,8 @@ guide.md` §9 at v0.2 publication.
 
 ## 12. Acknowledgements
 
-This consolidation is the product of Phase-1a daily build (Tag-1
-through Tag-9) and the cross-review sessions moderated by HR
+This consolidation is the product of Phase-1a daily build
+(through) and the cross-review sessions moderated by HR
 (consensus markers A1, B2, C1, D2 for Zone 1; commit `338e007`
 for Zone 2). Implementation lives in `wirelang/identity/` and
 `wirelang/schemas/`. Test coverage at v0.2 publication: 274/274

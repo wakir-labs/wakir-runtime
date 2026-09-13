@@ -19,19 +19,19 @@ audience: implementers, integrators, operators, auditors
 license: CC-BY-4.0
 ---
 
-# Wirelang Specification v0.4.2 (Tag-50 DRIFT-S4 Reconciliation Patch)
+# Wirelang Specification v0.4.2 (DRIFT-S4 Reconciliation Patch)
 
-This document is an **additive patch** over v0.4.1 (Tag-48 PR #308).
-It reconciles drift item **DRIFT-S4** raised against PR #314
-(Tag-49 federation-resolver cross-lang-pin refresh suite) between
-the spec §4.1 ENV-flag schema (nine components named
-`WAKIR_PE_*_BACKEND`) and the Pin-Pack reality
-(`infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`) which
-wires **ten** boot records under a `WAKIR_*_BACKEND` namespace
-(no `_PE_` infix), with `persona-engine-federation-resolver` at
-record #9 and `persona-engine-bridge-audit-writer` at record #10.
+This document is an **additive patch** over v0.4.1 (PR #308). It
+reconciles drift item **DRIFT-S4** raised against PR #314
+(federation-resolver cross-lang-pin refresh suite) between the spec
+§4.1 ENV-flag schema (nine components named `WAKIR_PE_*_BACKEND`)
+and the Pin-Pack reality
+(`infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`) which wires
+**ten** boot records under a `WAKIR_*_BACKEND` namespace (no `_PE_`
+infix), with `persona-engine-federation-resolver` at record #9 and
+`persona-engine-bridge-audit-writer` at record #10.
 
-> **v0.4.2 (2026-05-19, Tag-50):** Additive patch over v0.4.1.
+> **v0.4.2 (2026-05-19):** Additive patch over v0.4.1.
 > **No on-the-wire change. No frame-attribute change. No caveat-
 > predicate addition or removal. No publish-mode-contract change.
 > No §3.1 catalogue change.** The change surface is §4.1 alone —
@@ -49,7 +49,7 @@ It is published as a separate file (`wirelang-spec-v0-4-2.md`)
 rather than as an edit to `wirelang-spec-v0-4-1.md` for the same
 two reasons that motivated the v0.4.0 → v0.4.1 split:
 
-1. **Patch-trace integrity.** The Tag-49 PR #314 federation-resolver
+1. **Patch-trace integrity.** The PR #314 federation-resolver
    cross-lang-pin refresh suite cites v0.4.1 §4.1 verbatim by
    regression-pin. Rewriting v0.4.1 in place would break the
    pin-trail.
@@ -68,11 +68,9 @@ The patch resolves a single drift item.
 | DRIFT-S4 | medium | §4.1 ENV-flag-table: nine `WAKIR_PE_*_BACKEND` entries (spec) vs ten `WAKIR_*_BACKEND` entries with federation-resolver at #9 and bridge-audit-writer at #10 (pin-pack-0.5.1-pre-cutover) | §4.1 rewritten to document the Pin-Pack-0.5.1 reality verbatim (ten rows, `WAKIR_*_BACKEND` naming, federation-resolver at row #9, bridge-audit-writer at row #10); `canonical_form` demoted from row to **§4.1 footnote (FN-1)** with explicit "no ENV-flag wired in v0.4.2; Phase-4-Item" wording. |
 
 **Source-of-truth direction (CEO-Triage 2026-05-19, Option C Hybrid v0.4.2):** Pin-Pack-0.5.1-pre-cutover.yaml (the machine-readable
-substrate consumed by `cross-substrate-parity-gate.yml` and the
-Tag-48 wire-in tests) is the **single source of truth** for the
-§4.1 ENV-flag schema. The spec documents the Pin-Pack reality;
-where spec and Pin-Pack disagree, the spec is wrong and must be
-patched. v0.4.2 is the first such patch.
+substrate consumed by `cross-substrate-parity-gate.yml` and the wire-in tests) is the **single source of truth** for the §4.1
+ENV-flag schema. The spec documents the Pin-Pack reality; where spec and Pin-Pack disagree, the spec is wrong and must be patched.
+v0.4.2 is the first such patch.
 
 The patch does **not** modify §3.1 catalogue (sixteen rows,
 unchanged from v0.4.1), §3.2 (Identity-Substrate byte-stability),
@@ -236,7 +234,7 @@ The seven welle wellen are now flagged by:
 
 The Quadlet-Default-ENV-Flags substrate (WE-2) is the operational
 implementation of this contract: at Welle-7-acceptance, all seven
-flags are pinned to `rust` in the Quadlet defaults. The Tag-49
+flags are pinned to `rust` in the Quadlet defaults. The
 acceptance test `test_welle_7_we_2_quadlet_all_seven_rust` will
 be re-pointed at the v0.4.2 names in a follow-up sweep.
 
@@ -269,12 +267,12 @@ v0.4.1 continue to pass v0.4.2.
 
 ### 5.5 Audit baseline
 
-The Tag-47 audit
+The audit
 (`reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`)
 cited v0.4.0 §3.1 verbatim. v0.4.1 reconciled DRIFT-S1/S2/S3
 (catalogue scope); v0.4.2 reconciles DRIFT-S4 (ENV-flag scope).
-None of the four reconciliations invalidate the Tag-47 audit —
-they extend the spec to match the substrate the audit cited
+None of the four reconciliations invalidate the audit — they
+extend the spec to match the substrate the audit cited
 indirectly (the pin-pack and the manifest). A future Tag-N audit
 will pin against v0.4.2 §4.1 (ten rows, `WAKIR_*_BACKEND`
 naming) and will record zero drift on DRIFT-S1, DRIFT-S2,
@@ -300,8 +298,8 @@ is mechanical:
 | `WAKIR_PE_CANONICAL_FORM_BACKEND` (never wired) | (removed; see §4.1 FN-1) |
 
 The Pin-Pack-0.5.1 substrate already uses the v0.4.2 names —
-operators following Pin-Pack since Tag-48 have nothing to migrate.
-The migration affects only documentation, runbooks, and any
+operators following Pin-Pack since have nothing to migrate. The
+migration affects only documentation, runbooks, and any
 operator-local Quadlet drop-ins that pre-date Pin-Pack-0.5.1.
 
 ### 5.7 Foundation-circularity argument
@@ -326,7 +324,7 @@ top-of-file note in a companion commit:
 > is the authoritative companion to `wirelang-spec-v0-4-2.md`
 > §4.1. The two surfaces are kept consistent by the
 > hermetic test suite `tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`
-> (Tag-50).
+>.
 
 This is a doc-only addition (no behavioural change). The
 companion commit is in the same PR as this spec.
@@ -356,7 +354,7 @@ or a Phase-4 release:
   parity-pinned crates.** Carried forward from v0.4.1 §6
   unchanged.
 - **Audit-spec-trace re-pin discipline.** Carried forward from
-  v0.4.1 §6 unchanged. The Tag-50 hermetic suite
+  v0.4.1 §6 unchanged. The hermetic suite
   (`tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`)
   pins v0.4.2 §4.1 against the working-copy Pin-Pack-0.5.1; a
   future audit-update spawn re-pins audit citations against
@@ -368,7 +366,7 @@ Phase-3c per-welle cutover.
 ## 8. Verification
 
 A static-pass verifier of v0.4.2 §4.1 (ten-row catalogue) against
-the working-copy substrate at Tag-50 main-tip must produce:
+the working-copy substrate at main-tip must produce:
 
 - 10/10 §4.1 rows match the `record` ordering in
   `infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`
@@ -394,24 +392,24 @@ the working-copy substrate at Tag-50 main-tip must produce:
 
 The hermetic test suite that accompanies this spec
 (`tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py`,
-ten or more tests, Tag-50) enforces these invariants statically
-(no NATS, no engine boot, no Rust build, no network import).
+ten or more tests) enforces these invariants statically (no NATS, no
+engine boot, no Rust build, no network import).
 
 ## 9. Citation pointers
 
-- Tag-49 PR #314 (DRIFT-S4 origin):
+- PR #314 (DRIFT-S4 origin):
   `tests/specs/test_wirelang_spec_v0_4_1_federation_resolver_cross_lang_pin_refresh.py`.
 - v0.4.1 spec being extended:
-  `wirelang/specs/wirelang-spec-v0-4-1.md` (Tag-48 PR #308).
+  `wirelang/specs/wirelang-spec-v0-4-1.md` (PR #308).
 - v0.4.0 spec (root of the v0.4 patch-trace):
-  `wirelang/specs/wirelang-spec-v0-4.md` (Tag-45 PR #291).
+  `wirelang/specs/wirelang-spec-v0-4.md` (PR #291).
 - Pin-Pack substrate (source-of-truth for §4.1):
   `infra/persona-engine/pin-pack-0.5.1-pre-cutover.yaml`.
 - Boot manifest:
   `wirelang/persona_engine/MANIFEST-0.5.1-pre-cutover.md` §2.
 - Welle path canonical:
   `docs/quality-gates/phase-3c-acceptance-criteria.md`.
-- Tag-47 audit (catalogue-side drift origin):
+- audit (catalogue-side drift origin):
   `reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`.
 
 — Reza

@@ -158,9 +158,9 @@ Datalog evaluation, not by the JSON Schema.
 ## 6. Out of scope (Tag 2)
 
 - Identity-substrate implementation: BIP32 master setup, Ed25519
-  derivation paths, key-rotation flow. Deferred to Phase-1a-Tag-3+.
+  derivation paths, key-rotation flow. Deferred to Phase-1a-.
 - Verifier reference implementation. Deferred to Phase-1b.
-- Full Datalog caveat grammar with formal-semantics tests. Phase-1a-Tag-3+.
+- Full Datalog caveat grammar with formal-semantics tests. Phase-1a-.
 - WAT × Layer-3 cross-anchoring of capability-burst hashes. Cross-review
   zone 2 with the WAT module owner.
 

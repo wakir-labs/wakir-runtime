@@ -68,7 +68,7 @@
   "owner": "reza",
   "co_review_zone": "spec-zone-L",
   "tracked_by": [
-    "PR #364 (Tag-57 ADR-Errata x Spec Cross-Site Mirror-Drift Audit)",
-    "Tag-53 v0.4.3 introduction (Reza-Hand, 2026-05-19 frontmatter-flip)"
+    "PR #364 (ADR-Errata x Spec Cross-Site Mirror-Drift Audit)",
+    "v0.4.3 introduction (Reza-Hand, 2026-05-19 frontmatter-flip)"
   ]
 }

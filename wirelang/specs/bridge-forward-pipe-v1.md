@@ -1,13 +1,11 @@
 # Bridge-Forward-Pipe — Doppelbetrieb-Auftrags-Mirror Spec (v1)
 
-**Spec ID:** `wirelang/specs/bridge-forward-pipe-v1`
-**Status:** Draft (Sprint-10 Tag-6 substrate-closer)
-**Owner:** Tomás Reinhart (Dev-Engineering / Matrix-Lead Bridge-Audit)
-**Cross-Review:** Kai (Zone-I federation-substrate), Reza (Zone-B Wirelang
-schema), Selin (Zone-K persona-engine-bridge).
-**Date:** 2026-05-15
-**Anchor schemas:** `wirelang/schemas/layer-1-wire.json` v0.1.0 (envelope),
-`wirelang/nats/subject_mapping.py` (`agent` domain).
+**Spec ID:** `wirelang/specs/bridge-forward-pipe-v1` **Status:** Draft
+(substrate-closer) **Owner:** Tomás Reinhart (Dev-Engineering / Matrix-Lead
+Bridge-Audit) **Cross-Review:** Kai (Zone-I federation-substrate), Reza
+(Zone-B Wirelang schema), Selin (Zone-K persona-engine-bridge). **Date:**
+2026-05-15 **Anchor schemas:** `wirelang/schemas/layer-1-wire.json` v0.1.0
+(envelope), `wirelang/nats/subject_mapping.py` (`agent` domain).
 
 SPDX-License-Identifier: Apache-2.0
 
@@ -69,12 +67,12 @@ Wildcards (per §7.2 W4, W5):
 
 ### 2.2 Subject — Engineering-Output (existing; Bridge-Audit-Writer)
 
-The Wakir-Runtime persona-engine already emits structured-log JSON via
-the Bridge-Audit-Writer (`wirelang/persona_engine/bridge_audit_writer.py`).
-The Sprint-9 Tag-1 forwarder chain (Selin OI-PEF-13) lifts those
-emissions into the NATS-KV state-pack bucket. The natural
-companion-subject (when the persona-engine publishes directly to
-NATS instead of letting the forwarder chain transcribe) is:
+The Wakir-Runtime persona-engine already emits structured-log JSON via the
+Bridge-Audit-Writer (`wirelang/persona_engine/bridge_audit_writer.py`). The
+forwarder chain (Selin OI-PEF-13) lifts those emissions into the NATS-KV
+state-pack bucket. The natural companion-subject (when the persona-engine
+publishes directly to NATS instead of letting the forwarder chain
+transcribe) is:
 
 ```
 wakir.dev.agent.agent.task.completed.<persona-slug>
