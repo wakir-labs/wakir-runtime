@@ -1,17 +1,16 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Multi-Org Federation Substrate (Phase-3 preparation).
 
-Phase-2 Sprint-7 Tag-1 lands the **substrate** for multi-org
-federation as an additive composition over the Sprint-3 Tag-6
-``wakir-federation-routes`` NATS-KV bucket and the Phase-1b
+This module lands the **substrate** for multi-org
+federation as an additive composition over the ``wakir-federation-routes`` NATS-KV bucket and the Phase-1b
 :class:`wirelang.federation.n2_evaluator.RouteRegistryEntry`
 dataclass.
 
 This module is **substrate-only**: it does not perform live
 cross-trust-domain attestation, it does not fetch trust bundles,
 and it does not emit DID documents. Those surfaces are gated on
-Mira-Eskalations-Punkt E1 (ADR-0031) and Sprint-8+ live federation
-trial. What this module *does* ship in Sprint-7 Tag-1:
+escalation point E1 (ADR-0031) and the live federation trial.
+What this module *does* ship:
 
 1.  A **frozen** :class:`MultiOrgRouteAttestation` dataclass that
     pairs an existing :class:`RouteRegistryEntry` with
@@ -22,68 +21,59 @@ trial. What this module *does* ship in Sprint-7 Tag-1:
     ``route_id``, never a mutation of the original entry.
 2.  An :class:`InMemoryMultiOrgAttestationRegistry` reference
     implementation (mirrors the Phase-1b
-    :class:`InMemoryRouteRegistry` shape) that the Sprint-7 Tag-2
-    NATS-KV backend will replace 1:1.
+    :class:`InMemoryRouteRegistry` shape) that the NATS-KV backend will replace 1:1.
 3.  A **mock-bridge-route resolution** path
-    (:func:`resolve_mock_bridge_route`) that lets Sprint-7
+    (:func:`resolve_mock_bridge_route`) that lets callers
     iterate the cross-trust-domain composition without
     needing a live SPIRE bundle endpoint or a live did:web
     fetch. Mock-bridge-routes are explicitly tagged
     (``is_mock=True``) so no caller can confuse them with a
     real federation attestation.
 
-ADR-0031-Substrate-Voraussetzungs-Mapping (S-1..S-4 from Tag-10
-skizze §3) maps as follows:
+ADR-0031 substrate-prerequisite mapping (S-1..S-4) maps as follows:
 
 - **S-1 Cross-Org-Identity-Resolution**: covered by
   :attr:`MultiOrgRouteAttestation.peer_audit_anchor_did`
-  (substrate-only; live did:web fetch is Sprint-7 Tag-2+).
+  (substrate-only; live did:web fetch is a later increment).
 - **S-2 Cross-Org-Audit-Federation**: covered by
   :attr:`MultiOrgRouteAttestation.peer_wat_anchor_manifest_id`
-  (substrate-only; Tomás-side WAT-Audit-Federation-Annex
+  (substrate-only; WAT-track-side WAT-Audit-Federation-Annex
   consumes this field via D-1 cross-review).
 - **S-3 Cross-Org-Capability-Token-Federation**: covered by
   :attr:`MultiOrgRouteAttestation.peer_capability_policy_pointer`
-  (substrate-only; cross-org Biscuit-attenuation evaluation is
-  Sprint-7 Tag-4+).
+  (substrate-only; cross-org Biscuit-attenuation evaluation is a
+  later increment).
 - **S-4 Cross-Trust-Domain-SPIFFE-Bridge**: covered by
   :attr:`MultiOrgRouteAttestation.peer_trust_domain` and
   :attr:`MultiOrgRouteAttestation.peer_trust_bundle_url`
   (substrate-only; live SpiffeCrossTrustDomainBridge component
-  is Sprint-7 Tag-3+ paired with Kai SPIRE-Federation-Bundle-
+  is paired with the DevOps track SPIRE-Federation-Bundle-
   Endpoint cross-review D-2).
 
 Cross-review zones touched:
 
-- **D-1 (Reza × Tomás, WAT-Audit-Federation-Annex-Substrate)** —
-  ``peer_wat_anchor_manifest_id`` is the Tomás-side WAT-anchor-
-  resolution surface; Sprint-7-Tag-1 substrate-skizze defines
-  the field shape, Tomás-side WAT-anchor-consumer is D-1 trigger.
-- **D-2 (Reza × Kai, SPIFFE-Cross-Trust-Domain-Bridge-Substrate)** —
+- **D-1 (Wirelang × WAT, WAT-Audit-Federation-Annex-Substrate)** —
+  ``peer_wat_anchor_manifest_id`` is the WAT-track-side WAT-anchor-
+  resolution surface; substrate-skizze defines
+  the field shape, WAT-track-side WAT-anchor-consumer is D-1 trigger.
+- **D-2 (Wirelang × DevOps, SPIFFE-Cross-Trust-Domain-Bridge-Substrate)** —
   ``peer_trust_domain`` and ``peer_trust_bundle_url`` are the
-  Kai-side SPIRE-Federation-Bundle-Endpoint-Configuration
-  surface; live bridge is Tag-3+ D-2 trigger.
-- **D-3 (Reza × Selin, NLnet-Antrag-Konsistenz)** —
+  the DevOps track-side SPIRE-Federation-Bundle-Endpoint-Configuration
+  surface; live bridge is D-2 trigger.
+- **D-3 (Wirelang × persona-engine, NLnet-Antrag-Konsistenz)** —
   the *substrate* tier of multi-org federation as described in
   this module is what the NLnet-Antrag vision-block (V-908)
   should reference; live federation trial remains a separate
   comms item.
-- **D-4 (Reza × Aisha, Cross-Review-Moderation)** —
-  Zone-D consensus-marker for Sprint-7-Pfad-B-Eröffnung is
-  Aisha-side; this module's existence is the substantive anchor
-  Aisha will protocol against.
+- **D-4 (Wirelang × cross-review moderation, Cross-Review-Moderation)** —
+  The Zone-D consensus marker is moderation-side; this module's existence is the substantive anchor
+  the moderator will protocol against.
 
-ADR-0050 Tool-Surface-Stempel applies at module-level: this
-file was authored using Read, Edit, Write, Bash (kein Agent-Tool,
-WebFetch only for the §4.x A2A-Spec befund memo, not for this
-file).
-
-Mira-Eskalations-Punkt E1 status: the A2A-Spec §4.x befund memo
-(``reza/outbox/2026-05-12-a2a-spec-§4-x-befund-fuer-mira.md``)
-classifies the constraint as **unkritisch** — A2A §4.x neither
-mandates nor forbids DID-document emission. The substrate in
-this module is therefore not gated on E1; the live federation
-trial (Sprint-8+) remains Mira-Hand approval-pending.
+Escalation point E1 status: the A2A-spec §4.x review classifies the
+constraint as uncritical — A2A §4.x neither mandates nor forbids
+DID-document emission. The substrate in this module is therefore not
+gated on E1; the live federation trial remains operator-hand
+approval-pending.
 
 Version: ``wakir.federation.multi-org-attestation/1``.
 """
@@ -103,16 +93,16 @@ from .n2_evaluator import RouteRegistryEntry
 
 
 #: Schema-URI fragment for the multi-org attestation envelope. Used
-#: by the Sprint-7 Tag-2 NATS-KV backend (forthcoming) to tag
+#: by the NATS-KV backend (forthcoming) to tag
 #: persisted attestation records. Phase-1b convention: ``wakir.``
 #: namespace prefix, kebab-case noun, integer version suffix.
 ATTESTATION_VALUE_SCHEMA = "wakir.federation.multi-org-attestation/1"
 
 
-#: Reserved prefix for mock-bridge-route identifiers. Sprint-7
-#: iterates the cross-trust-domain composition with mock entries
+#: Reserved prefix for mock-bridge-route identifiers. Callers
+#: iterate the cross-trust-domain composition with mock entries
 #: while the live SPIRE-Federation-Bundle-Endpoint surface is
-#: being prepared (Kai D-2). Mock entries MUST carry this prefix
+#: being prepared (D-2). Mock entries MUST carry this prefix
 #: in their ``route_id`` so a misconfigured production deployment
 #: cannot accidentally treat a mock as live.
 MOCK_BRIDGE_ROUTE_ID_PREFIX = "mock-bridge://"
@@ -187,37 +177,38 @@ class MultiOrgRouteAttestation:
         peer_trust_domain: the SPIFFE trust-domain identifier of
             the peer org (host portion of a SPIFFE ID, no scheme,
             no path). Example: ``"partner-a.example"``. Used by the
-            Sprint-7 Tag-3+ SpiffeCrossTrustDomainBridge component
-            (Kai D-2). MUST match :data:`_TRUST_DOMAIN_RE`.
+            SpiffeCrossTrustDomainBridge component
+            (D-2). MUST match :data:`_TRUST_DOMAIN_RE`.
         peer_audit_anchor_did: the peer org's audit-anchor DID
             (ADR-0031 D4 default: ``did:web``). Used by the
-            Sprint-7 Tag-2+ live did:web resolution path. MUST
+            live did:web resolution path. MUST
             match :data:`_DID_WEB_RE` for ``did:web``; other DID
             methods MAY be added in additive minor bumps.
         peer_wat_anchor_manifest_id: optional peer-side WAT
-            manifest id. Used by the Tomás-side WAT-Audit-
+            manifest id. Used by the WAT-track-side WAT-Audit-
             Federation-Annex (D-1) to cross-anchor merkle leaves
             into both org-trails. ``None`` means the peer does not
             (yet) expose WAT anchoring.
         peer_trust_bundle_url: optional HTTPS URL of the peer
             SPIFFE trust-bundle (JWK Set). ``None`` means the
             bundle is to be discovered out-of-band (e.g. operator-
-            preprovisioned). Live bundle fetch is Sprint-7 Tag-3+.
+            preprovisioned). Live bundle fetch is a later
+            increment.
         peer_capability_policy_pointer: optional JSON-Pointer or
             URI fragment referencing the peer's capability-policy
             attenuation policy (Biscuit public-key set / Datalog
             vocabulary pin). ``None`` means the peer's capability-
             token chains are not validated cross-org in this
-            attestation. Sprint-7 Tag-4+.
+            attestation. A later increment.
         is_mock: ``True`` for mock-bridge-route attestations used
-            during Sprint-7 substrate iteration before the live
+            during substrate iteration before the live
             SPIRE federation endpoint is online. Mock attestations
             MUST carry a ``route_id`` starting with
             :data:`MOCK_BRIDGE_ROUTE_ID_PREFIX`. Live attestations
             MUST set ``is_mock=False`` and MUST NOT carry the mock
             prefix.
 
-    Wire envelope (forthcoming Sprint-7 Tag-2 backend):
+    Wire envelope (forthcoming backend):
 
         {"schema": "wakir.federation.multi-org-attestation/1",
          "route_id": <str>,
@@ -230,7 +221,7 @@ class MultiOrgRouteAttestation:
 
     JCS canonicalisation (RFC 8785) is implicit via
     ``json.dumps(payload, sort_keys=True, separators=(",", ":"))``
-    consistent with the Sprint-3 Tag-6 route-registry-entry
+    consistent with the route-registry-entry
     envelope. The same byte-reproducibility contract applies.
     """
 
@@ -324,14 +315,14 @@ class InMemoryMultiOrgAttestationRegistry:
 
     Mirrors the Phase-1b :class:`InMemoryRouteRegistry` shape: a
     plain dataclass holding a dict keyed by ``route_id``. The
-    Sprint-7 Tag-2 NATS-KV backend will replace this 1:1 with the
+    NATS-KV backend will replace this 1:1 with the
     same surface (``add`` / ``lookup`` / ``snapshot`` / ``watch``).
 
     The registry enforces *at most one attestation per route_id*.
     A second ``add()`` with the same ``route_id`` raises
     :class:`MultiOrgAttestationConflictError` unless the second
     attestation is byte-equal to the first (idempotent re-add is
-    allowed, mirroring the Sprint-5 LWW + Tag-3 watch-stream
+    allowed, mirroring the LWW + watch-stream
     idempotency contract).
     """
 
@@ -347,9 +338,9 @@ class InMemoryMultiOrgAttestationRegistry:
 
         Update semantics (replacing an existing attestation with a
         non-equal one) are deliberately not supported by the
-        in-memory reference; the Sprint-7 Tag-2 NATS-KV backend
+        in-memory reference; the NATS-KV backend
         will expose ``put_with_revision`` for CAS-protected
-        updates, matching the Sprint-3 Tag-3 schema-registry
+        updates, matching the schema-registry
         pattern.
         """
         if not isinstance(attestation, MultiOrgRouteAttestation):
@@ -361,8 +352,8 @@ class InMemoryMultiOrgAttestationRegistry:
             raise MultiOrgAttestationConflictError(
                 f"attestation already registered for "
                 f"route_id={attestation.route_id!r} with different "
-                f"fields; use put_with_revision once the Tag-2 "
-                f"backend lands"
+                f"fields; use put_with_revision on the NATS-KV "
+                f"backend"
             )
         self.attestations[attestation.route_id] = attestation
 
@@ -388,7 +379,7 @@ class MockBridgeResolution:
     """Result of :func:`resolve_mock_bridge_route`.
 
     Pairs the underlying :class:`RouteRegistryEntry` with the
-    :class:`MultiOrgRouteAttestation`. The Sprint-7 Tag-3+ live
+    :class:`MultiOrgRouteAttestation`. The live
     bridge component (SpiffeCrossTrustDomainBridge) will return
     a structurally analogous result; the live path will also
     yield a validated SPIFFE trust-bundle and resolved DID
@@ -407,7 +398,7 @@ def resolve_mock_bridge_route(
 ) -> MockBridgeResolution:
     """Resolve a mock-bridge route to its (entry, attestation) pair.
 
-    This is the Sprint-7 substrate-iteration entry-point that lets
+    This is the substrate-iteration entry-point that lets
     callers exercise the multi-org composition (entry + attestation)
     without a live SPIRE bundle endpoint or a live did:web fetch.
 
@@ -455,7 +446,7 @@ def resolve_mock_bridge_route(
     if not attestation.is_mock:
         raise UnknownBridgeRouteError(
             f"route_id {route_id!r} attestation is not a mock; "
-            f"use the live bridge once Tag-3+ lands"
+            f"use the live bridge instead"
         )
     return MockBridgeResolution(entry=entry, attestation=attestation)
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Cross-Org Capability-Attenuation-Chain-Verifier (Sprint-8 Tag-2 hardening).
+"""Cross-Org Capability-Attenuation-Chain-Verifier (hardening).
 
 This module hardens the N3 multi-FTD delegation-chain walker
 (:mod:`wirelang.federation.n3_chain_walker`) for Multi-Org-Boundary
@@ -55,7 +55,7 @@ Cross-review hooks
   ``BridgeRevocationMarker`` is reserved for a future
   schema-registry entry; the Phase-2 anchor is out of scope here.
 
-Sprint-8 Tag-2 contract (Reza, 2026-05-13):
+contract :
 
 - Three replay-detector families ratified: ``bridge_revocation``,
   ``caveat_mismatch``, ``chain_length_limit``.
@@ -66,10 +66,8 @@ Sprint-8 Tag-2 contract (Reza, 2026-05-13):
 
 References (URL-stamped 2026-05-13):
 
-- N3 walker: ``wirelang/federation/n3_chain_walker.py`` (Sprint-2
-  Tag-5, hardened by this Tag-2 module).
-- N2 evaluator: ``wirelang/federation/n2_evaluator.py`` (Sprint-2
-  Tag-3).
+- N3 walker: ``wirelang/federation/n3_chain_walker.py`` (hardened by this module).
+- N2 evaluator: ``wirelang/federation/n2_evaluator.py``.
 - V-908 spec §3.2 / §6: ``wirelang/specs/datalog-caveat-vocabulary-phase-2.md``.
 - Layer-3 capability-token: ``wirelang/specs/layer-3-capability-token.md``
   §"Replay protection".

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Durable NATS-KV-backed ``SequenceNumberLedger`` for the
-CaveatOverrideEvent cross-org export surface (Phase-2 Sprint-9 Tag-2).
+CaveatOverrideEvent cross-org export surface.
 
-Sprint-9 Tag-1 shipped the
+This module shipped the
 :class:`~wirelang.federation.caveat_override_export.SequenceNumberLedger`
 Protocol with an
 :class:`~wirelang.federation.caveat_override_export.InMemorySequenceNumberLedger`
@@ -27,8 +27,7 @@ caller MUST re-read the live last_seen and retry.
 Pattern alignment
 =================
 
-This module mirrors the Sprint-8 Tag-4
-:mod:`wirelang.federation.marker_stack_kv` backend with three
+This module mirrors the :mod:`wirelang.federation.marker_stack_kv` backend with three
 deliberate differences for the ledger axis:
 
 1. **Single-key-per-pair** (instead of append-only event-log).
@@ -50,7 +49,7 @@ deliberate differences for the ledger axis:
    ``wakir-caveat-override-export-sequence-{org_id}``. Cross-org
    reads/writes raise
    :class:`SequenceNumberLedgerCrossOrgBoundaryError` instead of
-   touching the bucket. This mirrors the Sprint-8 Tag-4 per-org
+   touching the bucket. This mirrors the per-org
    bucket isolation contract.
 
 Bucket identity
@@ -59,7 +58,7 @@ Bucket identity
 Bucket name: ``wakir-caveat-override-export-sequence-{org_id}``
 (deterministically derived from a validated ``org_id``).
 ``org_id`` follows the same permitted-character regex as the
-marker-stack-KV / Sprint-7 ``peer_org`` predicates (URI-safe
+marker-stack-KV / ``peer_org`` predicates (URI-safe
 ASCII subset, no slashes, no whitespace).
 
 Key schema: ``sequence/<route_id>/<chain_hash>``. Both
@@ -108,8 +107,7 @@ Each org operates against its own
 specific ``org_id`` at construction. Reads/writes against a
 different org-id raise
 :class:`SequenceNumberLedgerCrossOrgBoundaryError` without I/O.
-Cross-org export verification flows through the Sprint-7
-cross-trust-domain bridge surface, which is out of scope for this
+Cross-org export verification flows through the cross-trust-domain bridge surface, which is out of scope for this
 module — the ledger sits **behind** the exporter and is consulted
 by Org-A's exporter / Org-B's verifier independently against
 their own buckets.
@@ -119,21 +117,19 @@ Sandbox boundary
 
 Live NATS connections are operator-hand
 (``feedback_sandbox_host_trennung.md`` memory). All tests in this
-module run against an in-memory mock that mirrors the Sprint-8
-Tag-4 :class:`_MockKv` shape with an ``update`` CAS-pin
+module run against an in-memory mock that mirrors the :class:`_MockKv` shape with an ``update`` CAS-pin
 extension. No live NATS connection is established from the
 sandbox.
 
 References
 ----------
 
-- Sprint-9 Tag-1 source:
+- source:
   :mod:`wirelang.federation.caveat_override_export`.
-- Sprint-8 Tag-4 pattern:
+- pattern:
   :mod:`wirelang.federation.marker_stack_kv`.
 - Spec: ``wirelang/specs/schema-registry-spec.md`` §5.18 (added
   in v0.34.0).
-- Reza Persona §2 (Capability-Token-Layer: Reza-Owner-Domain).
 """
 
 from __future__ import annotations
@@ -162,8 +158,8 @@ BUCKET_NAME_PREFIX = "wakir-caveat-override-export-sequence-"
 
 #: Documented bucket configuration. Drift-policy: any deviation
 #: between the live cluster and these values is reported as drift,
-#: never auto-corrected (same contract as Sprint-5 Tag-2 / Sprint-8
-#: Tag-4 backends).
+#: never auto-corrected (same contract as the other Wirelang KV
+#: backends).
 BUCKET_CONFIG: Mapping[str, Any] = {
     "description": "Wirelang durable caveat-override-export sequence-number ledger (Phase-2)",
     "history": 1,
@@ -181,7 +177,7 @@ VALUE_SCHEMA = "wakir.federation.caveat-override-export-sequence/1"
 _ORG_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]*$")
 
 #: Permitted-character regex for ``route_id`` and ``chain_hash``;
-#: identical to the Sprint-7 ``peer_org`` predicate subset, so a
+#: identical to the ``peer_org`` predicate subset, so a
 #: 64-hex BLAKE2b digest matches naturally.
 _KEY_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:\-]*$")
 
@@ -333,7 +329,7 @@ class SequenceNumberLedgerCrossOrgBoundaryError(SequenceNumberLedgerError):
     read or write a pair under ``org_id=B``.
 
     Cross-org reads are explicit operator-deliberate gestures that
-    flow through the Sprint-7 cross-trust-domain bridge surface;
+    flow through the cross-trust-domain bridge surface;
     a direct cross-bucket read via
     :class:`NatsKvSequenceNumberLedger` is a configuration error
     and is surfaced as this typed exception.
@@ -407,8 +403,8 @@ def _encode_envelope(
     """Serialise a ledger cell into a deterministic JSON envelope.
 
     Uses sorted-key + compact-separator output so the bytes are
-    reproducible byte-for-byte per caller (Sprint-5 Tag-2 / Sprint-8
-    Tag-4 envelope contract).
+    reproducible byte-for-byte per caller (the shared Wirelang
+    envelope contract).
     """
     payload: dict = {
         "schema": VALUE_SCHEMA,
@@ -834,14 +830,14 @@ class SyncSequenceNumberLedgerAdapter:
     :class:`NatsKvSequenceNumberLedger` as a
     :class:`~wirelang.federation.caveat_override_export.SequenceNumberLedger`.
 
-    Bridges the durable async ledger into the Tag-1 exporter
+    Bridges the durable async ledger into the exporter
     surface (which is synchronous). Internally drives the async
     methods to completion via :func:`asyncio.run` on a new event
     loop. **Not safe to call from within an existing event loop**;
     callers running inside ``asyncio`` should use
     :class:`NatsKvSequenceNumberLedger` directly.
 
-    Provided so Tag-1 callsites can swap their default
+    Provided so callsites can swap their default
     :class:`InMemorySequenceNumberLedger` for the durable tier
     without changing the exporter API.
     """
@@ -898,7 +894,7 @@ class SyncSequenceNumberLedgerAdapter:
 
 
 # Defence-in-depth: prove at import-time that the sync adapter
-# satisfies the Tag-1 Protocol shape. Mypy / pyright pick this up
+# satisfies the Protocol shape. Mypy / pyright pick this up
 # statically; runtime check is a single isinstance with the
 # Protocol class (which is a no-op without ``runtime_checkable``,
 # so we settle for the explicit method-presence assertion below).

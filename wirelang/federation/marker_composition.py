@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
-"""Multi-Marker-Policy-Composition engine (Sprint-8 Tag-3).
+"""Multi-Marker-Policy-Composition engine.
 
-Sprint-8 Tag-2 (``cross_org_attenuation_verifier``) introduced
+``cross_org_attenuation_verifier`` introduces
 ``BridgeRevocationMarker`` as an orthogonal Detector-1 surface
 that composes on top of the N3 chain walker. In production,
 however, a single Wirelang Layer-3 capability-token can pick up
@@ -9,17 +9,17 @@ however, a single Wirelang Layer-3 capability-token can pick up
 not orthogonal at the per-token axis:
 
 - A token issued in Org-A is **revoked** by the bucket holder
-  (``policy.revoked_at`` set; Sprint-6 Tag-1 revocation event).
+  (``policy.revoked_at`` set; revocation event).
 - The same token is later **unrevoked** by deliberate operator
-  gesture (Sprint-6 Tag-7 + Tag-9 ``UnrevokeAuditMarker``).
+  gesture (``UnrevokeAuditMarker``).
 - Or the token is **re-issued** under a new key after a routine
-  refresh (Sprint-8 Tag-3 ``ReIssuanceMarker``, defined here).
+  refresh (``ReIssuanceMarker``, defined here).
 - Or a downstream verifier observes a **caveat-override**: the
   issuer-side caveat chain was narrowed *after* the token was
-  minted (Sprint-8 Tag-3 ``CaveatOverrideMarker``, defined here).
+  minted (``CaveatOverrideMarker``, defined here).
 - And independently the FTD-bridge the token's chain traverses
   may have been **revoked** at-or-before the token's mint time
-  (Sprint-8 Tag-2 ``BridgeRevocationMarker``).
+  (``BridgeRevocationMarker``).
 
 The four marker families are orthogonal in their *origin* (they
 arise on independent surfaces: capability-policy bucket, audit-
@@ -134,16 +134,16 @@ Cross-review hooks
   anchor chain so a single WAT snapshot covers the lifecycle.
 - **Zone 3 (OTS-Schema-Anker):** the four event-marker schemas
   are reserved for future schema-registry entries; the Phase-2
-  anchor is out of scope for Tag-3.
+  anchor is out of scope here.
 
-References (URL-stamped 2026-05-13):
+References:
 
 - ``BridgeRevocationMarker``: ``wirelang/federation/cross_org_attenuation_verifier.py``
-  (Sprint-8 Tag-2).
+.
 - ``UnrevokeAuditMarker``: ``wirelang/schemas/capability_policy_nats_kv_backend.py``
-  (Sprint-6 Tag-9).
+.
 - Spec §5.15: ``wirelang/specs/schema-registry-spec.md`` v0.30.0
-  (this Tag-3 entry).
+  (this entry).
 """
 
 from __future__ import annotations
@@ -446,7 +446,7 @@ class CaveatOverrideEvent:
 class BridgeRevokedEvent:
     """A trust-domain-bridge revocation event on the composition axis.
 
-    Wraps a Sprint-8 Tag-2 :class:`BridgeRevocationMarker` and
+    Wraps a :class:`BridgeRevocationMarker` and
     attaches the composition-axis bookkeeping
     (``tie_break``, ``wat_anchor_manifest_id``). The
     ``minted_at`` cross-check against the marker's

@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: BUSL-1.1
 """SPIFFE Cross-Trust-Domain Bridge — live multi-org-attestation resolver.
 
-Phase-2 Sprint-7 Tag-3 lands the **live** counterpart to the Sprint-7
-Tag-1 :func:`~wirelang.federation.multi_org_substrate.resolve_mock_bridge_route`
+This module lands the **live** counterpart to the :func:`~wirelang.federation.multi_org_substrate.resolve_mock_bridge_route`
 mock resolver. The bridge orchestrates the live cross-trust-domain
-resolution path that Sprint-7 has been preparing across Tag-1
-(substrate dataclass + mock resolver) and Tag-2 (durable NATS-KV
-backend with authority-gesture monotonic invariant).
+resolution path on top of the substrate dataclass + mock resolver
+and the durable NATS-KV backend with its authority-gesture monotonic
+invariant.
 
-Where Tag-1's mock resolver answers "is the (entry, attestation) pair
+Where the mock resolver answers "is the (entry, attestation) pair
 present and consistent for this mock route_id?", the live bridge
 additionally:
 
@@ -28,37 +27,35 @@ additionally:
    trust anchor* for this resolution.
 4. Optionally fetches the local workload's own SPIFFE-SVID
    through the wirelang-side :class:`SpiffeWorkloadApiAdapter`
-   (Sprint-6 Tag-5 mock or Phase-2c live impl). The local SVID
+   (mock or Phase-2c live impl). The local SVID
    pairs the resolution as the *outbound attestation*: the peer
    org knows the local workload's identity via this token.
 5. Enforces a clock-bound trust-bundle freshness check
    (``fetched_at + bundle_max_age >= now``). Bundles older than
    the configured ceiling are rejected as
    :class:`PeerTrustBundleExpiredError`. Defaults to 24 h
-   (operationally aligned with Kai's Phase-2.6 trust-bundle-
+   (operationally aligned with the DevOps track's Phase-2.6 trust-bundle-
    rotation runbook ``docs/spire-trust-bundle-rotation.md``).
 
-The bridge composes the Tag-2 backend (or the in-memory Tag-1
-registry — both implement the ``lookup``/``get`` surface) and the
-Sprint-6 Tag-5 :class:`~wirelang.adapters.spiffe_workload_api.SpiffeWorkloadApiAdapter`
+The bridge composes the backend (or the in-memory registry — both implement the ``lookup``/``get`` surface) and the
+:class:`~wirelang.adapters.spiffe_workload_api.SpiffeWorkloadApiAdapter`
 without depending on either's concrete implementation: the bridge
 takes Protocols as injection points so the live path can swap mock
 fixtures for HTTPS-fetching production implementations without
 re-touching the bridge logic.
 
 Failure-mode surface (all live-bridge errors are subclasses of
-:class:`MultiOrgSubstrateError`, mirroring the Tag-1 substrate
+:class:`MultiOrgSubstrateError`, mirroring the substrate
 hierarchy; downstream code that already catches the substrate base
 catches every bridge failure without broadening its handler):
 
-- :class:`UnknownBridgeRouteError` — re-used from the Tag-1
-  substrate. Route or attestation absent from the registries.
+- :class:`UnknownBridgeRouteError` — re-used from the substrate. Route or attestation absent from the registries.
 - :class:`PeerTrustBundleFetchError` — the trust-bundle HTTPS fetch
   failed (transport error, non-200, malformed JSON Web Key Set).
   Operationally: peer endpoint is down or the URL is wrong.
 - :class:`PeerTrustBundleExpiredError` — the fetched bundle's
   ``fetched_at`` is older than ``bundle_max_age``. Operationally:
-  the bundle rotation runbook (Kai Phase-2.6) was not run on time.
+  the bundle rotation runbook (the DevOps-track Phase-2.6) was not run on time.
 - :class:`PeerSvidSignatureError` — the peer-presented JWT-SVID
   failed signature verification against the fetched trust-bundle.
   Operationally: either a stale bundle, a stale SVID, or a
@@ -71,60 +68,15 @@ downstream caller needs to attribute the cross-trust-domain
 interaction (entry, attestation, verified peer SVID, local SVID,
 fetched trust-bundle reference, verification timestamp).
 
-ADR-0050 Tool-Surface-Stempel
-=============================
-
-This file was authored using Read, Edit, Write, Bash. No Agent-Tool,
-no WebFetch within this module. Pre-Box-Worktree ADR-0049
-``/tmp/reza-sprint-7-tag-3-runtime`` (suffix ``-runtime`` per
-post-Sprint-6-Bundle-Merge main-tip ``b810dd9``, chained on Tag-2
-β-tip ``4cb1c7e``).
-
-ADR-0049 Pre-Box-Worktree
-=========================
-
-This module was authored in an isolated worktree
-``/tmp/reza-sprint-7-tag-3-runtime`` created from ``b810dd9``
-(post-Sprint-6-Bundle-Merge main-tip) reset to ``4cb1c7e`` (Sprint-7
-Tag-2 β-tip; Tag-3 substantively depends on the Tag-2
-``MultiOrgRouteAttestation`` backend surface). The worktree is
-cleaned up after the β-push.
-
-Cross-review Zone-O status (D-2 specific, post-Sprint-6 Phase-2
-SPIFFE-Infrastructure merge)
-============================
-
-Sprint-6 PR #3 merged Kai's SPIRE-Server-Sidecar (Phase-2.1),
-SPIRE-Agent-Sidecar (Phase-2.2), NATS-JWT-Auth (Phase-2.4), and
-Trust-Bundle-Rotation runbook (Phase-2.6) into main. The live-bridge
-wire-up substrate is therefore on-disk:
-
-- ``compose/spire.yaml`` SPIRE-Server-Sidecar (Phase-2.1).
-- ``compose/spire.yaml`` SPIRE-Agent-Sidecar (Phase-2.2) exposing
-  the Workload-API socket at the canonical
-  ``/run/spire/sockets/agent.sock`` path consumed by the wirelang
-  :class:`~wirelang.adapters.spiffe_workload_api.SpiffeWorkloadApiAdapter`.
-- ``scripts/nats_jwt_callback_skizze.py`` ``make_user_jwt_cb``
-  factory (Phase-2.4) for NATS-JWT consumption from the SPIRE
-  agent.
-- ``docs/spire-trust-bundle-rotation.md`` (Phase-2.6) operationally
-  bounds the trust-bundle freshness — the bridge consumes that
-  bound through its ``bundle_max_age`` parameter.
-- ``quadlet/wakir-spire-*`` (Tag-11) systemd quadlet wiring for the
-  SPIRE infrastructure.
-
-Tag-3 ships the **wirelang-side resolver** that consumes the
-runtime above; it is hermetic-tested via injected Protocol fakes
-so the test suite remains network-free.
 
 Cross-references
 ================
 
-- Tag-1 substrate: ``wirelang/federation/multi_org_substrate.py``
-- Tag-2 backend: ``wirelang/federation/multi_org_attestation_nats_kv_backend.py``
+- substrate: ``wirelang/federation/multi_org_substrate.py``
+- backend: ``wirelang/federation/multi_org_attestation_nats_kv_backend.py``
 - SPIFFE adapter: ``wirelang/adapters/spiffe_workload_api.py``
 - Trust-bundle rotation runbook: ``docs/spire-trust-bundle-rotation.md``
-- Sprint-6 PR #3: SPIRE-Server-Sidecar / SPIRE-Agent-Sidecar /
+- PR #3: SPIRE-Server-Sidecar / SPIRE-Agent-Sidecar /
   NATS-JWT-Auth / Trust-Bundle-Rotation merge.
 - ADR-0031 D4: did:web as cross-org audit-anchor default.
 - V-908 NLnet-Antrag federation vision-block.
@@ -161,7 +113,7 @@ from ..adapters.spiffe_workload_api import (
 
 
 #: Default trust-bundle freshness ceiling (24 h). Aligned with the
-#: Kai Phase-2.6 ``docs/spire-trust-bundle-rotation.md`` runbook
+#: the DevOps-track Phase-2.6 ``docs/spire-trust-bundle-rotation.md`` runbook
 #: cadence: bundles MUST be rotated at least daily; a 24 h ceiling
 #: gives one full rotation cycle of headroom before the bridge
 #: refuses to resolve. Callers MAY override this with a tighter or
@@ -170,7 +122,7 @@ DEFAULT_BUNDLE_MAX_AGE_SECONDS: int = 24 * 60 * 60
 
 
 #: Schema-URI fragment for the bridge resolution artefact. Used by
-#: the WAT-Audit-Federation-Annex (Tomás D-1, Sprint-7 Tag-4+) when
+#: the WAT-Audit-Federation-Annex (D-1, forthcoming) when
 #: anchoring a bridge-resolution into both peer-org and Wakir-org
 #: WAT merkle leaves. Phase-1b convention: ``wakir.`` prefix,
 #: kebab-case noun, integer version suffix.
@@ -189,8 +141,7 @@ class SpiffeCrossTrustDomainBridgeError(MultiOrgSubstrateError):
     """Base class for live-bridge resolution errors.
 
     Inherits :class:`MultiOrgSubstrateError` so downstream callers
-    that already catch the substrate base (Tag-1 mock + Tag-2
-    backend) catch every bridge surface without broadening their
+    that already catch the substrate base (mock + backend) catch every bridge surface without broadening their
     handler. New error types added in future tag-iterations MUST
     parent here.
     """
@@ -232,7 +183,7 @@ class PeerTrustBundleExpiredError(SpiffeCrossTrustDomainBridgeError):
 
     The bridge enforces ``fetched_at + bundle_max_age >= now``.
     A breach indicates the peer's trust-bundle-rotation runbook
-    (Kai Phase-2.6) was not run within the expected cadence; the
+    (the DevOps-track Phase-2.6) was not run within the expected cadence; the
     bridge refuses to resolve rather than accept a possibly
     stale-key bundle.
 
@@ -385,9 +336,9 @@ class LiveBridgeResolution:
 
     Attributes:
         entry: the underlying :class:`RouteRegistryEntry` (from
-            the Sprint-3 Tag-6 ``wakir-federation-routes`` bucket).
+            the ``wakir-federation-routes`` bucket).
         attestation: the :class:`MultiOrgRouteAttestation` (from
-            the Sprint-7 Tag-2 ``wakir-multi-org-attestations``
+            the ``wakir-multi-org-attestations``
             bucket). ``is_mock`` is guaranteed ``False`` here; the
             bridge rejects mock attestations explicitly.
         trust_bundle: the :class:`FetchedTrustBundle` that
@@ -496,7 +447,7 @@ class PeerSvidVerifier(Protocol):
 
 
 # ---------------------------------------------------------------------------
-# Registry Protocols (structural; both Tag-1 in-memory and Tag-2
+# Registry Protocols (structural; both the in-memory and the
 # NATS-KV backends satisfy these without needing a concrete-base)
 # ---------------------------------------------------------------------------
 
@@ -513,8 +464,8 @@ class _RouteRegistryLike(Protocol):
 
 
 class _AttestationRegistryLike(Protocol):
-    """Structural surface for both the in-memory Tag-1 registry
-    (synchronous ``lookup``) and the Tag-2 NATS-KV backend
+    """Structural surface for both the in-memory registry
+    (synchronous ``lookup``) and the NATS-KV backend
     (asynchronous ``get``).
 
     The bridge calls :meth:`lookup_attestation` on this Protocol,
@@ -544,14 +495,13 @@ class SpiffeCrossTrustDomainBridge:
 
     Composition:
 
-    - ``route_registry``: the Sprint-3 Tag-6 route-registry
+    - ``route_registry``: the route-registry
       (in-memory reference for tests, NATS-KV-backed snapshot for
       production). The bridge calls ``lookup(route_id)`` and
       raises :class:`UnknownBridgeRouteError` on a miss.
-    - ``attestation_registry``: the Sprint-7 Tag-1 in-memory
-      reference OR the Tag-2 NATS-KV backend snapshot. The
-      bridge calls ``lookup(route_id)``; for the async Tag-2
-      backend the caller materialises a snapshot via
+    - ``attestation_registry``: the in-memory
+      reference OR the NATS-KV backend snapshot. The
+      bridge calls ``lookup(route_id)``; for the async backend the caller materialises a snapshot via
       :meth:`~wirelang.federation.multi_org_attestation_nats_kv_backend.NatsKvMultiOrgAttestationRegistry.snapshot`
       first and passes the snapshot here.
     - ``trust_bundle_fetcher``: the
@@ -564,8 +514,7 @@ class SpiffeCrossTrustDomainBridge:
     - ``local_workload_adapter``: optional
       :class:`SpiffeWorkloadApiAdapter` for fetching the local
       workload's own SVID alongside the peer resolution. ``None``
-      means "no local SVID in the resolution". The Sprint-6 Tag-5
-      :class:`MockSpiffeWorkloadApiAdapter` satisfies this slot
+      means "no local SVID in the resolution". The :class:`MockSpiffeWorkloadApiAdapter` satisfies this slot
       for tests.
     - ``bundle_max_age_seconds``: trust-bundle freshness ceiling.
       Default :data:`DEFAULT_BUNDLE_MAX_AGE_SECONDS`.
@@ -580,7 +529,7 @@ class SpiffeCrossTrustDomainBridge:
     2. Lookup ``route_id`` in ``attestation_registry``. Miss
        raises :class:`UnknownBridgeRouteError`.
     3. Reject :attr:`MultiOrgRouteAttestation.is_mock` ``True``
-       (mock attestations must use the Tag-1 mock resolver).
+       (mock attestations must use the mock resolver).
        Surface: :class:`UnknownBridgeRouteError` (intentional
        homogeneity with the mock resolver's symmetric reject).
     4. Verify the attestation has a non-``None``
@@ -668,8 +617,7 @@ class SpiffeCrossTrustDomainBridge:
                 — unlike the mock resolver which requires the
                 ``mock-bridge://`` prefix, the live bridge
                 operates on any non-mock route_id. The
-                substrate-layer mock-prefix-lock (see Tag-1
-                substrate) prevents accidental mock leakage onto
+                substrate-layer mock-prefix-lock (see substrate) prevents accidental mock leakage onto
                 this path: a real route_id cannot carry the mock
                 prefix.
             peer_svid_token: optional opaque compact-JWS token
@@ -757,7 +705,7 @@ class SpiffeCrossTrustDomainBridge:
             # The local-adapter audience is the peer trust-domain:
             # the peer org is the audience that consumes the local
             # workload's outbound SVID. Mirrors the Phase-2.4
-            # NATS-JWT-Auth pattern (Kai).
+            # NATS-JWT-Auth pattern (the DevOps track).
             local_svid = await self.local_workload_adapter.fetch_jwt_svid(
                 audience=attestation.peer_trust_domain,
             )

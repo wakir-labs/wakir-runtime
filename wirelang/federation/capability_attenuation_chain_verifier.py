@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 """Capability-Attenuation-Chain-Verifier — cross-org replay defence.
 
-Phase-2 Sprint-7 Tag-4 lands the wirelang-side defence-in-depth
+This module lands the wirelang-side defence-in-depth
 component that verifies a *cross-org capability-attenuation chain*
 against three replay-class attack surfaces:
 
@@ -22,12 +22,12 @@ against three replay-class attack surfaces:
    policy_pointer that does not belong to the peer org's
    declared cross-org capability-policy surface (the
    :attr:`~wirelang.federation.multi_org_substrate.MultiOrgRouteAttestation.peer_capability_policy_pointer`
-   field, additive-monotonic per Sprint-7 Tag-2 backend
+   field, additive-monotonic per backend
    invariant). The verifier requires every chain hop's
    ``policy_pointer`` to resolve in EITHER:
 
    - the **local source-org capability-policy registry** (the
-     Sprint-6 Tag-1 :class:`CapabilityPolicyRegistry` snapshot —
+     :class:`CapabilityPolicyRegistry` snapshot —
      hop is org-internal); OR
    - the **peer cross-org capability-policy resolver** with the
      pointer materially equal to ``attestation.peer_capability_policy_pointer``
@@ -37,14 +37,14 @@ against three replay-class attack surfaces:
    A pointer that resolves in NEITHER surface is a graft and
    fails-closed.
 
-The Tag-4 component is **passive**: it consumes (entry,
+The component is **passive**: it consumes (entry,
 attestation, chain) tuples and returns a frozen verification
 record OR raises a typed structured error. It does not perform
 any side effects, does not mutate registries, and does not emit
 audit events — those are downstream concerns (WAT-Audit-
-Federation-Annex / Tomás D-1 / Sprint-7 Tag-6 live-tail-
+Federation-Annex / D-1 / live-tail-
 replicator). The verifier is the *deterministic policy gate*
-sitting between the Sprint-7 Tag-3 bridge resolution and any
+sitting between the bridge resolution and any
 downstream capability-token-consuming code.
 
 Composition contract
@@ -53,19 +53,19 @@ Composition contract
 The verifier is a *thin composition* of three Phase-2 surfaces
 that already shipped:
 
-- **Sprint-7 Tag-1 substrate**: the
+- **substrate**: the
   :class:`MultiOrgRouteAttestation` carries
   ``peer_capability_policy_pointer`` (additive-monotonic via
-  Tag-2 backend invariant). The Tag-4 verifier reads this field
+  backend invariant). The verifier reads this field
   as the **cross-org boundary anchor**.
-- **Sprint-7 Tag-2 backend**: the authority-gesture monotonic
+- **backend**: the authority-gesture monotonic
   invariant guarantees that once an attestation has a
   capability-policy-pointer set, it cannot be un-set or
   contradicted; the verifier therefore trusts the attestation
   as a stable boundary-marker.
-- **Sprint-6 Tag-1 capability-policy registry**: the source-org
+- **capability-policy registry**: the source-org
   side of policy lookup. The verifier consults the registry to
-  validate hop-local pointers. The Sprint-6 Tag-1 revocation
+  validate hop-local pointers. The revocation
   precedence (``revoked_at <= as_of`` denies) is honoured at
   per-hop granularity — a revoked link fails-closed even if the
   chain is otherwise well-ordered.
@@ -81,8 +81,7 @@ Defence-in-depth posture
 
 The Capability-Attenuation-Chain-Verifier is a defence-in-depth
 layer on top of the existing capability-policy gate. The gate
-already denies categorically on revoked policies (Sprint-6
-Tag-1); the verifier additionally denies on chain-level replay
+already denies categorically on revoked policies; the verifier additionally denies on chain-level replay
 patterns the gate alone cannot detect:
 
 - The gate checks **one (kid, layer, name) decision against one
@@ -93,7 +92,7 @@ patterns the gate alone cannot detect:
 
 Both layers compose: the verifier delegates per-link revocation
 to the gate via the registry's :meth:`policies_for` lookup +
-the Sprint-6 Tag-1 ``revoked_at`` precedence; the verifier adds
+the ``revoked_at`` precedence; the verifier adds
 ordering + freshness + cross-org-boundary checks on top.
 
 Schema-URI
@@ -101,47 +100,30 @@ Schema-URI
 
 The verification artefact carries the schema URI
 ``wakir.federation.capability-attenuation-chain/1`` so the
-WAT-Audit-Federation-Annex (Tomás D-1, forthcoming) can anchor
+WAT-Audit-Federation-Annex (D-1, forthcoming) can anchor
 verifications into both peer-org and Wakir-org WAT merkle leaves
 with a stable label. Phase-1b convention applies: ``wakir.``
 prefix, kebab-case noun, integer version suffix.
 
-ADR-0050 Tool-Surface-Stempel
-=============================
-
-This file was authored using Read, Edit, Write, Bash. No
-Agent-Tool, no WebFetch within this module.
-
-ADR-0049 Pre-Box-Worktree
-=========================
-
-This module was authored in an isolated worktree
-``/tmp/reza-sprint-7-tag-4-runtime`` with the ``-runtime``
-suffix from Tag-3-Tip ``0908d85``. Tag-4 substantively depends
-on the Tag-1 substrate (``MultiOrgRouteAttestation``) and the
-Sprint-6 Tag-1 :class:`CapabilityPolicyRegistry` surface. The
-worktree is cleaned up after the β-push.
 
 Cross-review Zone-O status (D-1 specific)
 =========================================
 
-The Capability-Attenuation-Chain-Verifier is **Tomás-D-1-Audit-
+The Capability-Attenuation-Chain-Verifier is **D-1-audit-
 bezogen**: the verification artefact's ``chain_hash`` field is
 the surface the WAT-Audit-Federation-Annex (forthcoming) will
-anchor into both org-side WAT merkle leaves. The Sprint-7 Tag-3
-``BRIDGE_RESOLUTION_SCHEMA`` and the Tag-4
-``CHAIN_VERIFICATION_SCHEMA`` together form the two-anchor
+anchor into both org-side WAT merkle leaves. The ``BRIDGE_RESOLUTION_SCHEMA`` and the ``CHAIN_VERIFICATION_SCHEMA`` together form the two-anchor
 surface the annex consumes.
 
 Cross-references
 ================
 
-- Tag-1 substrate: ``wirelang/federation/multi_org_substrate.py``
-- Tag-2 backend: ``wirelang/federation/multi_org_attestation_nats_kv_backend.py``
-- Tag-3 bridge: ``wirelang/federation/spiffe_cross_trust_domain_bridge.py``
-- Sprint-6 Tag-1 capability-policy registry:
+- substrate: ``wirelang/federation/multi_org_substrate.py``
+- backend: ``wirelang/federation/multi_org_attestation_nats_kv_backend.py``
+- bridge: ``wirelang/federation/spiffe_cross_trust_domain_bridge.py``
+- capability-policy registry:
   ``wirelang/schemas/registered_by_capability.py``
-- Sprint-6 Tag-6 cross-bucket replication:
+- cross-bucket replication:
   ``wirelang/schemas/capability_policy_replication.py``
 
 Version
@@ -180,12 +162,12 @@ from ..schemas.registered_by_capability import (
 #: of minutes-to-hours, not days. A 1 h ceiling gives one full
 #: replay-window of headroom without admitting day-scale stale
 #: hops. Callers MAY override with a tighter or a looser bound;
-#: the default is the operationally-safe value for Sprint-7 trial.
+#: the default is the operationally-safe value for the federation trial.
 DEFAULT_MAX_LINK_AGE_SECONDS: int = 60 * 60
 
 
 #: Schema-URI for the chain-verification artefact. Consumed by
-#: the WAT-Audit-Federation-Annex (Tomás D-1, forthcoming) when
+#: the WAT-Audit-Federation-Annex (D-1, forthcoming) when
 #: anchoring a verified chain into both peer-org and Wakir-org
 #: WAT merkle leaves. Phase-1b convention: ``wakir.`` prefix,
 #: kebab-case noun, integer version suffix.
@@ -205,8 +187,7 @@ class CapabilityAttenuationChainError(MultiOrgSubstrateError):
     errors.
 
     Inherits :class:`MultiOrgSubstrateError` so downstream callers
-    that already catch the substrate base (Tag-1 mock + Tag-2
-    backend + Tag-3 bridge) catch every verifier surface without
+    that already catch the substrate base (mock + backend + bridge) catch every verifier surface without
     broadening their handler. New error types added in future
     tag-iterations MUST parent here.
     """
@@ -350,7 +331,7 @@ class AttenuationLinkRevokedError(CapabilityAttenuationChainError):
     revocation post-dates the link minting but pre-dates the
     verification).
 
-    The Sprint-6 Tag-1 revocation precedence applies: a revoked
+    The revocation precedence applies: a revoked
     policy denies categorically once the revocation instant has
     passed. The verifier enforces this per-link rather than only
     on the terminal hop because a chain whose intermediate hop
@@ -416,8 +397,7 @@ class AttenuationLink:
             UTC). ``None`` means the link relies solely on the
             verifier's ``max_link_age_seconds`` ceiling for
             freshness.
-        registered_by: optional issuer identity (Sprint-6
-            ``registered_by`` axis). When supplied, the verifier
+        registered_by: optional issuer identity (``registered_by`` axis). When supplied, the verifier
             uses this to scope the local-registry lookup. ``None``
             means the verifier uses the policy_pointer as-is
             against the registry's bulk index.
@@ -648,8 +628,7 @@ class CapabilityAttenuationChainVerifier:
 
     Composition:
 
-    - ``source_registry``: the Sprint-6 Tag-1
-      :class:`CapabilityPolicyRegistry` snapshot of the source org
+    - ``source_registry``: the :class:`CapabilityPolicyRegistry` snapshot of the source org
       (the org running the verifier). The verifier looks up each
       hop's ``policy_pointer`` here first.
     - ``peer_resolver``: the
@@ -744,13 +723,13 @@ class CapabilityAttenuationChainVerifier:
     ) -> Optional[CapabilityPolicy]:
         """Local source-registry lookup.
 
-        The Sprint-6 Tag-1 registry indexes by ``registered_by``;
+        The registry indexes by ``registered_by``;
         when the link carries a ``registered_by`` we scope the
         lookup. Otherwise we sweep every issuer's policies and
         match by an identity check on a synthesised pointer (the
         registry exposes :meth:`policies_for` keyed by issuer).
         Pointer-to-policy identity is delegated to the calling
-        convention: by Sprint-6 Tag-1 convention, the pointer is
+        convention: by convention, the pointer is
         either ``"<registered_by>::<policy_id>"`` or a
         registry-key string. We support both shapes by:
 
@@ -773,7 +752,7 @@ class CapabilityAttenuationChainVerifier:
                 return None
             policies = self.source_registry.policies_for(issuer)
             for p in policies:
-                # The Sprint-6 Tag-1 CapabilityPolicy does not
+                # The CapabilityPolicy does not
                 # carry a policy_id (that lives on the record-
                 # wrapping CapabilityPolicyRecord at the backend
                 # layer); for the verifier's substrate-level
@@ -1115,8 +1094,7 @@ def _compute_chain_hash(
       (JCS-compatible) with timestamps in ISO-8601 UTC form.
 
     BLAKE2b-256 (32 bytes) is the same hash family used by the
-    Sprint-3 Tag-6 schema-registry envelopes and the Sprint-6
-    Tag-1 capability-policy backend; consistency across the
+    schema-registry envelopes and the capability-policy backend; consistency across the
     federation layer eases WAT-Audit-Federation-Annex sweep.
     """
     payload = {

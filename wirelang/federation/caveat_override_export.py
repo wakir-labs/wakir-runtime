@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: BUSL-1.1
 """CaveatOverrideEvent cross-org export surface.
 
-Phase-2 Sprint-9 Tag-1 lands the cross-org export pattern for the
-Sprint-8 Tag-3
+This module lands the cross-org export pattern for the
 :class:`~wirelang.federation.marker_composition.CaveatOverrideEvent`.
 The event is a load-bearing lifecycle-axis-artefact within a single
 Wakir-Org marker-composition reducer: a verifier observes that the
 issuer-side caveat chain was narrowed *after* the token was minted
 and emits a ``CaveatOverrideEvent`` so the composition reducer
 collapses the lifecycle to the terminal ``CAVEAT_OVERRIDDEN`` state.
-For **multi-org federation** scenarios (Sprint-7 Tag-1+ substrate),
+For **multi-org federation** scenarios (substrate),
 the internal event MUST NOT leak naively across an org boundary:
 the event carries operator-supplied free-form text
 (``override_reason``) and the full pre/post caveat-chains
@@ -21,8 +20,7 @@ export.
 Pattern alignment
 =================
 
-This module mirrors the Sprint-7 Tag-5
-:mod:`wirelang.federation.unrevoke_audit_marker_cross_org_export`
+This module mirrors the :mod:`wirelang.federation.unrevoke_audit_marker_cross_org_export`
 exporter (load-bearing
 :class:`~wirelang.federation.unrevoke_audit_marker_cross_org_export.UnrevokeAuditMarkerCrossOrgExporter`).
 The same pseudonymisation pattern (ADR-0031 D4) applies:
@@ -63,7 +61,7 @@ re-exporting a byte-equal source event against the same route
 attestation **at the same sequence_number** produces a byte-equal
 ``override_event_id`` (timing-invariant; sequence-aware).
 
-Replay-protection (Sprint-9 Tag-1 substantive new gate)
+Replay-protection (substantive new gate)
 =======================================================
 
 Cross-org-export markers carry an integer ``sequence_number``
@@ -80,7 +78,7 @@ by the exporter. Two semantics:
   :class:`SequenceNumberLedger` Protocol abstracts the durable
   ledger (default: in-memory; production: NATS-KV bucket
   ``wakir-caveat-override-export-sequence-{org_id}``,
-  out-of-scope for Tag-1). The ledger surfaces:
+  out of scope here). The ledger surfaces:
 
   - :meth:`SequenceNumberLedger.next_sequence(route_id, chain_hash)`:
     returns the next allowed sequence_number for the pair.
@@ -156,33 +154,20 @@ WAT-Audit-Federation-Annex anchoring
 
 The export artefact carries the schema URI
 ``wakir.federation.caveat-override-event-export/1`` so the
-WAT-Audit-Federation-Annex (Tomás D-1, forthcoming) can anchor
+WAT-Audit-Federation-Annex (D-1, forthcoming) can anchor
 exported events into both peer-org and Wakir-org WAT merkle
 leaves with a stable label.
 
-ADR-0050 Tool-Surface-Stempel
-=============================
-
-This file was authored using Read, Edit, Write, Bash. No
-Agent-Tool, no WebFetch within this module.
-
-ADR-0049 Pre-Box-Worktree
-=========================
-
-This module was authored in an isolated worktree
-``/tmp/reza-sprint-9-tag-1-caveat-override-export-runtime`` with
-the ``-runtime`` suffix from ``origin/main`` (Sprint-8 Tag-4
-post-merge tip). The worktree is cleaned up after the β-push.
 
 Cross-references
 ================
 
-- Sprint-8 Tag-3 ``CaveatOverrideEvent``:
+- ``CaveatOverrideEvent``:
   ``wirelang/federation/marker_composition.py``.
-- Sprint-7 Tag-5 ``UnrevokeAuditMarker`` cross-org export
+- ``UnrevokeAuditMarker`` cross-org export
   (pattern source):
   ``wirelang/federation/unrevoke_audit_marker_cross_org_export.py``.
-- Sprint-7 Tag-1 federation substrate
+- federation substrate
   (``MultiOrgRouteAttestation`` carrier of the export route):
   ``wirelang/federation/multi_org_substrate.py``.
 - ADR-0031 D4 Pseudonymisierungs-Pattern.
@@ -601,7 +586,7 @@ class SequenceNumberLedger(Protocol):
     The default in-memory implementation
     :class:`InMemorySequenceNumberLedger` is suitable for tests
     and single-process exporters; production deployments install
-    a NATS-KV-backed ledger (Sprint-9 Tag-N+ slot).
+    a NATS-KV-backed ledger.
     """
 
     def next_sequence(
@@ -649,8 +634,7 @@ class InMemorySequenceNumberLedger:
 
     Hermetic-test-grade and single-process-exporter-grade. NOT
     durable; restart-on-crash loses the ledger state. Production
-    deployments install a NATS-KV-backed ledger (Sprint-9 Tag-N+
-    slot).
+    deployments install a NATS-KV-backed ledger.
     """
 
     _state: Dict[Tuple[str, str], int] = field(default_factory=dict)

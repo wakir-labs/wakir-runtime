@@ -2,9 +2,9 @@
 """V-908 N2 live evaluator for the ``peer_org`` and
 ``federation_route`` Datalog caveat predicates.
 
-This module is the Phase-1b Sprint-2 Tag-3 production-form of the
-federation predicate evaluator. Sprint-1 reserved the predicate
-names in ``wirelang/specs/datalog-caveat-vocabulary-phase-2-skizze.md``
+This module is the production-form of the
+federation predicate evaluator. The predicate names are reserved in
+``wirelang/specs/datalog-caveat-vocabulary-phase-2-skizze.md``
 section 3.2 (V-908 / ADR-0031 D2); the Phase-1b federation substrate
 (``wirelang.identity.dns_anchor`` + ``ftd_verifier`` +
 ``federation_resolver``) supplies the FTD-doc verify pipeline. This
@@ -285,7 +285,7 @@ class FederationContext:
 class FederationEvaluator:
     """Live evaluator for V-908 federation Datalog predicates.
 
-    Phase-1b Sprint-2 Tag-3 implementation. The evaluator is a
+    implementation. The evaluator is a
     thin layer that turns predicate calls into deterministic
     accept/reject verdicts against a :class:`FederationContext`.
 

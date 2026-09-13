@@ -6,7 +6,7 @@ This module is the byte-identical Python sibling of the Rust crate
 ``wirelang-rust/crates/persona-engine-federation-frame-parser``
 (Phase-3a Item 9, PR #148). The Rust crate originally shipped with
 a ``TODO_PYTHON_FRAME_PARITY_PIN`` placeholder because the Python
-side did not yet exist; this Tag-14 follow-up closes that gap and
+side did not yet exist; this follow-up closes that gap and
 elevates the cross-lang pin to a real byte-pinned fixture file.
 
 # Public surface
@@ -93,12 +93,11 @@ the payload sub-keys sort to ``data, kind, schema``.
 # ADR anchors
 
 - ADR-0063 §Folgeartefakte Phase-3a Item 9 — Rust crate.
-- Tag-14 Mini-Welle Phase-3a-Folge — this Python sibling.
 - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine;
   Python sibling remains the wirelang-side contract carrier.
-- Tomás Sprint-10 Tag-6 PR #69 — ``bridge-forward-pipe-v1.md``
+- PR #69 — ``bridge-forward-pipe-v1.md``
   task-assigned payload schema authority.
-- Reza Sprint-7 Tag-1 — ``multi_org_substrate.py``
+- the multi-org substrate — ``multi_org_substrate.py``
   multi-org-attestation payload schema authority.
 """
 
