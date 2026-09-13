@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for Tag-57 OPEN-K1 + OPEN-K2 closeout.
+"""Hermetic tests for OPEN-K1 + OPEN-K2 closeout.
 
 OPEN-K1: Containerfile base-image SHA digest pin verifier
   (``tooling/ci/verify_containerfile_base_image_digest.py``) plus the

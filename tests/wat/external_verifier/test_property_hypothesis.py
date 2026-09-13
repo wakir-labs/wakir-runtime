@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 
-"""Hypothesis property-tests for the external-verifier surface (Sprint-8 Tag-4).
+"""Hypothesis property-tests for the external-verifier surface.
 
 Background
 ----------
 
-Sprint-8 Tag-3 (TV-DET-3) shipped a parser-determinism check using
+ (TV-DET-3) shipped a parser-determinism check using
 ``stdlib`` ``random.Random(seed)`` over fifty hand-rolled seeds. That
-was a stand-in: substantive shrinking, drift-finding, and
+was a stand-: substantive shrinking, drift-finding, and
 counter-example minimisation are the value-add of a real
-property-based testing library. Tag-4 deepens TV-DET-3 with five
+property-based testing library. deepens TV-DET-3 with five
 Hypothesis-driven property-tests over the parser, aggregator, and
 discrepancy-summary surface.
 
@@ -70,12 +70,12 @@ OTS-bytes strategies
 Two strategies are exposed for callers who want to drive their own
 property tests:
 
-* :func:`ots_proof_bytes_well_formed` — bytes that begin with the
+*:func:`ots_proof_bytes_well_formed` — bytes that begin with the
   OTS magic-bytes header and a randomised
   ``BitcoinBlockHeaderAttestation(H)`` line. Accepted by the
   structural pole.
 
-* :func:`ots_proof_bytes_malformed` — bytes that deliberately do
+*:func:`ots_proof_bytes_malformed` — bytes that deliberately do
   NOT begin with the OTS magic-bytes header (random prefix), with
   arbitrary tail. The structural pole must reject these with
   ``verdict="failed"`` and not crash.
@@ -88,7 +88,7 @@ from typing import Any
 
 import pytest
 
-# Skip the whole module cleanly when hypothesis is absent (e.g. the
+# Skip the whole module cleanly when hypothesis is absent (e.g. The
 # sandbox-CI lane which intentionally trims optional test deps).
 hypothesis = pytest.importorskip("hypothesis")
 
@@ -326,7 +326,7 @@ def _serialise(verification: AnchorVerification) -> str:
     height=st.integers(min_value=1, max_value=(2**31) - 1),
 )
 def test_tv_prop_3_aggregator_idempotent(tmp_path_factory, height: int) -> None:
-    """Two identical aggregator invocations produce bit-identical to_dict()."""
+    """Two identical aggregator invocations produce bit-identical to_dict."""
     tmp = tmp_path_factory.mktemp("agg-idem")
     receipt = tmp / "root.bin.ots"
     receipt.write_bytes(RECEIPT_948183_BYTES)
@@ -365,7 +365,7 @@ _VERDICTS = ("verified", "failed", "unavailable")
 
 @st.composite
 def synthetic_anchor_verification(draw) -> AnchorVerification:
-    """Strategy: a randomly-shaped :class:`AnchorVerification`.
+    """Strategy: a randomly-shaped:class:`AnchorVerification`.
 
     Each of the four poles independently draws a verdict and a
     matching witness dict (verified poles carry a hash + height,

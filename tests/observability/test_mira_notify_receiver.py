@@ -10,8 +10,8 @@ Coverage targets:
 * ``run_intake`` - dedupe, dead-letter, materialisation counts.
 * CLI ``--mode=file`` and ``--mode=tail`` happy paths.
 
-Anchor: Tag-46 Mira-Notify substance.
-Author: Noa Bergstroem (SRE)
+Anchor: operator-Notify substance.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations
@@ -277,7 +277,7 @@ class TestCliFileMode:
     def test_file_mode_missing_input_returns_zero_with_no_events(
         self, tmp_path
     ):
-        # iter_lines_from_file returns iter(()) for missing files; this
+        # iter_lines_from_file returns iter() for missing files; this
         # is by design (the alert-manager hasn't dropped a snapshot yet).
         inbox = tmp_path / "inbox"
         rc = receiver.main(

@@ -2,12 +2,12 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the Esplora HTTP fallback.
 
-The Esplora client and ``verify_receipt``'s Tag-15 fallback path are
+The Esplora client and ``verify_receipt``'s fallback path are
 exercised entirely in-process: ``urllib.request.urlopen`` is patched
 to a canned-response stub so no network call leaves the test runner.
 This keeps CI deterministic and polite against blockstream.info.
 
-Test inventory (Tag-15 spec §Item 1):
+Test inventory (spec §Item 1):
 
 - (a) Cache-Miss + HTTP-200 + match — happy path, sidecar files
   created.
@@ -44,17 +44,17 @@ from wat.anchor import esplora, ots_anchor
 
 
 # A real, recent main-net block hash (height 948183). Pinned because
-# the OTS receipt currently in .runtime/ for TV-1 cites this same
+# the OTS receipt currently .runtime/ for TV-1 cites this same
 # height; using the real hash keeps the test value-checked.
 TV1_HEIGHT = 948183
 TV1_HASH = "00000000000000000000ec730435b01d9bdd9de0a10f1a8c4a33ea27e52b2110"
 
 
 class FakeResponse(io.BytesIO):
-    """Minimal stand-in for :class:`http.client.HTTPResponse`.
+    """Minimal stand-in :class:`http.client.HTTPResponse`.
 
     Implements just the surface ``urllib.request.urlopen`` is used
-    for in :func:`wat.anchor.esplora._http_get_text`: a context
+    for :func:`wat.anchor.esplora._http_get_text`: a context
     manager with a ``status`` attribute and a ``read()`` method.
     """
 
@@ -273,7 +273,7 @@ def test_lookup_block_with_cache_missing_dir_raises(tmp_path: Path) -> None:
 
 @pytest.fixture
 def receipt_archive_with_finalised(tmp_path: Path) -> Path:
-    """Build an archive directory with a fake .ots receipt + root.bin.
+    """Build an archive directory with a fake.ots receipt + root.bin.
 
     The receipt is a placeholder file; we mock both ``ots verify``
     (returns no Success!, simulating no-local-node) and ``ots info``

@@ -1,44 +1,44 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-64 Cutover-Day-Morgen Trinary-Verdict-Reactive-Routing tests.
+"""cutover-morning Trinary-Verdict-Reactive-Routing tests.
 
 Covers (>= 12 tests; ships 16):
 
-  T01  Bridge module importable; trinary constants present (3 classes).
-  T02  ROUTING_CLASS_CHANNELS table shape: 3 classes, each tuple non-
+  T01 Bridge module importable; trinary constants present (3 classes).
+  T02 ROUTING_CLASS_CHANNELS table shape: 3 classes, each tuple non-
        empty, each class has an escalation entry.
-  T03  EXPECTED_TRINARY_ROUTING binds the 3 alertnames to the 3
+  T03 EXPECTED_TRINARY_ROUTING binds the 3 alertnames to the 3
        canonical routing_class values.
-  T04  ALERT_CATALOG has all 3 Tag-64 entries with the expected
+  T04 ALERT_CATALOG has all 3 entries with the expected
        severity ladder (info / page / page-storm).
-  T05  `validate_trinary_routing_table_shape` returns all-empty lists
+  T05 `validate_trinary_routing_table_shape` returns all-empty lists
        on the real bridge module (no missing classes/channels/esc).
-  T06  Channel-set for `ops-on-call-plus-management` is a superset of
+  T06 Channel-set for `ops-on-call-plus-management` is a superset of
        `ops-on-call` channels in spirit (page + ar-hand ntfy).
-  T07  Escalation deadline: standard=0, ops-on-call=600, ops-on-call-
+  T07 Escalation deadline: standard=0, ops-on-call=600, ops-on-call-
        plus-management=300 (BLOCK faster than CAUTION because BLOCK
        gates the operator-trigger pipeline).
-  T08  PROM_SEVERITY_TO_NOTIFY maps `page-storm` -> `page` (emitter
+  T08 PROM_SEVERITY_TO_NOTIFY maps `page-storm` -> `page` (emitter
        vocabulary tops out at page).
-  T09  `lookup_routing_class_channels` returns a tuple for every
-       VALID_ROUTING_CLASSES member and () for unknown class.
-  T10  Alerts YAML contains all 3 trinary alertnames as top-level
+  T09 `lookup_routing_class_channels` returns a tuple for every
+       VALID_ROUTING_CLASSES member and for unknown class.
+  T10 Alerts YAML contains all 3 trinary alertnames as top-level
        `- alert: <Name>` lines.
-  T11  Each trinary alert in the YAML carries the EXPECTED routing_class
+  T11 Each trinary alert in the YAML carries the EXPECTED routing_class
        label value, a verdict_class label, and tag: tag-64.
-  T12  Each trinary alert in the YAML uses the recording-rule
+  T12 Each trinary alert in the YAML uses the recording-rule
        `wakir_cutover_day_morgen_verdict_class` as its expr-source.
-  T13  `map_alert_to_event_kwargs` enriches a synthetic CAUTION
+  T13 `map_alert_to_event_kwargs` enriches a synthetic CAUTION
        AlertManager envelope with notify_channels + escalation.
-  T14  `map_alert_to_event_kwargs` enriches a synthetic BLOCK
+  T14 `map_alert_to_event_kwargs` enriches a synthetic BLOCK
        envelope with the page-storm channel-set.
-  T15  `map_alert_to_event_kwargs` does NOT add notify_channels when
+  T15 `map_alert_to_event_kwargs` does NOT add notify_channels when
        the routing_class label is missing OR unknown.
-  T16  CLI `validate-trinary-routing` exits 0 on real bridge module
+  T16 CLI `validate-trinary-routing` exits 0 on real bridge module
        and emits a parseable JSON envelope with empty drift lists.
 
-Anchor: Tag-64 Marathon-Continuous-Mode Pre-KW-24 Alert-Routing
-        Cutover-Day-Morgen Trinary-Verdict-Reactive-Wiring.
+Anchor: Marathon- Pre-calendar week 24 Alert-Routing
+        cutover-morning Trinary-Verdict-Reactive-Wiring.
 """
 
 from __future__ import annotations
@@ -92,9 +92,9 @@ def test_t01_trinary_constants_present(bridge) -> None:
         == "ops-on-call-plus-management"
     )
     assert isinstance(bridge.VALID_ROUTING_CLASSES, frozenset)
-    # Tag-64 baseline: standard / ops-on-call / ops-on-call-plus-management.
-    # Tag-71 extends with welle-3-pre-auditor-info (positive ack for
-    # Welle-3 external Pre-Auditor designation). The Tag-64 trinary
+    # baseline: standard / ops-on-call / ops-on-call-plus-management.
+    # extends with wave 3 pre-auditor-info (positive ack for
+    # wave 3 external Pre-Auditor designation). The trinary
     # contract still holds for the cutover-day-morgen verdict surface;
     # the new routing class is additive and orthogonal.
     assert bridge.VALID_ROUTING_CLASSES >= {
@@ -138,7 +138,7 @@ def test_t03_expected_trinary_routing_binding(bridge) -> None:
 
 
 # ---------------------------------------------------------------------------
-# T04 - alert-catalog severity ladder for the 3 Tag-64 entries
+# T04 - alert-catalog severity ladder for the 3 entries
 # ---------------------------------------------------------------------------
 
 

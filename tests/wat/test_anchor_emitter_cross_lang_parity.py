@@ -3,7 +3,7 @@
 """Cross-lang parity tests for the persona-engine anchor-emitter.
 
 The Python module under test
-(:mod:`wirelang.persona_engine.anchor_emitter`) is BUSL-1.1; the
+:mod:`wirelang.persona_engine.anchor_emitter`) is BUSL-1.1; the
 tests themselves are Apache-2.0 so downstream re-implementers can
 re-use the same vectors.
 
@@ -25,9 +25,9 @@ Test taxonomy
   ``"sha256:"`` + 64 lower-case hex chars.
 - T08 — Wire-shape key order: JCS canonical output has the five
   keys in lex order.
-- T09 — Wire-shape embedded hash equals :func:`sha256_hex` over
+- T09 — Wire-shape embedded hash equals:func:`sha256_hex` over
   the same payload bytes (bridge to bare-hex Python form).
-- T10 — :func:`serialize_and_hash` matches the individual calls
+- T10 —:func:`serialize_and_hash` matches the individual calls
   byte-for-byte.
 - T11 — Sensitivity: a payload byte change flips the outer hash.
 - T12 — Sensitivity: an ``event_id`` change flips the outer hash

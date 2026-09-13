@@ -5,11 +5,11 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-5 = ``lifecycle_state_machine``,
+- ADR-0065 §Rollback-Strategie (wave 5 = ``lifecycle_state_machine``,
   stateful, Cross-Modul-Dependency).
-- ADR-0066 §Rollback + §Beschluss (Welle-5 = Doppel-Welle mit Welle-4
+- ADR-0066 §Rollback + §Beschluss (wave 5 = dual-run wave mit wave 4
   = ``state_backing``, Cross-Modul-Drift-Focus **hoch**).
-- Sister per-welle E2E acceptance file: ``test_welle_5_lifecycle_
+- Sister per-wave E2E acceptance file: ``test_welle_5_lifecycle_
   state_machine_e2e.py``.
 
 Komponente character
@@ -19,7 +19,7 @@ Komponente character
 persona-lifecycle transitions. Rollback risk profile: **high** —
 stateful, with the producer-consumer contract against state_backing
 as the dominant Drift-Risk surface. Per ADR-0066 §Beschluss-Tabelle
-this is the second half of Doppel-Welle DW-4+5 (Cross-Modul-Drift-
+this is the second half of dual-run wave DW-4+5 (Cross-Modul-Drift-
 Focus *hoch*).
 
 The four RD-1...RD-4 gates verify the same ENV-Flag-Switch contract
@@ -58,10 +58,10 @@ def test_rd_1_env_flag_switch_effective(mocked_rollback_event) -> None:
 def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     """RD-2 — BackendDecision-Audit-Record dokumentiert Rollback-Event.
 
-    For Doppel-Welle DW-4+5 the rollback may be **asymmetric** —
+    For dual-run wave DW-4+5 the rollback may be **asymmetric** —
     lifecycle_state_machine alone, or together with state_backing.
     The drill here gates the lifecycle-alone audit-record; the
-    Doppel-Welle test-file ``test_dual_run_state_backing_lifecycle_e2e.py`` covers
+    dual-run wave test-file ``test_dual_run_state_backing_lifecycle_e2e.py`` covers
     the paired-audit cardinality.
     """
     event = mocked_rollback_event(MODUL)
@@ -90,7 +90,7 @@ def test_rd_4_time_to_rollback_within_sla(mocked_rollback_event) -> None:
     Lifecycle-state-machine rollback elapsed-time is comparable to
     state_backing because both share the engine-boot dominator. The
     600s SLA holds for the non-schema-migration path; schema-migration
-    rollback (2-hour SLA) is scoped to a separate Reza-Folge-Artefakt.
+    rollback (2-hour SLA) is scoped to a separate the protocol zone-Folge-Artefakt.
     """
     event = mocked_rollback_event(MODUL)
     assert_rd_4_time_to_rollback_within_sla(event, MODUL)

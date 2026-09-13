@@ -1,25 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 
-"""Multi-pole determinism + discrepancy audit (Sprint-8 Tag-3).
+"""Multi-pole determinism + discrepancy audit.
 
 The Position-Paper §L4-References annex claims that four independent
 implementations agree byte-precisely on a valid OTS-anchor proof.
-Sprint-8 Tag-1 shipped the surface, Tag-2 shipped a live capture
-against block 948183. Tag-3 hardens the cross-library claim with two
+ shipped the surface, shipped a live capture
+against block 948183. hardens the cross-library claim with two
 audit axes:
 
-1.  **Determinism.** Re-running the verifier on the same input must
-    produce a bit-identical :class:`AnchorVerification` payload. A
+1. **Determinism.** Re-running the verifier on the same input must
+    produce a bit-identical:class:`AnchorVerification` payload. A
     pole that quietly carried a wall-clock timestamp or a dict-order
     artefact into its witness would weaken the brand-proof contract:
     an auditor who replays the saved witness JSON six months later
     must get the same answer.
 
-2.  **Discrepancy handling.** When two poles disagree on substance,
+2. **Discrepancy handling.** When two poles disagree on substance,
     the aggregator must surface the disagreement in a structured way
     so an auditor can read the verdict + the divergence pattern
-    without flattening pole_results by hand. The Tag-3 helper
+    without flattening pole_results by hand. The helper
     :func:`summarise_discrepancies` provides the structured report.
 
 Test-vector matrix (TV-DET-*):
@@ -113,9 +113,9 @@ def _load_live_capture() -> dict:
 def _overrides_from_live(captured: dict) -> dict:
     """Build aggregator pole_overrides from the live witness capture.
 
-    Distinct from the helper in :mod:`test_witness_captures` so the
+    Distinct from the helper :mod:`test_witness_captures` so the
     determinism tests stay decoupled: any future change to the
-    Tag-2 helper must not silently change Tag-3 expectations.
+    helper must not silently change expectations.
     """
     height = captured["block_height"]
     canonical_hash = captured["pole_witnesses"][

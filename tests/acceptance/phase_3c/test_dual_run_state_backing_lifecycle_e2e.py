@@ -1,44 +1,44 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Doppel-Welle-4+5 E2E acceptance — ``state_backing`` +
-``lifecycle_state_machine`` parallel cutover (KW 26).
+"""Phase-3c dual-run wave-4+5 E2E acceptance — ``state_backing`` +
+``lifecycle_state_machine`` parallel cutover (calendar week 26).
 
 Anchors
 -------
 
-- ADR-0066 §Beschluss — Doppel-Welle KW 26: Welle-4 + Welle-5 parallel.
-- ADR-0066 §Mitigation 1 — **Cross-Modul-Stress-Test grün vor Cutover**
-  is a hard pre-requisite for Welle-4+5. Phase-2-Acceptance-Gate
-  (PR #178) was extended with Cross-Modul-Stress-Test by Tomás Tag-29.
-- ADR-0066 §Rollback-Strategie — bei Cross-Modul-Bug in Doppel-Wellen:
+- ADR-0066 §Beschluss — dual-run wave calendar week 26: wave 4 + wave 5 parallel.
+- ADR-0066 §Mitigation 1 — **Cross-Modul-Stress-Test grün vor cutover**
+  is a hard pre-requisite for wave 4+5. Phase-2-Acceptance-Gate
+  (PR #178) was extended with Cross-Modul-Stress-Test by the engineering zone.
+- ADR-0066 §Rollback-Strategie — bei Cross-Modul-Bug in Doppel-waves:
   *beide* Komponenten gleichzeitig zurück auf python-Default.
-- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — Welle-5 reads
-  state-records that Welle-4 (Rust-state_backing) wrote; the contract
-  is now *two-sided rust* under Doppel-Welle (vs. one-sided rust in
+- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — wave 5 reads
+  state-records that wave 4 (Rust-state_backing) wrote; the contract
+  is now *two-sided rust* under dual-run wave (vs. one-sided rust in
   the original ADR-0065 sequential plan).
 - ``test_state_backing_e2e.py`` + ``test_welle_5_lifecycle_state_
-  machine_e2e.py`` — per-welle sister files. Welle-4 first introduces
-  persistent state; Welle-5 first introduces cross-modul dependency.
-  Doppel-Welle-4+5 collapses these two risk-classes into one cutover.
+  machine_e2e.py`` — per-wave sister files. wave 4 first introduces
+  persistent state; wave 5 first introduces cross-modul dependency.
+  dual-run wave-4+5 collapses these two risk-classes into one cutover.
 
-Doppel-Welle character — **Cross-Modul-Drift-Focus**
+dual-run wave character — **Cross-Modul-Drift-Focus**
 ----------------------------------------------------
 
 This is the **highest cross-modul-drift-risk** of the three Doppel-
-Wellen, because:
+waves, because:
 
 1. ``state_backing`` *produces* JCS-canonicalised state-records that
    ``lifecycle_state_machine`` *consumes*. The producer/consumer
    contract is a primary drift-surface.
 2. Both moduln flip to rust in the same cutover-cycle, so the
    contract is now Rust-producer × Rust-consumer (no Python-fallback
-   on either side mid-Doppel-Welle).
+   on either side mid-dual-run wave).
 3. The transition-table (lifecycle) interacts with the state-write-
    schema (state_backing) — drift in either layer cascades.
 
 DW-AC-2 (Cross-Modul-Schema byte-parity) and DW-AC-4 (Cross-Modul-
-Stress-Test) carry the dominant gate-weight here. Welle-1+2 had
-DW-AC-1 + DW-AC-5 as primary; Welle-4+5 inverts that emphasis.
+Stress-Test) carry the dominant gate-weight here. wave 1+2 had
+DW-AC-1 + DW-AC-5 as primary; wave 4+5 inverts that emphasis.
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ pytestmark = pytest.mark.phase_3c_doppel_welle_acceptance
 
 
 def test_doppel_welle_4_5_anchored_to_kw_26() -> None:
-    """Sanity: this file targets the ADR-0066 KW 26 Doppel-Welle pair."""
+    """Sanity: this file targets the ADR-0066 calendar week 26 dual-run wave pair."""
     assert EXPECTED_KW == "KW26", (
         f"Doppel-Welle-4+5 must anchor to KW26 per ADR-0066 §Beschluss; "
         f"got {EXPECTED_KW!r}"
@@ -80,7 +80,7 @@ def test_doppel_welle_4_5_anchored_to_kw_26() -> None:
 
 
 # ---------------------------------------------------------------------------
-# DW-AC-1 — Both Doppel-Welle moduln boot with rust-backend.
+# DW-AC-1 — Both dual-run wave moduln boot with rust-backend.
 # ---------------------------------------------------------------------------
 
 
@@ -89,12 +89,12 @@ def test_doppel_welle_4_5_dw_ac_1_both_moduln_boot_rust(
 ) -> None:
     """DW-AC-1: state_backing + lifecycle_state_machine both on rust.
 
-    Pre-Welle-3 (KW 25) is the bridge_audit_writer solo welle, so by
-    KW 26 the substrate is: v907_verify + svid_workload_identity +
+    Pre-wave 3 (calendar week 25) is the bridge_audit_writer solo wave, so by
+    calendar week 26 the substrate is: v907_verify + svid_workload_identity +
     bridge_audit_writer on rust (3 from prior wellen), plus the
-    Doppel-Welle-4+5 pair → 5 moduln rust, 2 python.
+    dual-run wave-4+5 pair → 5 moduln rust, 2 python.
 
-    The Doppel-Welle boot-builder default models only the new pair;
+    The dual-run wave boot-builder default models only the new pair;
     in production, the prior-wellen rust-flips are persisted in the
     Quadlet-ENV already.
     """
@@ -109,8 +109,8 @@ def test_doppel_welle_4_5_dw_ac_1_boot_failure_blocks(
 ) -> None:
     """DW-AC-1 failure-mode: engine-boot fails → both rollback.
 
-    Welle-4 first introduces state-on-disk that could outlast a
-    rollback; under Doppel-Welle conditions the Schema-Migrations-
+    wave 4 first introduces state-on-disk that could outlast a
+    rollback; under dual-run wave conditions the Schema-Migrations-
     Rollback-Plan (ADR-0065 §Rollback-Procedure §3) is a hard pre-
     requisite to a boot-failure path.
     """
@@ -124,7 +124,7 @@ def test_doppel_welle_4_5_dw_ac_1_boot_failure_blocks(
 # ---------------------------------------------------------------------------
 # DW-AC-2 — Cross-Modul-Schema-Konsistenz (byte-paritär).
 #
-# DOMINANT GATE for Doppel-Welle-4+5 (Cross-Modul-Drift-Focus).
+# DOMINANT GATE for dual-run wave-4+5 (Cross-Modul-Drift-Focus).
 # ---------------------------------------------------------------------------
 
 
@@ -138,11 +138,11 @@ def test_doppel_welle_4_5_dw_ac_2_state_record_to_lifecycle_byte_parity(
     * ``tp-state-record-init`` — initial state-write by state_backing,
       lifecycle reads on persona-spawn.
     * ``tp-state-transition-write`` — lifecycle writes transition,
-      state_backing persists; both sides Rust under Doppel-Welle.
+      state_backing persists; both sides Rust under dual-run wave.
     * ``tp-state-finalize`` — lifecycle marks ``archived``,
       state_backing flushes terminal record.
     * ``tp-state-recovery-readback`` — recovery_workflow path
-      (Welle-7, still Python here in KW 26) reads — but the test is
+      (wave 7, still Python here in calendar week 26) reads — but the test is
       restricted to the rust-rust touchpoints in this DW.
     """
     records = mocked_cross_modul_schema(
@@ -162,7 +162,7 @@ def test_doppel_welle_4_5_dw_ac_2_jcs_byte_drift_blocks(
 ) -> None:
     """DW-AC-2 failure-mode: JCS-byte-divergence on transition-write.
 
-    Welle-4-specific drift-source: Unicode-normalisation or float-
+    wave 4 specific drift-source: Unicode-normalisation or float-
     formatting drift between the Rust JCS-implementation in
     state_backing and the lifecycle_state_machine's Rust-side JCS
     re-read. Cross-Modul-Drift-Focus = exactly this surface.
@@ -187,7 +187,7 @@ def test_doppel_welle_4_5_dw_ac_2_terminal_record_drift_blocks(
     mocked_cross_modul_schema,
 ) -> None:
     """DW-AC-2 failure-mode: drift on terminal ``tp-state-finalize`` is
-    a Welle-7-recovery-blocker (recovery_workflow reads terminal
+    a wave 7 recovery-blocker (recovery_workflow reads terminal
     records to compute the restart-point).
     """
     records = mocked_cross_modul_schema(
@@ -209,8 +209,8 @@ def test_doppel_welle_4_5_dw_ac_2_terminal_record_drift_blocks(
 # ---------------------------------------------------------------------------
 # DW-AC-3 — Asymmetric single-Komponente-Rollback.
 #
-# Note: Welle-4 first triggers the Schema-Migrations-Rollback-Plan
-# pre-requisite — a state_backing rollback under Doppel-Welle means
+# Note: wave 4 first triggers the Schema-Migrations-Rollback-Plan
+# pre-requisite — a state_backing rollback under dual-run wave means
 # lifecycle_state_machine must continue reading Rust-state from disk
 # while *itself* still on Rust. Risky combination, hence ADR-0066
 # §Rollback-Strategie nuance: if state_backing rollback is needed,
@@ -218,7 +218,7 @@ def test_doppel_welle_4_5_dw_ac_2_terminal_record_drift_blocks(
 #
 # DW-AC-3 here verifies the *asymmetric* path is supported; the
 # follow-up policy decision (when to take it vs. both-rollback) is
-# Henrik-Zone-N + Operator-Hand-runbook territory.
+# internal audit-Zone-N + Operator-Hand-runbook territory.
 # ---------------------------------------------------------------------------
 
 
@@ -229,7 +229,7 @@ def test_doppel_welle_4_5_dw_ac_3_rollback_state_backing_partner_stays_rust(
 
     lifecycle_state_machine stays on rust. The two-sided rust →
     one-sided rust transition is what the schema-migration-rollback-
-    plan prepares for.
+    plan prepares .
     """
     record = mocked_single_komponente_rollback(
         MODUL_A,
@@ -260,7 +260,7 @@ def test_doppel_welle_4_5_dw_ac_3_sla_violation_blocks(
 ) -> None:
     """DW-AC-3 failure-mode: rollback >10min blocks the gate.
 
-    For Welle-4 rollback specifically, the Schema-Migrations-Rollback-
+    For wave 4 rollback specifically, the Schema-Migrations-Rollback-
     Plan has a ≤2h drill SLA — but the ENV-Flag-Switch-portion is
     still ≤10min (ADR-0066 retained ADR-0065 SLA).
     """
@@ -277,8 +277,8 @@ def test_doppel_welle_4_5_dw_ac_3_sla_violation_blocks(
 # ---------------------------------------------------------------------------
 # DW-AC-4 — Cross-Modul-Stress-Test grün.
 #
-# DOMINANT GATE for Doppel-Welle-4+5 (Cross-Modul-Drift-Focus).
-# References Tomás Tag-29 Phase-2-Acceptance-Gate-Erweiterung.
+# DOMINANT GATE for dual-run wave-4+5 (Cross-Modul-Drift-Focus).
+# References the engineering zone Phase-2-Acceptance-Gate-Erweiterung.
 # ---------------------------------------------------------------------------
 
 
@@ -292,7 +292,7 @@ def test_doppel_welle_4_5_dw_ac_4_cross_modul_stress_test_green(
     Zero failures, zero p99-latency-excursions, zero schema-drifts
     required.
 
-    References Tomás Tag-29 Cross-Modul-Stress-Test substrate
+    References the engineering zone Cross-Modul-Stress-Test substrate
     (Phase-2-Acceptance-Gate-Erweiterung per ADR-0066 §Mitigation 1).
     """
     record = mocked_cross_modul_stress_test(
@@ -319,7 +319,7 @@ def test_doppel_welle_4_5_dw_ac_4_schema_drift_blocks(
 ) -> None:
     """DW-AC-4 failure-mode: cross-modul-schema-drift during stress.
 
-    This is the dominant Doppel-Welle-4+5 risk surface: stress-induced
+    This is the dominant dual-run wave-4+5 risk surface: stress-induced
     Unicode-normalisation drift, float-formatting drift, or transition-
     table edge-case drift.
     """
@@ -337,7 +337,7 @@ def test_doppel_welle_4_5_dw_ac_4_p99_excursion_blocks(
 ) -> None:
     """DW-AC-4 failure-mode: p99 latency excursion under joint load.
 
-    Especially relevant for Welle-4+5: filesystem-fsync tail
+    Especially relevant for wave 4+5: filesystem-fsync tail
     (state_backing) interacts with the transition-state-machine
     decision-loop (lifecycle); a slow fsync could starve a transition
     and create a latency-excursion that neither modul alone would
@@ -360,7 +360,7 @@ def test_doppel_welle_4_5_dw_ac_4_p99_excursion_blocks(
 def test_doppel_welle_4_5_dw_ac_5_backend_decision_audit_two_records(
     mocked_backend_decision_audit,
 ) -> None:
-    """DW-AC-5: Cutover-Mittwoch emits 2 audit records in one cycle."""
+    """DW-AC-5: cutover-Mittwoch emits 2 audit records in one cycle."""
     records = mocked_backend_decision_audit(MODUL_A, MODUL_B)
     assert_dw_ac_5_backend_decision_audit_two_records_consistent(
         records, MODUL_A, MODUL_B, WELLE_PAIR_LABEL
@@ -396,7 +396,7 @@ def test_doppel_welle_4_5_dw_ac_5_cycle_id_drift_blocks(
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle-4+5 substrate sanity — Schema-Migrations-Rollback drill.
+# dual-run wave-4+5 substrate sanity — Schema-Migrations-Rollback drill.
 # ---------------------------------------------------------------------------
 
 
@@ -407,11 +407,11 @@ def test_doppel_welle_4_5_dw_ac_5_cycle_id_drift_blocks(
     )
 )
 def test_doppel_welle_4_5_schema_migration_rollback_under_2h() -> None:
-    """Doppel-Welle-4+5 Schema-Migrations-Rollback drill: ≤2h SLA on the
+    """dual-run wave-4+5 Schema-Migrations-Rollback drill: ≤2h SLA on the
     full schema-rollback path (separate from the ≤10min ENV-Flag-Switch
     SLA covered by DW-AC-3).
 
-    Operator-Hand drill substrate; the Doppel-Welle-trigger sprint
+    Operator-Hand drill substrate; the dual-run wave-trigger sprint
     wires this against the real state-backing schema-migration tooling.
     """
     raise NotImplementedError("pending Doppel-Welle-cutover")
@@ -424,7 +424,7 @@ def test_doppel_welle_4_5_schema_migration_rollback_under_2h() -> None:
     )
 )
 def test_doppel_welle_4_5_cross_modul_bug_triggers_both_rollback() -> None:
-    """Doppel-Welle-4+5 cross-modul-bug path: when the bug is in the
+    """dual-run wave-4+5 cross-modul-bug path: when the bug is in the
     *contract* between state_backing and lifecycle (not in one modul
     alone), the runbook calls for *both* moduln to roll back per
     ADR-0066 §Rollback-Strategie (the asymmetric DW-AC-3 path does
@@ -469,7 +469,7 @@ def test_doppel_welle_4_5_cmd_ac_1_byte_drift_blocks(
 ) -> None:
     """CMD-AC-1 failure-mode: deserialization mutates record bytes.
 
-    Welle-4+5-specific drift-source: Rust-side serde implementation
+    wave 4+5-specific drift-source: Rust-side serde implementation
     drift between the producer (state_backing-rust) and the consumer
     (lifecycle_state_machine-rust) — e.g. field-ordering drift,
     Unicode-normalisation drift, or float-formatting drift that
@@ -491,11 +491,11 @@ def test_doppel_welle_4_5_cmd_ac_1_schema_version_drop_blocks(
 ) -> None:
     """CMD-AC-1 failure-mode: schema-version field dropped on round-trip.
 
-    This is a Welle-7-recovery-blocker: recovery_workflow reads
+    This is a wave 7 recovery-blocker: recovery_workflow reads
     terminal records to compute restart-points and the schema-version
     field is the primary disambiguator for cross-version state
     migration. A drop on round-trip silently breaks recovery for any
-    state-record persisted under the Doppel-Welle cutover-cycle.
+    state-record persisted under the dual-run wave cutover-cycle.
     """
     records = mocked_cross_modul_drift_deserialization(
         MODUL_A,
@@ -524,8 +524,8 @@ def test_doppel_welle_4_5_cmd_ac_2_write_back_wire_form_parity_all_oracles(
     """CMD-AC-2: transition-triggered persist wire-form matches all oracles.
 
     The Phase-3c-trigger sprint wires this against:
-    * Pre-Welle-4-cutover production state (python-python baseline)
-    * Synthetic python-rust-welle-4-only state (state_backing-rust +
+    * Pre-wave 4 cutover production state (python-python baseline)
+    * Synthetic python-rust-wave 4 only state (state_backing-rust +
       lifecycle-python — never observed in production but available
       as a hypothetical reference oracle).
 
@@ -543,10 +543,10 @@ def test_doppel_welle_4_5_cmd_ac_2_python_baseline_drift_blocks(
 ) -> None:
     """CMD-AC-2 failure-mode: Rust-Rust diverges from python-python baseline.
 
-    This is the dominant regression-class for the Welle-4+5 Doppel-
-    Welle: the new Rust-Rust wire-form produces a hash that the long-
+    This is the dominant regression-class for the wave 4+5 Doppel-
+    wave: the new Rust-Rust wire-form produces a hash that the long-
     standing Python-Python production state did not. Recovery from
-    pre-cutover-state records becomes hash-divergent → Welle-7
+    pre-cutover-state records becomes hash-divergent → wave 7
     recovery-workflow blocker.
     """
     records = mocked_cross_modul_drift_write_back(
@@ -564,7 +564,7 @@ def test_doppel_welle_4_5_cmd_ac_2_python_baseline_drift_blocks(
 def test_doppel_welle_4_5_cmd_ac_2_python_rust_mixed_drift_blocks(
     mocked_cross_modul_drift_write_back,
 ) -> None:
-    """CMD-AC-2 failure-mode: Rust-Rust diverges from python-rust-welle-4-only.
+    """CMD-AC-2 failure-mode: Rust-Rust diverges from python-rust-wave 4 only.
 
     Asymmetric drift here localises the bug to the Rust-side
     lifecycle_state_machine modul: state_backing-rust write-out
@@ -592,7 +592,7 @@ def test_doppel_welle_4_5_cmd_ac_2_oracles_anchor_to_adr_0066() -> None:
 
     Tightening or loosening the oracle set requires an ADR-Folge-Item,
     not a conftest-edit. The set is exactly (python-python-baseline,
-    python-rust-welle-4-only); a Rust-Rust oracle would be self-
+    python-rust-wave 4 only); a Rust-Rust oracle would be self-
     referential and is explicitly excluded.
     """
     assert CROSS_MODUL_DRIFT_WIRE_FORM_ORACLES == (
@@ -669,7 +669,7 @@ def test_doppel_welle_4_5_cmd_ac_3_both_below_floor_blocks(
 ) -> None:
     """CMD-AC-3 failure-mode: both per-Komponente rates below floor.
 
-    Joint-rate (computed as min()) is the lower of the two; the
+    Joint-rate (computed as min) is the lower of the two; the
     assertion-shape lists both failing moduln in the error.
     """
     record = mocked_cross_modul_drift_per_komponente_consistency(
@@ -685,8 +685,8 @@ def test_doppel_welle_4_5_cmd_ac_3_consistency_floor_anchored_to_adr_0066() -> N
     """CMD-AC-3 sanity: the 99.5% floor is ADR-0066-fixed.
 
     Loosening this floor requires an ADR-Folge-Item, not a conftest-
-    edit. The 0.995 value is the Welle-4+5 Cross-Modul-Drift-Focus
-    bar; other Doppel-Wellen (DW-1+2 read-only, DW-6+7 stateful-loop)
+    edit. The 0.995 value is the wave 4+5 Cross-Modul-Drift-Focus
+    bar; other Doppel-waves (DW-1+2 read-only, DW-6+7 stateful-loop)
     do not carry CMD-AC-3 at all.
     """
     assert CROSS_MODUL_DRIFT_CONSISTENCY_PCT_FLOOR == 0.995, (
@@ -748,7 +748,7 @@ def test_doppel_welle_4_5_cmd_ac_4_sub_threshold_flip_rejected(
 
     A flip on measured drift ≤0.5pp is spurious — the Operator-Hand-
     runbook must not fire an atomic-flip on sub-threshold drift,
-    because Welle-4+5 Cross-Modul-Drift-Focus accepts small drift
+    because wave 4+5 Cross-Modul-Drift-Focus accepts small drift
     (covered by DW-AC-2's exact-byte-parity check) but reserves the
     automated flip for the 0.5pp-and-above operationally-relevant
     drift.
@@ -838,9 +838,9 @@ def test_doppel_welle_4_5_cmd_ac_4_threshold_anchored_to_adr_0066() -> None:
     """CMD-AC-4 sanity: the 0.5pp drift-threshold is ADR-0066-fixed.
 
     Tightening or loosening the threshold requires an ADR-Folge-Item,
-    not a conftest-edit. The 0.5pp value is the Welle-4+5 Cross-
-    Modul-Drift-Focus operational-trigger; mirrors the Welle-3
-    Henrik-Caution divergence threshold numerically but applies per-
+    not a conftest-edit. The 0.5pp value is the wave 4+5 Cross-
+    Modul-Drift-Focus operational-trigger; mirrors the wave 3
+    internal audit-Caution divergence threshold numerically but applies per-
     modul rather than whole-bridge-audit-writer.
     """
     assert CROSS_MODUL_DRIFT_ROLLBACK_PCT_THRESHOLD == 0.5, (

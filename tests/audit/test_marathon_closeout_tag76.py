@@ -1,84 +1,84 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-76 tests for the Marathon-Closeout-Aggregator
-(Welle-1..7 Verifier-Family Bundler).
+Hermetic tests for the Marathon-Closeout-Aggregator
+(wave 1..7 Verifier-Family Bundler).
 
 ============================================================================
 Test inventory (>=20 hermetic tests, stdlib + pytest only):
 
-  T01  Helper file exists at the expected path.
-  T02  Helper file declares SPDX Apache-2.0 header and "-- Reza"
+  T01 Helper file exists at the expected path.
+  T02 Helper file declares SPDX Apache-2.0 header and "-- the protocol zone"
        signature line (REUSE-discipline).
-  T03  A minimal valid closeout document (all-seven-welle GREEN,
+  T03 A minimal valid closeout document (all-seven-wave GREEN,
        global GREEN, live-verify-gate GREEN, marker_emit_ready=true,
-       bringup ready) passes verify_closeout() and produces
+       bringup ready) passes verify_closeout and produces
        MARATHON-CLOSEOUT-READY.
-  T04  I-1: tag != 'Tag-76' rejected.
-  T05  I-2: marathon_id != 'phase-3c-welle-marathon' rejected.
-  T06  I-3: audit_only=false rejected; doc_form_only=false rejected.
-  T07  I-4: malformed closeout_id (wrong prefix / too short) rejected.
-  T08  I-5: missing Welle-N record rejected; duplicate welle_id
+  T04 I-1: tag != '' rejected.
+  T05 I-2: marathon_id != 'phase-3c-wave-marathon' rejected.
+  T06 I-3: audit_only=false rejected; doc_form_only=false rejected.
+  T07 I-4: malformed closeout_id (wrong prefix / too short) rejected.
+  T08 I-5: missing wave N record rejected; duplicate welle_id
        rejected; eight wellen rejected; six wellen rejected.
-  T09  I-6: welle-outcome with unknown extra field rejected;
+  T09 I-6: wave-outcome with unknown extra field rejected;
        missing field rejected; test_count == 0 rejected;
        verifier_pin empty string rejected.
-  T10  I-7: verifier_kind not in canonical set rejected;
-       verifier_kind for Welle-N not matching the canonical-kind-per-
-       welle expectation rejected (all 7 wellen cross-pinned).
-  T11  I-8: signoff_date with wrong format rejected; signoff_date
-       not matching canonical date for the welle rejected
+  T10 I-7: verifier_kind not in canonical set rejected;
+       verifier_kind for wave N not matching the canonical-kind-per-
+       wave expectation rejected (all 7 wellen cross-pinned).
+  T11 I-8: signoff_date with wrong format rejected; signoff_date
+       not matching canonical date for the wave rejected
        (all 7 wellen cross-pinned).
-  T12  I-9: production_bringup_marker missing field rejected;
-       trigger_kind != 'post-welle-7-signoff' rejected;
+  T12 I-9: production_bringup_marker missing field rejected;
+       trigger_kind != 'post-wave 7 signoff' rejected;
        trigger_date != '2026-07-03' rejected.
-  T13  I-10: bringup_status not in canonical set rejected;
+  T13 I-10: bringup_status not in canonical set rejected;
        operator_handoff_required non-bool rejected.
-  T14  I-11: phase_3_complete_marker_readiness missing field
+  T14 I-11: phase_3_complete_marker_readiness missing field
        rejected; global_verdict not in canonical set rejected;
        live_verify_gate_status not in canonical set rejected;
        emit_blocked_reason inconsistency rejected (null when
        blocked, string when ready).
-  T15  I-12: marker_emit_ready=true when any welle is RED rejected
+  T15 I-12: marker_emit_ready=true when any wave is RED rejected
        (consistency violation).
-  T16  I-12: marker_emit_ready=false when all-green-and-signed
+  T16 I-12: marker_emit_ready=false when all-green-and-signed
        rejected (consistency violation).
-  T17  I-13: sandbox_boundary with any of the seven booleans flipped
+  T17 I-13: sandbox_boundary with any of the seven booleans flipped
        to false rejected; probe_default_mode != 'inspection-only'
        rejected.
-  T18  I-14: cross_anchors missing 'tag_75_welle_7_final_sealing_
+  T18 I-14: cross_anchors missing 'tag_75_welle_7_final_sealing_
        verifier' rejected.
-  T19  I-15: unknown top-level field rejected (strict shape).
-  T20  I-16: audit_only as int 1 (truthy but not bool) rejected.
-  T21  compute_verdict: all-RED Welle-N -> DEFECT, blocking_wellen
+  T19 I-15: unknown top-level field rejected (strict shape).
+  T20 I-16: audit_only as int 1 (truthy but not bool) rejected.
+  T21 compute_verdict: all-RED wave N -> DEFECT, blocking_wellen
        lists all RED wellen.
-  T22  compute_verdict: one Welle CAUTION (and consistent
-       readiness=false) -> PARTIAL, blocking_wellen lists that welle.
-  T23  compute_verdict: all-green-and-ready -> MARATHON-CLOSEOUT-READY
+  T22 compute_verdict: one wave CAUTION (and consistent
+       readiness=false) -> PARTIAL, blocking_wellen lists that wave.
+  T23 compute_verdict: all-green-and-ready -> MARATHON-CLOSEOUT-READY
        with all_green=true, marker_emit_ready=true, blocking_wellen=[].
-  T24  compute_verdict: bringup_status='blocked' (with all-green
-       welle outcomes) -> DEFECT.
-  T25  CLI: subprocess invocation with a valid closeout JSON exits 0
+  T24 compute_verdict: bringup_status='blocked' (with all-green
+       wave outcomes) -> DEFECT.
+  T25 CLI: subprocess invocation with a valid closeout JSON exits 0
        and prints a JSON envelope on stdout with verdict field.
-  T26  CLI: subprocess with no arguments exits non-zero with usage
+  T26 CLI: subprocess with no arguments exits non-zero with usage
        banner on stderr.
-  T27  CLI: subprocess with non-existent path exits non-zero with
+  T27 CLI: subprocess with non-existent path exits non-zero with
        'not found' message on stderr.
-  T28  CLI: subprocess with malformed JSON file exits non-zero with
+  T28 CLI: subprocess with malformed JSON file exits non-zero with
        JSON parse-error message on stderr.
-  T29  Sandbox-boundary recital: helper does NOT import any module
+  T29 Sandbox-boundary recital: helper does NOT import any module
        outside the stdlib whitelist (no requests, urllib3, httpx,
        NATS-py, biscuit-auth, etc.).
-  T30  All-7-Welle-cross-pin: build the canonical-kind-per-welle
+  T30 All-7-wave-cross-pin: build the canonical-kind-per-wave
        mapping in-test and assert that the helper's mapping matches
-       exactly (no welle missing, no welle extra, no kind drift).
-  T31  All-7-Welle-cross-pin: build the canonical signoff-date-per-
-       welle mapping in-test and assert that the helper's mapping
-       matches exactly (Welle-6 and Welle-7 must be 2026-07-03;
-       Welle-3 must be 2026-06-19; Welle-1/2 must be 2026-06-12;
-       Welle-4/5 must be 2026-06-26).
+       exactly (no wave missing, no wave extra, no kind drift).
+  T31 All-7-wave-cross-pin: build the canonical signoff-date-per-
+       wave mapping in-test and assert that the helper's mapping
+       matches exactly (wave 6 and wave 7 must be 2026-07-03;
+       wave 3 must be 2026-06-19; wave 1/2 must be 2026-06-12;
+       wave 4/5 must be 2026-06-26).
 
--- Reza
+-- the protocol zone
 """
 from __future__ import annotations
 
@@ -240,9 +240,9 @@ def test_t07_closeout_id_malformed():
         vmc.verify_closeout(doc)
 
 
-# --- T08: welle outcomes cardinality / uniqueness --------------------- #
+# --- T08: wave outcomes cardinality / uniqueness --------------------- #
 def test_t08_welle_outcomes_cardinality_and_uniqueness():
-    # missing one welle (only six)
+    # missing one wave (only six)
     doc = _valid_closeout_doc()
     doc["welle_verifier_outcomes"] = doc["welle_verifier_outcomes"][:6]
     with pytest.raises(vmc.VerifyError, match="I-5"):
@@ -262,7 +262,7 @@ def test_t08_welle_outcomes_cardinality_and_uniqueness():
         vmc.verify_closeout(doc)
 
 
-# --- T09: welle-outcome field discipline ------------------------------ #
+# --- T09: wave-outcome field discipline ------------------------------ #
 def test_t09_welle_outcome_field_discipline():
     # unknown extra field
     doc = _valid_closeout_doc()
@@ -286,14 +286,14 @@ def test_t09_welle_outcome_field_discipline():
         vmc.verify_closeout(doc)
 
 
-# --- T10: verifier_kind discipline + all-7-welle-cross-pin ------------ #
+# --- T10: verifier_kind discipline + all-7-wave-cross-pin ------------ #
 def test_t10_verifier_kind_canonical_and_per_welle_cross_pin():
     # unknown kind
     doc = _valid_closeout_doc()
     doc["welle_verifier_outcomes"][0]["verifier_kind"] = "unknown-kind"
     with pytest.raises(vmc.VerifyError, match="I-7"):
         vmc.verify_closeout(doc)
-    # per-welle mismatch: each welle must reject all six wrong kinds.
+    # per-wave mismatch: each wave must reject all six wrong kinds.
     # Cross-pin every one of the 7 wellen against its canonical kind.
     for idx, welle_id in enumerate(vmc.CANONICAL_WELLE_IDS):
         for wrong_kind in vmc.CANONICAL_VERIFIER_KINDS:
@@ -305,19 +305,19 @@ def test_t10_verifier_kind_canonical_and_per_welle_cross_pin():
                 vmc.verify_closeout(doc)
 
 
-# --- T11: signoff_date discipline + all-7-welle-cross-pin ------------- #
+# --- T11: signoff_date discipline + all-7-wave-cross-pin ------------- #
 def test_t11_signoff_date_format_and_per_welle_cross_pin():
     # wrong format
     doc = _valid_closeout_doc()
     doc["welle_verifier_outcomes"][0]["signoff_date"] = "2026/06/12"
     with pytest.raises(vmc.VerifyError, match="I-8"):
         vmc.verify_closeout(doc)
-    # per-welle canonical date mismatch: for each welle, set a wrong
+    # per-wave canonical date mismatch: for each wave, set a wrong
     # date and expect rejection. This pins all 7 wellen.
     wrong_date_pool = [
         "2026-06-10",  # cutover-mittwoch not sign-off-Freitag
-        "2026-07-04",  # day after Welle-7 sign-off
-        "2026-06-20",  # outside any welle
+        "2026-07-04",  # day after wave 7 sign-off
+        "2026-06-20",  # outside any wave
     ]
     for idx, welle_id in enumerate(vmc.CANONICAL_WELLE_IDS):
         canonical = vmc.CANONICAL_SIGNOFF_DATE_PER_WELLE[welle_id]
@@ -405,7 +405,7 @@ def test_t16_marker_emit_ready_false_when_all_green_rejected():
     doc["phase_3_complete_marker_readiness"][
         "emit_blocked_reason"
     ] = "manually paused for inspection"
-    # but all welle outcomes are GREEN and global GREEN -> inconsistency
+    # but all wave outcomes are GREEN and global GREEN -> inconsistency
     with pytest.raises(vmc.VerifyError, match="I-12"):
         vmc.verify_closeout(doc)
 
@@ -579,7 +579,7 @@ def test_t29_helper_imports_stdlib_only():
     )
 
 
-# --- T30: all-7-welle cross-pin (canonical-kind mapping) -------------- #
+# --- T30: all-7-wave cross-pin (canonical-kind mapping) -------------- #
 def test_t30_canonical_verifier_kind_per_welle_cross_pin():
     expected = {
         "Welle-1": "v907-verify",
@@ -594,7 +594,7 @@ def test_t30_canonical_verifier_kind_per_welle_cross_pin():
         "canonical-kind-per-welle mapping drift detected; "
         "the helper's mapping must match the brief's mapping exactly"
     )
-    # Every welle covered exactly once
+    # Every wave covered exactly once
     assert set(vmc.CANONICAL_VERIFIER_KIND_PER_WELLE.keys()) == set(
         vmc.CANONICAL_WELLE_IDS
     )
@@ -603,16 +603,16 @@ def test_t30_canonical_verifier_kind_per_welle_cross_pin():
         assert kind in vmc.CANONICAL_VERIFIER_KINDS
 
 
-# --- T31: all-7-welle cross-pin (canonical signoff-date mapping) ----- #
+# --- T31: all-7-wave cross-pin (canonical signoff-date mapping) ----- #
 def test_t31_canonical_signoff_date_per_welle_cross_pin():
-    # Per pre-cutover-acceptance-run-order.md §3.2 (Tag-57 canonical):
-    #   Welle-1 KW-24 sign-off-Freitag 2026-06-12
-    #   Welle-2 KW-24 sign-off-Freitag 2026-06-12 (Doppel-Welle-1+2)
-    #   Welle-3 KW-25 sign-off-Freitag 2026-06-19
-    #   Welle-4 KW-26 sign-off-Freitag 2026-06-26
-    #   Welle-5 KW-26 sign-off-Freitag 2026-06-26 (Doppel-Welle-4+5)
-    #   Welle-6 KW-27 sign-off-Freitag 2026-07-03
-    #   Welle-7 KW-27 sign-off-Freitag 2026-07-03 (Doppel-Welle-6+7)
+    # Per pre-cutover-acceptance-run-order.md §3.2 (canonical):
+    # wave 1 calendar week 24 sign-off-Freitag 2026-06-12
+    # wave 2 calendar week 24 sign-off-Freitag 2026-06-12 (dual-run wave-1+2)
+    # wave 3 calendar week 25 sign-off-Freitag 2026-06-19
+    # wave 4 calendar week 26 sign-off-Freitag 2026-06-26
+    # wave 5 calendar week 26 sign-off-Freitag 2026-06-26 (dual-run wave-4+5)
+    # wave 6 calendar week 27 sign-off-Freitag 2026-07-03
+    # wave 7 calendar week 27 sign-off-Freitag 2026-07-03 (dual-run wave-6+7)
     expected = {
         "Welle-1": "2026-06-12",
         "Welle-2": "2026-06-12",

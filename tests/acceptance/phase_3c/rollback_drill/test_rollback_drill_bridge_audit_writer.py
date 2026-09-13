@@ -5,12 +5,12 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-3 = ``bridge_audit_writer``,
+- ADR-0065 §Rollback-Strategie (wave 3 = ``bridge_audit_writer``,
   Write-Pfad, aber idempotent — WAT-Hash-Anchored).
-- ADR-0066 §Rollback + §Beschluss (Welle-3 = Solo-Welle, Henrik-
+- ADR-0066 §Rollback + §Beschluss (wave 3 = Solo-wave, internal audit-
   Caution-Carve-out — independent unabhängige Konsistenz-Oracle vor
-  Welle-3-Cutover).
-- Sister per-welle E2E acceptance file: ``test_welle_3_bridge_audit_
+  wave 3 cutover).
+- Sister per-wave E2E acceptance file: ``test_welle_3_bridge_audit_
   writer_e2e.py``.
 
 Komponente character
@@ -24,7 +24,7 @@ to ``python`` re-binds the writer; in-flight anchor-writes simply
 repeat under the python-backend, producing the same SHA-256 because
 JCS-byte-input is identical.
 
-Henrik-Zone-N watches this rollback particularly closely: bridge-
+internal audit-Zone-N watches this rollback particularly closely: bridge-
 audit-writer *is* the audit-trail substrate. A rollback that breaks
 the bridge-audit-writer's own audit-trail is a Zone-N-emergency.
 """
@@ -64,8 +64,8 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     Zone-N-critical: the bridge-audit-writer rollback must itself emit
     an audit-record into the (still-online) audit-trail. The drill
     asserts that the audit-record names ``bridge_audit_writer`` and
-    targets ``python``. ADR-0066 §Beschluss carves Welle-3 out as a
-    Solo-Welle precisely because this Komponente's audit-trail-
+    targets ``python``. ADR-0066 §Beschluss carves wave 3 out as a
+    Solo-wave precisely because this Komponente's audit-trail-
     integrity demands an unabhängige Konsistenz-Oracle pre-rollback.
     """
     event = mocked_rollback_event(MODUL)

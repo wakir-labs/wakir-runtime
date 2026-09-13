@@ -1,19 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic Phase-2 Quality-Gate Konsistenz-Audit tests
-(Sprint-Quality-Gate-Konsistenz-Audit-MINI).
+(-Quality-Gate-Konsistenz-Audit-MINI).
 
 Anchors
 -------
 
-- ``docs/quality-gates/phase-2-doppelbetrieb.md`` (Amara, PR #80) —
+- ``docs/quality-gates/phase-2-doppelbetrieb.md`` —
   the five Phase-2 acceptance-gates.
-- ``tests/infra/test_phase_2_acceptance_gates.py`` (Tomas, PR #109) —
+- ``tests/infra/test_phase_2_acceptance_gates.py`` —
   the hermetic gate-test suite (Gate-2-1..2-5 + aggregator).
-- ``.github/workflows/runtime-acceptance-gates.yml`` (Tomas, PR #115) —
+- ``.github/workflows/runtime-acceptance-gates.yml`` —
   the CI-workflow that pins the five gates as Repo-Invariante.
-- ``docs/quality-gates/phase-2-doppelbetrieb-audit.md`` (Amara, this
-  PR) — the audit report this test-suite mechanically backs.
+- ``docs/quality-gates/phase-2-doppelbetrieb-audit.md`` — the audit report this test-suite mechanically backs.
 
 Scope
 -----
@@ -25,15 +24,15 @@ spec doc (PR #80), the gate-test suite (PR #109), and the CI-workflow
 1. Spec-vs-Test-Cross-Check per gate — every test function in PR #109
    anchors to a spec gate identifiable by section number, OR the
    audit doc explicitly records the mismatch as a finding.
-2. Konsistenz-Score-Computation — the same 4-axis verdict shape Selin's
+2. Konsistenz-Score-Computation — the same 4-axis verdict shape the engine zone's
    ``wirelang doppelbetrieb-score`` CLI emits, applied test-time to
    the audit findings table.
 3. Anti-Pattern-Detection — gate-ohne-test (spec gate with no test),
    test-ohne-gate (test with no spec anchor).
 4. JCS-Schema-Pin — the Doppelbetrieb-Score CLI's four-axis verdict
    JSON shape is pinned by a hermetic schema-skeleton, so accidental
-   field-rename or axis-drop in Selin's CLI surfaces here even though
-   the CLI itself runs on runtime data Henrik samples (Finding F-2
+   field-rename or axis-drop in the engine zone's CLI surfaces here even though
+   the CLI itself runs on runtime data internal audit samples (Finding F-2
    in the audit doc, Folge-Item FI-1).
 
 Sandbox boundary
@@ -41,7 +40,7 @@ Sandbox boundary
 
 Pure-stdlib, in-memory, no podman, no NATS, no live VM. All file
 reads target tree-checked-in artefacts (Spec doc, audit doc, workflow
-YAML, gate-test source) via :func:`pathlib.Path` — no network, no
+YAML, gate-test source) via:func:`pathlib.Path` — no network, no
 subprocess.
 """
 
@@ -136,7 +135,7 @@ def _parse_workflow_pytest_invocations() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Konsistenz-Score computation — meta-application of Selin's 4-axis verdict.
+# Konsistenz-Score computation — meta-application of the engine zone's 4-axis verdict.
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +256,7 @@ def test_consistency_score_aggregate_matches_audit_doc():
     """Aggregate consistency-score equals the audit-doc §2 number 0.675.
 
     The audit doc computes mean(0.90, 0.80, 0.00, 1.00) = 0.675 over the
-    four-axis verdict shape (the test-time meta-application of Selin's
+    four-axis verdict shape (the test-time meta-application of the engine zone's
     runtime CLI metric). Drift between the dataclass constant and the
     audit doc would mean one of the two is wrong.
     """
@@ -370,7 +369,7 @@ def test_audit_doc_records_finding_f3_numbering_off_by_one():
 
     Anti-Pattern: spec §2.X and test-Gate-2-X look identically numbered
     but anchor to different gates. Audit-doc Finding F-3 documents the
-    actual mapping so Henrik's audit-sample is not misled.
+    actual mapping so internal audit's audit-sample is not misled.
     """
     text = AUDIT_PATH.read_text(encoding="utf-8")
     assert "F-3:" in text, "audit doc must record Finding F-3"
@@ -389,7 +388,7 @@ def test_audit_doc_records_finding_f3_numbering_off_by_one():
 # Spec-canonical schema id for the Doppelbetrieb-Score verdict JSON.
 # Sourced from phase-2-doppelbetrieb.md §2.3 "Score-JSON output with
 # `schema` field set to the spec-canonical id". The id below is the pin
-# this audit suite enforces; Selin's CLI must emit this exact id.
+# this audit suite enforces; the engine zone's CLI must emit this exact id.
 DOPPELBETRIEB_SCORE_SCHEMA_ID = (
     "wakir.wirelang.doppelbetrieb-score.v1"
 )
@@ -423,7 +422,7 @@ def test_jcs_schema_pin_doppelbetrieb_score_envelope_shape():
 
     Folge-Item FI-1 from the audit doc. Closes the gap surfaced by
     Finding F-2: even though the runtime CLI's *values* are sampled by
-    Henrik, the *shape* (schema id + four axis names + verdict
+    internal audit, the *shape* (schema id + four axis names + verdict
     enumeration) is pinned by this hermetic test.
 
     The test catches the regression class:
@@ -432,8 +431,8 @@ def test_jcs_schema_pin_doppelbetrieb_score_envelope_shape():
       * accidental schema-id rename
       * verdict-enum drift (pass / warn / fail per Spec §1.5 phase-1b)
 
-    JCS canonicalisation: the envelope is serialised by `json.dumps(...,
-    sort_keys=True)` so the on-disk byte-shape is deterministic. Selin's
+    JCS canonicalisation: the envelope is serialised by `json.dumps...,
+    sort_keys=True)` so the on-disk byte-shape is deterministic. The engine zone's
     CLI uses `wirelang.identity._jcs_pure.canonicalize` for RFC 8785 JCS;
     we use json.dumps(sort_keys) here because we test shape, not bytes.
     """

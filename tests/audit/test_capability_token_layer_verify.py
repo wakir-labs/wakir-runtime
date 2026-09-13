@@ -1,73 +1,73 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-73 tests for the Welle-5 (Doppel-Welle-4+5) Capability-
+Hermetic tests for the wave 5 (dual-run wave-4+5) Capability-
 Token-Layer State-Conformance Verifier.
 
 ============================================================================
 Test inventory (>=15 hermetic tests, stdlib + pytest only):
 
-  T01  Helper file exists at the expected path.
-  T02  Helper file declares SPDX Apache-2.0 header and "-- Reza"
+  T01 Helper file exists at the expected path.
+  T02 Helper file declares SPDX Apache-2.0 header and "-- the protocol zone"
        signature line (REUSE-discipline).
-  T03  A minimal valid pre-rotation state document passes
-       verify_state() without raising.
-  T04  A minimal valid rotation-in-progress state document passes.
-  T05  A minimal valid post-rotation-grace state document passes.
-  T06  A minimal valid post-rotation-sealed state document passes.
-  T07  I-1: A state document with tag != 'Tag-73' is rejected.
-  T08  I-1: A state document with welle != 'Welle-5' is rejected.
-  T09  I-2: A state document with audit_only flipped to false is
-       rejected (Tag-73 helper refuses non-audit-only documents).
-  T10  I-3: A state document with layer != 'Layer-3-AIP+Biscuit' is
+  T03 A minimal valid pre-rotation state document passes
+       verify_state without raising.
+  T04 A minimal valid rotation-in-progress state document passes.
+  T05 A minimal valid post-rotation-grace state document passes.
+  T06 A minimal valid post-rotation-sealed state document passes.
+  T07 I-1: A state document with tag != '' is rejected.
+  T08 I-1: A state document with wave != 'wave 5' is rejected.
+  T09 I-2: A state document with audit_only flipped to false is
+       rejected (helper refuses non-audit-only documents).
+  T10 I-3: A state document with layer != 'Layer-3-AIP+Biscuit' is
        rejected.
-  T11  I-4: A state document with an unknown rotation_state is
+  T11 I-4: A state document with an unknown rotation_state is
        rejected.
-  T12  I-5: A state document with an unsupported issuer_curve is
+  T12 I-5: A state document with an unsupported issuer_curve is
        rejected (e.g. 'P-256').
-  T13  I-6: A state document with token_format != 'biscuit-v3' is
+  T13 I-6: A state document with token_format != 'biscuit-v3' is
        rejected (e.g. 'biscuit-v2').
-  T14  I-7: A state document with attenuation_depth_max == 0 is
+  T14 I-7: A state document with attenuation_depth_max == 0 is
        rejected, and attenuation_depth_max == 9 is rejected.
-  T15  I-8: A state document where active_tokens is non-empty but
+  T15 I-8: A state document where active_tokens is non-empty but
        a token-record is missing the 'rotation_role' field is
        rejected; an empty active_tokens in 'rotation-in-progress'
        state is rejected.
-  T16  I-9: A post-rotation-grace document where the outgoing
+  T16 I-9: A post-rotation-grace document where the outgoing
        token's not_after < incoming's not_before is rejected
        (ADOL overlap violation).
-  T17  I-10: A rotation_steps list with non-canonical step_kind
+  T17 I-10: A rotation_steps list with non-canonical step_kind
        order is rejected (e.g. 'seal' before 'announce-incoming').
-  T18  I-11: A post-rotation-sealed state where some
+  T18 I-11: A post-rotation-sealed state where some
        rotation_steps[*].status != 'done' is rejected; also a
        sealed state with an 'outgoing' active token is rejected.
-  T19  I-12: An audit_trail_refs with no entries OR with a malformed
+  T19 I-12: An audit_trail_refs with no entries OR with a malformed
        wat-leaf URI is rejected.
-  T20  I-13: A sandbox_boundary with one of the six boolean defaults
+  T20 I-13: A sandbox_boundary with one of the six boolean defaults
        flipped to false is rejected; probe_default_mode wrong is
        rejected.
-  T21  I-14: A state document missing one of the required cross-
+  T21 I-14: A state document missing one of the required cross-
        anchors (e.g. adr_0017) is rejected.
-  T22  I-15: A token-record with not_before > not_after is rejected.
-  T23  I-16: A token-record carrying an unknown top-level field
+  T22 I-15: A token-record with not_before > not_after is rejected.
+  T23 I-16: A token-record carrying an unknown top-level field
        (e.g. 'extra_unrecognised') is rejected (strict shape).
-  T24  I-17: A state document with malformed rotation_id (e.g.
+  T24 I-17: A state document with malformed rotation_id (e.g.
        'rot-' too short, or wrong prefix) is rejected.
-  T25  I-18: A pre-rotation state where one rotation_steps[*].status
+  T25 I-18: A pre-rotation state where one rotation_steps[*].status
        is 'done' (not 'planned') is rejected.
-  T26  I-19: A rotation-in-progress state where the incoming
+  T26 I-19: A rotation-in-progress state where the incoming
        token's not_after equals (not strictly greater than) the
        outgoing token's not_after is rejected (forward-progress
        invariant).
-  T27  CLI: subprocess invocation with a valid state JSON exits 0
+  T27 CLI: subprocess invocation with a valid state JSON exits 0
        and prints the expected OK banner.
-  T28  CLI: subprocess invocation with a malformed JSON file exits
+  T28 CLI: subprocess invocation with a malformed JSON file exits
        non-zero with a JSON parse-error message on stderr.
-  T29  CLI: subprocess invocation with no arguments exits non-zero
+  T29 CLI: subprocess invocation with no arguments exits non-zero
        with the usage banner on stderr.
-  T30  CLI: subprocess invocation with a non-existent path exits
+  T30 CLI: subprocess invocation with a non-existent path exits
        non-zero with a 'not found' message on stderr.
-  T31  Sandbox-boundary recital: helper does NOT import any module
+  T31 Sandbox-boundary recital: helper does NOT import any module
        outside the stdlib whitelist (no requests, urllib3, httpx,
        biscuit-python, etc.).
 """
@@ -92,7 +92,7 @@ import verify_capability_token_layer_state as vctls  # noqa: E402
 
 
 # --------------------------------------------------------------------- #
-# Canonical valid fixtures                                              #
+# Canonical valid fixtures #
 # --------------------------------------------------------------------- #
 
 
@@ -232,7 +232,7 @@ def _post_rotation_sealed_state() -> dict:
 
 
 # --------------------------------------------------------------------- #
-# Axis A -- helper-file shape + signature                              #
+# Axis A -- helper-file shape + signature #
 # --------------------------------------------------------------------- #
 
 
@@ -253,7 +253,7 @@ def test_t02_helper_spdx_and_signature():
 
 
 # --------------------------------------------------------------------- #
-# Axis B -- canonical-state happy paths                                 #
+# Axis B -- canonical-state happy paths #
 # --------------------------------------------------------------------- #
 
 
@@ -274,7 +274,7 @@ def test_t06_post_rotation_sealed_valid_passes():
 
 
 # --------------------------------------------------------------------- #
-# Axis C -- invariant rejection (I-1 .. I-19)                           #
+# Axis C -- invariant rejection (I-1.. I-19) #
 # --------------------------------------------------------------------- #
 
 
@@ -479,7 +479,7 @@ def test_t26_forward_progress_invariant_rejected():
 
 
 # --------------------------------------------------------------------- #
-# Axis D -- CLI smoke                                                   #
+# Axis D -- CLI smoke #
 # --------------------------------------------------------------------- #
 
 

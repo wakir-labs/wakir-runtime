@@ -7,17 +7,17 @@ These tests are stdlib + pytest only. No network, no podman, no
 live VM. The emitter's I/O surface is exercised via ``tmp_path``
 fixtures.
 
-Test coverage (>= 10 tests, Auftrag-Tag-49 minimum):
+Test coverage (>= 10 tests, assignment-minimum):
 
-  1.  test_numeric_for_verdict_known_buckets
-  2.  test_numeric_for_verdict_missing_and_unknown
-  3.  test_esc_handles_quotes_and_backslashes
-  4.  test_today_iso_to_unix_returns_midnight_utc
-  5.  test_today_iso_to_unix_falls_back_for_garbage
-  6.  test_normalise_envelope_baseline_shape
-  7.  test_normalise_envelope_skips_malformed_cells
-  8.  test_normalise_envelope_handles_missing_summary_counts
-  9.  test_compute_stability_match_counts_stable_row
+  1. test_numeric_for_verdict_known_buckets
+  2. test_numeric_for_verdict_missing_and_unknown
+  3. test_esc_handles_quotes_and_backslashes
+  4. test_today_iso_to_unix_returns_midnight_utc
+  5. test_today_iso_to_unix_falls_back_for_garbage
+  6. test_normalise_envelope_baseline_shape
+  7. test_normalise_envelope_skips_malformed_cells
+  8. test_normalise_envelope_handles_missing_summary_counts
+  9. test_compute_stability_match_counts_stable_row
   10. test_compute_stability_match_counts_flipped_row
   11. test_compute_stability_match_counts_blank_latest
   12. test_render_includes_all_metric_families
@@ -34,8 +34,8 @@ Test coverage (>= 10 tests, Auftrag-Tag-49 minimum):
   23. test_cli_print_flag_emits_to_stdout
 
 Anchors:
-  * Tag-48 PR #309 renderer + dashboard.
-  * Tag-48 runbook explicit Tag-49 emitter deferral.
+  * PR #309 renderer + dashboard.
+  * runbook explicit emitter deferral.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ def make_envelope(
     ]
     cells = []
     rows = ["welle-1", "welle-7", "aggregate"]
-    # welle-1 stable CAUTION
+    # wave 1 stable CAUTION
     for d in dates:
         cells.append(
             {
@@ -114,7 +114,7 @@ def make_envelope(
                 "color": "yellow",
             }
         )
-    # welle-7 stable BLOCK
+    # wave 7 stable BLOCK
     for d in dates:
         cells.append(
             {
@@ -189,7 +189,7 @@ def test_esc_handles_quotes_and_backslashes(emitter_mod):
     assert e('a"b') == 'a\\"b'
     assert e("a\\b") == "a\\\\b"
     assert e("a\nb") == "a\\nb"
-    # integer welle should survive
+    # integer wave should survive
     assert e(7) == "7"
 
 
@@ -298,7 +298,7 @@ def test_render_includes_all_metric_families(emitter_mod):
 def test_render_verdict_numeric_mapping_per_cell(emitter_mod):
     env = make_envelope(today_iso="2026-05-19", window_days=3)
     out = emitter_mod.render_prometheus_textfile(env, timestamp_unixtime=0.0)
-    # welle-1 CAUTION -> numeric 1.
+    # wave 1 CAUTION -> numeric 1.
     line_welle1 = [
         line
         for line in out.splitlines()
@@ -308,7 +308,7 @@ def test_render_verdict_numeric_mapping_per_cell(emitter_mod):
     ]
     assert len(line_welle1) == 1
     assert line_welle1[0].split("} ")[1].split(" ")[0] == "1"
-    # welle-7 BLOCK -> numeric 3.
+    # wave 7 BLOCK -> numeric 3.
     line_welle7 = [
         line
         for line in out.splitlines()
@@ -336,7 +336,7 @@ def test_render_summary_count_one_line_per_bucket(emitter_mod):
         for line in out.splitlines()
         if line.startswith("persona_engine_per_welle_heatmap_summary_count{")
     ]
-    # welle-1 has 1 bucket, welle-7 has 1, aggregate has 2 -> 4 lines.
+    # wave 1 has 1 bucket, wave 7 has 1, aggregate has 2 -> 4 lines.
     assert len(summary_lines) == 4
     assert any('row_key="welle-1"' in line and 'verdict="CAUTION"' in line for line in summary_lines)
     assert any('row_key="aggregate"' in line and 'verdict="BLOCK"' in line for line in summary_lines)
@@ -346,7 +346,7 @@ def test_render_summary_count_one_line_per_bucket(emitter_mod):
 def test_render_stability_match_count_per_row(emitter_mod):
     env = make_envelope(today_iso="2026-05-19", window_days=3)
     out = emitter_mod.render_prometheus_textfile(env, timestamp_unixtime=0.0)
-    # welle-1 fully stable -> 3.
+    # wave 1 fully stable -> 3.
     line_w1 = [
         line
         for line in out.splitlines()

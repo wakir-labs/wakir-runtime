@@ -5,15 +5,15 @@ Rust-CLI inventory.
 
 Background
 ----------
-ADR-0066 Welle-3 Mitigation: a 2-way parity test
+ADR-0066 wave 3 Mitigation: a 2-way parity test
 (``tests/infra/test_cosign_policy_phase_3b.py:test_cross_substrate_parity_with_quadlet_installer``)
 already enforces Cosign-Policy ↔ Quadlet-Installer lock-step. But the
 third substrate that carries the same inventory —
 ``wirelang/persona_engine/rust_backend_switch.py`` (the resolver) —
 has no parity gate against the other two. A drift here (resolver
 declares a binary that no image carries, or no Cosign-verify exists
-for) produces silent fallbacks to Python at boot-time, which is the
-worst failure mode for Phase-3c Cutover-Acceptance because it
+) produces silent fallbacks to Python at boot-time, which is the
+worst failure mode for Phase-3c cutover-Acceptance because it
 disguises a partial cutover as a successful one.
 
 The 3-Way gate enforces equality of the inventory across all three
@@ -31,8 +31,8 @@ substrates:
 
 Known divergence: the resolver also declares a tenth
 ``DEFAULT_RUST_FEDERATION_RESOLVER_BIN`` constant. That backend is
-the federation-resolver Welle-2 scaffold (Welle-2 candidate, ADR-0066
-§Welle-Sequenz), which has no image-build yet and is therefore
+the federation-resolver wave 2 scaffold (wave 2 candidate, ADR-0066
+§wave-Sequenz), which has no image-build yet and is therefore
 deliberately not in the Cosign / Quadlet substrates. The 3-way parity
 contract treats ``federation-resolver`` as an explicit
 **known-extra** in the resolver; any *other* extra in the resolver
@@ -73,16 +73,16 @@ RUNBOOK_DOC = (
     REPO_ROOT / "docs" / "operations" / "cross-substrate-parity-runbook.md"
 )
 
-# Canonical 9-binary inventory (Phase-3b carrier-image set, Tag-17..
-# Tag-31). Re-declared here (not imported) so a future split between
+# Canonical 9-binary inventory (Phase-3b carrier-image set,..
+#). Re-declared here (not imported) so a future split between
 # the two test surfaces is loud — a drift here vs the sibling tuple
 # is itself caught by ``test_inventory_constant_matches_cosign_policy_tuple``
 # below.
 #
-# Tag-45 Mini-Welle: the carrier-image set extended from 9 to 11 with
+# Mini-wave: the carrier-image set extended from 9 to 11 with
 # the Phase-3a-Foundation 14 + 15 additions (bridge-audit-replay,
 # migrate-version). The canonical 9-set is kept stable for backwards
-# compat; the Tag-45 additions live in COSIGN_QUADLET_TAG45_ADDITIONS
+# compat; the additions live in COSIGN_QUADLET_TAG45_ADDITIONS
 # below and are accounted for in the inventory-agreement test via the
 # combined EXPECTED_CARRIER_BINARIES tuple.
 EXPECTED_BINARIES_9 = (
@@ -97,10 +97,10 @@ EXPECTED_BINARIES_9 = (
     "bridge-audit-writer",
 )
 
-# Tag-45 Mini-Welle additions to both the Cosign-Policy AND the
+# Mini-wave additions to both the Cosign-Policy AND the
 # Quadlet-Installer (Phase-3a-Foundation 14 + 15 closeout). Unlike
 # COSIGN_QUADLET_KNOWN_EXTRAS below (which are Cosign+Quadlet-only
-# Welle-4..7 dedicated single-binary images), these two ARE first-
+# wave 4..7 dedicated single-binary images), these two ARE first-
 # class carrier-image binaries with matching DEFAULT_RUST_*_BIN
 # constants in rust_backend_switch.py — so they appear in all three
 # substrates and contribute to the canonical-set inventory.
@@ -109,28 +109,28 @@ COSIGN_QUADLET_TAG45_ADDITIONS = (
     "migrate-version",
 )
 
-# Combined canonical carrier-image set after Tag-45 (11 binaries =
-# 9 + Tag-45 additions). The 3-way parity tests assert that all three
+# Combined canonical carrier-image set after (11 binaries =
+# 9 + additions). The 3-way parity tests assert that all three
 # substrates inventory this combined set; the COSIGN_QUADLET_KNOWN_EXTRAS
-# (Welle-4..7 dedicated images) appear ONLY in Cosign + Quadlet, not
+# (wave 4..7 dedicated images) appear ONLY in Cosign + Quadlet, not
 # in the resolver.
 EXPECTED_CARRIER_BINARIES = (
     EXPECTED_BINARIES_9 + COSIGN_QUADLET_TAG45_ADDITIONS
 )
 
-# Resolver-known-extra: ``federation-resolver`` is the Welle-2
+# Resolver-known-extra: ``federation-resolver`` is the wave 2
 # scaffold backend that has no image-build yet (no Cosign-Policy
 # entry, no Quadlet-Installer entry). Documented divergence per
-# ADR-0066 §Welle-Sequenz.
+# ADR-0066 §wave-Sequenz.
 RESOLVER_KNOWN_EXTRAS = ("federation-resolver",)
 
-# Tag-33 Mini-Welle additions to the Cosign-Policy + Quadlet-Installer
-# (ADR-0066 Welle-4..7 dedicated single-binary images). These four
+# Mini-wave additions to the Cosign-Policy + Quadlet-Installer
+# (ADR-0066 wave 4..7 dedicated single-binary images). These four
 # names appear in the Cosign-Policy `binaries:` list and as regex-
 # matched strings in the Quadlet-Installer comment header (they do
-# NOT appear in the Quadlet `Exec=` install-loop — the Welle-4..7
-# cutover steps deploy them via per-Welle dedicated Quadlets in
-# subsequent Mini-Wellen). They do NOT appear in
+# NOT appear in the Quadlet `Exec=` install-loop — the wave 4..7
+# cutover steps deploy them via per-wave dedicated Quadlets in
+# subsequent Mini-waves). They do NOT appear in
 # rust_backend_switch.py (no dedicated DEFAULT_RUST_*_WELLEN_BIN
 # constants — the cutover step re-uses the existing
 # DEFAULT_RUST_*_BIN constants of the Carrier-Image siblings).
@@ -155,7 +155,7 @@ def _resolver_default_bin_basenames() -> set[str]:
     friendly review and CI-Required gate-stability.
     """
     text = RUST_SWITCH_MODULE.read_text(encoding="utf-8")
-    # Match ``DEFAULT_RUST_<NAME>_BIN = ... "/opt/wakir/bin/
+    # Match ``DEFAULT_RUST_<NAME>_BIN =... "/opt/wakir/bin/
     # wakir-persona-engine-<basename>"``. The constant may be on one
     # line or split across two lines (PEP-8 wrap), so we walk a
     # tolerant multiline regex.
@@ -210,7 +210,7 @@ def resolver_basenames() -> set[str]:
 
 # ---------------------------------------------------------------------------
 # Test 1 — Cosign ↔ Quadlet ↔ Resolver three-way agreement on the
-#          canonical 9-binary inventory.
+# canonical 9-binary inventory.
 # ---------------------------------------------------------------------------
 def test_three_way_inventory_agreement(
     cosign_basenames: set[str],
@@ -218,18 +218,18 @@ def test_three_way_inventory_agreement(
     resolver_basenames: set[str],
 ) -> None:
     """All three substrates MUST inventory the canonical carrier-image
-    binaries (11 at Tag-45 = canonical 9 + Tag-45 additions).
+    binaries (11 at = canonical 9 + additions).
 
     Cosign-Policy and Quadlet-Installer carry the canonical 11 plus
-    the Welle-4..7 dedicated single-binary extras (Cosign+Quadlet:
+    the wave 4..7 dedicated single-binary extras (Cosign+Quadlet:
     11 + 4 = 15 for Cosign-Policy, 11 for Quadlet-Installer because
-    the Welle-4..7 extras appear only in the Quadlet comment header,
+    the wave 4..7 extras appear only in the Quadlet comment header,
     not the Exec= loop — both regex-matches by this test). The
     resolver carries 11 PLUS the known-extra ``federation-resolver``.
 
-    Tag-45 contract:
+    contract:
       ``EXPECTED_CARRIER_BINARIES ⊆ each_substrate`` AND
-      ``cosign - welle-4..7 == quadlet - welle-4..7 == (resolver -
+      ``cosign - wave 4..7 == quadlet - wave 4..7 == (resolver -
       federation-resolver)``.
     """
     canon = set(EXPECTED_CARRIER_BINARIES)
@@ -238,7 +238,7 @@ def test_three_way_inventory_agreement(
     resolver_phase_3b = resolver_basenames - known_extras
 
     # Each substrate is exactly the canonical 9 (after extras are
-    # removed from the resolver, and after the Tag-33 Welle-4..7
+    # removed from the resolver, and after the wave 4..7
     # dedicated single-binary additions are removed from Cosign +
     # Quadlet). The Cosign + Quadlet known-extras live in BOTH
     # files (one substrate per file); the resolver known-extras live
@@ -268,9 +268,9 @@ def test_three_way_inventory_agreement(
     # And: the three substrates agree pairwise. Redundant given the
     # three asserts above, but the redundancy is intentional — a
     # future refactor that loosens one of the above assertions MUST
-    # still preserve cross-substrate pairwise agreement. Tag-33
-    # Mini-Welle: Cosign ↔ Quadlet must agree on the FULL set
-    # (canonical 9 + Welle-4..7 extras = 13 items); Cosign and
+    # still preserve cross-substrate pairwise agreement.
+    # Mini-wave: Cosign ↔ Quadlet must agree on the FULL set
+    # (canonical 9 + wave 4..7 extras = 13 items); Cosign and
     # Quadlet ↔ Resolver agree on the Phase-3b-scoped canonical 9.
     assert cosign_basenames == quadlet_basenames_set, (
         "Cosign ↔ Quadlet pairwise drift: "
@@ -302,14 +302,14 @@ def test_resolver_known_extras_are_documented(
     Rationale: a silent new backend in the resolver (no Cosign /
     Quadlet entry) means a binary path that the resolver tries to
     subprocess-bridge to has no verification chain. This test is the
-    gate that forces a new resolver backend to land in a Mini-Welle
+    gate that forces a new resolver backend to land in a Mini-wave
     that also extends Cosign + Quadlet OR explicitly registers the
     new component as a known-extra here (with an ADR-anchor in the
     file docstring).
 
-    Tag-45: the canonical set extended from 9 to 11 with the
+    The canonical set extended from 9 to 11 with the
     Phase-3a-Foundation 14 + 15 additions (bridge-audit-replay,
-    migrate-version). EXPECTED_CARRIER_BINARIES is the post-Tag-45
+    migrate-version). EXPECTED_CARRIER_BINARIES is the post-
     canonical reference.
     """
     canon = set(EXPECTED_CARRIER_BINARIES)
@@ -346,11 +346,11 @@ def test_resolver_inventory_size(resolver_basenames: set[str]) -> None:
     binary constants. A surprise count is a hard fail.
 
     The pair (count, known-extras) is the primary tripwire when a
-    Welle-N flip introduces a new backend in the resolver without
+    wave N flip introduces a new backend in the resolver without
     landing the matching Cosign / Quadlet inventory in the same
-    Mini-Welle.
+    Mini-wave.
 
-    Tag-45: the carrier-image canonical set extended from 9 to 11
+    The carrier-image canonical set extended from 9 to 11
     with the Phase-3a-Foundation 14 + 15 additions; the expected
     resolver count is therefore 11 + len(RESOLVER_KNOWN_EXTRAS).
     """
@@ -369,16 +369,16 @@ def test_resolver_inventory_size(resolver_basenames: set[str]) -> None:
 
 # ---------------------------------------------------------------------------
 # Test 4 — Inventory-constant matches sibling test's EXPECTED_BINARIES
-#          tuple in ``test_cosign_policy_phase_3b.py``. This is the
-#          intra-test-surface drift gate: if a Welle-N Mini-Welle
-#          edits one tuple but forgets the other, this test fires.
+# tuple in ``test_cosign_policy_phase_3b.py``. This is the
+# intra-test-surface drift gate: if a wave N Mini-wave
+# edits one tuple but forgets the other, this test fires.
 # ---------------------------------------------------------------------------
 def test_inventory_constant_matches_cosign_policy_tuple() -> None:
     """The local ``EXPECTED_BINARIES_9`` MUST equal the sibling
     ``test_cosign_policy_phase_3b.EXPECTED_BINARIES`` tuple.
 
     Both modules carry an independent copy on purpose (test
-    isolation), but a Welle-N mini-welle MUST update both copies in
+    isolation), but a wave N mini-wave MUST update both copies in
     lock-step. This test reads the sibling test's source and string-
     greps the tuple definition.
     """
@@ -408,20 +408,20 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
         re.findall(r'"([a-z0-9-]+)"', m.group(1))
     )
 
-    # Tag-33 Mini-Welle: the sibling EXPECTED_BINARIES tuple grew
-    # from 9 to 13 with the Welle-4..7 dedicated single-binary
+    # Mini-wave: the sibling EXPECTED_BINARIES tuple grew
+    # from 9 to 13 with the wave 4..7 dedicated single-binary
     # additions (`state-backing-welle4`, `fsm-welle5`,
     # `subscribe-loop-welle6`, `recovery-welle7`).
     #
-    # Tag-45 Mini-Welle: the sibling tuple grew from 13 to 15 with the
+    # Mini-wave: the sibling tuple grew from 13 to 15 with the
     # Phase-3a-Foundation 14 + 15 closeout additions (bridge-audit-
     # replay, migrate-version). Inventory order in the sibling is:
-    #   sibling[0..9]   = canonical 9 (EXPECTED_BINARIES_9)
-    #   sibling[9..13]  = Welle-4..7 extras (COSIGN_QUADLET_KNOWN_EXTRAS)
-    #   sibling[13..15] = Tag-45 additions (COSIGN_QUADLET_TAG45_ADDITIONS)
+    # sibling[0..9] = canonical 9 (EXPECTED_BINARIES_9)
+    # sibling[9..13] = wave 4..7 extras (COSIGN_QUADLET_KNOWN_EXTRAS)
+    # sibling[13..15] = additions (COSIGN_QUADLET_TAG45_ADDITIONS)
     # The first 9 entries must still equal the canonical 9-set; the
-    # next 4 entries must equal the Welle-4..7 extras; the final 2
-    # entries must equal the Tag-45 additions tuple in this file.
+    # next 4 entries must equal the wave 4..7 extras; the final 2
+    # entries must equal the additions tuple in this file.
     n9 = len(EXPECTED_BINARIES_9)
     n_extras = len(COSIGN_QUADLET_KNOWN_EXTRAS)
     sibling_canonical_9 = sibling_names[:n9]
@@ -453,7 +453,7 @@ def test_inventory_constant_matches_cosign_policy_tuple() -> None:
 
 # ---------------------------------------------------------------------------
 # Test 5 — The runbook documents the 3-way inventory pflicht with
-#          the exact substrate names + canonical 9-binary inventory.
+# the exact substrate names + canonical 9-binary inventory.
 # ---------------------------------------------------------------------------
 def test_runbook_documents_three_way_pflicht() -> None:
     """The cross-substrate-parity runbook
@@ -502,7 +502,7 @@ def test_runbook_documents_three_way_pflicht() -> None:
             "the resolver carries one more entry than Cosign/Quadlet."
         )
 
-    # The runbook MUST mention the ADR-0066 Welle-3 Mitigation anchor.
+    # The runbook MUST mention the ADR-0066 wave 3 Mitigation anchor.
     assert "ADR-0066" in text, (
         "runbook does not anchor the 3-way Pflicht in ADR-0066"
     )
@@ -510,7 +510,7 @@ def test_runbook_documents_three_way_pflicht() -> None:
 
 # ---------------------------------------------------------------------------
 # Test 6 — Negative case: a synthetic resolver text with an extra
-#          undocumented backend MUST be rejected by the parity logic.
+# undocumented backend MUST be rejected by the parity logic.
 # ---------------------------------------------------------------------------
 def test_negative_undocumented_extra_is_detected(tmp_path: Path) -> None:
     """Synthetic resolver text with an extra undocumented backend

@@ -3,7 +3,7 @@
 """Cross-lang parity tests for the persona-engine anchor-submit-worker.
 
 The Python module under test
-(:mod:`wirelang.persona_engine.anchor_submit_worker`) is BUSL-1.1; the
+:mod:`wirelang.persona_engine.anchor_submit_worker`) is BUSL-1.1; the
 tests themselves are Apache-2.0 so downstream re-implementers can
 re-use the same vectors.
 

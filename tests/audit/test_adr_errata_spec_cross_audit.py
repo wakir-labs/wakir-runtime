@@ -1,41 +1,41 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-57 tests for the ADR-head-errata x Wirelang-spec
+Hermetic tests for the ADR-head-errata x Wirelang-spec
 cross-site mirror-drift audit (``tooling/audit/audit_adr_errata_
 spec_drift.py``).
 
 Test inventory (>= 12 hermetic, all stdlib):
 
-  T01  helper module imports without side-effects
-  T02  ERR_MARKERS contract: 6 markers, ids ERR-S1..ERR-S6
-  T03  ERR_MARKERS contract: ADR coverage matches Tag-56 footer set
+  T01 helper module imports without side-effects
+  T02 ERR_MARKERS contract: 6 markers, ids ERR-S1..ERR-S6
+  T03 ERR_MARKERS contract: ADR coverage matches footer set
        (S1..S3 -> 0034, S4 -> 0052, S5 -> 0062, S6 -> 0064)
-  T04  extract_errata_section yields the right slice on a synthetic
+  T04 extract_errata_section yields the right slice on a synthetic
        ADR fixture and stops at the next ``## ``
-  T05  extract_err_marker_ids finds all six markers on a synthetic
+  T05 extract_err_marker_ids finds all six markers on a synthetic
        fixture containing them
-  T06  extract_backtick_spans recovers literal back-tick spans only
+  T06 extract_backtick_spans recovers literal back-tick spans only
        (single-back-tick form, not fenced code blocks)
-  T07  run_audit on a hermetic fixture: spec mentions only canonical
+  T07 run_audit on a hermetic fixture: spec mentions only canonical
        forms -> all six markers report ``drift_class="no-drift"``
-  T08  run_audit: spec mentions a legacy form *with* citation hint
+  T08 run_audit: spec mentions a legacy form *with* citation hint
        -> that marker reports ``drift_class="legacy-form-cited"``
-  T09  run_audit: spec mentions a legacy form *without* citation hint
+  T09 run_audit: spec mentions a legacy form *without* citation hint
        -> that marker reports ``drift_class="legacy-form-uncited"``
        and the summary increments ``markers_with_drift``
-  T10  run_audit: missing ADR head file -> AdrHeadStatus.found=False,
-       err_markers_extracted=() and the audit still completes
-  T11  Drift-envelope JSON shape is stable: top-level keys,
+  T10 run_audit: missing ADR head file -> AdrHeadStatus.found=False,
+       err_markers_extracted= and the audit still completes
+  T11 Drift-envelope JSON shape is stable: top-level keys,
        nested keys for adr_heads/err_markers/summary present in
        exact contract order
-  T12  Drift-envelope JSON round-trips through json.loads without
+  T12 Drift-envelope JSON round-trips through json.loads without
        error and the summary tally is internally consistent
        (markers_total == markers_with_drift + markers_with_citation_ok)
-  T13  Cross-site anchor: when run against the *real* Tag-56 ADR
+  T13 Cross-site anchor: when run against the *real* ADR
        heads in ``AI-Corp/decisions/`` (skip-if-absent), all four
        heads are found and every expected ERR marker is extracted
-  T14  Cross-site anchor: when run against the *real* Wirelang spec
+  T14 Cross-site anchor: when run against the *real* Wirelang spec
        at ``wirelang/specs/wirelang-spec-v0-4-3.md`` (skip-if-absent),
        the spec freeze marker resolves to ``"pre-cutover-freeze"``
        and no uncited-drift surfaces
@@ -55,8 +55,8 @@ import pytest
 
 
 # --------------------------------------------------------------- #
-# Helper import (path-driven so tests work both from repo root    #
-# and from a pytest invocation in tests/audit/)                   #
+# Helper import (path-driven so tests work both from repo root #
+# and from a pytest invocation in tests/audit/) #
 # --------------------------------------------------------------- #
 
 
@@ -80,7 +80,7 @@ def _load_helper():
 
 
 # --------------------------------------------------------------- #
-# Synthetic ADR-head fixtures                                      #
+# Synthetic ADR-head fixtures #
 # --------------------------------------------------------------- #
 
 
@@ -230,7 +230,7 @@ def _synthetic_spec(
 
 
 # --------------------------------------------------------------- #
-# Tests                                                            #
+# Tests #
 # --------------------------------------------------------------- #
 
 
@@ -379,8 +379,8 @@ def test_t11_drift_envelope_json_shape_is_stable(tmp_path):
     payload = json.loads(envelope.to_json())
 
     # Top-level contract.
-    # Tag-63 extension: the envelope MAY carry an additional "draft_shape"
-    # key (None on a non-draft document). The Tag-57 pin is preserved by
+    # extension: the envelope MAY carry an additional "draft_shape"
+    # key (None on a non-draft document). The pin is preserved by
     # asserting the six original keys appear in order at the head of the
     # payload; any later keys are accepted as compatible extensions.
     assert list(payload.keys())[:6] == [
@@ -442,7 +442,7 @@ def test_t12_summary_tally_is_internally_consistent(tmp_path):
 
 
 # --------------------------------------------------------------- #
-# Optional cross-site anchor tests (skip-if-absent)                #
+# Optional cross-site anchor tests (skip-if-absent) #
 # --------------------------------------------------------------- #
 
 

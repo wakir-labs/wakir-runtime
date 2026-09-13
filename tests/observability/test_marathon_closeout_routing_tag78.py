@@ -2,34 +2,34 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-78 Marathon-Closeout-
-Alert-Routing-Erweiterung (Noa SRE, Continuous-Mode-Marathon-Polish).
+"""Hermetic observability tests for the Marathon-Closeout-
+Alert-Routing-Erweiterung.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-78 Noa-Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon-Polish):
+The assignment:
 
 Marathon-Closeout-Alert-Routing-Erweiterung. Seven alerts aggregate
-the per-welle final-sealing outcomes (Welle-1..7) into THREE
+the per-wave final-sealing outcomes (wave 1..7) into THREE
 layer-verdicts (Closeout, Final) plus the Phase-3-COMPLETE-Marker-
 Fire signal:
 
-  * WakirMarathonCloseoutReady       (info)
-  * WakirMarathonCloseoutPartial     (warning)
-  * WakirMarathonCloseoutDefect      (page)
-  * WakirMarathonFinalIntact         (info)
-  * WakirMarathonFinalDrift          (warning)
-  * WakirMarathonFinalDefect         (page)
-  * WakirPhase3CompleteMarkerFire    (info)
+  * WakirMarathonCloseoutReady (info)
+  * WakirMarathonCloseoutPartial (warning)
+  * WakirMarathonCloseoutDefect (page)
+  * WakirMarathonFinalIntact (info)
+  * WakirMarathonFinalDrift (warning)
+  * WakirMarathonFinalDefect (page)
+  * WakirPhase3CompleteMarkerFire (info)
 
 The alerts live in the dedicated ``marathon-closeout-routing``
 group in ``dashboards/phase-3-marathon-alerts.yaml`` and carry the
 new trinary routing-class family:
 
-  * ``marathon-closeout-info``    -> ntfy:ar-hand-info, activity-log:append
+  * ``marathon-closeout-info`` -> ntfy:ar-hand-info, activity-log:append
   * ``marathon-closeout-warning`` -> ntfy:ar-hand, activity-log:append
-  * ``marathon-closeout-page``    -> pagerduty:sre-oncall, ntfy:ar-hand,
+  * ``marathon-closeout-page`` -> pagerduty:sre-oncall, ntfy:ar-hand,
                                      activity-log:append
 
 The bridge ``scripts/observability/alert-rule-to-mira-notify-bridge.py``
@@ -49,9 +49,9 @@ Scope
 * Cross-Repo-Mirror byte-equality.
 * Cross-Reference consistency (alert name <-> catalog,
   routing class <-> channel set, runbook_url alignment).
-* Regression guard: prior Tag-71..75 routing classes preserved;
-  Tag-64 trinary shape invariants hold; Tag-50 welle-N groups
-  not contaminated by Tag-78 alerts.
+* Regression guard: prior..75 routing classes preserved;
+  trinary shape invariants hold; wave N groups
+  not contaminated by alerts.
 """
 
 from __future__ import annotations
@@ -92,7 +92,7 @@ BRIDGE_MIRROR_PATH = (
 )
 
 
-# Tag-78 alert inventory (alert-name -> expected severity).
+# alert inventory (alert-name -> expected severity).
 TAG78_ALERTS: dict[str, str] = {
     "WakirMarathonCloseoutReady": "info",
     "WakirMarathonCloseoutPartial": "warning",
@@ -103,7 +103,7 @@ TAG78_ALERTS: dict[str, str] = {
     "WakirPhase3CompleteMarkerFire": "info",
 }
 
-# Tag-78 alert -> expected routing_class.
+# alert -> expected routing_class.
 TAG78_ROUTING_CLASS: dict[str, str] = {
     "WakirMarathonCloseoutReady": "marathon-closeout-info",
     "WakirMarathonCloseoutPartial": "marathon-closeout-warning",
@@ -114,7 +114,7 @@ TAG78_ROUTING_CLASS: dict[str, str] = {
     "WakirPhase3CompleteMarkerFire": "marathon-closeout-info",
 }
 
-# Tag-78 alert -> expected runbook URL (verbatim).
+# alert -> expected runbook URL (verbatim).
 TAG78_RUNBOOK_URL: dict[str, str] = {
     "WakirMarathonCloseoutReady": (
         "https://wakir-labs.example/runbooks/marathon-closeout-ready"
@@ -211,7 +211,7 @@ def bridge_mirror_text() -> str:
 
 
 def test_all_seven_tag78_alerts_present_in_yaml(alerts_text: str) -> None:
-    """All seven Tag-78 alerts are appended to the alerts YAML."""
+    """All seven alerts are appended to the alerts YAML."""
     for name in TAG78_ALERTS:
         assert name in alerts_text, (
             f"Tag-78 marathon-closeout alert {name} missing from YAML"
@@ -222,7 +222,7 @@ def test_tag78_alerts_live_in_marathon_closeout_group(
     alerts_doc: dict,
 ) -> None:
     """All seven alerts must live in the dedicated
-    ``marathon-closeout-routing`` group (NOT in any welle-N group
+    ``marathon-closeout-routing`` group (NOT in any wave N group
     and NOT split across multiple groups). Cardinality pinned at 7.
     """
     groups = [
@@ -249,8 +249,8 @@ def test_tag78_alerts_live_in_marathon_closeout_group(
 def test_tag78_alert_severity_and_canonical_labels(
     alerts_doc: dict, alert_name: str, expected_severity: str
 ) -> None:
-    """Each Tag-78 alert carries the expected severity AND the
-    canonical Tag-78 labels (tag, owner, team, mitigation, phase).
+    """Each alert carries the expected severity AND the
+    canonical labels (tag, owner, team, mitigation, phase).
     """
     rule = _find_rule(alerts_doc, alert_name)
     labels = rule["labels"]
@@ -272,7 +272,7 @@ def test_tag78_alert_severity_and_canonical_labels(
 def test_tag78_alert_routing_class(
     alerts_doc: dict, alert_name: str, expected_rc: str
 ) -> None:
-    """Each Tag-78 alert carries the expected routing_class label
+    """Each alert carries the expected routing_class label
     (trinary family marathon-closeout-{info,warning,page}).
     """
     rule = _find_rule(alerts_doc, alert_name)
@@ -405,7 +405,7 @@ def test_marker_fire_carries_marker_event_discriminator(
 def test_tag78_alert_for_window(
     alerts_doc: dict, alert_name: str
 ) -> None:
-    """All Tag-78 alerts carry a 2m ``for:`` window to tolerate a
+    """All alerts carry a 2m ``for:`` window to tolerate a
     single Prometheus scrape gap (~15s) without false-positives on
     transient state-flips at verdict-publication time.
     """
@@ -463,7 +463,7 @@ def test_tag78_alert_notify_path_matches_severity(
 
 
 def test_tag78_header_comment_present(alerts_text: str) -> None:
-    """A Tag-78 header comment anchors the new block for grep-
+    """A header comment anchors the new block for grep-
     discoverability and audit-trail reading.
     """
     assert (
@@ -483,7 +483,7 @@ def test_tag78_header_comment_present(alerts_text: str) -> None:
 def test_bridge_catalog_has_each_tag78_alert(
     bridge_module, alert_name: str, expected_severity: str
 ) -> None:
-    """Each Tag-78 alert is catalogued in ALERT_CATALOG with the
+    """Each alert is catalogued in ALERT_CATALOG with the
     correct severity + runbook_url.
     """
     cat = bridge_module.ALERT_CATALOG
@@ -496,7 +496,7 @@ def test_bridge_catalog_has_each_tag78_alert(
 
 
 def test_bridge_new_routing_classes_registered(bridge_module) -> None:
-    """The three Tag-78 routing classes must be in
+    """The three routing classes must be in
     VALID_ROUTING_CLASSES, ROUTING_CLASS_CHANNELS, and
     ROUTING_CLASS_ESCALATION_SECONDS. Shape invariants hold.
     """
@@ -523,7 +523,7 @@ def test_bridge_new_routing_classes_registered(bridge_module) -> None:
 def test_bridge_routing_class_channels(
     bridge_module, routing_class: str, expected_channels: tuple[str, ...]
 ) -> None:
-    """The channel-tuple for each Tag-78 routing class matches the
+    """The channel-tuple for each routing class matches the
     expected (deterministic, ordered) channel-set.
     """
     actual = bridge_module.ROUTING_CLASS_CHANNELS[routing_class]
@@ -550,7 +550,7 @@ def test_bridge_routing_class_escalation_seconds(
 
 def test_bridge_lookup_helpers_for_tag78_classes(bridge_module) -> None:
     """The lookup_* helpers return the correct values for the
-    three Tag-78 routing classes.
+    three routing classes.
     """
     assert bridge_module.lookup_routing_class_channels(
         "marathon-closeout-info"
@@ -582,8 +582,8 @@ def test_bridge_lookup_helpers_for_tag78_classes(bridge_module) -> None:
 
 
 def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
-    """Adding the Tag-78 routing classes must NOT break the
-    Tag-64 trinary routing-table shape invariants.
+    """Adding the routing classes must NOT break the
+    trinary routing-table shape invariants.
     """
     shape = bridge_module.validate_trinary_routing_table_shape()
     assert shape == {
@@ -596,8 +596,8 @@ def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
 def test_bridge_prior_routing_classes_still_registered(
     bridge_module,
 ) -> None:
-    """Regression guard: Tag-78 addition must NOT remove the
-    Tag-64 trinary or Tag-71/72/73/74/75 per-welle routing classes.
+    """Regression guard: addition must NOT remove the
+    trinary or /72/73/74/75 per-wave routing classes.
     """
     for rc in (
         "standard",
@@ -619,7 +619,7 @@ def test_bridge_prior_routing_classes_still_registered(
 def test_bridge_lookup_catalog_returns_independent_copy(
     bridge_module,
 ) -> None:
-    """lookup_catalog() must return a copy of each Tag-78 catalog
+    """lookup_catalog must return a copy of each catalog
     entry (mutation must not leak back into ALERT_CATALOG).
     """
     e = bridge_module.lookup_catalog("WakirMarathonCloseoutDefect")
@@ -638,7 +638,7 @@ def test_bridge_lookup_catalog_returns_independent_copy(
 def test_failure_mode_id_tag78_prefix(
     bridge_module, alert_name: str
 ) -> None:
-    """Each Tag-78 catalog entry carries a failure_mode_id prefixed
+    """Each catalog entry carries a failure_mode_id prefixed
     with ``Tag-78-`` for audit-trail grep-ability.
     """
     fmi = bridge_module.ALERT_CATALOG[alert_name]["failure_mode_id"]
@@ -741,9 +741,9 @@ def test_alert_yaml_severity_matches_bridge_catalog(
 def test_tag78_alerts_map_to_event_kwargs_with_info_channels(
     bridge_module,
 ) -> None:
-    """End-to-end: an AlertManager v4 alert dict carrying a Tag-78
+    """End-to-end: an AlertManager v4 alert dict carrying a
     info-class routing label produces ``map_alert_to_event_kwargs``
-    output that pins the Tag-78 info channel-set + zero escalation.
+    output that pins the info channel-set + zero escalation.
     """
     alert = {
         "status": "firing",
@@ -857,9 +857,9 @@ def test_tag78_warning_class_maps_to_ntfy_arhand_no_pager(
 
 
 def test_tag78_alerts_not_in_welle_n_groups(alerts_doc: dict) -> None:
-    """Hard separation: Tag-78 layer-verdict alerts must NOT appear
-    in any of the per-welle ``welle-N-alerts`` groups. Cross-layer-
-    contamination would corrupt the Tag-50 + Tag-7X cardinality
+    """Hard separation: layer-verdict alerts must NOT appear
+    in any of the per-wave ``welle-N-alerts`` groups. Cross-layer-
+    contamination would corrupt the + Tag-7X cardinality
     contract pinned in tests/ci/test_welle_n_specific_alerts.py.
     """
     welle_group_names = {
@@ -877,7 +877,7 @@ def test_tag78_alerts_not_in_welle_n_groups(alerts_doc: dict) -> None:
 def test_existing_complete_marker_false_positive_alert_preserved(
     alerts_doc: dict,
 ) -> None:
-    """Regression guard: the Tag-40 baseline
+    """Regression guard: the baseline
     WakirPhase3CompleteMarkerFalsePositive (page-severity drift
     alert) must remain in the YAML. The new
     WakirPhase3CompleteMarkerFire (info-severity positive alert) is

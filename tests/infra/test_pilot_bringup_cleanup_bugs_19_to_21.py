@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-8 bring-up-cleanup
+"""Hermetic acceptance tests for the bring-up-cleanup
 substance-fixes (2 bugs from the live Pilot-VM bring-up 2026-05-14
 ~13:15 CEST, V2-Acceptance-Bring-up-4).
 
 Context
 -------
 
-Bring-up-4 ran from-scratch on the Pilot-VM (post Sprint-9-Tag-7-merge,
+Bring-up-4 ran from-scratch on the Pilot-VM (post -merge,
 main-tip ``87b3a9f``) and reached 6/6 smoke-pass — but only after the
 Operator applied 2 more hand-patches mid-bring-up. Live-Bring-up-
 Sandbox-Gap iteration #3 in a row. These two bugs were NOT caught by
-the Tag-6 / Tag-7 hermetic surface; this module closes the gap.
+the / hermetic surface; this module closes the gap.
 
-Test-Vector index (Bug-numbered to continue the Tag-7 ladder)
+Test-Vector index (Bug-numbered to continue the ladder)
 -------------------------------------------------------------
 
   * ``TV-S9T8-20`` — Quadlet ``:Z`` SELinux-relabel discipline. See
@@ -46,7 +46,7 @@ driver uses PATH-injection to substitute mock ``chown``, ``stat``,
 and ``podman`` binaries — the post-fix loop's verification logic is
 what's exercised, not the surrounding systemd plumbing.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations

@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tag-50 hermetic test suite for wirelang-spec-v0-4-2.md DRIFT-S4 reconciliation.
+"""hermetic test suite for wirelang-spec-v0-4-2.md DRIFT-S4 reconciliation.
 
 This suite verifies the additive patch v0.4.2 over v0.4.1 captures the single
-drift item raised against PR #314 (Tag-49 federation-resolver cross-lang-pin
+drift item raised against PR #314 (federation-resolver cross-lang-pin
 refresh suite):
 
 - DRIFT-S4: spec v0.4.1 §4.1 listed nine `WAKIR_PE_*_BACKEND` components;
   Pin-Pack-0.5.1-pre-cutover wires ten `WAKIR_*_BACKEND` records with
-  federation-resolver at #9 and bridge-audit-writer at #10. Mira-CEO-Triage
+  federation-resolver at #9 and bridge-audit-writer at #10. operator-CEO-Triage
   2026-05-19 (Option C Hybrid): spec documents Pin-Pack reality as
   single-source-of-truth; canonical_form demoted to §4.1 FN-1 (no ENV-flag
   wired in v0.4.2; Phase-4-Item).
@@ -273,7 +273,7 @@ def test_t09_section_3_catalogue_byte_identical_to_v041():
 
 # ---------------------------------------------------------------------------
 # T-10: federation-resolver at record #9, bridge-audit-writer at record #10
-#        (the two record-position invariants central to DRIFT-S4)
+# (the two record-position invariants central to DRIFT-S4)
 # ---------------------------------------------------------------------------
 
 
@@ -311,7 +311,7 @@ def test_t10_federation_resolver_record_9_and_bridge_audit_writer_record_10():
 
 
 def test_t11_manifest_carries_v042_cross_reference():
-    """T-11: MANIFEST-0.5.1 §2 carries the v0.4.2 spec cross-reference (Tag-50)."""
+    """T-11: MANIFEST-0.5.1 §2 carries the v0.4.2 spec cross-reference."""
     assert MANIFEST_PATH.is_file(), "MANIFEST-0.5.1 must be present"
     body = MANIFEST_PATH.read_text(encoding="utf-8")
     assert (

@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-64 tests for the Wirelang Spec v0.4.4 Post-Cutover-Reserve-Draft
+Hermetic tests for the Wirelang Spec v0.4.4 post-cutover-Reserve-Draft
 =============================================================================
-Coverage-Extension over Tag-63 draft-shape invariants.
+Coverage-Extension over draft-shape invariants.
 
-Tag-63 pinned the draft-isolation invariant (§2), the
+pinned the draft-isolation invariant (§2), the
 frontmatter shape (status / parent / activation-trigger),
 and the §6.1..§6.5 RES-Dn sub-section presence.
 
-Tag-64 extends that pin-set with per-RES-Dn **sample-block**
+extends that pin-set with per-RES-Dn **sample-block**
 pins: each of the five reserve items carries a §6.n.1
-canonical-form sample inside the spec body. The Tag-64 suite
+canonical-form sample inside the spec body. The suite
 verifies:
 
   Axis A — Sample-Block Existence
@@ -37,51 +37,51 @@ verifies:
 
 Test inventory (>= 15 hermetic, all stdlib):
 
-  T01  Spec file exists at the expected path.
-  T02  Each RES-Dn (n=1..5) carries a §6.n.1 sub-heading.
-  T03  RES-D1 sample block: fenced yaml block exists and
+  T01 Spec file exists at the expected path.
+  T02 Each RES-Dn (n=1..5) carries a §6.n.1 sub-heading.
+  T03 RES-D1 sample block: fenced yaml block exists and
        contains 'identity-substrate-version' and
        '0.4.4-draft-RES-D1'.
-  T04  RES-D2 sample block: fenced yaml block exists and
+  T04 RES-D2 sample block: fenced yaml block exists and
        contains 'min-attenuation-depth' and '0.4.4-draft-RES-D2'.
-  T05  RES-D3 sample block: fenced yaml block exists and
+  T05 RES-D3 sample block: fenced yaml block exists and
        contains 'WAKIR_BRIDGE_AUDIT_WRITER_BACKEND' and
        '0.4.4-draft-RES-D3'.
-  T06  RES-D4 sample block: fenced yaml block exists and
+  T06 RES-D4 sample block: fenced yaml block exists and
        contains 'registry-pointer-frame' and '0.4.4-draft-RES-D4'.
-  T07  RES-D5 sample block: fenced yaml block exists and
+  T07 RES-D5 sample block: fenced yaml block exists and
        contains 'shard-count' and '0.4.4-draft-RES-D5'.
-  T08  Fence-balance per RES-Dn sample block: every '```yaml'
+  T08 Fence-balance per RES-Dn sample block: every '```yaml'
        opener has a matching '```' closer inside the §6.n
        sub-section.
-  T09  Each sample block carries the RES-Dn anchor string
+  T09 Each sample block carries the RES-Dn anchor string
        at least twice (heading + in-block anchor) — the per-block
        coverage discipline pin.
-  T10  RES-D3 sample block cites Pin-Pack record #10 anchor
+  T10 RES-D3 sample block cites Pin-Pack record #10 anchor
        ('pin-pack-record-number: 10').
-  T11  RES-D4 sample block cites the schema-registry-spec target
+  T11 RES-D4 sample block cites the schema-registry-spec target
        ('schema-registry') and the federation backend
        ('route_registry').
-  T12  RES-D5 sample block cites the v1 leaf-projection contract
+  T12 RES-D5 sample block cites the v1 leaf-projection contract
        ('recovery-drill') and the back-compat verdict
        ('incomplete-projection').
-  T13  Draft frontmatter still declares 'status:
-       post-cutover-reserve-draft' (Tag-63 invariant preserved).
-  T14  Draft frontmatter does NOT declare 'status:
+  T13 Draft frontmatter still declares 'status:
+       post-cutover-reserve-draft' (invariant preserved).
+  T14 Draft frontmatter does NOT declare 'status:
        pre-cutover-freeze' (the freeze-seal MUST NOT pick the
        draft up as a second freeze-marker).
-  T15  Source-of-truth direction §1 mentions Tag-64 coverage
-       extension ('Tag-64 coverage extension').
-  T16  §8 audit-conformance mentions the Tag-64 coverage suite
+  T15 Source-of-truth direction §1 mentions coverage
+       extension ('coverage extension').
+  T16 §8 audit-conformance mentions the coverage suite
        ('test_wirelang_spec_v0_4_4_coverage').
-  T17  v0.4.3 freeze-seal intact: SHA-256 of
+  T17 v0.4.3 freeze-seal intact: SHA-256 of
        'wirelang-spec-v0-4-3.md' matches the value in
-       'freeze-baseline.json'. Tag-64 promise: the coverage
+       'freeze-baseline.json'. promise: the coverage
        extension MUST NOT alter v0.4.3.
-  T18  Tag-63 §6.n sub-sections (n=1..5) for RES-Dn are
+  T18 §6.n sub-sections (n=1..5) for RES-Dn are
        preserved verbatim at the heading level (the coverage
        extension is additive, not destructive).
-  T19  Sample blocks are confined to §6 (non-normative scope):
+  T19 Sample blocks are confined to §6 (non-normative scope):
        no §6.n.1 heading or RES-Dn-sample-anchor appears outside
        §6.
 
@@ -106,7 +106,7 @@ FREEZE_BASELINE = REPO_ROOT / "wirelang" / "specs" / "freeze-baseline.json"
 
 
 # --------------------------------------------------------------- #
-# Module-scope fixture: load the live draft text once.            #
+# Module-scope fixture: load the live draft text once. #
 # --------------------------------------------------------------- #
 
 
@@ -127,7 +127,7 @@ def _extract_section_body(spec_text: str, section_anchor: str) -> str:
     ignored for heading-detection purposes (YAML comments starting
     with '# ' would otherwise be misread as Markdown headings).
 
-    Stdlib-only; sufficient for the Tag-64 sample-block scope
+    Stdlib-only; sufficient for the sample-block scope
     checks because §6.n.1 sub-headings live inside §6.n and §6.n
     lives inside §6.
     """
@@ -171,7 +171,7 @@ def _extract_frontmatter_block(spec_text: str) -> str:
 
 
 # --------------------------------------------------------------- #
-# Axis A — Sample-Block Existence                                  #
+# Axis A — Sample-Block Existence #
 # --------------------------------------------------------------- #
 
 
@@ -233,7 +233,7 @@ def test_T07_res_d5_sample_block(spec_text: str):
 
 
 # --------------------------------------------------------------- #
-# Axis B — Canonical-Form Validity (shape-only)                   #
+# Axis B — Canonical-Form Validity (shape-only) #
 # --------------------------------------------------------------- #
 
 
@@ -242,7 +242,7 @@ def test_T08_fence_balance_per_res_dn_sub_section(spec_text: str):
     Each §6.n sub-section must carry exactly one '```yaml' opener
     and one matching '```' closer for the §6.n.1 sample block.
     The RES-Dn parent §6.n itself contains no other code fences in
-    the Tag-64 layout, so opener_count == closer_count - opener_count
+    the layout, so opener_count == closer_count - opener_count
     holds and both equal 1.
     """
     for n in range(1, 6):
@@ -276,7 +276,7 @@ def test_T09_res_dn_anchor_at_least_twice(spec_text: str):
 
 
 # --------------------------------------------------------------- #
-# Axis C — Reference-Integrity to v0.4.3 (Parent-Anchor)          #
+# Axis C — Reference-Integrity to v0.4.3 (Parent-Anchor) #
 # --------------------------------------------------------------- #
 
 
@@ -338,7 +338,7 @@ def test_T16_audit_conformance_mentions_tag_64_suite(spec_text: str):
 
 def test_T17_v0_4_3_freeze_seal_intact():
     """
-    The Tag-64 coverage extension touches v0.4.4-draft ONLY. The
+    the coverage extension touches v0.4.4-draft ONLY. The
     v0.4.3 freeze-seal MUST remain intact. Skip-if-absent for
     worktrees that don't carry the baseline.
     """
@@ -362,9 +362,9 @@ def test_T17_v0_4_3_freeze_seal_intact():
 
 def test_T18_tag63_res_dn_sub_sections_preserved(spec_text: str):
     """
-    The Tag-64 extension is ADDITIVE: it adds §6.n.1 sub-headings
+    the extension is ADDITIVE: it adds §6.n.1 sub-headings
     under each §6.n RES-Dn sub-section. The §6.n RES-Dn headings
-    themselves MUST remain verbatim (Tag-63 invariant preserved).
+    themselves MUST remain verbatim (invariant preserved).
     """
     for n in range(1, 6):
         pat = rf"^###\s+6\.{n}\s+RES-D{n}:"
@@ -376,7 +376,7 @@ def test_T18_tag63_res_dn_sub_sections_preserved(spec_text: str):
 def test_T19_sample_anchors_confined_to_section_6(spec_text: str):
     """
     Per draft-isolation invariant §2: §6 is the non-normative
-    reserve-substrate scope. The Tag-64 sample blocks MUST live
+    reserve-substrate scope. The sample blocks MUST live
     inside §6. We pin this by checking that no §6.n.1 heading and
     no '0.4.4-draft-RES-Dn' anchor appears outside §6.
     """

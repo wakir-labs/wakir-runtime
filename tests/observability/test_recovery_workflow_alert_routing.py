@@ -2,24 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-75 Welle-7
-Final-Sealing-Alert-Routing-Erweiterung (Noa SRE, Continuous-
-Mode-Marathon).
+"""Hermetic observability tests for the wave 7
+Final-Sealing-Alert-Routing-Erweiterung.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-75 Noa Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon):
+The observability zone assignment:
 
-Welle-7 Final-Sealing-Alert-Routing-Erweiterung. Two additional
-Welle-7 alarms close the Welle-7 final-sealing positive-
+wave 7 Final-Sealing-Alert-Routing-Erweiterung. Two additional
+wave 7 alarms close the wave 7 final-sealing positive-
 confirmation + Pre-Auditor-Signal routing gap surfaced during
-the Tag-74 stability-window review (Welle-7 is the terminal
-welle in the KW-27 doppel-cutover sequence; sealing-handshake
+the stability-window review (wave 7 is the terminal
+wave in the calendar week 27 doppel-cutover sequence; sealing-handshake
 state needs an explicit positive surface):
 
-  * WakirPhase3Welle7FinalSealingComplete   (info)
-  * WakirPhase3Welle7PreAuditorSignalReceived   (info)
+  * WakirPhase3Welle7FinalSealingComplete (info)
+  * WakirPhase3Welle7PreAuditorSignalReceived (info)
 
 Both alerts are appended to the existing ``welle-7-alerts``
 group in ``dashboards/phase-3-marathon-alerts.yaml`` and carry
@@ -32,13 +31,13 @@ byte-equal into ``wirelang/specs/protocol-mirror-seed/``.
 Scope
 -----
 
-* Welle-7 alert YAML surface (alert names, severity, labels,
+* wave 7 alert YAML surface (alert names, severity, labels,
   routing class, expr contract).
 * Bridge ALERT_CATALOG entries + routing-class table.
 * Cross-Repo-Mirror byte-equality.
 * Cross-Reference consistency (alert name <-> catalog,
   routing class <-> channel set, runbook_url alignment).
-* Regression guard: prior Tag-71/72/73/74 routing classes
+* Regression guard: prior /72/73/74 routing classes
   preserved.
 """
 
@@ -122,22 +121,22 @@ def bridge_mirror_text() -> str:
 
 
 # ---------------------------------------------------------------
-# Section 1: Welle-7 alert YAML surface.
+# Section 1: wave 7 alert YAML surface.
 # ---------------------------------------------------------------
 
 
 def test_both_tag75_alerts_present_in_yaml(alerts_text: str) -> None:
-    """The two Tag-75 alerts are appended to the alerts YAML."""
+    """The two alerts are appended to the alerts YAML."""
     assert "WakirPhase3Welle7FinalSealingComplete" in alerts_text
     assert "WakirPhase3Welle7PreAuditorSignalReceived" in alerts_text
 
 
 def test_tag75_alerts_live_in_welle_7_group(alerts_doc: dict) -> None:
     """Both alerts must be in the existing ``welle-7-alerts``
-    group, not in a new top-level group. This keeps the Welle-7
+    group, not in a new top-level group. This keeps the wave 7
     final-sealing observability surface contiguous and grep-
-    discoverable. Both Tag-75 alerts must come AFTER the pre-
-    existing Welle-7 page-level alerts (append, not prepend).
+    discoverable. Both alerts must come AFTER the pre-
+    existing wave 7 page-level alerts (append, not prepend).
     """
     welle_7_groups = [
         g for g in alerts_doc["groups"] if g["name"] == "welle-7-alerts"
@@ -164,7 +163,7 @@ def test_final_sealing_complete_severity_info_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The FinalSealingComplete alert must be severity=info with
-    the canonical Tag-75 Welle-7 labels.
+    the canonical wave 7 labels.
     """
     rule = _find_rule(
         alerts_doc, "WakirPhase3Welle7FinalSealingComplete"
@@ -185,7 +184,7 @@ def test_pre_auditor_signal_severity_info_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The PreAuditorSignalReceived alert must be severity=info
-    with the canonical Tag-75 labels plus the ``signal_path:
+    with the canonical labels plus the ``signal_path:
     external-pre-auditor-designation-received`` discriminator.
     """
     rule = _find_rule(
@@ -206,9 +205,9 @@ def test_pre_auditor_signal_severity_info_and_labels(
 
 def test_final_sealing_complete_expr_contract(alerts_doc: dict) -> None:
     """The FinalSealingComplete expr must require ALL six prior
-    welle Schluss-Audit-Signoffs (welles 1..6) AND Welle-7 signoff
+    wave Schluss-Audit-Signoffs (welles 1..6) AND wave 7 signoff
     carrying ``auditor="external-pre-auditor"``. Mutual exclusion
-    with the existing IIA-1130 Henrik-default warning is enforced
+    with the existing IIA-1130 internal audit-default warning is enforced
     by the auditor discriminator.
     """
     rule = _find_rule(
@@ -245,7 +244,7 @@ def test_pre_auditor_signal_expr_uses_designation_gauge(
 
 
 def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
-    """Both Tag-75 alerts must route to ntfy:ar-hand-info +
+    """Both alerts must route to ntfy:ar-hand-info +
     activity-log:append only. No pagerduty, no on-call page.
     """
     for name in (
@@ -282,7 +281,7 @@ def test_tag75_alerts_carry_runbook_url(alerts_doc: dict) -> None:
 
 
 def test_tag75_header_comment_present(alerts_text: str) -> None:
-    """A Tag-75 header comment anchors the new block for future
+    """A header comment anchors the new block for future
     grep-ability and audit-trail reading.
     """
     assert (
@@ -292,7 +291,7 @@ def test_tag75_header_comment_present(alerts_text: str) -> None:
 
 
 def test_tag75_alerts_carry_for_window(alerts_doc: dict) -> None:
-    """Both Tag-75 alerts must declare a 2m ``for:`` window to
+    """Both alerts must declare a 2m ``for:`` window to
     survive a single Prometheus scrape gap (~15s) without
     false-positives on transient state-flips.
     """
@@ -313,7 +312,7 @@ def test_tag75_alerts_carry_for_window(alerts_doc: dict) -> None:
 
 
 def test_bridge_catalog_has_both_tag75_alerts(bridge_module) -> None:
-    """Both Tag-75 alerts must be catalogued in ALERT_CATALOG
+    """Both alerts must be catalogued in ALERT_CATALOG
     with the correct severity + runbook_url.
     """
     cat = bridge_module.ALERT_CATALOG
@@ -361,7 +360,7 @@ def test_bridge_new_routing_class_registered(bridge_module) -> None:
 
 def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
     """The lookup_* helpers return the correct values for the
-    new Tag-75 routing class.
+    new routing class.
     """
     assert bridge_module.lookup_routing_class_channels(
         "welle-7-final-sealing-info"
@@ -375,8 +374,8 @@ def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
 
 
 def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
-    """Adding the Tag-75 routing class must NOT break the
-    trinary routing-table shape invariants (Tag-64 contract).
+    """Adding the routing class must NOT break the
+    trinary routing-table shape invariants (contract).
     """
     shape = bridge_module.validate_trinary_routing_table_shape()
     assert shape == {
@@ -389,8 +388,8 @@ def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
 def test_bridge_lookup_catalog_returns_tag75_entries(
     bridge_module,
 ) -> None:
-    """lookup_catalog() must return a copy of the catalog entry
-    for both Tag-75 alerts (and the copy must be independent of
+    """lookup_catalog must return a copy of the catalog entry
+    for both alerts (and the copy must be independent of
     the catalog dict).
     """
     e1 = bridge_module.lookup_catalog(
@@ -416,8 +415,8 @@ def test_bridge_lookup_catalog_returns_tag75_entries(
 def test_bridge_prior_routing_classes_still_registered(
     bridge_module,
 ) -> None:
-    """Regression guard: Tag-75 addition must NOT remove the
-    Tag-71/72/73/74 routing classes.
+    """Regression guard: addition must NOT remove the
+    /72/73/74 routing classes.
     """
     for rc in (
         "welle-3-pre-auditor-info",
@@ -532,7 +531,7 @@ def test_alert_yaml_severity_matches_bridge_catalog(
 
 
 def test_failure_mode_id_tag75_prefix(bridge_module) -> None:
-    """Both Tag-75 catalog entries must carry a failure_mode_id
+    """Both catalog entries must carry a failure_mode_id
     prefixed with ``Tag-75-Welle7-FinalSealing-`` for audit-trail
     grep-ability.
     """
@@ -552,8 +551,8 @@ def test_tag75_alerts_map_to_event_kwargs_with_channels(
     bridge_module,
 ) -> None:
     """End-to-end: an AlertManager v4 alert dict carrying the
-    Tag-75 routing class must produce ``map_alert_to_event_kwargs``
-    output that pins the Tag-75 channel-set + escalation-deadline
+    routing class must produce ``map_alert_to_event_kwargs``
+    output that pins the channel-set + escalation-deadline
     on the label-passthrough.
     """
     alert = {

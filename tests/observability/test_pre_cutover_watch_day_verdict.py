@@ -3,7 +3,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``scripts/observability/pre-cutover-watch-day-verdict.py``.
 
-These tests pin the Tag-54 Watch-Day-Verdict pure-function
+These tests pin the watch-day-Verdict pure-function
 reference implementation to the §7 verdict-formula and the
 §10 journal-entry schema in
 ``docs/observability/pre-cutover-watch-day-spec.md``.
@@ -13,15 +13,15 @@ live VM.
 
 Test coverage (>= 10 tests):
 
-  1.  test_all_green_inputs_yield_green_verdict
-  2.  test_one_missing_dashboard_drops_to_amber
-  3.  test_amber_probe_drops_to_amber_not_red
-  4.  test_red_probe_forces_red_verdict
-  5.  test_hard_zero_slo_burn_forces_red_with_reason
-  6.  test_welle_slo_fast_burn_with_tomorrow_cutover_is_red
-  7.  test_welle_slo_fast_burn_without_tomorrow_cutover_not_red
-  8.  test_ci_gate_failure_forces_red_with_reason
-  9.  test_missing_dashboards_and_alert_groups_helpers
+  1. test_all_green_inputs_yield_green_verdict
+  2. test_one_missing_dashboard_drops_to_amber
+  3. test_amber_probe_drops_to_amber_not_red
+  4. test_red_probe_forces_red_verdict
+  5. test_hard_zero_slo_burn_forces_red_with_reason
+  6. test_welle_slo_fast_burn_with_tomorrow_cutover_is_red
+  7. test_welle_slo_fast_burn_without_tomorrow_cutover_not_red
+  8. test_ci_gate_failure_forces_red_with_reason
+  9. test_missing_dashboards_and_alert_groups_helpers
   10. test_amber_probes_helper_returns_sorted_welle_ids
   11. test_validate_journal_entry_complete_slot_08_ok
   12. test_validate_journal_entry_missing_field_errors
@@ -34,8 +34,8 @@ Test coverage (>= 10 tests):
   19. test_red_blocker_reasons_are_sorted_and_stable
   20. test_cli_writes_verdict_file_for_green_inputs
 
-Anchor: Tag-54 Noa-SRE Pre-Cutover-Watch-Day-Spec.
-Author: Noa Bergstroem (SRE)
+Anchor: the observability zone-SRE pre-cutover-watch-day-Spec.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations
@@ -195,7 +195,7 @@ def test_hard_zero_slo_burn_forces_red_with_reason():
 
 
 # ---------------------------------------------------------------------------
-# 6. Welle SLO fast-burn with tomorrow-cutover -> RED.
+# 6. wave SLO fast-burn with tomorrow-cutover -> RED.
 # ---------------------------------------------------------------------------
 
 def test_welle_slo_fast_burn_with_tomorrow_cutover_is_red():
@@ -216,7 +216,7 @@ def test_welle_slo_fast_burn_with_tomorrow_cutover_is_red():
 
 
 # ---------------------------------------------------------------------------
-# 7. Welle SLO fast-burn but NO tomorrow-cutover -> not RED.
+# 7. wave SLO fast-burn but NO tomorrow-cutover -> not RED.
 # ---------------------------------------------------------------------------
 
 def test_welle_slo_fast_burn_without_tomorrow_cutover_not_red():
@@ -229,9 +229,9 @@ def test_welle_slo_fast_burn_without_tomorrow_cutover_not_red():
         firing_slo_burn_rates=frozenset({"SLO-1"}),
         tomorrow_cutover_welles=frozenset(),
     )
-    # No tomorrow-cutover-Welle => SLO-1 fast-burn is not a RED
+    # No tomorrow-cutover-wave => SLO-1 fast-burn is not a RED
     # blocker, but it is also not GREEN (the SLO-1 condition for
-    # GREEN requires no fast-burn even with no Welle).
+    # GREEN requires no fast-burn even with no wave).
     # Per spec §7 GREEN-conditions, SLO-1 fast-burn is only
     # checked relative to tomorrow-cutover-welles. With empty set
     # and no other GREEN-blockers violated, verdict is GREEN.

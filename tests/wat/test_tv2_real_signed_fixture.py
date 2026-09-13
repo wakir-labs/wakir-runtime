@@ -2,9 +2,9 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Pre-baked Aggregator-signed TV-2 sub-cohort regression pins.
 
-Sprint-6-Tag-5 Item 1: the Aggregator-signed sub-cohort under
+ Item 1: the Aggregator-signed sub-cohort under
 ``tests/fixtures/wat-tv2-real-signed/`` is the test-vereinfachung
-follow-up to Sprint-6-Tag-3 Folge-Item 1. Verifier tests no longer
+follow-up to Folge-Item 1. Verifier tests no longer
 need to hand-sign manifest copies on the hot path; they consume the
 checked-in signed manifests directly. This module pins the new
 substrate end-to-end so it does not silently regress.
@@ -20,7 +20,7 @@ Per signed TV-2 hour-receipt (4 of them, 2026-05-27T00..T03):
    hex-128 signature shape).
 
 2. ``verify_real_manifest_file(verify_signature=True, mode=STRICT,
-   verify_signature_public_key=<demo-pub>, ...)`` returns
+   verify_signature_public_key=<demo-pub>,...)`` returns
    ``signature_status="verified"`` and ``ok=True`` end-to-end.
 
 3. The signed manifest's ``merkle_root`` equals the stock cohort's
@@ -42,12 +42,12 @@ on-disk Aggregator-signed substrate.
 Pre-baked rather than hand-signed
 ---------------------------------
 
-The Sprint-5-Tag-5 module hand-signed deep-copies of each TV-2 hour
+The module hand-signed deep-copies of each TV-2 hour
 to ``tmp_path`` to exercise the verifier-side signature wire-up. That
 substrate was the right level of indirection at the time (the
-Production aggregator did not yet sign on the writer side). Tag-3 of
-Sprint-6 landed the Aggregator-side ``--sign-key`` / ``--sign-kid``;
-Tag-5 here closes the test-substrate loop by checking in the
+Production aggregator did not yet sign on the writer side). of
+ landed the Aggregator-side ``--sign-key`` / ``--sign-kid``;
+here closes the test-substrate loop by checking in the
 Aggregator-signed manifests directly, so the verifier-side
 regression pins read straight from disk.
 """
@@ -146,7 +146,7 @@ def test_tv2_signed_subcohort_hour_verifies_end_to_end(
     Per hour-slot: read the on-disk signed manifest from
     ``tests/fixtures/wat-tv2-real-signed/<hour>/`` and run
     ``verify_real_manifest_file(verify_signature=True, mode=STRICT,
-    verify_signature_public_key=<demo-pub>, ...)``. The signed
+    verify_signature_public_key=<demo-pub>,...)``. The signed
     manifest carries the doc-pinned demo signature; the verifier
     returns ``signature_status="verified"`` end-to-end (schema +
     integrity + OTS-anchor + signature all green).

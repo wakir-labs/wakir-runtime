@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic HCL-shape acceptance tests for the Phase-2 Sprint-10 Tag-1
-SPIRE-Server federation configs (Sprint-10 Tag-6 substance-fix).
+"""Hermetic HCL-shape acceptance tests for the Phase-2
+SPIRE-Server federation configs ( substance-fix).
 
 **Why this test surface exists.**
 
-The Sprint-10 Tag-5 Live-Trial uncovered four federation-config bugs
+The Live-Trial uncovered four federation-config bugs
 (Bug-30..33) that the prior hermetic test surface
 (``test_federation_compose.py`` + ``test_pilot_bootstrap_side_aware.py``)
 did NOT catch:
@@ -32,8 +32,8 @@ bug-shape invariants, leaves general validation to SPIRE's own
 ``spire-server validate`` in the live-VM acceptance lane
 (``scripts/federation-live-vm-acceptance.sh``).
 
-**Memory anchor:** ``feedback_live_bringup_sandbox_gap.md`` — Sprint-10
-Tag-5 was the 6th trigger of this anti-pattern; this test closes the
+**Memory anchor:** ``feedback_live_bringup_sandbox_gap.md`` —
+was the 6th trigger of this anti-pattern; this test closes the
 gap for the 4 federation-config bug shapes by lifting the hermetic test
 surface from string-presence to structural-shape invariants.
 
@@ -165,7 +165,7 @@ def test_no_mixed_attribute_block_form(config_text):
     _raw, stripped, path = config_text
     # Mixed form: <ident> = "..." {
     # In stripped text, strings are "" so the pattern becomes:
-    #   bundle_endpoint_profile = "" {
+    # bundle_endpoint_profile = "" {
     mixed = re.search(
         r"\bbundle_endpoint_profile\s*=\s*\"\"\s*\{", stripped
     )
@@ -270,7 +270,7 @@ def test_bundle_endpoint_profile_uses_named_block_form_when_present(config_text)
     _raw, stripped, path = config_text
     # The keyword MAY be absent entirely (the SPIRE default
     # https_spiffe applies). When present, the form must be:
-    #   bundle_endpoint_profile <whitespace> "X" <whitespace> {
+    # bundle_endpoint_profile <whitespace> "X" <whitespace> {
     occurrences = [
         m for m in re.finditer(r"\bbundle_endpoint_profile\b", stripped)
     ]

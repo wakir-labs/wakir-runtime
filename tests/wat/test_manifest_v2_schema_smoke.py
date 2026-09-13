@@ -9,7 +9,7 @@ between ``wat-manifest/1.0`` (no multi-cap sidecar permitted) and
 ``wat-manifest/2.0`` (multi-cap sidecar required).
 
 These tests exist to pin three things while the v2 spec is still in
-draft (Sprint-2-prep):
+draft (-prep):
 
 1. The schema itself remains a valid JSON-Schema 2020-12 document.
 2. Backwards-compatibility: every v1 manifest the existing aggregator
@@ -22,13 +22,13 @@ draft (Sprint-2-prep):
    relying on a verifier code path.
 
 The test surface is intentionally an order of magnitude wider than the
-4 inline smoke-tests cited in the Tag-26 outbox: edge-cases (empty
+4 inline smoke-tests cited in the outbox: edge-cases (empty
 arrays, boundary integers, additionalProperties), schema-violation per
 field, and malformed JSON envelopes that should never reach the
 validator at all.
 
 The schema is not yet wired into the aggregator build path; once
-Sprint-2-Tag-1 lands the wiring, these tests will graduate from "stub
+ lands the wiring, these tests will graduate from "stub
 acceptance substrate" to "hard CI pin against ``wat/aggregator.py``
 emission". For now they protect the *spec* from accidental drift.
 """
@@ -42,7 +42,7 @@ from pathlib import Path
 import pytest
 
 jsonschema = pytest.importorskip("jsonschema")
-from jsonschema import Draft202012Validator  # noqa: E402  (after importorskip)
+from jsonschema import Draft202012Validator  # noqa: E402 (after importorskip)
 from jsonschema.exceptions import SchemaError, ValidationError  # noqa: E402
 
 
@@ -136,7 +136,7 @@ def test_schema_is_valid_draft_2020_12(schema: dict) -> None:
 def test_schema_id_pinned(schema: dict) -> None:
     """``$id`` is the wakir.dev pattern at the current schema version.
 
-    Bumped 0.1.0 → 0.2.0 in Phase-2 Sprint-5 Tag-1 to formalise the
+    Bumped 0.1.0 → 0.2.0 in Phase-2 to formalise the
     optional ``signature`` slot (additive minor). The Wirelang
     convention is to bump the schema version when the on-wire shape
     changes; this test makes a silent ``$id`` rewrite visible in CI.

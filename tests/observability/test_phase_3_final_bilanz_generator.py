@@ -55,7 +55,7 @@ bilanz_mod = _load_module()
 def _marathon_state_fixture() -> Dict[str, Any]:
     """All seven wellen present with non-trivial samples.
 
-    Latency samples are deliberately kept well below the per-welle p95
+    Latency samples are deliberately kept well below the per-wave p95
     budget (LATENCY_BUDGET_MS) so the happy-path bilanz registers all
     wellen as latency_status == OK.
     """
@@ -431,7 +431,7 @@ def test_render_markdown_contains_seven_welle_sections_and_metadata():
     assert "## 5. Phase-3-COMPLETE-Marker Validation" in md
     assert "## 6. Phase-4 Follow-up Items" in md
     assert "## 7. Source-of-Truth Inputs" in md
-    # Each welle short-label appears.
+    # Each wave short-label appears.
     for short in bilanz_mod.WELLE_SHORT.values():
         assert short in md
     # Document is substantial (the task brief says ~500..800 lines).
@@ -439,7 +439,7 @@ def test_render_markdown_contains_seven_welle_sections_and_metadata():
 
 
 # --------------------------------------------------------------------
-# Test 12: end-to-end main() with fixtures on disk.
+# Test 12: end-to-end main with fixtures on disk.
 # --------------------------------------------------------------------
 
 
@@ -567,7 +567,7 @@ def test_main_strict_mode_exits_nonzero_on_breach(tmp_path: pathlib.Path):
         (snap_dir / f"{wid}.json").write_text(
             json.dumps(snaps), encoding="utf-8"
         )
-    # Introduce a drift BREACH for welle-1.
+    # Introduce a drift BREACH for wave 1.
     (state_dir / "cross-welle-drift-histograms.json").write_text(
         json.dumps(
             _drift_histograms_fixture(breach_welle="welle-1-v907-verify")

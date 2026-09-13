@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 # REUSE-IgnoreStart
-"""Tests for the Tag-61 REUSE-IgnoreStart/End wrap pre-merge lint helper.
+"""Tests for the REUSE-IgnoreStart/End wrap pre-merge lint helper.
 
 Anchors
 -------
@@ -13,7 +13,7 @@ Pattern these tests pin down
 ----------------------------
 
 Three consecutive hot-fix commits show that test files which include
-SPDX-string-literal payloads (``Apache-2.0``, ``BUSL-1.1``, ...) in
+SPDX-string-literal payloads (``Apache-2.0``, ``BUSL-1.1``,...) in
 fixture data trip the License-Hygiene Gate unless they are wrapped
 in ``# REUSE-IgnoreStart`` / ``# REUSE-IgnoreEnd`` sentinels. This
 suite proves the helper detects the missing-wrap case, accepts the
@@ -124,7 +124,7 @@ def test_helper_self_verify_cli_exit_zero(helper, capsys):
 # constructed at runtime so they do not appear as raw lines in this
 # source file; otherwise REUSE-3.3's line-scanner would interpret
 # them as belonging to THIS file's header and trip on the
-# License-Hygiene Gate (Tag-61 hot-fix by Noa during PR #390 merge).
+# License-Hygiene Gate (hot-fix by the observability zone during PR #390 merge).
 _SPDX = "SPDX" "-License-Identifier"  # split-token so REUSE-scan ignores
 _IGN_START = "# REUSE-Ignore" "Start"
 _IGN_END = "# REUSE-Ignore" "End"
@@ -361,7 +361,7 @@ def test_workflow_sandbox_mode_guard():
 
 
 # ---------------------------------------------------------------------------
-# 19. scan() top-level API is exposed and accepts a list of paths
+# 19. scan top-level API is exposed and accepts a list of paths
 # ---------------------------------------------------------------------------
 
 def test_top_level_scan_api_accepts_paths(tmp_path, helper):
@@ -411,7 +411,7 @@ def test_triple_quoted_interior_is_not_flagged(tmp_path, helper):
 
 
 # ---------------------------------------------------------------------------
-# 22. Hot-fix regression: simulate the Noa Tag-58 single-line-string trip
+# 22. Hot-fix regression: simulate the observability zone single-line-string trip
 # ---------------------------------------------------------------------------
 
 _HISTORICAL_NOA_TRIP_FIXTURE = (
@@ -428,7 +428,7 @@ _HISTORICAL_NOA_TRIP_FIXTURE = (
 
 
 def test_historical_noa_trip_is_detected(tmp_path, helper):
-    """The exact line-string concat pattern that tripped Tag-59 hot-fix
+    """The exact line-string concat pattern that tripped hot-fix
     046a5e5 must be detected by this helper.
     """
     f = tmp_path / "test_historical_noa.py"
@@ -472,7 +472,7 @@ def test_historical_noa_fix_suppresses_findings(tmp_path, helper):
 # ---------------------------------------------------------------------------
 
 def test_precommit_config_registers_wrap_lint_hook():
-    """`.pre-commit-config.yaml` MUST include the Tag-61 wrap-lint
+    """`.pre-commit-config.yaml` MUST include the wrap-lint
     hook so the developer's `git commit` invocation hits it before
     the server-side license-gate does.
     """

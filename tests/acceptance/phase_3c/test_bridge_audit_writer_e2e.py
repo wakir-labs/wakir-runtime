@@ -1,30 +1,30 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Cutover Welle-3 E2E acceptance — ``bridge_audit_writer``.
+"""Phase-3c cutover wave 3 E2E acceptance — ``bridge_audit_writer``.
 
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — Welle-3
+- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — wave 3
   = ``bridge_audit_writer`` (Write-Pfad, aber idempotent via WAT-Hash-
   Anchoring).
 - ADR-0063 §Phase-3a — Bridge-Audit-Writer ist die Konsistenz-Oracle-
-  Substrate, that this welle now also flips to Rust-default.
-- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — Welle-3 has
+  Substrate, that this wave now also flips to Rust-default.
+- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — wave 3 has
   the highest schema-drift sensitivity (it *is* the cross-backend
   schema writer).
 
-Welle character
+wave character
 ---------------
 
 ``bridge_audit_writer`` is *the* consistency-oracle substrate from
 Phase-3a/3b. Flipping the *writer* itself to Rust-default introduces
-a meta-question: while Welle-3 is in-flight, **what** writes the
+a meta-question: while wave 3 is in-flight, **what** writes the
 consistency-report? Solution per ADR-0065 §Empfehlung Footnote
-("Canary-Deploy"): Welle-3 cutover-Tag uses a hold-out audit-writer
+("Canary-Deploy"): wave 3 cutover-Tag uses a hold-out audit-writer
 instance (Python-Backend pinned) for the consistency-report itself.
 
-This welle is **write-pfad** but **idempotent** (WAT-Hash-Anchored):
+This wave is **write-pfad** but **idempotent** (WAT-Hash-Anchored):
 double-write produces the same anchor-hash → no state-corruption
 risk from re-write on rollback.
 """
@@ -59,7 +59,7 @@ pytestmark = pytest.mark.phase_3c_acceptance
 
 
 # ---------------------------------------------------------------------------
-# AC-1 — Konsistenz-Report (Welle-3 special: hold-out python writer).
+# AC-1 — Konsistenz-Report (wave 3 special: hold-out python writer).
 # ---------------------------------------------------------------------------
 
 
@@ -68,7 +68,7 @@ def test_welle_3_ac_1_bridge_audit_consistency_5_of_5_days(
 ) -> None:
     """AC-1: Bridge-Audit-Writer output parity across the 5-day window.
 
-    Welle-3 special — the writer *itself* is the modul under cutover.
+    wave 3 special — the writer *itself* is the modul under cutover.
     The consistency-report substrate (per ADR-0065 §Empfehlung Footnote)
     is a hold-out Python-pinned writer-instance that observes both the
     pre-cutover Python output and the post-cutover Rust output.
@@ -112,8 +112,7 @@ def test_welle_3_ac_2_performance_within_headroom() -> None:
     """AC-2: Rust Bridge-Audit-Writer P95 within Python+20% budget.
 
     Write-path includes JCS canonicalisation + sha256 + WAT-anchor
-    append. Python-baseline placeholder ~8ms p95 (Selin-Phase-3a-
-    Bench-Reference, Vermutung-P2).
+    append. Python-baseline placeholder ~8ms p95.
     """
     python_baseline_p95_ms = 8.0
     rust_observed_p95_ms = 5.5  # Rust expected faster on sha256+JCS
@@ -134,7 +133,7 @@ def test_welle_3_ac_2_performance_regression_blocks() -> None:
 
 
 def test_welle_3_ac_3_bug_rate_zero_s0_s1() -> None:
-    """AC-3: 0 S0/S1 issues during Welle-3 Beobachtungs-Woche."""
+    """AC-3: 0 S0/S1 issues during wave 3 Beobachtungs-Woche."""
     assert_ac_3_bug_rate(s0_count=0, s1_count=0, welle=WELLE_NAME)
 
 
@@ -144,7 +143,7 @@ def test_welle_3_ac_3_bug_rate_zero_s0_s1() -> None:
 
 
 def test_welle_3_ac_4_cross_review_consensus(mocked_cross_review) -> None:
-    """AC-4: Welle-3 Cross-Review-Session all-personas-consent."""
+    """AC-4: wave 3 Cross-Review-Session all-personas-consent."""
     record = mocked_cross_review(WELLE_NAME)
     assert_ac_4_cross_review_consensus(record, WELLE_NAME)
 
@@ -155,7 +154,7 @@ def test_welle_3_ac_4_cross_review_consensus(mocked_cross_review) -> None:
 
 
 def test_welle_3_ac_5_v907_pin_validation_full_pass() -> None:
-    """AC-5: V-907 Pin-Validation 100% post-Welle-3 cutover."""
+    """AC-5: V-907 Pin-Validation 100% post-wave 3 cutover."""
     persona_def_count = 6
     assert_ac_5_v907_pin_validation(
         persona_def_count=persona_def_count,
@@ -165,17 +164,17 @@ def test_welle_3_ac_5_v907_pin_validation_full_pass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Welle-3 substrate sanity — idempotent write semantics.
+# wave 3 substrate sanity — idempotent write semantics.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_3_idempotent_double_write_yields_same_anchor(
     mocked_wat_anchor_sink,
 ) -> None:
-    """Welle-3-specific: double-write of the same request must produce
+    """wave 3 specific: double-write of the same request must produce
     the same Anchor-hash (WAT-Hash-Anchoring idempotency).
 
-    Rationale: if the Welle-3 cutover causes a duplicate write
+    Rationale: if the wave 3 cutover causes a duplicate write
     (e.g., due to a partial systemctl-restart), the second write must
     not corrupt the anchor-trail.
     """
@@ -189,7 +188,7 @@ def test_welle_3_idempotent_double_write_yields_same_anchor(
 
 @pytest.mark.skip(reason="pending welle-cutover — Operator-Hand hold-out-writer drill")
 def test_welle_3_holdout_python_writer_during_cutover() -> None:
-    """Welle-3 special: a Python-pinned writer-instance runs alongside
+    """wave 3 special: a Python-pinned writer-instance runs alongside
     the Rust-default writer during the cutover day to serve as the
     Konsistenz-Report substrate (ADR-0065 §Empfehlung Footnote).
 
@@ -200,10 +199,10 @@ def test_welle_3_holdout_python_writer_during_cutover() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HC-AC-1 — Independent-Oracle Validation (Henrik-Caution-Extension).
+# HC-AC-1 — Independent-Oracle Validation.
 #
-# Welle-3 Solo-Welle-carve-out (ADR-0066 §Beschluss). bridge_audit_
-# writer is the consistency-oracle substrate for other Wellen, so it
+# wave 3 Solo-wave-carve-out (ADR-0066 §Beschluss). bridge_audit_
+# writer is the consistency-oracle substrate for other waves, so it
 # cannot self-validate during its own cutover. HC-AC-1 enforces that
 # the cross-validation pulls from an independent substrate (PR #197
 # Cross-Modul-Stress-Test or Operator-Hand-deployed hold-out Python-
@@ -215,10 +214,10 @@ def test_welle_3_hc_ac_1_independent_oracle_validation_cross_modul_stress_test(
     mocked_henrik_caution_independent_oracle,
 ) -> None:
     """HC-AC-1: PR #197 Cross-Modul-Stress-Test substrate validates
-    Welle-3 Rust-writer envelope-hashes byte-paritär.
+    wave 3 Rust-writer envelope-hashes byte-paritär.
 
     The Phase-3c-trigger sprint wires this against the real PR #197
-    stress-test output: each Welle-3 cutover-day's Rust-writer
+    stress-test output: each wave 3 cutover-day's Rust-writer
     envelope-hash for the day's request-set is cross-validated against
     the independent stress-test substrate's hash for the same request.
     """
@@ -255,9 +254,9 @@ def test_welle_3_hc_ac_1_self_validation_rejected(
     """HC-AC-1 failure-mode: bridge_audit_writer self-validation
     rejected.
 
-    This is the dominant Henrik-Caution failure-class: the operator-
-    side runbook accidentally compares the Welle-3 Rust-writer's
-    output against the same Welle-3 Rust-writer's output (self-
+    This is the dominant internal audit-Caution failure-class: the operator-
+    side runbook accidentally compares the wave 3 Rust-writer's
+    output against the same wave 3 Rust-writer's output (self-
     referential validation). HC-AC-1 surfaces this as an explicit
     self-validation rejection via the ``self_referential_flag`` guard.
     """
@@ -294,7 +293,7 @@ def test_welle_3_hc_ac_1_oracle_drift_blocks(
     """HC-AC-1 failure-mode: Rust-writer/independent-oracle hash drift.
 
     The Rust-writer emits an envelope-hash that the independent
-    substrate disagrees with — the substantive Welle-3 cutover-
+    substrate disagrees with — the substantive wave 3 cutover-
     blocker. The independent-oracle substrate is the dominant signal
     here precisely because it is not the bridge_audit_writer itself.
     """
@@ -358,7 +357,7 @@ def test_welle_3_hc_ac_2_no_trigger_steady_state(
     """HC-AC-2: divergence ≤ 0.5pp → no rollback, steady-state rust.
 
     Sub-threshold drift does not warrant an automated atomic-rollback;
-    Welle-3 stays on rust-default. The gate-shape verifies the no-op
+    wave 3 stays on rust-default. The gate-shape verifies the no-op
     path is gated symmetrically to the rollback-fired path.
     """
     record = mocked_henrik_caution_atomic_rollback(
@@ -375,9 +374,9 @@ def test_welle_3_hc_ac_2_missed_rollback_blocks(
 
     Divergence crosses the 0.5pp threshold but the operator-hand-
     runbook fails to fire the atomic rollback. The most operationally
-    dangerous failure-class: the Welle-3 Rust-writer keeps writing
+    dangerous failure-class: the wave 3 Rust-writer keeps writing
     drifted envelopes, contaminating the consistency-oracle substrate
-    for the other Wellen.
+    for the other waves.
     """
     record = mocked_henrik_caution_atomic_rollback(
         measured_divergence_pct=0.85,
@@ -473,10 +472,10 @@ def test_welle_3_hc_ac_2_sla_anchored_to_adr_0066() -> None:
 
 
 # ---------------------------------------------------------------------------
-# HC-AC-3 — Pre-Cutover-Observability-Window 7-day ≥99.5%.
+# HC-AC-3 — pre-cutover-Observability-Window 7-day ≥99.5%.
 #
 # Longer-baseline than the AC-1 5-day Konsistenz-Report window because
-# Welle-3 is the writer itself. The 7-day window absorbs a full
+# wave 3 is the writer itself. The 7-day window absorbs a full
 # operational week of write-pattern variation before the cutover-Tag.
 # ---------------------------------------------------------------------------
 
@@ -486,7 +485,7 @@ def test_welle_3_hc_ac_3_pre_cutover_window_7_days_above_floor(
 ) -> None:
     """HC-AC-3: 7-day pre-cutover-window per-day consistency ≥99.5%.
 
-    The Phase-3c-trigger sprint wires this against the real Welle-3
+    The Phase-3c-trigger sprint wires this against the real wave 3
     cutover-week observability data: Prometheus-Gauge `wakir_engine_
     bridge_audit_writer_consistency_rate` aggregated per-day across
     the 7-day pre-cutover window.
@@ -554,8 +553,8 @@ def test_welle_3_hc_ac_3_consistency_floor_anchored_to_adr_0066() -> None:
     0066-fixed.
 
     Mirrors the CMD-AC-3 per-Komponente consistency-floor numerically
-    but applied per-day for the Welle-3 Pre-Cutover-Baseline rather
-    than per-Komponente for the Welle-4+5 Stress-Window.
+    but applied per-day for the wave 3 pre-cutover-Baseline rather
+    than per-Komponente for the wave 4+5 Stress-Window.
     """
     assert (
         HENRIK_CAUTION_PRE_CUTOVER_CONSISTENCY_PCT_FLOOR == 0.995

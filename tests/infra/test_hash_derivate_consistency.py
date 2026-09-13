@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Wakir Labs
 # SPDX-License-Identifier: Apache-2.0
 """
-Hash-Derivate-Drift consistency test (Sprint-Stability Tag-3, 2026-05-16).
+Hash-Derivate-Drift consistency test (-Stability, 2026-05-16).
 
 Drives the `hash-derivate-gate` CI workflow. Verifies that every
 hash-derivative fixture artifact under
@@ -11,7 +11,7 @@ live schema bytes it references.
 Background
 ----------
 
-Reza-PR #92 introduced top-level ``x-spdx-license-identifier`` on
+The protocol zone-PR #92 introduced top-level ``x-spdx-license-identifier`` on
 all JSON schemas (ADR-0061 Folgeartefakte). That changed the
 SHA-256 of ``wirelang/schemas/caveat-override-event-export.json``
 from ``927eda…cbe82edb`` (6907 B) to ``353a617e…708464a2``
@@ -20,7 +20,7 @@ from ``927eda…cbe82edb`` (6907 B) to ``353a617e…708464a2``
 (specifically ``anchor-manifest.json``'s ``schema_file_sha256`` /
 ``schema_file_bytes`` fields, and the co-located
 ``schema.sha256.bin`` raw-32-byte digest) were not co-derived in
-PR #92. Reza-PR #98 caught and fixed the drift after the fact.
+PR #92. The protocol zone-PR #98 caught and fixed the drift after the fact.
 
 This test cements the invariant in CI so the same class of drift
 cannot re-enter ``main`` after any future schema modification. The
@@ -30,7 +30,7 @@ external state.
 Test-vector matrix
 ------------------
 
-TV-HDC-01 .. TV-HDC-05  — anchor-manifest schema_file_sha256
+TV-HDC-01.. TV-HDC-05 — anchor-manifest schema_file_sha256
                           and schema_file_bytes consistency for
                           each discovered fixture. Currently a
                           single fixture exists
@@ -38,10 +38,10 @@ TV-HDC-01 .. TV-HDC-05  — anchor-manifest schema_file_sha256
                           additional fixtures auto-enroll via the
                           ``_fixture_dirs()`` enumeration.
 
-TV-HDC-06 .. TV-HDC-10  — schema.sha256.bin raw-byte consistency
+TV-HDC-06.. TV-HDC-10 — schema.sha256.bin raw-byte consistency
                           for each discovered fixture.
 
-TV-HDC-11+              — synthetic drift-detection vectors using
+TV-HDC-11+ — synthetic drift-detection vectors using
                           ``tmp_path``-materialised mock fixtures.
                           Confirms the test logic actually fails on
                           drift (negative-path coverage), so a
@@ -102,7 +102,7 @@ def test_hdc_00_at_least_one_fixture_discovered() -> None:
 
 
 # ----------------------------------------------------------------------
-# TV-HDC-01 .. TV-HDC-05 — anchor-manifest consistency
+# TV-HDC-01.. TV-HDC-05 — anchor-manifest consistency
 # ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
@@ -203,7 +203,7 @@ def test_hdc_05_anchor_digest_target_resolves(fixture_dir: Path) -> None:
 
 
 # ----------------------------------------------------------------------
-# TV-HDC-06 .. TV-HDC-10 — schema.sha256.bin raw-byte consistency
+# TV-HDC-06.. TV-HDC-10 — schema.sha256.bin raw-byte consistency
 # ----------------------------------------------------------------------
 
 @pytest.mark.parametrize("fixture_dir", _fixture_dirs(), ids=lambda p: p.name)
@@ -226,7 +226,7 @@ def test_hdc_07_sha256_bin_matches_live_schema_digest(
 ) -> None:
     """TV-HDC-07 — co-located ``schema.sha256.bin`` raw bytes equal
     ``sha256(schema_file_path)`` computed live. This is the
-    invariant Reza-PR #98 had to re-derive after PR #92."""
+    invariant the protocol zone-PR #98 had to re-derive after PR #92."""
     manifest = _load_manifest(fixture_dir)
     schema_rel = manifest["schema_file_path"]
     schema_path = REPO_ROOT / schema_rel
@@ -292,7 +292,7 @@ def test_hdc_10_schema_file_path_is_relative(fixture_dir: Path) -> None:
 
 
 # ----------------------------------------------------------------------
-# TV-HDC-11 .. TV-HDC-14 — synthetic drift-detection vectors
+# TV-HDC-11.. TV-HDC-14 — synthetic drift-detection vectors
 # ----------------------------------------------------------------------
 #
 # These vectors materialise a synthetic fixture under ``tmp_path``
@@ -388,7 +388,7 @@ def test_hdc_11_synthetic_no_drift_detects_consistency(
 
 def test_hdc_12_synthetic_sha_drift_is_detected(tmp_path: Path) -> None:
     """TV-HDC-12 — drifted ``schema_file_sha256`` is detected.
-    Mirrors the exact failure mode Reza-PR #98 had to fix."""
+    Mirrors the exact failure mode the protocol zone-PR #98 had to fix."""
     fixture_dir, schema_path, _ = _build_synthetic_fixture(
         tmp_path, b'{"$id":"synthetic","type":"object"}\n', drift_sha=True
     )
@@ -414,8 +414,8 @@ def test_hdc_13_synthetic_bytes_drift_is_detected(tmp_path: Path) -> None:
 
 def test_hdc_14_synthetic_bin_drift_is_detected(tmp_path: Path) -> None:
     """TV-HDC-14 — drifted ``schema.sha256.bin`` raw bytes are
-    detected. This is the second half of the Reza-PR #98 fix:
-    the manifest hex AND the raw-byte file must both be re-derived."""
+    detected. This is the second half of the protocol zone-PR #98 fix:
+    The manifest hex AND the raw-byte file must both be re-derived."""
     fixture_dir, schema_path, _ = _build_synthetic_fixture(
         tmp_path, b'{"$id":"synthetic","type":"object"}\n', drift_bin=True
     )

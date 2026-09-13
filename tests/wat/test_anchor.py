@@ -277,7 +277,7 @@ def test_verify_receipt_valid(tmp_path: Path) -> None:
 
 def test_verify_receipt_invalid_root_rejected(tmp_path: Path) -> None:
     """verify_receipt returns False when ots verify exits non-zero (i.e.
-    the supplied root does not hash to the receipt's tip)."""
+    The supplied root does not hash to the receipt's tip)."""
     receipt_path = tmp_path / "root.bin.ots"
     receipt_path.write_bytes(b"\xfd" + b"\x00" * 31)
     bogus_root = hashlib.sha256(b"not-the-real-root").digest()

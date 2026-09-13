@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Tag-57 Cross-Substrate Parity Gate green-on-PR closeout.
+"""Cross-Substrate Parity Gate green-on-PR closeout.
 
 Audit anchor
 ------------
-Selin Tag-56 Persona-Engine 0.5.2-final production-readiness audit
+The engine zone Persona-Engine 0.5.2-final production-readiness audit
 (``docs/archive/evidence/audits/
 persona-engine-0-5-2-production-readiness-2026-05-19.md``)
 left OPEN-J1 open:
 
-> OPEN-J1: Cross-substrate-parity-gate green on PR (Kai Zone-J)
+> OPEN-J1: Cross-substrate-parity-gate green on PR
 
 Two distinct contracts are co-housed under the
-``cross-substrate-parity-gate`` workflow umbrella, and Tag-57 closes
+``cross-substrate-parity-gate`` workflow umbrella, and closes
 the gap between them so OPEN-J1 can flip to GREEN-on-PR:
 
-1. **9-Binary Phase-3b Cosign/Quadlet/Resolver Parity** (pre-Tag-57,
+1. **9-Binary Phase-3b Cosign/Quadlet/Resolver Parity** (pre-,
    already enforced by
    ``tests/infra/test_cross_substrate_parity_3way.py``). This is the
    image-side substrate parity: every binary the Cosign-policy
@@ -23,7 +23,7 @@ the gap between them so OPEN-J1 can flip to GREEN-on-PR:
    the Python resolver.
 
 2. **10-BackendDecision Manifest × Pin-Pack × engine.py-Resolver
-   Parity** (Tag-57 addition, Selin-anchored). This is the
+   Parity** (addition, the engine zone-anchored). This is the
    record-side substrate parity: every BackendDecision record the
    manifest enumerates must (a) appear in the Pin-Pack
    ``boot_wired_crates`` block, (b) be resolved by exactly one
@@ -43,19 +43,19 @@ Hermetic discipline
 Pure file inspection. No subprocess, no network, no Rust build, no
 engine boot, no NATS. Encodes assertions about workflow YAML,
 manifest Markdown, pin-pack YAML, engine.py Python source, and the
-Tag-57 runbook update.
+runbook update.
 
 Test inventory (≥ 10)
 ---------------------
-1.  test_01_workflow_file_exists
-2.  test_02_workflow_job_display_name_is_required_status_check_name
-3.  test_03_workflow_triggers_on_manifest_change
-4.  test_04_workflow_triggers_on_pin_pack_change
-5.  test_05_workflow_triggers_on_engine_py_change
-6.  test_06_workflow_runs_10_decision_manifest_parity_stage
-7.  test_07_manifest_lists_ten_backend_decisions
-8.  test_08_pin_pack_wired_crates_count_matches_manifest
-9.  test_09_engine_py_imports_all_ten_resolvers
+1. test_01_workflow_file_exists
+2. test_02_workflow_job_display_name_is_required_status_check_name
+3. test_03_workflow_triggers_on_manifest_change
+4. test_04_workflow_triggers_on_pin_pack_change
+5. test_05_workflow_triggers_on_engine_py_change
+6. test_06_workflow_runs_10_decision_manifest_parity_stage
+7. test_07_manifest_lists_ten_backend_decisions
+8. test_08_pin_pack_wired_crates_count_matches_manifest
+9. test_09_engine_py_imports_all_ten_resolvers
 10. test_10_canonical_boot_order_consistent_three_witnesses
 11. test_11_runbook_documents_open_j1_closeout
 12. test_12_required_status_check_doc_present
@@ -127,7 +127,7 @@ CANONICAL_RESOLVERS: tuple[str, ...] = (
     "resolve_bridge_audit_writer_backend",
 )
 
-# The required-status-check display name that Mira-Hand must
+# The required-status-check display name that operator-Hand must
 # activate under Settings → Branches → main → Required status
 # checks. Per ``feedback_branch_protection_check_names.md`` this
 # string must exactly match the workflow ``job.name`` field.
@@ -229,9 +229,8 @@ def test_06_workflow_runs_10_decision_manifest_parity_stage(
 ) -> None:
     """The workflow must run the 10-BackendDecision parity stage.
 
-    The Tag-57 widening adds a second pytest invocation that runs
-    ``test_manifest_0_5_2_final_pre_cutover.py`` (Selin's manifest
-    integrity suite) as a stage of the gate. Without this stage,
+    The widening adds a second pytest invocation that runs
+    ``test_manifest_0_5_2_final_pre_cutover.py`` as a stage of the gate. Without this stage,
     the gate is silent on manifest-side drift even when triggered.
     """
     assert "test_manifest_0_5_2_final_pre_cutover.py" in workflow_text, (
@@ -331,9 +330,9 @@ def test_10_canonical_boot_order_consistent_three_witnesses(
 
 
 def test_11_runbook_documents_open_j1_closeout(runbook_text: str) -> None:
-    """Tag-57 runbook addendum must document the OPEN-J1 closeout."""
+    """runbook addendum must document the OPEN-J1 closeout."""
     # Either a section header or an explicit mention of OPEN-J1
-    # plus Tag-57 must appear in the runbook so a future operator
+    # plus must appear in the runbook so a future operator
     # can trace the green-on-PR contract.
     assert "OPEN-J1" in runbook_text, (
         "Runbook must reference OPEN-J1 to anchor Tag-57 closeout."
@@ -347,7 +346,7 @@ def test_11_runbook_documents_open_j1_closeout(runbook_text: str) -> None:
 def test_12_required_status_check_doc_present(runbook_text: str) -> None:
     """Runbook must spell out the exact required-status-check name.
 
-    Sandbox-Gap-Marker: Mira-Hand activates branch-protection in
+    Sandbox-Gap-Marker: operator-Hand activates branch-protection in
     Settings → Branches → main → Required status checks. The
     runbook must spell the exact string so the activation step
     cannot drift from the workflow's job display name (cf.

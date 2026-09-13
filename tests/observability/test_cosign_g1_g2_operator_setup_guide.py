@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic invariants for the Tag-56 G1+G2 Operator-Hand setup-guide.
+"""Hermetic invariants for the G1+G2 Operator-Hand setup-guide.
 
-Tag-56 Kai — Cosign-Strict-Mode G1+G2 closeout setup-guide.
+The infrastructure zone — Cosign-Strict-Mode G1+G2 closeout setup-guide.
 
 This module pins the structural invariants of
 ``docs/operations/cosign-g1-g2-operator-setup.md`` so a future edit
@@ -28,7 +28,7 @@ on:
   * T-G1G2-10 — cross-link to cosign-keyless-OIDC-drift-probe runbook
   * T-G1G2-11 — guide signs off with the persona-name line
   * T-G1G2-12 — failure-mode subsections present for both G1 and G2
-  * T-G1G2-13 — guide enumerates the four Welle-N dedicated images
+  * T-G1G2-13 — guide enumerates the four wave N dedicated images
 
 Total: 13 hermetic invariants (target was >=10).
 
@@ -51,7 +51,7 @@ Sibling tests:
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — cosign-policy
     YAML format invariants.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations
@@ -122,7 +122,7 @@ def quadlet_files_with_placeholder() -> Set[str]:
 
 
 def test_t_g1g2_01_guide_file_exists() -> None:
-    """The Tag-56 deliverable path is the canonical operator entry-point.
+    """the deliverable path is the canonical operator entry-point.
 
     The strict-mode-activation runbook §5 Step 2 and Step 3 point at
     this file; if the file moves the link breaks silently.
@@ -352,9 +352,9 @@ def test_t_g1g2_07_zone_c_cross_review(guide_text: str) -> None:
     """
 
     # Count Zone-C mentions — at least 3 expected:
-    #   * G1 PR commit-message template (§3.5)
-    #   * G2 PR commit-message template (§4.3)
-    #   * Joint sign-off section (§5)
+    # * G1 PR commit-message template (§3.5)
+    # * G2 PR commit-message template (§4.3)
+    # * Joint sign-off section (§5)
     zone_c_mentions = guide_text.count("Zone-C")
     assert zone_c_mentions >= 3, (
         f"Guide must reference Zone-C cross-review at least 3 times "
@@ -402,8 +402,8 @@ def test_t_g1g2_08_g1_first_g2_second(guide_text: str) -> None:
 def test_t_g1g2_09_link_to_strict_mode_activation(
     guide_text: str,
 ) -> None:
-    """The Tag-56 guide is the §5 Step 2 + Step 3 expansion of the
-    Tag-54 strict-mode-activation runbook. The bidirectional link
+    """the guide is the §5 Step 2 + Step 3 expansion of the
+    strict-mode-activation runbook. The bidirectional link
     must be present so the operator can navigate parent <-> child.
     """
 
@@ -485,16 +485,16 @@ def test_t_g1g2_12_failure_mode_sections(guide_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# T-G1G2-13 — enumerates the four Welle-N dedicated images
+# T-G1G2-13 — enumerates the four wave N dedicated images
 # ---------------------------------------------------------------------------
 
 
 def test_t_g1g2_13_welle_n_image_enum(guide_text: str) -> None:
-    """The four Welle-4..7 dedicated single-binary images are independent
-    images per the Tag-33 Mini-Welle inventory. They are NOT in the
+    """The four wave 4..7 dedicated single-binary images are independent
+    images per the Mini-wave inventory. They are NOT in the
     carrier image. The guide §3.3 recipe MUST enumerate all four
     because the carrier-image-only resolution would miss them and G1
-    would stay BLOCKED for the four Welle-N slots.
+    would stay BLOCKED for the four wave N slots.
     """
 
     welle_binaries = [

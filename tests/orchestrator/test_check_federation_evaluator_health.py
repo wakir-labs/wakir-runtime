@@ -2,13 +2,13 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``scripts/check-federation-evaluator-health.py``.
 
-The Tag-7 federation-evaluator health-check tool consumes the
-wirelang-eng-side modules at ``wirelang/federation/n2_evaluator.py`` (Tag-3)
+The federation-evaluator health-check tool consumes the
+wirelang-eng-side modules at ``wirelang/federation/n2_evaluator.py``
 and ``wirelang/federation/route_registry_nats_kv_backend.py``
-(Tag-4) byte-precisely. The hermetic tests drive the planner against
+ byte-precisely. The hermetic tests drive the planner against
 an in-memory mock that mirrors the ``nats.js.JetStreamContext`` +
 ``KeyValue`` API surfaces used by both the wirelang-eng-side backend and
-the Tag-7 inspector.
+the inspector.
 
 Coverage:
 
@@ -178,7 +178,7 @@ class _MockKvEntry:
 
 @dataclass
 class _MockKv:
-    """Mimics ``nats.js.kv.KeyValue`` for the surface the Tag-7 script
+    """Mimics ``nats.js.kv.KeyValue`` for the surface the script
     and the wirelang-eng-side ``NatsKvRouteRegistry`` consume.
     """
 
@@ -207,7 +207,7 @@ class _MockKv:
 
 class _MockKvNotFound(Exception):
     """Class-name match: any *NotFound* exception class is treated as
-    'absent' by the wirelang-eng-side backend and the Tag-7 inspector.
+    'absent' by the wirelang-eng-side backend and the inspector.
     """
 
 
@@ -561,7 +561,7 @@ def test_report_to_json_has_stable_idempotent_shape(mod, wireng):
 
 
 def test_bucket_name_matches_route_registry_backend(mod, wireng):
-    """Tag-7 tool must consume the wirelang-eng-side BUCKET_NAME byte-precisely
+    """tool must consume the wirelang-eng-side BUCKET_NAME byte-precisely
     (no orchestrator-side redeclaration). Drift between wirelang-eng-side and
     orchestrator-side bucket name would silently break the federation
     evaluator pipeline.
@@ -579,7 +579,7 @@ def test_bucket_config_matches_route_registry_backend(mod, wireng):
 
 
 def test_drift_comparator_field_set_matches_phase_1_health_check(mod, health_mod):
-    """The Tag-7 federation drift comparator and the Tag-6 Phase-1
+    """the federation drift comparator and the Phase-1
     health-check drift comparator must agree on the field set so
     operators see the same shape across the two tools.
     """

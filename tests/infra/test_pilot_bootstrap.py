@@ -309,7 +309,7 @@ def test_idempotency_markers_present(script_source: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 11. Sprint-9-Tag-4 Bug 1: resume-hint avoids the ``bash bash`` doubling
+# 11. Bug 1: resume-hint avoids the ``bash bash`` doubling
 # when the script was piped from ``curl ... | sudo bash``.
 # ---------------------------------------------------------------------------
 
@@ -340,7 +340,7 @@ def test_resume_hint_avoids_bash_doubling(script_source: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# 12. Sprint-9-Tag-4 Bug 2: federation volume install with per-side
+# 12. Bug 2: federation volume install with per-side
 # filename substitution.
 # ---------------------------------------------------------------------------
 
@@ -372,7 +372,7 @@ def test_volume_install_renames_federation_volumes_per_side(
 
 
 # ---------------------------------------------------------------------------
-# 13. Sprint-9-Tag-4 Bug 5: Phase 6 idempotency markers.
+# 13. Bug 5: Phase 6 idempotency markers.
 # ---------------------------------------------------------------------------
 
 

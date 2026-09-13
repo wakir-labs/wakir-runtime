@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-Review Zone 3 pin: ``capability_token_hash`` on the proof path.
 
-Finding (protocol W4, Reza §6.5): the leaf-hash primitive and the
+Finding (protocol W4, the protocol zone §6.5): the leaf-hash primitive and the
 aggregator's B1 shape check accept ``capability_token_hash: ""``
 (pilot-phase sentinel written by ``wat.anchor.bridge_audit_writer``),
 while the canonical manifest schema ``wakir-wat-manifest-v1.json``

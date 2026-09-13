@@ -2,18 +2,18 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine SVID-workload-
 identity ``SvidWorkloadIdentitySnapshot`` JCS canonicalisation
-surface (Tag-33 Mini-Welle, Henrik F-6).
+surface (Mini-wave, internal audit F-6).
 
 The Python module under test
-(:mod:`wirelang.identity.svid_workload_identity_canonical`) is
+:mod:`wirelang.identity.svid_workload_identity_canonical`) is
 Apache-2.0; this test file is Apache-2.0 so downstream re-implementers
 can re-use the same fixture vectors and the cross-lang contract.
 The future Rust sibling crate slot at
 ``wirelang-rust/crates/persona-engine-svid-workload-identity``
-(currently a Tag-29 probe skeleton) is Apache-2.0 and is reserved to
+(currently a probe skeleton) is Apache-2.0 and is reserved to
 consume the same authoritative
 ``tests/fixtures/svid-workload-cross-lang/fixtures.json`` once the
-Sprint-Pengine-12 snapshot-encoder lands. Until then this test file
+-Pengine-12 snapshot-encoder lands. Until then this test file
 is the Authority-Pin: the Python authority drives the canonical
 bytes and the fixture vectors freeze them.
 
@@ -60,7 +60,7 @@ total assertion count to ~24)
   ``snapshot_sha256_hex`` / ``snapshot_hash_prefixed`` values. This
   is the core byte-parity test.
 - T12 -- Resolution-probe parity: every fixture carries a
-  ``resolve_probe`` block; the Python :meth:`resolve` output must
+  ``resolve_probe`` block; the Python:meth:`resolve` output must
   match the pinned ``expected_match`` (``null`` for f01 / f05;
   exact dict equality for f02 / f03 / f04).
 
@@ -72,14 +72,14 @@ If a wire-shape change is intentional:
 1. Update both sides (future Rust ``serialize_snapshot`` and Python
    :func:`serialize_snapshot`).
 2. Re-derive the fixture vectors using the derivation snippet
-   referenced at the top of :mod:`wirelang.identity.svid_workload_identity_canonical`.
+   referenced at the top of:mod:`wirelang.identity.svid_workload_identity_canonical`.
 3. Update both Python and (once shipped) Rust test suites in the
    same PR.
 
 If a wire-shape change is accidental, the cross-lang fixture test
 (T11) fires on the Python side -- that is the intended boundary
 detector. The Rust pendant slot will join the boundary detection
-once Sprint-Pengine-12 ships the snapshot encoder.
+once -Pengine-12 ships the snapshot encoder.
 """
 
 from __future__ import annotations

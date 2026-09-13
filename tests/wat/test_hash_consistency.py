@@ -90,7 +90,7 @@ def test_leaf_hash_matches_vector(name: str, vector: dict) -> None:
 
 
 def test_vector_pack_count() -> None:
-    """The Tag-6 spec pack ships with five vectors. Pin the count.
+    """the spec pack ships with five vectors. Pin the count.
 
     Adding a vector is fine -- bump this expected count in the same
     patch. Removing one without updating the count would be silently
@@ -102,7 +102,7 @@ def test_vector_pack_count() -> None:
 
 
 def test_vectors_carry_underscore_metadata_keys() -> None:
-    """Sprint-Hygiene-Tag-2: enforce ``x-spdx-*`` top-level convention.
+    """-Hygiene-: enforce ``x-spdx-*`` top-level convention.
 
     The fixture format reserves ``x-spdx-license-identifier`` and
     ``x-spdx-file-copyright-text`` keys at the JSON-object top level for

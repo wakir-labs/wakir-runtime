@@ -9,7 +9,7 @@ under ADR-0059 (2026-05-13) carries the canonical
 Brand-Proof external verifier carve-out (ADR-0023b) remains
 Apache-2.0.
 
-Henrik-Audit (2026-05-13) surfaced the BSL-coverage drift in
+internal-audit (2026-05-13) surfaced the BSL-coverage drift in
 ~68 files across:
 
 * ``wirelang/federation/`` plus the V-908 Resolver, the operator
@@ -92,7 +92,7 @@ SPIRE_AGENT_BSL_SOURCES: tuple[str, ...] = (
 # The proxmox-bringup-smoke binary self-verifies the live Federation-
 # Server substrate (SPIRE-Server + SPIRE-Agent + NATS-KV marker-
 # stack-bucket). It was re-licensed Apache-2.0 -> BSL 1.1 in
-# Sprint-9 Tag-6 alongside the parser-hardening + e2e-vm-workflow
+# alongside the parser-hardening + e2e-vm-workflow
 # fixes (Pilot-VM bring-up #2, 2026-05-14).
 OPERATOR_TOOLING_BSL_SOURCES: tuple[str, ...] = (
     "bin/proxmox-bringup-smoke",

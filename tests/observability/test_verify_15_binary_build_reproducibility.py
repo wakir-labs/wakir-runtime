@@ -4,17 +4,17 @@
 """Hermetic tests for
 ``scripts/observability/verify-15-binary-build-reproducibility.py``.
 
-Tag-51 Kai -- 15-Binary Build-Reproducibility Audit.
+The infrastructure zone -- 15-Binary Build-Reproducibility Audit.
 
 Coverage targets the pure-function core. The tests in this file
 cover:
 
-  * 3 Cargo.lock parser invariants     (TV-PL-01..TV-PL-03)
-  * 4 transitive-closure invariants    (TV-TC-01..TV-TC-04)
-  * 3 fingerprint determinism          (TV-FP-01..TV-FP-03)
-  * 2 compare-passes verdict           (TV-CP-01..TV-CP-02)
-  * 3 render-envelope/prom/md          (TV-RD-01..TV-RD-03)
-  * 2 mira-notify shape                (TV-MN-01..TV-MN-02)
+  * 3 Cargo.lock parser invariants (TV-PL-01..TV-PL-03)
+  * 4 transitive-closure invariants (TV-TC-01..TV-TC-04)
+  * 3 fingerprint determinism (TV-FP-01..TV-FP-03)
+  * 2 compare-passes verdict (TV-CP-01..TV-CP-02)
+  * 3 render-envelope/prom/md (TV-RD-01..TV-RD-03)
+  * 2 mira-notify shape (TV-MN-01..TV-MN-02)
   * 1 CLI smoke (run_audit end-to-end) (TV-CLI-01)
 
 Total: 18 hermetic invariants -- comfortably above the >=12 target.
@@ -26,7 +26,7 @@ These tests NEVER invoke cargo / cosign / podman / network. They
 synthesise tiny inline Cargo.lock fixtures and assert the expected
 fingerprint shape, JSON envelope shape, and drift detection.
 
-Author: Kai Hoffmann (Dev-Engineering-3)
+Author: the infrastructure zone Hoffmann (Dev-Engineering-3)
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ _spec.loader.exec_module(vbr)  # type: ignore[union-attr]
 # ---------------------------------------------------------------------------
 # Synthetic Cargo.lock fixture.
 #
-# Covers every welle-pinned variant of the canonical inventory plus
+# Covers every wave-pinned variant of the canonical inventory plus
 # their transitive deps. The shape is intentionally small so the
 # expected fingerprints can be reasoned about by hand.
 # ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ dependencies = []
 
 
 # ---------------------------------------------------------------------------
-# TV-PL-* : Cargo.lock parser invariants.
+# TV-PL-*: Cargo.lock parser invariants.
 # ---------------------------------------------------------------------------
 
 
@@ -200,7 +200,7 @@ def test_TV_PL_03_missing_package_array_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-TC-* : transitive-closure invariants.
+# TV-TC-*: transitive-closure invariants.
 # ---------------------------------------------------------------------------
 
 
@@ -235,7 +235,7 @@ def test_TV_TC_03_unknown_root_raises_keyerror() -> None:
 def test_TV_TC_04_closure_handles_multi_version_dep() -> None:
     """Multiple versions of the same crate are all included.
 
-    Mirrors the Tag-48 generator's invariant: when Cargo.lock
+    Mirrors the generator's invariant: when Cargo.lock
     contains two versions of the same crate (e.g. block-buffer
     0.10 + 0.9), both versions show up in the closure if both
     are reachable from the root.
@@ -272,7 +272,7 @@ dependencies = [
 
 
 # ---------------------------------------------------------------------------
-# TV-FP-* : fingerprint determinism invariants.
+# TV-FP-*: fingerprint determinism invariants.
 # ---------------------------------------------------------------------------
 
 
@@ -286,7 +286,7 @@ def test_TV_FP_01_two_passes_byte_equal() -> None:
 
 
 def test_TV_FP_02_distinct_binaries_have_distinct_fingerprints() -> None:
-    """Sibling welle-variants get distinct fingerprints by binary_name.
+    """Sibling wave-variants get distinct fingerprints by binary_name.
 
     ``state-backing`` and ``state-backing-welle4`` share the same root
     crate but the fingerprint binds binary_name into the hash, so
@@ -309,7 +309,7 @@ def test_TV_FP_03_inventory_covers_all_15_binaries() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-CP-* : compare_passes verdict invariants.
+# TV-CP-*: compare_passes verdict invariants.
 # ---------------------------------------------------------------------------
 
 
@@ -348,7 +348,7 @@ def test_TV_CP_02_red_when_fingerprint_diverges() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-RD-* : renderer invariants.
+# TV-RD-*: renderer invariants.
 # ---------------------------------------------------------------------------
 
 
@@ -394,12 +394,12 @@ def test_TV_RD_03_markdown_summary_renders_table_rows() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-MN-* : Mira-Notify payload invariants.
+# TV-MN-*: operator-Notify payload invariants.
 # ---------------------------------------------------------------------------
 
 
 def test_TV_MN_01_green_emits_empty_notify_payload() -> None:
-    """GREEN audit produces an empty Mira-Notify payload."""
+    """GREEN audit produces an empty operator-Notify payload."""
     p1 = vbr.derive_pass(_SYNTHETIC_LOCK)
     p2 = vbr.derive_pass(_SYNTHETIC_LOCK)
     verdict = vbr.compare_passes(p1, p2)
@@ -408,7 +408,7 @@ def test_TV_MN_01_green_emits_empty_notify_payload() -> None:
 
 
 def test_TV_MN_02_red_emits_drift_event_with_binary_list() -> None:
-    """RED audit produces a Mira-Notify event listing every drift binary."""
+    """RED audit produces a operator-Notify event listing every drift binary."""
     p1 = vbr.derive_pass(_SYNTHETIC_LOCK)
     mutated = list(p1.per_binary)
     # Mutate two binaries so we can assert the list is complete.
@@ -438,18 +438,18 @@ def test_TV_MN_02_red_emits_drift_event_with_binary_list() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-CLI-01 : CLI smoke test (end-to-end via main()).
+# TV-CLI-01: CLI smoke test (end-to-end via main).
 # ---------------------------------------------------------------------------
 
 
 def test_TV_CLI_01_main_writes_outputs_and_returns_zero(
     tmp_path: Path,
 ) -> None:
-    """main() round-trips a real Cargo.lock fixture to all outputs.
+    """main round-trips a real Cargo.lock fixture to all outputs.
 
     The audit-timestamp defaults to 0.0 (no SOURCE_DATE_EPOCH set)
     so the JSON envelope is byte-stable across two invocations of
-    main() on the same input.
+    main on the same input.
     """
     lock_path = tmp_path / "Cargo.lock"
     lock_path.write_bytes(_SYNTHETIC_LOCK)

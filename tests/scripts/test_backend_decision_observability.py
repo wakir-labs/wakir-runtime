@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/backend-decision-observability.py — Tag-22 Mini-Welle.
+"""Tests for scripts/backend-decision-observability.py — Mini-wave.
 
 Hermetic, stdlib-only: the aggregator module is loaded via importlib
 from its hyphenated path under ``scripts/``. JSONL inputs are written
@@ -9,15 +9,15 @@ to ``tmp_path`` fixtures. No network, no real Prometheus collector.
 Scope (12 tests)
 ----------------
 
-1.  test_module_loads_and_exports_public_surface
-2.  test_read_decision_records_tolerates_malformed_and_filters_non_decision_msg
-3.  test_read_decision_records_raises_on_missing_file
-4.  test_select_window_returns_trailing_records_and_clamps_nonpositive
-5.  test_read_window_size_from_env_parses_valid_and_falls_back
-6.  test_aggregate_decisions_counts_per_component_backend
-7.  test_aggregate_decisions_latency_percentiles_per_component
-8.  test_aggregate_decisions_fallback_rates_per_component_and_aggregated
-9.  test_aggregate_decisions_handles_unknown_component_and_backend
+1. test_module_loads_and_exports_public_surface
+2. test_read_decision_records_tolerates_malformed_and_filters_non_decision_msg
+3. test_read_decision_records_raises_on_missing_file
+4. test_select_window_returns_trailing_records_and_clamps_nonpositive
+5. test_read_window_size_from_env_parses_valid_and_falls_back
+6. test_aggregate_decisions_counts_per_component_backend
+7. test_aggregate_decisions_latency_percentiles_per_component
+8. test_aggregate_decisions_fallback_rates_per_component_and_aggregated
+9. test_aggregate_decisions_handles_unknown_component_and_backend
 10. test_render_prometheus_emits_expected_metric_names_and_labels
 11. test_main_json_format_round_trip_via_cli
 12. test_main_prometheus_dry_run_writes_to_stdout
@@ -196,7 +196,7 @@ def test_read_decision_records_tolerates_malformed_and_filters_non_decision_msg(
 
 
 def test_read_decision_records_raises_on_missing_file(tmp_path: Path):
-    """A missing path raises :class:`JsonlReadError` so the CLI can
+    """A missing path raises:class:`JsonlReadError` so the CLI can
     map it to exit-code 1. Never silently treat a missing file as
     'zero decisions' — that masks operator misconfig.
     """
@@ -313,7 +313,7 @@ def test_aggregate_decisions_latency_percentiles_per_component():
     """Nearest-rank percentiles on a controlled sample produce stable
     integer values that correspond to real observed latencies.
 
-    For sorted [10, 20, 30, ..., 100] (10 items):
+    For sorted [10, 20, 30,..., 100] (10 items):
       - p50 -> ceil(0.5*10)=5 -> values[4] = 50
       - p95 -> ceil(0.95*10)=10 -> values[9] = 100
       - p99 -> ceil(0.99*10)=10 -> values[9] = 100

@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Multi-Calendar-Failover-Hardening for the Mira-Hourly-WAT-Anchor-Cron.
+"""Multi-Calendar-Failover-Hardening for the operator-Hourly-WAT-Anchor-Cron.
 
-Phase-2 Sprint-9 Tag-3 (Tomás) — WAT-Production-Hardening.
+Phase-2 — WAT-Production-Hardening.
 
 What ``test_anchor.py`` already covers
 --------------------------------------
@@ -17,8 +17,8 @@ What ``test_anchor.py`` already covers
 What is NOT yet covered (and what this module adds)
 ---------------------------------------------------
 
-The production Mira-Hourly cron submits to the four DEFAULT_CALENDARS.
-Tag-3 hardens the failover surface against the three production-real
+The production operator-Hourly cron submits to the four DEFAULT_CALENDARS.
+hardens the failover surface against the three production-real
 scenarios that the existing tests do NOT exercise:
 
   1. **3-calendar narrow threshold** — operators who want to tune
@@ -30,7 +30,7 @@ scenarios that the existing tests do NOT exercise:
 
   2. **Per-calendar slow-output (no exception)** — the OTS client
      does NOT raise on a slow calendar; it logs a per-calendar
-     "Error: ... timeout ..." line and moves on. The whole-process
+     "Error:... timeout..." line and moves on. The whole-process
      ``TimeoutExpired`` test does not exercise this branch.
 
   3. **Partial-success preserves the per-calendar diagnostic** —
@@ -38,7 +38,7 @@ scenarios that the existing tests do NOT exercise:
      "not-ok") so the hourly cron's drift-detection log can name the
      pole that needs operator attention.
 
-These are the hardening invariants the Sprint-9 Tag-1 Bridge-Audit
+These are the hardening invariants the Bridge-Audit
 Writer ALSO depends on transitively: when the bridge writes to the
 WAT-spool and the next-hour aggregator anchors it, the cron MUST
 survive a 1-pole outage without dropping the whole hour's audit
@@ -137,7 +137,7 @@ def _ots_resolvable() -> None:
 def test_threshold_2_of_3_succeeds_with_one_slow(tmp_path: Path) -> None:
     """A 3-calendar config with one slow pole still meets the 2-of-3 floor.
 
-    This is the Mira-Hourly-cron-incident-response shape: an
+    This is the operator-Hourly-cron-incident-response shape: an
     operator excludes one of the four DEFAULT_CALENDARS (say
     ``catallaxy``) during a known outage and runs the cron against
     the remaining three with a 2-of-3 threshold. One of the three
@@ -291,7 +291,7 @@ def test_whole_process_timeout_still_maps_to_anchor_error(tmp_path: Path) -> Non
     """If the OTS subprocess itself times out (not a per-calendar slow line),
     the cron sees an ``AnchorError`` referencing the 90-second ceiling.
 
-    This is a regression test for the Tag-3-hardening: the per-
+    This is a regression test for the-hardening: the per-
     calendar slow-line path (new in this module) MUST NOT shadow the
     whole-process timeout path (already covered in test_anchor.py)
     by accident. We re-pin the whole-process behaviour to keep the

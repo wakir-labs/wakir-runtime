@@ -458,7 +458,7 @@ def test_path_filter_directory_prefix_glob(agg) -> None:
 
 
 def test_path_filter_extension_glob(agg) -> None:
-    """``**/*.py`` must match any .py file regardless of depth."""
+    """``**/*.py`` must match any.py file regardless of depth."""
     spec = agg.SubWorkflow(
         workflow_file="x.yml",
         check_name="x",

@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Cutover Welle-6 E2E acceptance — ``subscribe_loop``.
+"""Phase-3c cutover wave 6 E2E acceptance — ``subscribe_loop``.
 
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — Welle-6
+- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — wave 6
   = ``subscribe_loop`` (NATS-Subscribe, Bug-42-Lessons-Learned hot).
 - Bug-42-Lessons-Learned anchor: ``wirelang/tests/persona_engine/
   test_subscribe_mode_bug42.py`` (test-coverage substrate from earlier
-  Mini-Welle).
+  Mini-wave).
 
-Welle character
+wave character
 ---------------
 
 ``subscribe_loop`` is the NATS-subscribe-loop that drives reactive
 persona-engine workflows. Stateful (holds NATS-connection-state +
 subscription-cursor), live-network-dependent in production, and the
-locus of Bug-42 (the subscribe-mode-misrouting bug that Selin-
-Sprint-Pengine-N earlier closed).
+locus of Bug-42 (the subscribe-mode-misrouting bug that the engine zone-
+-Pengine-N earlier closed).
 
 The cutover risk is **subscription-cursor-state drift**: Python and
 Rust must agree on the cursor-advance protocol byte-for-byte
@@ -100,9 +100,9 @@ def test_welle_6_ac_2_performance_within_headroom() -> None:
 
 
 def test_welle_6_ac_3_bug_rate_zero_s0_s1() -> None:
-    """AC-3: 0 S0/S1 issues during Welle-6 Beobachtungs-Woche.
+    """AC-3: 0 S0/S1 issues during wave 6 Beobachtungs-Woche.
 
-    Welle-6 has elevated S0/S1 risk per Bug-42-Lessons-Learned — the
+    wave 6 has elevated S0/S1 risk per Bug-42-Lessons-Learned — the
     bar stays at 0, but Operator-Hand Beobachtungs-Disziplin must be
     tighter here than in earlier wellen.
     """
@@ -115,14 +115,14 @@ def test_welle_6_ac_3_bug_rate_zero_s0_s1() -> None:
 
 
 def test_welle_6_ac_4_cross_review_consensus(mocked_cross_review) -> None:
-    """AC-4: Welle-6 Cross-Review-Session all-personas-consent."""
+    """AC-4: wave 6 Cross-Review-Session all-personas-consent."""
     record = mocked_cross_review(WELLE_NAME)
     assert_ac_4_cross_review_consensus(record, WELLE_NAME)
 
 
 def test_welle_6_ac_4_selin_consent_required(mocked_cross_review) -> None:
-    """AC-4 specific: Selin (Persona-Engine-Owner + Bug-42-closer)
-    consent is non-negotiable for Welle-6.
+    """AC-4 specific: the engine zone (Persona-Engine-Owner + Bug-42-closer)
+    consent is non-negotiable for wave 6.
     """
     record = mocked_cross_review(WELLE_NAME, withheld_personas=("selin",))
     with pytest.raises(AssertionError, match="AC-4"):
@@ -135,7 +135,7 @@ def test_welle_6_ac_4_selin_consent_required(mocked_cross_review) -> None:
 
 
 def test_welle_6_ac_5_v907_pin_validation_full_pass() -> None:
-    """AC-5: V-907 Pin-Validation 100% post-Welle-6 cutover."""
+    """AC-5: V-907 Pin-Validation 100% post-wave 6 cutover."""
     persona_def_count = 6
     assert_ac_5_v907_pin_validation(
         persona_def_count=persona_def_count,
@@ -145,12 +145,12 @@ def test_welle_6_ac_5_v907_pin_validation_full_pass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Welle-6 substrate sanity — six-of-seven moduln on rust.
+# wave 6 substrate sanity — six-of-seven moduln on rust.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_6_six_moduln_rust(mocked_quadlet_env) -> None:
-    """Welle-6 Quadlet-state: 6 rust + 1 python (only recovery_workflow
+    """wave 6 Quadlet-state: 6 rust + 1 python (only recovery_workflow
     remains on python)."""
     env = mocked_quadlet_env(
         WELLE_NAME,
@@ -176,7 +176,7 @@ def test_welle_6_six_moduln_rust(mocked_quadlet_env) -> None:
 
 @pytest.mark.skip(reason="pending welle-cutover — Bug-42-regression-replay corpus")
 def test_welle_6_bug_42_regression_replay_clean() -> None:
-    """Welle-6-specific: Bug-42-regression-replay corpus runs clean on
+    """wave 6 specific: Bug-42-regression-replay corpus runs clean on
     Rust-backend.
 
     The Bug-42-Lessons-Learned corpus from

@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the multi-family registry surface of
-``bin/nats-kv-bucket-provision`` (Phase-2 Sprint-9 Tag-2 paired-
-update on Reza-Sprint-9 Tag-2 durable
+``bin/nats-kv-bucket-provision`` (Phase-2 paired-
+update on the protocol zone- durable
 :class:`SequenceNumberLedger` per-org bucket family).
 
-Sprint-9 Tag-1 shipped the driver with one per-org family
-(``wakir-marker-stack-{org_id}``). Sprint-9 Tag-2 promoted the
+ shipped the driver with one per-org family
+(``wakir-marker-stack-{org_id}``). promoted the
 driver to a small registry of per-org families and added a
 defensive import for the
 ``wirelang.federation.sequence_number_ledger_kv`` ledger family
-(Reza-PR #25). These tests assert the multi-family fan-out shape
+These tests assert the multi-family fan-out shape
 **without** depending on the real Wirelang-side module being
 present — every test synthesises a fixture
 :class:`BucketFamily` so the surface contract is byte-precise even
-on a baseline tip that does not (yet) carry the Tag-2 Wirelang
+on a baseline tip that does not (yet) carry the Wirelang
 module.
 
 Coverage axes (T-MULTIFAM-01..08):
@@ -29,13 +29,13 @@ Coverage axes (T-MULTIFAM-01..08):
    reported with ``family=`` tag; family-B in same org_id is
    unaffected.
 5. **Malformed org_id short-circuits family loop** → ONE error
-   action per org (Tag-1-shape invariant), not N error actions.
+   action per org (-shape invariant), not N error actions.
 6. **JSON payload carries the ``family`` field** in every action
    record; report-shape invariant.
-7. **Real-family contract** (skipped if Reza-Tag-2 absent): when
+7. **Real-family contract** (skipped if the protocol zone-absent): when
    the Wirelang-side ``sequence_number_ledger_kv`` module is
-   importable, :data:`BUCKET_FAMILIES` carries the
-   ``"sequence-ledger"`` family with the canonical Reza-Tag-2
+   importable,:data:`BUCKET_FAMILIES` carries the
+   ``"sequence-ledger"`` family with the canonical the protocol zone-
    prefix.
 8. **Cross-reference invariant for the ledger family** (skipped if
    absent): ``family.bucket_config is`` the Wirelang-side
@@ -83,7 +83,7 @@ def mod():
 
 
 # ---------------------------------------------------------------------------
-# Mock JetStream + KV surface (shared shape with Tag-1 tests)
+# Mock JetStream + KV surface (shared shape with tests)
 # ---------------------------------------------------------------------------
 
 
@@ -145,7 +145,7 @@ def event_loop():
 
 
 # ---------------------------------------------------------------------------
-# Synthetic-family fixtures (independent of Reza-Tag-2 module presence)
+# Synthetic-family fixtures (independent of the protocol zone-module presence)
 # ---------------------------------------------------------------------------
 
 
@@ -198,9 +198,9 @@ def synthetic_families(mod):
     """Return a deterministic two-element family list spelling out
     the marker-stack-shape (32 KiB envelope) and the sequence-
     ledger-shape (4 KiB envelope). These fixtures are
-    Wirelang-side-module-independent so the Tag-2 hermetic
+    Wirelang-side-module-independent so the hermetic
     contracts pass on baseline tips that do not yet carry the
-    Reza-Tag-2 module.
+    the protocol zone-module.
     """
     return [
         mod.BucketFamily(
@@ -397,7 +397,7 @@ def test_malformed_org_id_short_circuits_family_loop_one_error_per_org(
     )
 
     # Two malformed orgs → ONE error action each (not N=2 per
-    # family). Tag-1-shape invariant preserved.
+    # family). -shape invariant preserved.
     by_org_family = [(a.org_id, a.family, a.status) for a in actions]
     # Valid org gets one action per family (= 2 created actions).
     valid_actions = [a for a in actions if a.org_id == "valid-acme"]
@@ -445,13 +445,13 @@ def test_json_report_carries_family_field_in_every_action_record(
             "fixture-family-a",
             "fixture-family-b",
         }
-    # Summary block byte-shape unchanged from Tag-1.
+    # Summary block byte-shape unchanged .
     assert payload["summary"]["created"] == 2
     assert payload["summary"]["total"] == 2
 
 
 # ---------------------------------------------------------------------------
-# T-MULTIFAM-07 — real-family contract (skipped if Reza-Tag-2 absent)
+# T-MULTIFAM-07 — real-family contract (skipped if the protocol zone-absent)
 # ---------------------------------------------------------------------------
 
 
@@ -468,7 +468,7 @@ def test_real_sequence_ledger_family_is_registered_when_module_present(mod):
     assert family_ids.index("marker-stack") < family_ids.index(
         "sequence-ledger"
     )
-    # Canonical Reza-Tag-2 prefix.
+    # Canonical the protocol zone-prefix.
     seq_fam = next(
         f for f in mod.BUCKET_FAMILIES if f.family_id == "sequence-ledger"
     )
@@ -502,7 +502,7 @@ def test_sequence_ledger_family_re_exports_canonical_wirelang_constants(mod):
     assert seq_fam.bucket_config is BUCKET_CONFIG
     assert seq_fam.bucket_name_for_org is bucket_name_for_org
     # spec_for_org for the sequence-ledger family carries the
-    # Reza-side BUCKET_CONFIG byte-precisely.
+    # the protocol zone-side BUCKET_CONFIG byte-precisely.
     spec = mod.spec_for_org("acme", family=seq_fam)
     assert spec["bucket"] == bucket_name_for_org("acme")
     assert spec["history"] == int(BUCKET_CONFIG["history"])

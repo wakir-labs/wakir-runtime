@@ -2,23 +2,23 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Validation-Mock-Run tests for the Phase-3 Final Bilanz Generator.
 
-Tag-44 Noa task: run the generator end-to-end against several distinct
+The observability zone task: run the generator end-to-end against several distinct
 mock Marathon datasets (happy-path, rollback-path, audit-trail-gap,
 cross-modul-drift-detected, latency-excursion) and assert:
 
-  * Markdown output contains the seven welle-sections,
+  * Markdown output contains the seven wave-sections,
     correct COMPLETE-marker outcome, drift/latency status sections,
     audit gap notices, follow-up items.
   * JSON output validates against
     ``scripts/observability/bilanz-output-schema-validator.py``
     schema version 1.0.0.
 
-The tests use inline mock datasets (no dependency on Selin's sample
+The tests use inline mock datasets (no dependency on the engine zone's sample
 fixtures landing first) and exercise the generator's I/O boundary via
 ``assemble_bilanz`` + ``render_markdown`` plus the bilanz-output-schema
 validator. Stdlib-only; no network I/O. ~14 tests.
 
--- Noa
+-- the observability zone
 """
 
 from __future__ import annotations
@@ -71,14 +71,14 @@ validator_mod = _load("bilanz_validator_v44", VALIDATOR_SCRIPT)
 
 
 def _samples_under_budget(welle_id: str) -> List[float]:
-    """Latency samples that sit comfortably below the per-welle budget."""
+    """Latency samples that sit comfortably below the per-wave budget."""
     budget = bilanz_mod.LATENCY_BUDGET_MS[welle_id]
     peak = budget * 0.4
     return [peak * 0.2, peak * 0.4, peak * 0.6, peak * 0.8, peak]
 
 
 def _samples_over_budget(welle_id: str) -> List[float]:
-    """Latency samples that breach the per-welle budget (p95 > 1.1 * budget)."""
+    """Latency samples that breach the per-wave budget (p95 > 1.1 * budget)."""
     budget = bilanz_mod.LATENCY_BUDGET_MS[welle_id]
     peak = budget * 1.5
     return [budget * 0.5, budget * 0.9, budget * 1.15, budget * 1.3, peak]
@@ -102,7 +102,7 @@ def _marathon_state_happy() -> Dict[str, Any]:
 
 
 def _marathon_state_rollback() -> Dict[str, Any]:
-    """Marathon that aborted on welle-4 -- partial counts, no COMPLETE marker."""
+    """Marathon that aborted on wave 4 -- partial counts, no COMPLETE marker."""
     state = {
         "schema_version": "1.0.0",
         "updated_at": "2026-06-12T09:15:00Z",
@@ -132,7 +132,7 @@ def _marathon_state_rollback() -> Dict[str, Any]:
 
 
 def _marathon_state_latency_excursion() -> Dict[str, Any]:
-    """Happy counts but welle-5 latency p95 breaches budget."""
+    """Happy counts but wave 5 latency p95 breaches budget."""
     state = _marathon_state_happy()
     target = "welle-5-lifecycle-state-machine"
     state["wellen"][target]["decision_latency_ms_samples"] = _samples_over_budget(target)
@@ -223,7 +223,7 @@ def _sign_offs_all_present() -> List[Dict[str, Any]]:
 
 
 def _sign_offs_missing_w7() -> List[Dict[str, Any]]:
-    """Welle-7 (pre-auditor) sign-off absent -- audit-trail-gap path."""
+    """wave 7 (pre-auditor) sign-off absent -- audit-trail-gap path."""
     return [
         s for s in _sign_offs_all_present()
         if s["welle_id"] != "welle-7-recovery-workflow"
@@ -284,7 +284,7 @@ def _assert_schema_valid(bilanz: Dict[str, Any]) -> None:
 
 
 # --------------------------------------------------------------------
-# Test 1 (Happy Path): all 7 welle sections + COMPLETE marker.
+# Test 1 (Happy Path): all 7 wave sections + COMPLETE marker.
 # --------------------------------------------------------------------
 
 
@@ -301,7 +301,7 @@ def test_happy_path_renders_all_seven_welle_sections_and_complete_marker():
 
     # Section 1 header.
     assert "# Phase-3 Marathon Final Bilanz" in md
-    # All 7 welle sub-sections.
+    # All 7 wave sub-sections.
     for idx, wid in enumerate(bilanz_mod.WELLE_ORDER, start=1):
         short = bilanz_mod.WELLE_SHORT[wid]
         assert f"### 2.{idx} {short}" in md, f"missing section 2.{idx} for {wid}"
@@ -378,7 +378,7 @@ def test_rollback_path_followups_include_rollback_welle_audit_gap():
         sign_offs=_sign_offs_missing_w7(),
         complete_marker=_complete_marker_rollback(),
     )
-    # Welle-7 (recovery-workflow) sign-off missing.
+    # wave 7 (recovery-workflow) sign-off missing.
     follow_str = "\n".join(bilanz["phase_4_followups"])
     assert "W7 recovery-workflow" in follow_str
     assert "sign-off MISSING" in follow_str
@@ -397,7 +397,7 @@ def test_rollback_path_schema_valid():
 
 
 # --------------------------------------------------------------------
-# Test 3 (Welle-7-Pre-Auditor-Missing): only the W7 sign-off is absent,
+# Test 3 (wave 7 Pre-Auditor-Missing): only the W7 sign-off is absent,
 # Marathon otherwise complete. The audit-trail-gap notice must show up.
 # --------------------------------------------------------------------
 
@@ -413,10 +413,10 @@ def test_welle_7_pre_auditor_missing_emits_audit_trail_gap_notice():
     )
     md = bilanz_mod.render_markdown(bilanz)
 
-    # Section 4 must list welle-7 in the missing sign-offs.
+    # Section 4 must list wave 7 in the missing sign-offs.
     assert "**Missing sign-offs:**" in md
     assert "W7 recovery-workflow" in md
-    # Per-welle sign-off table must show MISSING for welle-7.
+    # Per-wave sign-off table must show MISSING for wave 7.
     # The row pattern is `| W7 recovery-workflow | _MISSING_ |`.
     assert "| W7 recovery-workflow | _MISSING_ |" in md
 
@@ -482,7 +482,7 @@ def test_cross_modul_drift_detected_systemic_signal_in_md():
     md = bilanz_mod.render_markdown(bilanz)
     # Drift status table header.
     assert "### Drift status across wellen" in md
-    # The cross-welle coupling section must call out the systemic
+    # The cross-wave coupling section must call out the systemic
     # interpretation when two wellen BREACH at once.
     assert "## 3. Cross-Welle Coupling Bilanz" in md
     assert "systemic" in md  # The narrative paragraph mentions systemic cause.
@@ -501,9 +501,9 @@ def test_cross_modul_drift_detected_schema_valid():
 
 
 # --------------------------------------------------------------------
-# Test 5 (Latency-Excursion): one welle blows the p95 budget; the
+# Test 5 (Latency-Excursion): one wave blows the p95 budget; the
 # bilanz must surface it in the latency-status table and the
-# follow-up list, and the per-welle p95 column shows BREACH.
+# follow-up list, and the per-wave p95 column shows BREACH.
 # --------------------------------------------------------------------
 
 
@@ -517,7 +517,7 @@ def test_latency_excursion_flags_breach_welle_in_status_table():
         complete_marker=_complete_marker_complete(),
     )
 
-    # Per-welle latency status: target welle is BREACH.
+    # Per-wave latency status: target wave is BREACH.
     target = "welle-5-lifecycle-state-machine"
     assert bilanz["per_welle"][target]["latency_status"] == "BREACH"
 

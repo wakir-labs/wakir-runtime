@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for ``bin/proxmox-bringup-smoke`` (Phase-2 Sprint-9
-Tag-1 Operator-Hand Self-Verify after Proxmox VM bring-up).
+"""Hermetic tests for ``bin/proxmox-bringup-smoke`` (Phase-2
+Operator-Hand Self-Verify after Proxmox VM bring-up).
 
 The smoke skript shells out to ``systemctl``, ``podman``, ``curl``,
 and optionally a ``nats`` CLI. Each of these is overridable via env
@@ -11,7 +11,7 @@ mock wrapper scripts in ``tmp_path`` and point the smoke skript at
 them; the skript itself runs unchanged.
 
 Coverage axes (3 tests; combined with the 8 provisioner tests, the
-Sprint-9 Tag-1 hermetic surface is 11 new tests):
+ hermetic surface is 11 new tests):
 
 A. Happy-path: all four mock tools return success; smoke skript
    exits 0; six PASS lines in the log; ``--json`` payload carries
@@ -149,8 +149,8 @@ def _run_smoke(env_overrides: dict, args: list[str]) -> subprocess.CompletedProc
     assert bash is not None, "bash not on PATH"
     env = os.environ.copy()
     env.update(env_overrides)
-    # The Sprint-9 Tag-5 retry-layer defaults to 5 retries with
-    # exponential backoff. The Tag-1 hermetic-test suite asserts
+    # the retry-layer defaults to 5 retries with
+    # exponential backoff. The hermetic-test suite asserts
     # single-shot semantics for compatibility with the legacy
     # mock-scripts (a permanently-broken probe should fail FAST,
     # not retry 5 times). Tests that exercise the retry-layer

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""LICENSING.md state-audit (Tag-31 EXT-AUDIT-FOLGE).
+"""LICENSING.md state-audit (EXT-AUDIT-FOLGE).
 
 The external audit on 2026-05-17 flagged that the per-file license-
 headers had drifted away from the human-readable LICENSING.md path-
@@ -14,7 +14,7 @@ section even listed `wat/` as the *only* BSL sub-tree.
 This test suite enforces that LICENSING.md, REUSE.toml, pyproject.toml
 ``license-files`` and the actual on-disk state of the BSL sub-trees
 stay in lock-step. It is the diligence-ready acceptance gate the
-external audit asked for.
+external audit asked .
 
 Scope of the assertions (10 vectors):
 

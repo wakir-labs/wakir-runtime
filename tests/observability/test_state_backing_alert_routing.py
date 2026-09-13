@@ -2,19 +2,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-72 Welle-4
-State-Backing-Alert-Routing-Erweiterung (Noa SRE,
-Continuous-Mode-Marathon).
+"""Hermetic observability tests for the wave 4
+State-Backing-Alert-Routing-Erweiterung.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-72 Noa Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon):
-Two additional Welle-4 state-backing alarms close the
+The observability zone assignment:
+Two additional wave 4 state-backing alarms close the
 positive-confirmation + rollback-Pfad routing gap identified
-during the Tag-71 stability-window review:
+during the stability-window review:
 
-  * WakirPhase3Welle4StateBackingActive       (info)
+  * WakirPhase3Welle4StateBackingActive (info)
   * WakirPhase3Welle4SnapshotRestoreTriggered (warning,
                                               rollback-Pfad)
 
@@ -29,7 +28,7 @@ byte-equal into ``wirelang/specs/protocol-mirror-seed/``.
 Scope
 -----
 
-* Welle-4 alert YAML surface (alert names, severity, labels,
+* wave 4 alert YAML surface (alert names, severity, labels,
   routing class, expr contract).
 * Bridge ALERT_CATALOG entries + routing-class table.
 * Cross-Repo-Mirror byte-equality.
@@ -118,19 +117,19 @@ def bridge_mirror_text() -> str:
 
 
 # ---------------------------------------------------------------
-# Section 1: Welle-4 alert YAML surface.
+# Section 1: wave 4 alert YAML surface.
 # ---------------------------------------------------------------
 
 
 def test_both_tag72_alerts_present_in_yaml(alerts_text: str) -> None:
-    """The two Tag-72 alerts are appended to the alerts YAML."""
+    """The two alerts are appended to the alerts YAML."""
     assert "WakirPhase3Welle4StateBackingActive" in alerts_text
     assert "WakirPhase3Welle4SnapshotRestoreTriggered" in alerts_text
 
 
 def test_tag72_alerts_live_in_welle_4_group(alerts_doc: dict) -> None:
     """Both alerts must be in the existing ``welle-4-alerts``
-    group, not in a new top-level group. This keeps the Welle-4
+    group, not in a new top-level group. This keeps the wave 4
     state-backing observability surface contiguous and
     grep-discoverable.
     """
@@ -143,8 +142,8 @@ def test_tag72_alerts_live_in_welle_4_group(alerts_doc: dict) -> None:
     rule_names = [r["alert"] for r in welle_4_groups[0]["rules"]]
     assert "WakirPhase3Welle4StateBackingActive" in rule_names
     assert "WakirPhase3Welle4SnapshotRestoreTriggered" in rule_names
-    # Both Tag-72 alerts MUST come AFTER the pre-existing Tag-50
-    # Welle-4 alerts (append, not prepend).
+    # Both alerts MUST come AFTER the pre-existing
+    # wave 4 alerts (append, not prepend).
     idx_state_read_fail = rule_names.index("WakirWelle4StateReadFail")
     idx_active = rule_names.index("WakirPhase3Welle4StateBackingActive")
     idx_restore = rule_names.index(
@@ -157,7 +156,7 @@ def test_state_backing_active_severity_info_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The Active alert must be severity=info with the
-    canonical Tag-72 Welle-4 labels.
+    canonical wave 4 labels.
     """
     rule = _find_rule(alerts_doc, "WakirPhase3Welle4StateBackingActive")
     labels = rule["labels"]
@@ -176,7 +175,7 @@ def test_snapshot_restore_severity_warning_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The SnapshotRestore alert must be severity=warning
-    (rollback-Pfad, NOT page) with the canonical Tag-72 labels
+    (rollback-Pfad, NOT page) with the canonical labels
     plus the ``rollback_path: snapshot-restore`` discriminator.
     """
     rule = _find_rule(
@@ -225,7 +224,7 @@ def test_snapshot_restore_expr_uses_counter_increase(
 
 
 def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
-    """Both Tag-72 alerts must route to ntfy:ar-hand-info +
+    """Both alerts must route to ntfy:ar-hand-info +
     activity-log:append only. No pagerduty, no on-call page.
     """
     for name in (
@@ -261,7 +260,7 @@ def test_tag72_alerts_carry_runbook_url(alerts_doc: dict) -> None:
 
 
 def test_tag72_header_comment_present(alerts_text: str) -> None:
-    """A Tag-72 header comment anchors the new block for future
+    """A header comment anchors the new block for future
     grep-ability and audit-trail reading.
     """
     assert "Tag-72 Welle-4 State-Backing-Alert-Routing-Erweiterung" in (
@@ -275,7 +274,7 @@ def test_tag72_header_comment_present(alerts_text: str) -> None:
 
 
 def test_bridge_catalog_has_both_tag72_alerts(bridge_module) -> None:
-    """Both Tag-72 alerts must be catalogued in ALERT_CATALOG
+    """Both alerts must be catalogued in ALERT_CATALOG
     with the correct severity + runbook_url.
     """
     cat = bridge_module.ALERT_CATALOG
@@ -317,7 +316,7 @@ def test_bridge_new_routing_class_registered(bridge_module) -> None:
 
 def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
     """The lookup_* helpers return the correct values for the
-    new Tag-72 routing class.
+    new routing class.
     """
     assert bridge_module.lookup_routing_class_channels(
         "welle-4-state-backing-info"
@@ -341,8 +340,8 @@ def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
 
 
 def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
-    """Adding the Tag-72 routing class must NOT break the
-    trinary routing-table shape invariants (Tag-64 contract).
+    """Adding the routing class must NOT break the
+    trinary routing-table shape invariants (contract).
     """
     shape = bridge_module.validate_trinary_routing_table_shape()
     assert shape == {
@@ -355,8 +354,8 @@ def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
 def test_bridge_lookup_catalog_returns_tag72_entries(
     bridge_module,
 ) -> None:
-    """lookup_catalog() must return a copy of the catalog entry
-    for both Tag-72 alerts (and the copy must be independent of
+    """lookup_catalog must return a copy of the catalog entry
+    for both alerts (and the copy must be independent of
     the catalog dict).
     """
     e1 = bridge_module.lookup_catalog("WakirPhase3Welle4StateBackingActive")
@@ -380,7 +379,7 @@ def test_bridge_lookup_catalog_returns_tag72_entries(
 def test_bridge_normalise_severity_maps_warning_and_info(
     bridge_module,
 ) -> None:
-    """Severity normalisation maps the Tag-72 vocabulary
+    """Severity normalisation maps the vocabulary
     (info -> info, warning -> warning) through unchanged.
     """
     assert bridge_module.normalise_severity("info", None) == "info"

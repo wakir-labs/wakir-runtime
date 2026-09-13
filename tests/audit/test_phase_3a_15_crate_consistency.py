@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic Tag-47 audit: Phase-3a 15-crate consistency.
+"""Hermetic audit: Phase-3a 15-crate consistency.
 
 Re-runs the substrate checks documented in
 ``reports/audit/phase-3a-15-crate-consistency-2026-05-19.md`` against
@@ -354,7 +354,7 @@ def test_t10_crate_lib_or_main_non_empty(crate: str) -> None:
     elif main.is_file():
         target = main
     else:
-        # Fall back to the first .rs file in src/.
+        # Fall back to the first.rs file in src/.
         first = next(iter(sorted(src_dir.glob("**/*.rs"))), None)
         assert first is not None, f"{crate}: no entry .rs in src/"
         target = first

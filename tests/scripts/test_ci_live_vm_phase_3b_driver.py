@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Tests for ``scripts/ci-live-vm-phase-3b-driver.sh`` — Tag-19 Mini-Welle.
+"""Tests for ``scripts/ci-live-vm-phase-3b-driver.sh`` — Mini-wave.
 
 The driver script is the matrix-cell hand-off declared in
 ``.github/workflows/live-vm-acceptance.yml`` and documented in
@@ -23,7 +23,7 @@ Hermetic constraints
   latency-budget gate to the mocked values, which is the substantial
   cross-check between this test surface and the production path.
 * ``jq`` is a hard dependency of the driver. When the local runner
-  does not have ``jq`` on PATH (e.g. the sandbox developer box), the
+  does not have ``jq`` on PATH (e.g. The sandbox developer box), the
   whole test module skips cleanly. CI runners (ubuntu-latest +
   GitHub-Actions image) ship ``jq`` by default; if the surrounding
   workflow installs ``jq`` explicitly that path is also covered.
@@ -241,7 +241,7 @@ def test_self_test_default_ok_emits_canonical_schema(tmp_path: Path) -> None:
 
     report = json.loads(report_path.read_text())
 
-    # Canonical schema fields from PR #168 §4 + Tag-19 driver-contract.
+    # Canonical schema fields from PR #168 §4 + driver-contract.
     expected_keys = {
         "target_vm",
         "recovery_backend",
@@ -275,7 +275,7 @@ def test_self_test_default_ok_emits_canonical_schema(tmp_path: Path) -> None:
     assert isinstance(report["state_latency_ms_p95"], int)
     assert report["fallback_reason"] is None
 
-    # Tag-19 backend_decision_record contract.
+    # backend_decision_record contract.
     bdr = report["backend_decision_record"]
     assert bdr["recovery_backend"] == "rust"
     assert bdr["state_backing_backend"] == "rust_natskv"
@@ -384,7 +384,7 @@ def test_self_test_driver_not_present_status_passthrough(
 @requires_jq
 def test_self_test_component_fsm_maps_to_recovery(tmp_path: Path) -> None:
     """`--component=fsm` is reserved for a future Phase-3c FSM-equivalence
-    lane; the Tag-19 driver maps it to ``recovery`` so the workflow
+    lane; the driver maps it to ``recovery`` so the workflow
     accepts the flag without exploding."""
     report_path = tmp_path / "report.json"
     args = _canonical_self_test_args(

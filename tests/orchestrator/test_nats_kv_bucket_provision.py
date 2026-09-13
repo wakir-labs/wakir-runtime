@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``bin/nats-kv-bucket-provision`` (Phase-2
-Sprint-9 Tag-1 per-org marker-stack-event bucket provisioner).
+ per-org marker-stack-event bucket provisioner).
 
 The provisioner targets a live NATS-JetStream cluster; we do not
 stand one up here. The hermetic surface drives ``plan_and_apply``
 against an in-memory mock JetStream context that mirrors the subset
 of the ``nats.js.JetStreamContext`` API the provisioner depends on.
 
-Tag-2 multi-family registry note
+multi-family registry note
 --------------------------------
 
-Sprint-9 Tag-2 promoted the driver to a multi-family registry that
-provisions every registered :class:`BucketFamily` per ``org_id``.
-The Tag-1 coverage axes below pin ``families=[marker-stack]`` on
+ promoted the driver to a multi-family registry that
+provisions every registered:class:`BucketFamily` per ``org_id``.
+The coverage axes below pin ``families=[marker-stack]`` on
 every call to assert the historical single-family semantics
-byte-precisely. The new Tag-2 coverage axes (T-MULTIFAM-01..NN in
+byte-precisely. The new coverage axes (T-MULTIFAM-01..NN in
 ``test_nats_kv_bucket_provision_multi_family.py``) exercise the
 multi-family fan-out shape independently.
 
@@ -67,7 +67,7 @@ import pytest
 # Module loader: bin/nats_kv_bucket_provision.py is the import target.
 # We add the repo root to sys.path so ``from bin import nats_kv_bucket_
 # provision`` resolves without an editable install. The CLI shim
-# (bin/nats-kv-bucket-provision, no .py) is loaded via importlib in
+# (bin/nats-kv-bucket-provision, no.py) is loaded via importlib in
 # the cross-reference invariant test only.
 # ---------------------------------------------------------------------------
 
@@ -94,9 +94,9 @@ def mod():
 
 @pytest.fixture
 def marker_stack_family(mod):
-    """Pin to the marker-stack family for Tag-1 single-family
-    semantics. Sprint-9 Tag-2 promoted the planner to a multi-
-    family registry; the Tag-1 axes below pre-date that and assert
+    """Pin to the marker-stack family for single-family
+    semantics. promoted the planner to a multi-
+    family registry; the axes below pre-date that and assert
     the marker-stack family behaviour in isolation.
     """
     for fam in mod.BUCKET_FAMILIES:

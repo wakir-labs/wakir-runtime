@@ -53,7 +53,7 @@ def test_cli_offline_only_without_expected_height_trims_http_poles(
     # marker. Receipt fixture contains 948183, so structural pole
     # passes. OTS-CLI pole: real binary on PATH? Tests should not
     # depend on that. We pass --skip-pole-implicit by relying on the
-    # ots binary being absent in CI: assert structural pole is in,
+    # ots binary being absent in CI: assert structural pole is ,
     # ots-cli pole reported (ok or unavailable), HTTP poles absent.
     assert "pole_python_stdlib" in body["pole_results"]
     assert "pole_ots_cli" in body["pole_results"]

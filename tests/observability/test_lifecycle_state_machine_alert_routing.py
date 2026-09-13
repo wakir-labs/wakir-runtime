@@ -2,21 +2,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-73 Welle-5
-Capability-Token-Rotation-Alert-Routing-Erweiterung (Noa SRE,
-Continuous-Mode-Marathon).
+"""Hermetic observability tests for the wave 5
+Capability-Token-Rotation-Alert-Routing-Erweiterung.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-73 Noa Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon):
-Two additional Welle-5 capability-token-rotation alarms close the
+The observability zone assignment:
+Two additional wave 5 capability-token-rotation alarms close the
 positive-confirmation + rotation-lag routing gap surfaced during
-the KW-26 doppel-cutover audit (DW-AC-6-7-RC R1 rotation-race
+the calendar week 26 doppel-cutover audit (DW-AC-6-7-RC R1 rotation-race
 patterns, see
 ``tests/phase_3c/test_doppel_welle_6_7_acceptance.py``):
 
-  * WakirPhase3Welle5CapabilityTokenRotated     (info)
+  * WakirPhase3Welle5CapabilityTokenRotated (info)
   * WakirPhase3Welle5CapabilityTokenRotationLag (warning,
                                                  rotation-lag-Pfad)
 
@@ -31,7 +30,7 @@ byte-equal into ``wirelang/specs/protocol-mirror-seed/``.
 Scope
 -----
 
-* Welle-5 alert YAML surface (alert names, severity, labels,
+* wave 5 alert YAML surface (alert names, severity, labels,
   routing class, expr contract).
 * Bridge ALERT_CATALOG entries + routing-class table.
 * Cross-Repo-Mirror byte-equality.
@@ -119,19 +118,19 @@ def bridge_mirror_text() -> str:
 
 
 # ---------------------------------------------------------------
-# Section 1: Welle-5 alert YAML surface.
+# Section 1: wave 5 alert YAML surface.
 # ---------------------------------------------------------------
 
 
 def test_both_tag73_alerts_present_in_yaml(alerts_text: str) -> None:
-    """The two Tag-73 alerts are appended to the alerts YAML."""
+    """The two alerts are appended to the alerts YAML."""
     assert "WakirPhase3Welle5CapabilityTokenRotated" in alerts_text
     assert "WakirPhase3Welle5CapabilityTokenRotationLag" in alerts_text
 
 
 def test_tag73_alerts_live_in_welle_5_group(alerts_doc: dict) -> None:
     """Both alerts must be in the existing ``welle-5-alerts``
-    group, not in a new top-level group. This keeps the Welle-5
+    group, not in a new top-level group. This keeps the wave 5
     capability-token observability surface contiguous and
     grep-discoverable.
     """
@@ -144,7 +143,7 @@ def test_tag73_alerts_live_in_welle_5_group(alerts_doc: dict) -> None:
     rule_names = [r["alert"] for r in welle_5_groups[0]["rules"]]
     assert "WakirPhase3Welle5CapabilityTokenRotated" in rule_names
     assert "WakirPhase3Welle5CapabilityTokenRotationLag" in rule_names
-    # Both Tag-73 alerts MUST come AFTER the pre-existing Welle-5
+    # Both alerts MUST come AFTER the pre-existing wave 5
     # page-level alerts (append, not prepend).
     idx_signoff = rule_names.index("WakirWelle5SignedOffBeforeWelle4Stable")
     idx_rotated = rule_names.index(
@@ -160,7 +159,7 @@ def test_cap_token_rotated_severity_info_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The Rotated alert must be severity=info with the
-    canonical Tag-73 Welle-5 labels.
+    canonical wave 5 labels.
     """
     rule = _find_rule(
         alerts_doc, "WakirPhase3Welle5CapabilityTokenRotated"
@@ -181,7 +180,7 @@ def test_cap_token_rotation_lag_severity_warning_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The RotationLag alert must be severity=warning
-    (rotation-lag-Pfad, NOT page) with the canonical Tag-73
+    (rotation-lag-Pfad, NOT page) with the canonical
     labels plus the ``rotation_path: lag-past-target-interval``
     discriminator.
     """
@@ -225,7 +224,7 @@ def test_cap_token_rotation_lag_expr_uses_lag_gauge(
     """The RotationLag alert expr must use the canonical lag
     gauge ``wakir_welle5_capability_token_rotation_lag_seconds``
     with the >= 1350 threshold (target 900s + 50% margin per
-    ADR-0066 KW-26 doppel-cutover spec).
+    ADR-0066 calendar week 26 doppel-cutover spec).
     """
     rule = _find_rule(
         alerts_doc, "WakirPhase3Welle5CapabilityTokenRotationLag"
@@ -238,7 +237,7 @@ def test_cap_token_rotation_lag_expr_uses_lag_gauge(
 
 
 def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
-    """Both Tag-73 alerts must route to ntfy:ar-hand-info +
+    """Both alerts must route to ntfy:ar-hand-info +
     activity-log:append only. No pagerduty, no on-call page.
     """
     for name in (
@@ -275,7 +274,7 @@ def test_tag73_alerts_carry_runbook_url(alerts_doc: dict) -> None:
 
 
 def test_tag73_header_comment_present(alerts_text: str) -> None:
-    """A Tag-73 header comment anchors the new block for future
+    """A header comment anchors the new block for future
     grep-ability and audit-trail reading.
     """
     assert (
@@ -285,7 +284,7 @@ def test_tag73_header_comment_present(alerts_text: str) -> None:
 
 
 def test_tag73_alerts_carry_for_window(alerts_doc: dict) -> None:
-    """Both Tag-73 alerts must declare a 2m ``for:`` window to
+    """Both alerts must declare a 2m ``for:`` window to
     survive a single Prometheus scrape gap (~15s) without
     false-positives on transient state-flips.
     """
@@ -306,7 +305,7 @@ def test_tag73_alerts_carry_for_window(alerts_doc: dict) -> None:
 
 
 def test_bridge_catalog_has_both_tag73_alerts(bridge_module) -> None:
-    """Both Tag-73 alerts must be catalogued in ALERT_CATALOG
+    """Both alerts must be catalogued in ALERT_CATALOG
     with the correct severity + runbook_url.
     """
     cat = bridge_module.ALERT_CATALOG
@@ -354,7 +353,7 @@ def test_bridge_new_routing_class_registered(bridge_module) -> None:
 
 def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
     """The lookup_* helpers return the correct values for the
-    new Tag-73 routing class.
+    new routing class.
     """
     assert bridge_module.lookup_routing_class_channels(
         "welle-5-capability-token-info"
@@ -368,8 +367,8 @@ def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
 
 
 def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
-    """Adding the Tag-73 routing class must NOT break the
-    trinary routing-table shape invariants (Tag-64 contract).
+    """Adding the routing class must NOT break the
+    trinary routing-table shape invariants (contract).
     """
     shape = bridge_module.validate_trinary_routing_table_shape()
     assert shape == {
@@ -382,8 +381,8 @@ def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
 def test_bridge_lookup_catalog_returns_tag73_entries(
     bridge_module,
 ) -> None:
-    """lookup_catalog() must return a copy of the catalog entry
-    for both Tag-73 alerts (and the copy must be independent of
+    """lookup_catalog must return a copy of the catalog entry
+    for both alerts (and the copy must be independent of
     the catalog dict).
     """
     e1 = bridge_module.lookup_catalog(
@@ -409,7 +408,7 @@ def test_bridge_lookup_catalog_returns_tag73_entries(
 def test_bridge_normalise_severity_maps_warning_and_info(
     bridge_module,
 ) -> None:
-    """Severity normalisation maps the Tag-73 vocabulary
+    """Severity normalisation maps the vocabulary
     (info -> info, warning -> warning) through unchanged.
     """
     assert bridge_module.normalise_severity("info", None) == "info"
@@ -421,8 +420,8 @@ def test_bridge_normalise_severity_maps_warning_and_info(
 def test_bridge_tag72_routing_class_still_registered(
     bridge_module,
 ) -> None:
-    """Regression guard: Tag-73 addition must NOT remove the
-    Tag-72 ``welle-4-state-backing-info`` routing class.
+    """Regression guard: addition must NOT remove the
+    ``welle-4-state-backing-info`` routing class.
     """
     rc = "welle-4-state-backing-info"
     assert rc in bridge_module.VALID_ROUTING_CLASSES
@@ -532,7 +531,7 @@ def test_alert_yaml_severity_matches_bridge_catalog(
 
 
 def test_failure_mode_id_tag73_prefix(bridge_module) -> None:
-    """Both Tag-73 catalog entries must carry a failure_mode_id
+    """Both catalog entries must carry a failure_mode_id
     prefixed with ``Tag-73-Welle5-CapToken-`` for audit-trail
     grep-ability.
     """

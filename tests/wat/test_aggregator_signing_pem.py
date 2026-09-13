@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """PEM/PKCS#8 ``--sign-key`` format acceptance tests.
 
-Sprint-6-Tag-5 Item 2 (Mira multi-item box). Sprint-6-Tag-3
+ Item 2.
 Folge-Item 2 follow-up: extend the aggregator's ``--sign-key``
 acceptance from hex-only to ``hex + unencrypted PEM/PKCS#8``.
 Format is detected by content sniff (PEM begins with ``-----BEGIN``);
@@ -389,7 +389,7 @@ def test_build_command_non_pem_non_hex_falls_through_to_hex_fail(
 
     A file that is neither PEM (no BEGIN marker) nor valid hex falls
     through to the original hex error message. Backward-compat with
-    the Sprint-6-Tag-3 ``test_sign_key_not_hex`` expectation in
+    the ``test_sign_key_not_hex`` expectation in
     ``test_aggregator_signing.py``.
     """
     key_file = tmp_path / "garbage.bin"

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Tag-61 Cross-Repo-Drift-Allowlist Trajectory-Re-Sync tests (Reza).
+"""Cross-Repo-Drift-Allowlist Trajectory-Re-Sync tests.
 
 Pins:
 
@@ -12,13 +12,13 @@ Pins:
     and marks all 4 as seeded against the runtime repo root.
   * `compute_post_resync_score` blends the locked coverage with the
     post-re-sync trajectory and yields `score=92` /
-    `ENFORCE-READY` for the current Tag-61 seed state.
-  * `run_audit` exposes the new stages alongside the locked Tag-60
+    `ENFORCE-READY` for the current seed state.
+  * `run_audit` exposes the new stages alongside the locked
     baseline (score 76 / ENFORCE-CAUTION stays the
     score-of-record).
   * `_canonical_protocol_subpath` strips the `wakir_protocol/`
     prefix correctly and leaves other paths intact.
-  * The README documents the Tag-61 extension table.
+  * The README documents the extension table.
   * The seed schemas keep the Apache-2.0 SPDX header (matches the
     rest of the seed tree).
   * Sandbox-boundary discipline: zero edits in `wakir-protocol`.
@@ -27,7 +27,7 @@ Pins:
 
 Sandbox boundary: pure-Python stdlib + pytest. No network, no
 gh-CLI. The audit-helper is module-loaded from disk to mirror the
-Tag-60 test pattern.
+test pattern.
 """
 
 from __future__ import annotations
@@ -77,7 +77,7 @@ helper = _load_helper()
 
 @pytest.mark.parametrize("seed_name", EXPECTED_SEED_FILES)
 def test_seed_file_exists(seed_name: str) -> None:
-    """Each Tag-61 canonical mirror-seed file is present on disk."""
+    """Each canonical mirror-seed file is present on disk."""
     seed_path = SEED_SCHEMAS_DIR / seed_name
     assert seed_path.is_file(), f"missing seed file: {seed_path}"
 
@@ -240,7 +240,7 @@ def test_canonical_protocol_subpath_leaves_others_intact() -> None:
 
 
 def test_readme_documents_tag_61_extension() -> None:
-    """The seed README has a Tag-61 section with the 4-row table."""
+    """The seed README has a section with the 4-row table."""
     readme = (SEED_ROOT / "README.md").read_text(encoding="utf-8")
     assert "Tag-61 extension" in readme
     for seed_name in EXPECTED_SEED_FILES:
@@ -258,7 +258,7 @@ def test_no_writes_outside_runtime_repo() -> None:
 
     The seed paths returned by `detect_trajectory_resync` must resolve
     inside `<repo_root>/wirelang/specs/protocol-mirror-seed/`. This
-    pins Reza's ADR-0023a boundary: no direct writes to
+    pins the protocol zone's ADR-0023a boundary: no direct writes to
     `wakir-protocol` paths from inside this PR.
     """
     resync = helper.detect_trajectory_resync(REPO_ROOT)

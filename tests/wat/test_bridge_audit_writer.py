@@ -288,7 +288,7 @@ def test_count_helpers_ignore_other_personas(bridge_paths):
 
 
 def test_count_activity_log_skips_free_form_headers(bridge_paths):
-    """The activity-log contains Mira-Hourly prose with persona names
+    """The activity-log contains operator-Hourly prose with persona names
     embedded — the line counter MUST ignore anything that doesn't
     match the strict canonical prefix.
     """

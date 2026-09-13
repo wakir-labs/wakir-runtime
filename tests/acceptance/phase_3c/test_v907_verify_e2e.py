@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Cutover Welle-1 E2E acceptance — ``v907_verify``.
+"""Phase-3c cutover wave 1 E2E acceptance — ``v907_verify``.
 
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — Welle-1
+- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — wave 1
   = ``v907_verify`` (Read-only-Verify-Pfad, niedrigste Blast-Radius).
-- ADR-0065 §Acceptance-Kriterien — AC-1...AC-5 apply to every welle.
-- ADR-0063 §Phase-3a Bridge-Audit-Writer — the substrate this welle's
+- ADR-0065 §Acceptance-Kriterien — AC-1...AC-5 apply to every wave.
+- ADR-0063 §Phase-3a Bridge-Audit-Writer — the substrate this wave's
   AC-1 check rides on.
 - ADR-0064 §Risiken — V-907-Pin-Validation Cache-Konflikt-Free,
   reinforced by AC-5.
 
-Welle character
+wave character
 ---------------
 
 ``v907_verify`` is the V-907-Pin-Validation pure-verify pathway:
 reads a Persona-Def, looks up the V-907-pin, validates the binding,
 returns pass/fail. No state mutation, no NATS, no Bridge-Audit-Writer
 *writes* (only reads for the AC-1 consistency-report). Lowest blast-
-radius makes it the natural Welle-1.
+radius makes it the natural wave 1.
 
 Skip-by-default
 ---------------
@@ -94,7 +94,7 @@ def test_welle_1_ac_2_performance_within_headroom() -> None:
     """AC-2: Rust ``v907_verify`` P95 within Python+20% budget.
 
     Placeholder numbers: Python-baseline ~3.5ms P95 on a verify-only
-    call (Selin-Phase-3a-Bench-Reference, Vermutung-P2). Rust expected
+    call. Rust expected
     to be faster; toleranz 20% headroom.
     """
     python_baseline_p95_ms = 3.5  # placeholder
@@ -121,7 +121,7 @@ def test_welle_1_ac_2_performance_regression_blocks() -> None:
 
 
 def test_welle_1_ac_3_bug_rate_zero_s0_s1() -> None:
-    """AC-3: 0 substanz-relevante (S0/S1) Issues during the welle-week."""
+    """AC-3: 0 substanz-relevante (S0/S1) Issues during the wave-week."""
     assert_ac_3_bug_rate(s0_count=0, s1_count=0, welle=WELLE_NAME)
 
 
@@ -131,13 +131,13 @@ def test_welle_1_ac_3_bug_rate_zero_s0_s1() -> None:
 
 
 def test_welle_1_ac_4_cross_review_consensus(mocked_cross_review) -> None:
-    """AC-4: Aisha-protokolliert Cross-Review-Session all-personas-consent."""
+    """AC-4: the org zone-protokolliert Cross-Review-Session all-personas-consent."""
     record = mocked_cross_review(WELLE_NAME)
     assert_ac_4_cross_review_consensus(record, WELLE_NAME)
 
 
 # ---------------------------------------------------------------------------
-# AC-5 — V-907 Pin-Validation 100% pass-rate (Welle-1 dominant).
+# AC-5 — V-907 Pin-Validation 100% pass-rate (wave 1 dominant).
 # ---------------------------------------------------------------------------
 
 
@@ -157,16 +157,16 @@ def test_welle_1_ac_5_v907_pin_validation_full_pass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Welle-1 substrate sanity — boot-record + Quadlet-flag flip.
+# wave 1 substrate sanity — boot-record + Quadlet-flag flip.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_1_boot_flips_only_v907_verify(
     mocked_engine_boot, mocked_quadlet_env
 ) -> None:
-    """Welle-1 Quadlet-state: only ``v907_verify`` flipped to rust.
+    """wave 1 Quadlet-state: only ``v907_verify`` flipped to rust.
 
-    Mixed-Backend-Substrat during Welle-1 cutover: ``v907_verify``
+    Mixed-Backend-Substrat during wave 1 cutover: ``v907_verify``
     on Rust, all 6 other moduln on Python. AC-1 Bridge-Audit-Writer
     is the consistency oracle across that mixed substrate.
     """
@@ -199,7 +199,7 @@ def test_welle_1_boot_flips_only_v907_verify(
 
 @pytest.mark.skip(reason="pending welle-cutover — Rollback runbook drill wiring")
 def test_welle_1_rollback_within_ten_minutes() -> None:
-    """Welle-1 Rollback-SLA: ≤10 Minuten ENV-Flag-Switch (ADR-0065
+    """wave 1 Rollback-SLA: ≤10 Minuten ENV-Flag-Switch (ADR-0065
     §Rollback-Strategie).
 
     Operator-Hand-Drill substrate; hermetic skeleton placeholder. The

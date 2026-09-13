@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-60 hermetic invariants for the Wirelang-Spec OTS pre-anchor probe.
+"""hermetic invariants for the Wirelang-Spec OTS pre-anchor probe.
 
-This suite covers the Tag-60 emit helper at
+This suite covers the emit helper at
 ``tooling/ots/emit_wirelang_spec_ots_marker.py`` and its companion
 stub registry, workflow, and runbook. All tests are stdlib-only; no
 network I/O, no subprocess to ``ots`` CLI, no podman socket. The
-test-suite is a mirror-twin of Tomás's Tag-59 manifest-hash probe
+test-suite is a mirror-twin of the engineering zone's manifest-hash probe
 suite (``tests/ci/test_ots_pre_anchor_activation_probe.py``).
 
-Test count: 18 (>= 12 per Tag-60 brief).
+Test count: 18 (>= 12 per brief).
 """
 
 from __future__ import annotations
@@ -454,7 +454,7 @@ class TestT14StubRegistryEnforcement(unittest.TestCase):
 
 
 class TestT15WorkflowFileReferences(unittest.TestCase):
-    """T15: workflow file references every Tag-60 artifact path."""
+    """T15: workflow file references every artifact path."""
 
     def test_workflow_refs(self) -> None:
         text = WORKFLOW_PATH.read_text(encoding="utf-8")

@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Cross-lang parity tests for the persona-engine bridge-forward
-``ForwardFrame`` JCS canonicalisation surface (Tag-25 Mini-Welle).
+``ForwardFrame`` JCS canonicalisation surface (Mini-wave).
 
 The Python module under test
-(:mod:`wirelang.cli.bridge_forward_canonical`) is Apache-2.0; this
+:mod:`wirelang.cli.bridge_forward_canonical`) is Apache-2.0; this
 test file is Apache-2.0 so downstream re-implementers can re-use the
 same fixture vectors and the cross-lang contract. The Rust sibling
 crate (``wirelang-rust/crates/persona-engine-bridge-forward``) is
@@ -15,12 +15,12 @@ Test taxonomy (12+ numbered cases; pytest parametrisation lifts the
 total assertion count above 20)
 -------------------------------------------------------------------
 
-- T01 -- Constants pin: :data:`BRIDGE_FORWARD_FRAME_SCHEMA`,
-  :data:`AGENT_TASK_ASSIGNED_SCHEMA`, :data:`HASH_PREFIX`,
+- T01 -- Constants pin::data:`BRIDGE_FORWARD_FRAME_SCHEMA`,
+  :data:`AGENT_TASK_ASSIGNED_SCHEMA`,:data:`HASH_PREFIX`,
   :data:`SHA256_HEX_LEN` and the size-limit constants match the
   documented Rust ``pub const`` items.
-- T02 -- Empty-payload (f01) byte-pin via :func:`build_forward_frame`
-  on hand-rolled :class:`ForwardFrameInput` (no fixture-file dep).
+- T02 -- Empty-payload (f01) byte-pin via:func:`build_forward_frame`
+  on hand-rolled:class:`ForwardFrameInput` (no fixture-file dep).
 - T03 -- Fixture file structure pin: ``schema_version`` matches the
   forward-frame schema string, exactly 5 vectors present, names +
   input/expected key sets match the documented contract.
@@ -40,15 +40,15 @@ total assertion count above 20)
   alphabetical top-level keys (``envelope``, ``schema``, ``subject``).
 - T08 -- Determinism: building the same fixture twice produces
   byte-identical canonical output and identical prefixed hashes.
-- T09 -- :func:`serialize_and_hash` returns the same pair as the
+- T09 --:func:`serialize_and_hash` returns the same pair as the
   individual helpers (no double-canonicalisation drift).
-- T10 -- :func:`build_subject` rejection set: bad env values,
+- T10 --:func:`build_subject` rejection set: bad env values,
   bad-shape persona slugs.
-- T11 -- :func:`validate_forward_frame` accepts at the boundary
+- T11 --:func:`validate_forward_frame` accepts at the boundary
   (64-octet auftrag_id) and rejects one byte over.
-- T12 -- :func:`validate_forward_frame` rejects an oversized
-  prompt_payload (one byte over :data:`MAX_PROMPT_PAYLOAD_BYTES`).
-- T13 -- The pre-existing :mod:`wirelang.cli.bridge_forward` CLI is
+- T12 --:func:`validate_forward_frame` rejects an oversized
+  prompt_payload (one byte over:data:`MAX_PROMPT_PAYLOAD_BYTES`).
+- T13 -- The pre-existing:mod:`wirelang.cli.bridge_forward` CLI is
   NOT touched: the canonical sibling re-exports the same
   ``AuftragEnvelope`` class object (identity check) and the same
   ``MAX_*`` size constants (value pin).
@@ -483,8 +483,8 @@ def test_t12_validate_forward_frame_oversized_prompt_payload():
 
 
 def test_t13_sibling_module_does_not_shadow_existing_cli():
-    """The Tag-25 sibling re-exports the same class object / constants
-    from the Sprint-10 Tag-6 module without touching that module."""
+    """the sibling re-exports the same class object / constants
+    from the module without touching that module."""
     from wirelang.cli import bridge_forward as legacy
 
     # Identity-preserving re-export of the AuftragEnvelope class.
@@ -522,7 +522,7 @@ def test_t14_fixture_file_path_resolves_to_repo_root():
 
 # ---------------------------------------------------------------------
 # T15 -- Forward-frame canonical bytes round-trip through json.loads
-#        to a sort_keys-sorted dict.
+# to a sort_keys-sorted dict.
 # ---------------------------------------------------------------------
 
 

@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-9 bring-up-cleanup
-substance-fixes (Bug-22 — Bring-up-5 race-condition, AR Fred
+"""Hermetic acceptance tests for the bring-up-cleanup
+substance-fixes (Bug-22 — Bring-up-5 race-condition, the operator
 2026-05-14 ~14:00 CEST).
 
 Context
 -------
 
-Bring-up-5 ran from-scratch on the Pilot-VM (post Sprint-9-Tag-8-merge,
+Bring-up-5 ran from-scratch on the Pilot-VM (post -merge,
 main-tip ``a2647ba``) and reached 6/6 smoke-pass ONLY on the second
-``curl|bash`` run. The first run emitted the Tag-8 OK line
-``OK  named-volume permissions normalised (uid:gid 1000:1000,
+``curl|bash`` run. The first run emitted the OK line
+``OK named-volume permissions normalised (uid:gid 1000:1000,
 stat-verified)`` and then immediately reproduced the Bug-20 symptom:
-the SPIRE-Agent crash-looped with
+The SPIRE-Agent crash-looped with
 ``directory validation failed: open /var/lib/spire/agent/.probe:
 permission denied`` while ``ls -lnd`` on the agent-data volume's
 ``_data`` directory reported owner ``0 0``.
@@ -21,7 +21,7 @@ Post-mortem reading of ``step_6_quadlets``:
 
   1. Step 6g runs ``podman volume create --ignore <name>`` ad-hoc for
      each of the five named volumes, then ``chown -R 1000:1000`` and
-     ``stat`` verifies ``1000:1000``. This is the Tag-8 (Bug-21) shape.
+     ``stat`` verifies ``1000:1000``. This is the (Bug-21) shape.
   2. Step 6h starts ``wakir-spire-server-federation-<SIDE>.service``,
      which triggers podman-system-generator to reconcile the named
      volumes against the ``.volume`` Quadlet unit. On some Podman
@@ -40,7 +40,7 @@ backing directory's owner has drifted between step 6g and the
 service start, we observe and correct it before the container init
 runs; if owner is already ``1000:1000`` the helper is a fast no-op.
 
-Test-Vector index (continues the Tag-7/Tag-8 ladder)
+Test-Vector index (continues the/ladder)
 ----------------------------------------------------
 
   * ``TV-S9T9-22a`` Bootstrap exposes ``_chown_volume_with_verify``
@@ -66,12 +66,12 @@ Test-Vector index (continues the Tag-7/Tag-8 ladder)
 Sandbox boundary
 ----------------
 
-Same shape as Tag-7/Tag-8: PATH-injected mocks for ``podman``,
+Same shape as /: PATH-injected mocks for ``podman``,
 ``chown``, ``stat``; the bootstrap helper functions are sourced into
 a tiny driver script that exercises the post-fix invariants without
 booting systemd or the real Podman daemon.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -698,7 +698,7 @@ def test_pre_start_sweeps_present_for_all_three_services() -> None:
 
 def test_helper_driver_mirrors_source_chown_invariants() -> None:
     """Drift-guard: the test-internal helper-driver text mirrors the
-    source's post-fix invariants. Same shape as Tag-8's
+    source's post-fix invariants. Same shape as 's
     ``test_driver_mirrors_source_loop_invariants``.
     """
     src = BOOTSTRAP.read_text()

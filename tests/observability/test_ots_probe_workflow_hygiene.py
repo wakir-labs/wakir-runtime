@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """
-Tag-70 hermetic test-suite for the OTS Pre-Anchor Activation Probe
+hermetic test-suite for the OTS Pre-Anchor Activation Probe
 workflow hygiene.
 
 Side-finding context
 ====================
 
-Tomás-Tag-69 PR #439 surfaced that ``ots-pre-anchor-activation-probe.yml``
-has been failing since Tag-62 push 26094551884 with the runtime error::
+The engineering zone-PR #439 surfaced that ``ots-pre-anchor-activation-probe.yml``
+has been failing since push 26094551884 with the runtime error::
 
     /opt/hostedtoolcache/Python/3.11.15/x64/bin/python3: No module named pytest
 
@@ -18,14 +18,14 @@ does not install ``pytest``. The workflow is non-required (does not gate
 PR merge), but a perma-red non-required check is exactly the kind of
 alert-fatigue noise SRE owns to eradicate.
 
-Tag-70 Noa minimal-fix: add an explicit ``Install pytest + PyYAML``
+The observability zone minimal-fix: add an explicit ``Install pytest + PyYAML``
 step between ``setup-python`` and ``Stage 1``. Pin pytest to
 ``>=7,<9`` and PyYAML to ``>=6,<7`` to avoid unannounced major-version
 drift while keeping the floor compatible with the rest of the repo's
 pytest invocations.
 
 The first iteration of the fix shipped ``pytest`` only; a follow-up
-runner trace surfaced that the existing Tag-59 test-suite also
+runner trace surfaced that the existing test-suite also
 imports ``yaml`` (PyYAML, non-stdlib). Including PyYAML in the same
 install step keeps the fix minimal (one step, one install command).
 
@@ -35,7 +35,7 @@ Substance brief (>= 10 tests; suite carries 13)
   1. Workflow file exists at the documented path.
   2. Workflow YAML parses cleanly.
   3. Workflow declares exactly one job ``ots-pre-anchor-activation-probe``.
-  4. The job's steps include a step named ``Install pytest …`` (Tag-70
+  4. The job's steps include a step named ``Install pytest …`` (
      fix marker).
   5. The Install-pytest step appears AFTER ``actions/setup-python@v5`` and
      BEFORE the ``Run hermetic Tag-59 test-suite`` step (ordering invariant

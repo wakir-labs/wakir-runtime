@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Tests for the ``--prev-hour-root`` CLI flag and ``wat-hourly.sh``
-discovery logic introduced in Phase-1a-Tag-8.
+discovery logic introduced in Phase-1a-.
 
 Coverage matrix (consensus marker A5, manifest-spec
 "prev_hour_root reservation"):
 
-| case                                            | expected manifest value |
+| case | expected manifest value |
 | ----------------------------------------------- | ----------------------- |
-| build without ``--prev-hour-root``              | ``null``                |
-| build with ``--prev-hour-root <hex>``           | ``<hex>``               |
-| empty hour without flag                         | ``null``                |
-| empty hour with ``--prev-hour-root <hex>``      | ``<hex>`` (forwarded)   |
-| wat-hourly.sh: second hour reads first hour     | first-hour root         |
-| wat-hourly.sh: first hour, no prev manifest     | ``null``                |
-| wat-hourly.sh: gap (H-1 absent, H-2 present)    | ``null`` (no walk-back) |
+| build without ``--prev-hour-root`` | ``null`` |
+| build with ``--prev-hour-root <hex>`` | ``<hex>`` |
+| empty hour without flag | ``null`` |
+| empty hour with ``--prev-hour-root <hex>`` | ``<hex>`` (forwarded) |
+| wat-hourly.sh: second hour reads first hour | first-hour root |
+| wat-hourly.sh: first hour, no prev manifest | ``null`` |
+| wat-hourly.sh: gap (H-1 absent, H-2 present) | ``null`` (no walk-back) |
 
 The shell-driver tests run the actual ``scripts/wat-hourly.sh`` via
 subprocess against tmp-path archives so the discovery logic is on the
@@ -96,7 +96,7 @@ def test_build_without_flag_emits_null_prev_hour_root(tmp_path: Path) -> None:
     """Default invocation produces ``"prev_hour_root": null``.
 
     Manifest-spec v1 says the field is always emitted with ``null``
-    default. Previously the writer omitted the key entirely; Tag-8
+    default. Previously the writer omitted the key entirely;
     flips that to "always present" so v2 verifiers and chain-walkers
     can rely on the field being there.
     """
@@ -186,19 +186,19 @@ def _aggregator_cli_invocable() -> bool:
     signal that matters for the three shell-driver tests below,
     because ``wat-hourly.sh`` falls back to ``python -m
     wat.cmd.aggregator_cli`` whenever the ``wakir-merkle`` console
-    script is missing OR broken (Sprint-6-Tag-7 F-5 fix to the shell
+    script is missing OR broken ( F-5 fix to the shell
     driver). The driver's ``python -m`` fallback inherits the test
     runner's interpreter and cwd-side ``sys.path``, so a successful
     import here is equivalent to a working subprocess invocation.
 
     Historical note — earlier widenings:
 
-      * Sprint-5-Tag-4 (OI-9 first pass) made the shell driver fall
+      * (OI-9 first pass) made the shell driver fall
         back to ``python -m`` when ``wakir-merkle`` was not on ``PATH``.
-      * Sprint-6-Tag-4 (OI-9 second pass) widened the skip-guard to
+      * (OI-9 second pass) widened the skip-guard to
         ALSO accept ``<sys.prefix>/bin/wakir-merkle`` existence even
         when ``PATH`` did not expose it.
-      * Sprint-6-Tag-7 (F-5 fix, this commit) collapses the guard to
+      * (F-5 fix, this commit) collapses the guard to
         importability-only. The previous ``shutil.which`` /
         ``<sys.prefix>/bin`` probes returned True for the shim path
         even when the shim itself was broken (editable install's
@@ -265,7 +265,7 @@ def _seed_hour_manifest(
     """Drop a synthetic manifest into ``<archive>/<hour>/manifest.json``.
 
     Used to simulate "the previous hour was already anchored" so the
-    Tag-8 driver's discovery can pick the root up.
+    driver's discovery can pick the root up.
     """
     hour_dir = archive / hour
     hour_dir.mkdir(parents=True, exist_ok=True)
@@ -380,7 +380,7 @@ def test_hourly_driver_gap_emits_null(
 ) -> None:
     """Gap between hours (H-1 absent, H-2 present) emits ``null``.
 
-    Default Tag-8 decision: a gap is itself an audit signal; the
+    Default decision: a gap is itself an audit signal; the
     driver does NOT walk back further than one hour. The chain breaks
     at the gap, the v2 verifier flags it as a chain boundary, and an
     operator investigates whether the missing hour was empty,

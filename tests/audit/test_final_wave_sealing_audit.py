@@ -1,81 +1,81 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-75 tests for the Welle-7 (Final-Sealing)
+Hermetic tests for the wave 7 (Final-Sealing)
 Spec-Conformance Verifier.
 
 ============================================================================
 Test inventory (>=15 hermetic tests, stdlib + pytest only):
 
-  T01  Helper file exists at the expected path.
-  T02  Helper file declares SPDX Apache-2.0 header and "-- Reza"
+  T01 Helper file exists at the expected path.
+  T02 Helper file declares SPDX Apache-2.0 header and "-- the protocol zone"
        signature line (REUSE-discipline).
-  T03  A minimal valid sealing document (six signed-off wellen,
+  T03 A minimal valid sealing document (six signed-off wellen,
        capability + parity families, two-link OTS-chain) passes
-       verify_sealing().
-  T04  I-1: A document with tag != 'Tag-75' is rejected.
-  T05  I-1: A document with welle != 'Welle-7' is rejected.
-  T06  I-2: A document with audit_only flipped to false is rejected.
-  T07  I-2: A document with doc_form_only flipped to false is rejected.
-  T08  I-3: A document with sealing_scope != 'Final-Sealing' is
+       verify_sealing.
+  T04 I-1: A document with tag != '' is rejected.
+  T05 I-1: A document with wave != 'wave 7' is rejected.
+  T06 I-2: A document with audit_only flipped to false is rejected.
+  T07 I-2: A document with doc_form_only flipped to false is rejected.
+  T08 I-3: A document with sealing_scope != 'Final-Sealing' is
        rejected.
-  T09  I-4: A document with malformed sealing_id (wrong prefix or
+  T09 I-4: A document with malformed sealing_id (wrong prefix or
        too short) is rejected.
-  T10  I-5: A document missing one canonical welle is rejected;
+  T10 I-5: A document missing one canonical wave is rejected;
        seven wellen rejected; duplicate welle_id rejected.
-  T11  I-6: A welle-record with signoff_status='pending' is rejected
+  T11 I-6: A wave-record with signoff_status='pending' is rejected
        (final sealing requires every predecessor signed-off);
        missing field rejected; unknown extra field rejected.
-  T12  I-20: A welle-record with signoff_status='rejected' is
+  T12 I-20: A wave-record with signoff_status='rejected' is
        rejected with I-20 (terminal-refusal).
-  T13  I-7: An empty marker_families list is rejected; a list
+  T13 I-7: An empty marker_families list is rejected; a list
        missing the 'capability' cornerstone family is rejected; a
        list missing the 'parity' cornerstone family is rejected;
        duplicate family_ids are rejected.
-  T14  I-8: A family-record with unknown extra field is rejected;
+  T14 I-8: A family-record with unknown extra field is rejected;
        marker_count == 0 is rejected; family_id malformed is
        rejected; empty anchor_pins list is rejected.
-  T15  I-9: A 'finalised' family with len(anchor_pins) != marker_count
+  T15 I-9: A 'finalised' family with len(anchor_pins) != marker_count
        is rejected; a 'partial' family with len(anchor_pins) >=
        marker_count is rejected; an 'open' family with
        len(anchor_pins) >= marker_count is rejected.
-  T16  I-10: ots_anchor_chain missing field rejected; empty links
+  T16 I-10: ots_anchor_chain missing field rejected; empty links
        list rejected; chain_complete non-bool rejected.
-  T17  I-11: A link with non-zero head link_index (no link_index=0)
+  T17 I-11: A link with non-zero head link_index (no link_index=0)
        is rejected; a link with predecessor_pin not matching
        previous link's anchor_pin is rejected; head link with
        predecessor_pin != null is rejected.
-  T18  I-12: head_anchor_pin not matching the lowest-index link's
+  T18 I-12: head_anchor_pin not matching the lowest-index link's
        anchor_pin is rejected; tail_anchor_pin mismatch is rejected.
-  T19  I-13: chain_complete=true with a gap in link_index is
+  T19 I-13: chain_complete=true with a gap in link_index is
        rejected; chain_complete=false with gap_count exceeding
        budget is rejected.
-  T20  I-14: sealing_budget missing field is rejected;
+  T20 I-14: sealing_budget missing field is rejected;
        max_unfinalised_families out of [0,2] is rejected;
        tolerated_signoff_kinds with non-canonical entry is rejected.
-  T21  I-15: unfinalised family count exceeding budget is rejected.
-  T22  I-16: sandbox_boundary with one of the six booleans flipped
+  T21 I-15: unfinalised family count exceeding budget is rejected.
+  T22 I-16: sandbox_boundary with one of the six booleans flipped
        to false is rejected; probe_default_mode != 'inspection-only'
        is rejected; no_release_tag_cut flipped to false is rejected.
-  T23  I-17: cross_anchors missing 'tag_74_parity_layer' is rejected.
-  T24  I-18: An unknown top-level field is rejected (strict shape).
-  T25  I-19: audit_only as int 1 (truthy but not bool) is rejected.
-  T26  CLI: subprocess invocation with a valid sealing JSON exits 0
+  T23 I-17: cross_anchors missing 'tag_74_parity_layer' is rejected.
+  T24 I-18: An unknown top-level field is rejected (strict shape).
+  T25 I-19: audit_only as int 1 (truthy but not bool) is rejected.
+  T26 CLI: subprocess invocation with a valid sealing JSON exits 0
        and prints the expected OK banner.
-  T27  CLI: subprocess invocation with no arguments exits non-zero
+  T27 CLI: subprocess invocation with no arguments exits non-zero
        with the usage banner on stderr.
-  T28  CLI: subprocess invocation with a non-existent path exits
+  T28 CLI: subprocess invocation with a non-existent path exits
        non-zero with a 'not found' message on stderr.
-  T29  CLI: subprocess invocation with a malformed JSON file exits
+  T29 CLI: subprocess invocation with a malformed JSON file exits
        non-zero with a JSON parse-error message on stderr.
-  T30  Sandbox-boundary recital: helper does NOT import any module
+  T30 Sandbox-boundary recital: helper does NOT import any module
        outside the stdlib whitelist (no requests, urllib3, httpx,
        NATS-py, etc.).
-  T31  A 'partial' family within budget passes verify_sealing().
-  T32  A chain_complete=false document with gap_count == 1 (within
-       max_chain_gap_count budget of 1) passes verify_sealing().
+  T31 A 'partial' family within budget passes verify_sealing.
+  T32 A chain_complete=false document with gap_count == 1 (within
+       max_chain_gap_count budget of 1) passes verify_sealing.
 
--- Reza
+-- the protocol zone
 """
 from __future__ import annotations
 
@@ -99,12 +99,12 @@ import verify_welle_7_final_sealing as vws  # noqa: E402
 
 
 # --------------------------------------------------------------------- #
-# Canonical valid fixtures                                              #
+# Canonical valid fixtures #
 # --------------------------------------------------------------------- #
 
 
 def _base_doc() -> dict:
-    """Return a minimal valid Welle-7 final-sealing document."""
+    """Return a minimal valid wave 7 final-sealing document."""
     return {
         "tag": "Tag-75",
         "welle": "Welle-7",
@@ -229,7 +229,7 @@ def _doc() -> dict:
 
 
 # --------------------------------------------------------------------- #
-# Structural / file-level                                               #
+# Structural / file-level #
 # --------------------------------------------------------------------- #
 
 
@@ -252,7 +252,7 @@ def test_t02_helper_spdx_and_signature() -> None:
 
 
 # --------------------------------------------------------------------- #
-# Happy-path                                                            #
+# Happy-path #
 # --------------------------------------------------------------------- #
 
 
@@ -261,7 +261,7 @@ def test_t03_minimal_valid_sealing_doc_passes() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-1                                                                   #
+# I-1 #
 # --------------------------------------------------------------------- #
 
 
@@ -280,7 +280,7 @@ def test_t05_wrong_welle_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-2                                                                   #
+# I-2 #
 # --------------------------------------------------------------------- #
 
 
@@ -299,7 +299,7 @@ def test_t07_doc_form_only_false_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-3                                                                   #
+# I-3 #
 # --------------------------------------------------------------------- #
 
 
@@ -311,7 +311,7 @@ def test_t08_wrong_sealing_scope_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-4                                                                   #
+# I-4 #
 # --------------------------------------------------------------------- #
 
 
@@ -329,12 +329,12 @@ def test_t09_malformed_sealing_id_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-5                                                                   #
+# I-5 #
 # --------------------------------------------------------------------- #
 
 
 def test_t10_predecessor_wellen_count_and_uniqueness() -> None:
-    # missing one canonical welle
+    # missing one canonical wave
     doc = _doc()
     doc["predecessor_wellen"] = doc["predecessor_wellen"][:5]
     with pytest.raises(vws.VerifyError, match=r"^I-5:"):
@@ -345,7 +345,7 @@ def test_t10_predecessor_wellen_count_and_uniqueness() -> None:
     doc["predecessor_wellen"].append(extra)
     with pytest.raises(vws.VerifyError, match=r"^I-5:"):
         vws.verify_sealing(doc)
-    # duplicate welle_id (replace Welle-2 with second Welle-1)
+    # duplicate welle_id (replace wave 2 with second wave 1)
     doc = _doc()
     doc["predecessor_wellen"][1]["welle_id"] = "Welle-1"
     with pytest.raises(vws.VerifyError, match=r"^I-5:"):
@@ -353,7 +353,7 @@ def test_t10_predecessor_wellen_count_and_uniqueness() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-6                                                                   #
+# I-6 #
 # --------------------------------------------------------------------- #
 
 
@@ -376,7 +376,7 @@ def test_t11_welle_record_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-20 (terminal rejection)                                             #
+# I-20 (terminal rejection) #
 # --------------------------------------------------------------------- #
 
 
@@ -388,7 +388,7 @@ def test_t12_welle_signoff_rejected_is_terminal() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-7                                                                   #
+# I-7 #
 # --------------------------------------------------------------------- #
 
 
@@ -417,7 +417,7 @@ def test_t13_marker_families_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-8                                                                   #
+# I-8 #
 # --------------------------------------------------------------------- #
 
 
@@ -445,7 +445,7 @@ def test_t14_family_record_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-9                                                                   #
+# I-9 #
 # --------------------------------------------------------------------- #
 
 
@@ -469,7 +469,7 @@ def test_t15_finalisation_status_consistency_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-10                                                                  #
+# I-10 #
 # --------------------------------------------------------------------- #
 
 
@@ -492,7 +492,7 @@ def test_t16_ots_anchor_chain_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-11                                                                  #
+# I-11 #
 # --------------------------------------------------------------------- #
 
 
@@ -520,7 +520,7 @@ def test_t17_chain_link_consistency_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-12                                                                  #
+# I-12 #
 # --------------------------------------------------------------------- #
 
 
@@ -538,7 +538,7 @@ def test_t18_head_tail_pin_mismatch_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-13                                                                  #
+# I-13 #
 # --------------------------------------------------------------------- #
 
 
@@ -602,7 +602,7 @@ def test_t19_chain_complete_gap_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-14                                                                  #
+# I-14 #
 # --------------------------------------------------------------------- #
 
 
@@ -625,7 +625,7 @@ def test_t20_sealing_budget_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-15                                                                  #
+# I-15 #
 # --------------------------------------------------------------------- #
 
 
@@ -641,7 +641,7 @@ def test_t21_unfinalised_count_over_budget_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-16                                                                  #
+# I-16 #
 # --------------------------------------------------------------------- #
 
 
@@ -663,7 +663,7 @@ def test_t22_sandbox_boundary_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-17                                                                  #
+# I-17 #
 # --------------------------------------------------------------------- #
 
 
@@ -675,7 +675,7 @@ def test_t23_missing_cross_anchor_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-18                                                                  #
+# I-18 #
 # --------------------------------------------------------------------- #
 
 
@@ -687,7 +687,7 @@ def test_t24_unknown_top_level_field_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-19                                                                  #
+# I-19 #
 # --------------------------------------------------------------------- #
 
 
@@ -699,7 +699,7 @@ def test_t25_audit_only_non_bool_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# CLI                                                                   #
+# CLI #
 # --------------------------------------------------------------------- #
 
 
@@ -759,7 +759,7 @@ def test_t29_cli_malformed_json_exits_nonzero(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------- #
-# Sandbox-boundary recital                                              #
+# Sandbox-boundary recital #
 # --------------------------------------------------------------------- #
 
 
@@ -794,7 +794,7 @@ def test_t30_helper_imports_stdlib_only() -> None:
 
 
 # --------------------------------------------------------------------- #
-# Additional happy-paths                                                #
+# Additional happy-paths #
 # --------------------------------------------------------------------- #
 
 

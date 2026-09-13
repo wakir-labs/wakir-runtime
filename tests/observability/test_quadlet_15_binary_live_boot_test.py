@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic invariants for the Tag-52 Quadlet-15-Binary Live-Boot-Test.
+"""Hermetic invariants for the Quadlet-15-Binary Live-Boot-Test.
 
-Tag-52 ships the runtime-boot axis of the 15-binary substrate: a
+ships the runtime-boot axis of the 15-binary substrate: a
 sandbox-stub simulator that exercises 5 phases per binary
 (``quadlet_load``, ``cosign_verify``, ``start``, ``health_check``,
 ``exit_code``) deterministically, in-process, without touching
@@ -14,16 +14,16 @@ Sibling tests
 -------------
 
   * ``tests/infra/test_quadlet_cosign_15_binary_substrate.py``
-    -- Tag-45 substrate-shape invariants (12 tests).
+    -- substrate-shape invariants (12 tests).
   * ``tests/observability/test_cosign_keyless_oidc_drift_probe.py``
-    -- Tag-47 OIDC-drift invariants.
+    -- OIDC-drift invariants.
   * ``tests/observability/test_generate_15_binary_sbom.py``
-    -- Tag-48 SBOM-generator invariants.
+    -- SBOM-generator invariants.
 
 Test-Vector index
 -----------------
 
-  * ``TV-T52-01`` Tag-45 binary inventory mirrored (15 entries, order).
+  * ``TV-T52-01`` binary inventory mirrored (15 entries, order).
   * ``TV-T52-02`` Carrier vs dedicated split mirrored (11 + 4 = 15).
   * ``TV-T52-03`` Five canonical phases declared in order.
   * ``TV-T52-04`` Inventory classification is total (every binary
@@ -39,9 +39,9 @@ Test-Vector index
   * ``TV-T52-13`` Live-mode raises NotImplementedError.
   * ``TV-T52-14`` JSON envelope schema-shape canonical.
   * ``TV-T52-15`` Prometheus textfile carries all required gauges.
-  * ``TV-T52-16`` Mira-Notify payload empty on GREEN aggregate.
+  * ``TV-T52-16`` operator-Notify payload empty on GREEN aggregate.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -92,13 +92,13 @@ def policy_index(mod):
 
 
 def test_tv_t52_01_inventory_size_and_order(mod):
-    """Inventory mirrors Tag-45 substrate: 15 entries, canonical order."""
+    """Inventory mirrors substrate: 15 entries, canonical order."""
     inv = mod.TAG45_BINARY_INVENTORY
     assert len(inv) == 15
     # First and last entries pin the order anchors.
     assert inv[0] == "recovery"
     assert inv[-1] == "migrate-version"
-    # The two Tag-45 additions are the last two entries.
+    # The two additions are the last two entries.
     assert inv[-2] == "bridge-audit-replay"
     assert inv[-1] == "migrate-version"
 
@@ -142,7 +142,7 @@ def test_tv_t52_03_five_canonical_phases_in_order(mod):
 
 
 def test_tv_t52_04_classification_total(mod):
-    """Every Tag-45 inventory entry classifies as carrier or dedicated."""
+    """Every inventory entry classifies as carrier or dedicated."""
     for binary_name in mod.TAG45_BINARY_INVENTORY:
         kind = mod.classify_image_kind(binary_name)
         assert kind in ("carrier", "dedicated"), (
@@ -396,7 +396,7 @@ def test_tv_t52_15_textfile_carries_all_gauges(mod, policy_index):
 
 
 def test_tv_t52_16_mira_notify_empty_on_green(mod, policy_index):
-    """Mira-Notify payload is None when the aggregate is GREEN."""
+    """operator-Notify payload is None when the aggregate is GREEN."""
     verdict = mod.evaluate_inventory(
         policy_index, REPO_ROOT, mode="sandbox-stub"
     )
@@ -406,12 +406,12 @@ def test_tv_t52_16_mira_notify_empty_on_green(mod, policy_index):
 
 
 # ---------------------------------------------------------------------------
-# TV-T52-17 -- bonus: synthetic RED produces non-empty Mira-Notify.
+# TV-T52-17 -- bonus: synthetic RED produces non-empty operator-Notify.
 # ---------------------------------------------------------------------------
 
 
 def test_tv_t52_17_mira_notify_populated_on_red(mod):
-    """A synthetic RED aggregate produces a populated Mira-Notify."""
+    """A synthetic RED aggregate produces a populated operator-Notify."""
     PhaseResult = mod.PhaseResult
     BinaryBootVerdict = mod.BinaryBootVerdict
     AggregateVerdict = mod.AggregateVerdict
@@ -482,7 +482,7 @@ def test_tv_t52_18_cli_exit_code_green(mod, tmp_path):
     assert out_text.exists()
     assert out_md.exists()
     assert out_mira.exists()
-    # GREEN aggregate -> empty Mira-Notify file.
+    # GREEN aggregate -> empty operator-Notify file.
     assert out_mira.read_text() == ""
     # Envelope round-trips.
     envelope = json.loads(out_json.read_text())

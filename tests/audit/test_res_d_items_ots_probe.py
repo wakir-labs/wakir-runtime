@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tag-66 hermetic invariants for the per-RES-Dn item OTS probe.
+"""hermetic invariants for the per-RES-Dn item OTS probe.
 
-This suite covers the Tag-66 extension to
+This suite covers the extension to
 ``tooling/ots/emit_wirelang_spec_ots_marker.py`` that introduces the
 ``--mode res-d-item-probe --res-d-item RES-D[1-5]`` flag pair, the
 matrix-strategy block in
@@ -11,11 +11,11 @@ shared invariant that the v0.4.4 draft markdown file is NEVER
 touched by the probe.
 
 All tests are stdlib-only; no network I/O, no subprocess to ``ots``
-CLI, no podman socket. The suite is a sibling of Tag-60's
+CLI, no podman socket. The suite is a sibling of 's
 ``test_wirelang_spec_ots_pre_anchor_probe.py`` and reuses the
 helper-loading pattern from that file.
 
-Test count: 18 (>= 15 per Tag-66 brief).
+Test count: 18 (>= 15 per brief).
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ FIXED_NOW = _dt.datetime(2026, 5, 19, 12, 0, 0, tzinfo=_dt.timezone.utc)
 
 
 class TestResDItemConstants(unittest.TestCase):
-    """Tag-66 constant-table invariants — pin the RES-D vocabulary."""
+    """constant-table invariants — pin the RES-D vocabulary."""
 
     def test_all_five_items_present(self):
         self.assertEqual(
@@ -78,14 +78,14 @@ class TestResDItemConstants(unittest.TestCase):
                 self.assertGreater(len(meta[key]), 0)
 
     def test_verdict_required_keys_shape(self):
-        # Tag-66 verdict must add res_d_item + item_metadata +
-        # draft_untouched on top of the Tag-60 base shape.
+        # verdict must add res_d_item + item_metadata +
+        # draft_untouched on top of the base shape.
         required = HELPER.RES_D_ITEM_VERDICT_REQUIRED_KEYS
         for k in (
             "schema_version", "kind", "mode", "verdict", "stages",
             "spec_sha256", "spec_size_bytes", "probed_at_utc",
             "ar_authorisation_required", "anchors",
-            # Tag-66 additions:
+            # additions:
             "res_d_item", "item_metadata", "draft_untouched",
         ):
             self.assertIn(k, required, f"missing required key: {k}")
@@ -172,7 +172,7 @@ class TestPerItemProbeHappyPath(unittest.TestCase):
 
 
 class TestPerItemProbeDefectPaths(unittest.TestCase):
-    """Negative cases — Tag-66 must produce PROBE-DEFECT correctly."""
+    """Negative cases — must produce PROBE-DEFECT correctly."""
 
     def test_unknown_item_yields_defect(self):
         verdict = HELPER.run_res_d_item_probe(
@@ -243,7 +243,7 @@ class TestPerItemProbeDefectPaths(unittest.TestCase):
 
 
 class TestDraftUntouchedInvariant(unittest.TestCase):
-    """The Tag-66 ``draft_untouched`` invariant must hold absolutely."""
+    """the ``draft_untouched`` invariant must hold absolutely."""
 
     def test_draft_hash_unchanged_after_full_probe_run(self):
         # Capture SHA-256 of v0.4.4 draft before and after running
@@ -349,7 +349,7 @@ class TestCLIDispatch(unittest.TestCase):
             self.assertEqual(data["verdict"], "PROBE-READY")
 
     def test_cli_pre_activation_probe_mode_still_works(self):
-        # Regression: Tag-60 mode must keep working untouched.
+        # Regression: mode must keep working untouched.
         v043 = REPO_ROOT / "wirelang" / "specs" / "wirelang-spec-v0-4-3.md"
         if not v043.is_file():
             self.skipTest(f"v0-4-3 spec missing at {v043}")

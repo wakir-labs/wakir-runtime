@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for Tag-60 Live-VM Rotation State-Machine Stub.
+"""Hermetic tests for Live-VM Rotation State-Machine Stub.
 
-OPEN-J2 (Tag-56 reverse map): the live-VM rotation
+OPEN-J2 (reverse map): the live-VM rotation
 ``0.5.1 -> 0.5.2 -> 0.5.3-rc1`` cannot run inside the hermetic CI
 substrate because it drives an actual VM lifecycle (snapshot, image
 swap, quadlet reload, post-rotation acceptance probe). The rotation
@@ -280,7 +280,7 @@ def test_t13_cli_exit_codes(sim_module, tmp_path):
     # ``choices=``, so we exercise the in-band DRIFT route by calling
     # the simulator directly through main with a strategy that does not
     # match a legal entry. The strategy ``choices`` is also enforced by
-    # argparse, so we route through simulate() to confirm exit 2.
+    # argparse, so we route through simulate to confirm exit 2.
     bad_env = sim_module._drift("NONE", reason="forced")
     assert bad_env["verdict"] == "DRIFT"
 

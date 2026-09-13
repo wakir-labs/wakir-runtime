@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """End-to-end Aggregator-Side-Signing with OTS-Anchor + Verify path.
 
-Phase-2 Sprint-9 Tag-3 (Tomás) — WAT-Production-Hardening.
+Phase-2 — WAT-Production-Hardening.
 
 What the existing surface already covers
 ----------------------------------------
@@ -45,7 +45,7 @@ calendars from CI is the standard flakiness recipe per
 The hardening value is the COMPOSITION coverage: if any function
 along the chain regresses its on-disk contract (manifest schema,
 root.bin form, receipt sidecar location) the other functions cease
-to be able to consume the previous step's output. Pre-Sprint-9 the
+to be able to consume the previous step's output. Pre- the
 chain was only ever covered piecewise.
 """
 
@@ -364,7 +364,7 @@ def test_aggregator_signing_anchor_chain_rejects_wrong_root(tmp_path: Path) -> N
 
 def test_aggregator_e2e_writes_canonical_block_948183_marker(tmp_path: Path) -> None:
     """The full chain leaves a canonical-block-948183 marker that an
-    external auditor can grep for.
+    external auditor can grep .
 
     Property: after running build -> anchor with the block-948183
     fixture, the receipt directory contains the receipt bytes that

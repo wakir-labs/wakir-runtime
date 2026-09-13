@@ -7,17 +7,17 @@ These tests are stdlib-only (pytest as test runner). No network,
 no podman, no live VM. The renderer's I/O surface is exercised
 via ``tmp_path`` fixtures.
 
-Test coverage (>= 10 tests, Auftrag-Tag-48 minimum):
+Test coverage (>= 10 tests, assignment-minimum):
 
-  1.  test_window_dates_returns_iso_oldest_to_newest
-  2.  test_window_dates_zero_returns_empty
-  3.  test_parse_snapshot_persisted_shape
-  4.  test_parse_snapshot_live_demo_shape_extracts_per_welle
-  5.  test_parse_snapshot_malformed_blob_returns_empty_skeleton
-  6.  test_build_heatmap_baseline_fills_all_rows_and_columns
-  7.  test_build_heatmap_missing_day_renders_dot_glyph
-  8.  test_build_heatmap_summary_counts_match_cell_glyphs
-  9.  test_build_heatmap_distinguishes_per_welle_vs_aggregate_glyphs
+  1. test_window_dates_returns_iso_oldest_to_newest
+  2. test_window_dates_zero_returns_empty
+  3. test_parse_snapshot_persisted_shape
+  4. test_parse_snapshot_live_demo_shape_extracts_per_welle
+  5. test_parse_snapshot_malformed_blob_returns_empty_skeleton
+  6. test_build_heatmap_baseline_fills_all_rows_and_columns
+  7. test_build_heatmap_missing_day_renders_dot_glyph
+  8. test_build_heatmap_summary_counts_match_cell_glyphs
+  9. test_build_heatmap_distinguishes_per_welle_vs_aggregate_glyphs
   10. test_render_ascii_grid_contains_legend_and_rows
   11. test_render_markdown_contains_table_legend_and_summary
   12. test_render_markdown_distinguishes_aggregate_row_label
@@ -30,9 +30,9 @@ Test coverage (>= 10 tests, Auftrag-Tag-48 minimum):
   19. test_cli_rejects_zero_window_days
 
 Anchors:
-  * Reza Tag-44 PR #285 Pre-Cutover Daily-Trend-Analyzer.
-  * Noa Tag-46 PR #296 Mira-Notify emitter+receiver chain.
-  * Noa Tag-47 PR #302 Alert-Rule-to-Mira-Notify bridge.
+  * the protocol zone PR #285 pre-cutover Daily-Trend-Analyzer.
+  * the observability zone PR #296 operator-Notify emitter+receiver chain.
+  * the observability zone PR #302 Alert-Rule-to-operator-Notify bridge.
 """
 
 from __future__ import annotations
@@ -208,14 +208,14 @@ def test_parse_snapshot_malformed_blob_returns_empty_skeleton(heatmap_mod):
 def test_build_heatmap_baseline_fills_all_rows_and_columns(heatmap_mod):
     snaps = baseline_snapshots("2026-05-13", 7)
     hm = heatmap_mod.build_heatmap(snaps, "2026-05-19", window=7)
-    # 7 welle rows + aggregate row = 8 rows; 7 columns; 8*7 = 56 cells.
+    # 7 wave rows + aggregate row = 8 rows; 7 columns; 8*7 = 56 cells.
     assert len(hm.rows) == 8
     assert len(hm.window_dates) == 7
     assert len(hm.cells) == 56
-    # All Welle-6 cells must be GREEN ('G').
+    # All wave 6 cells must be GREEN ('G').
     welle6_cells = [c for c in hm.cells if c.row_key == "welle-6"]
     assert all(c.glyph == "G" for c in welle6_cells)
-    # All Welle-7 cells must be BLOCK ('B').
+    # All wave 7 cells must be BLOCK ('B').
     welle7_cells = [c for c in hm.cells if c.row_key == "welle-7"]
     assert all(c.glyph == "B" for c in welle7_cells)
 
@@ -236,20 +236,20 @@ def test_build_heatmap_missing_day_renders_dot_glyph(heatmap_mod):
 def test_build_heatmap_summary_counts_match_cell_glyphs(heatmap_mod):
     snaps = baseline_snapshots("2026-05-13", 7)
     hm = heatmap_mod.build_heatmap(snaps, "2026-05-19", window=7)
-    # Welle-1 is CAUTION every day -> CAUTION=7 in summary.
+    # wave 1 is CAUTION every day -> CAUTION=7 in summary.
     assert hm.summary_counts["welle-1"]["CAUTION"] == 7
-    # Welle-7 is BLOCK every day -> BLOCK=7.
+    # wave 7 is BLOCK every day -> BLOCK=7.
     assert hm.summary_counts["welle-7"]["BLOCK"] == 7
     # Aggregate is BLOCK every day.
     assert hm.summary_counts["aggregate"]["BLOCK"] == 7
 
 
 def test_build_heatmap_distinguishes_per_welle_vs_aggregate_glyphs(heatmap_mod):
-    """A per-Welle GREEN must render 'G'; an aggregate READY must render 'R'.
+    """A per-wave GREEN must render 'G'; an aggregate READY must render 'R'.
 
     Both map to the same color ('green') but the glyphs differ so
     the operator can tell at a glance whether a green cell is a
-    per-Welle verdict or the aggregate flipping to READY.
+    per-wave verdict or the aggregate flipping to READY.
     """
     snaps = {
         "2026-05-19": {
@@ -272,7 +272,7 @@ def test_render_ascii_grid_contains_legend_and_rows(heatmap_mod):
     # Title.
     assert "Per-Welle Trend Heatmap" in ascii_grid
     assert "2026-05-19" in ascii_grid
-    # Each Welle row.
+    # Each wave row.
     for w in range(1, 8):
         assert f"welle-{w}" in ascii_grid
     # Aggregate row labelled AGG (not "aggregate") for visual symmetry.
@@ -307,7 +307,7 @@ def test_render_markdown_distinguishes_aggregate_row_label(heatmap_mod):
     hm = heatmap_mod.build_heatmap(snaps, "2026-05-19", window=7)
     md = heatmap_mod.render_markdown(hm)
     # Aggregate row is bold-labeled **AGG** so the operator sees
-    # it as the summary band, not just another welle.
+    # it as the summary band, not just another wave.
     assert "| **AGG** |" in md
 
 

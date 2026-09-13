@@ -1,38 +1,38 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3-Validation Acceptance-Gate skeleton (Sprint-Phase-3-Validation-
+"""Phase-3-Validation Acceptance-Gate skeleton (-Phase-3-Validation-
 Test-Suite-Skeleton-MINI).
 
 Anchors
 -------
 
-- ADR-0058 §"Phase 3 — Validation (Wochen 5-6)" and §"Phase 4 Cutover-
+- ADR-0058 §"Phase 3 — Validation (Wochen 5-6)" and §"Phase 4 cutover-
   Entscheidung" — the production-promotion lifecycle and the four-axis
   stress-test-drill matrix.
-- ADR-0063 §"Phase 3 — Rust-Engine-Cutover" — the 15/15 Cross-Lang-Parität
+- ADR-0063 §"Phase 3 — Rust-Engine-cutover" — the 15/15 Cross-Lang-Parität
   acceptance criterion for the Rust-engine cutover (Python ⇆ Rust
   byte-identical envelope parity on the canonical replay-tape vector
   set).
-- ``docs/quality-gates/phase-3-production.md`` (Amara, PR #80) — the
-  five Phase-3-Acceptance-Gates QA enforces before Aufsichtsrat-
+- ``docs/quality-gates/phase-3-production.md`` — the
+  five Phase-3-Acceptance-Gates QA enforces before the operator review-
   approval of cutover.
 - ``docs/quality-gates/phase-3-production-trigger-checklist.md``
-  (Amara, this PR) — the 10-item pre-trigger checklist that gates
-  the Sprint-Phase-3-Validation-Test-Suite spawn.
-- Sprint-Phase-2-Gates-Mini (Amara, PR #80) + Sprint-Phase-2-Gates-
-  Recovery-Mock-Mini (Amara, PR #127) — the Phase-2 acceptance
-  reference these skeletons inherit from.
+   — the 10-item pre-trigger checklist that gates
+  the -Phase-3-Validation-Test-Suite spawn.
+- -Phase-2-Gates-Mini + -Phase-2-Gates-
+  Recovery-Mock-Mini — the Phase-2 acceptance
+  reference these skeletons inherit .
 
 Scope
 -----
 
 ONE skeleton-test per Phase-3-Acceptance-Gate as named in the
-Sprint-Phase-3-Validation-Test-Suite-Skeleton-MINI brief, plus one
+-Phase-3-Validation-Test-Suite-Skeleton-MINI brief, plus one
 aggregator that walks all five back-to-back. All tests are
 **skip-by-default** via the ``phase_3_skeleton`` marker — they fire
 only when ``WAKIR_PHASE_3_SKELETON=1`` is set in the environment,
-which is the opt-in switch the Phase-3-trigger sprint (~KW 27) will
-flip to validate the full skeleton before Aufsichtsrat-decision.
+which is the opt-in switch the Phase-3-trigger sprint (~calendar week 27) will
+flip to validate the full skeleton before the operator review-decision.
 
 The skeletons here are **hermetic placeholder oracles**: each one
 captures the *contract surface* the live-acceptance gate will assert,
@@ -46,7 +46,7 @@ live-VM drills as the complementary lane (see
 Skip-by-default rationale
 -------------------------
 
-Phase-3 is ~KW 27 — six weeks out by stable schedule. Running the
+Phase-3 is ~calendar week 27 — six weeks out by stable schedule. Running the
 skeletons green-by-construction in CI today would (i) waste signal
 (the assertions are placeholder-shaped, not production-binding), and
 (ii) risk false-positive confidence ("Phase-3 gates pass" without the
@@ -59,11 +59,11 @@ green-light status on Phase-3 itself. The opt-in env-var matches the
 Gate naming
 -----------
 
-The brief's gate labels map onto the Amara-spec Phase-3-Acceptance-
+The brief's gate labels map onto the QA zone-spec Phase-3-Acceptance-
 Gates (``docs/quality-gates/phase-3-production.md`` §1) as follows:
 
-* **Gate-3-1 Rust-Engine-Cutover-Acceptance (15/15)** ⇔ ADR-0063
-  Phase-3 §"Cutover" — Python ⇆ Rust byte-identical envelope parity
+* **Gate-3-1 Rust-Engine-cutover-Acceptance (15/15)** ⇔ ADR-0063
+  Phase-3 §"cutover" — Python ⇆ Rust byte-identical envelope parity
   on 15 canonical replay-tape inputs. The 15/15 verdict is a
   hard-gate (any single failing vector blocks promotion).
 * **Gate-3-2 Rollback-Drill ≤ 15min** ⇔ phase-3-production.md §3.2
@@ -95,9 +95,9 @@ Vermutungs-Kennzeichnung (P2)
 
 The exact thresholds below (OTS end-to-end p99 = 60s, rollback budget
 = 15min, 28-day-window) are sourced from ``phase-3-production.md`` §3
-and ADR-0058. They are production-target placeholders pending Noa-
+and ADR-0058. They are production-target placeholders pending the observability zone-
 design-review (gate §5.3 in ``phase-2-doppelbetrieb.md``). The
-skeleton uses them as *assertion-shape* anchors, not as Aufsichtsrat-
+skeleton uses them as *assertion-shape* anchors, not as the operator review-
 binding numbers.
 """
 
@@ -120,9 +120,9 @@ import pytest
 # All tests in this module carry the ``phase_3_skeleton`` marker so CI
 # selectors can target / exclude the skeleton in isolation, AND a
 # module-level skipif on the opt-in env-var. The two together give us:
-#  - module-level fast-skip in default CI (skipif fires at collect-time);
-#  - marker-based selection for the Phase-3-trigger sprint
-#    (`pytest -m phase_3_skeleton tests/infra/test_phase_3_acceptance_gates.py`).
+# - module-level fast-skip in default CI (skipif fires at collect-time);
+# - marker-based selection for the Phase-3-trigger sprint
+# (`pytest -m phase_3_skeleton tests/infra/test_phase_3_acceptance_gates.py`).
 PHASE_3_OPT_IN = os.environ.get("WAKIR_PHASE_3_SKELETON") == "1"
 
 pytestmark = [
@@ -151,7 +151,7 @@ RUST_CUTOVER_TOTAL_VECTORS = 15
 ROLLBACK_BUDGET_SECONDS = 15 * 60  # 15 minutes.
 
 # phase-3-production.md §3.3 — OTS audit-trail end-to-end latency.
-# Placeholder pending Noa-design-review (see P2 note above).
+# Placeholder pending the observability zone-design-review (see P2 note above).
 OTS_END_TO_END_LATENCY_P99_S = 60.0
 
 # phase-3-production.md §3.5 — 28-day post-cutover stability window
@@ -165,7 +165,7 @@ PHASE_MANIFEST_DIGEST_PREFIX = "sha256:"
 
 
 # ---------------------------------------------------------------------------
-# Gate-3-1: Rust-Engine-Cutover-Acceptance (15/15 Cross-Lang-Parität).
+# Gate-3-1: Rust-Engine-cutover-Acceptance (15/15 Cross-Lang-Parität).
 # ---------------------------------------------------------------------------
 
 
@@ -177,7 +177,7 @@ class ReplayTapeVector:
     (`rt-001` … `rt-015`); the payload is opaque bytes carried through
     both implementations end-to-end. The Phase-3-trigger sprint will
     replace the placeholder payloads with the canonical replay-tape
-    corpus that Reza + Selin have agreed-upon as the Cross-Lang
+    corpus that the protocol zone + the engine zone have agreed-upon as the Cross-Lang
     acceptance set.
     """
 
@@ -281,7 +281,7 @@ def test_gate_3_1_rust_engine_cutover_acceptance_15_of_15():
 class RollbackDrillRecord:
     """One execution of the Phase-2 → Phase-3 emergency-rollback runbook.
 
-    The drill-record mirrors the runbook-drill report Noa + Aisha sign
+    The drill-record mirrors the runbook-drill report the observability zone + the org zone sign
     off on (phase-3-production.md §3.2). The hermetic mock encodes the
     *shape* of the record; the Phase-3-trigger sprint replaces this
     with the actual signed-off report load.
@@ -326,7 +326,7 @@ def test_gate_3_2_rollback_drill_under_15min():
         f"§3.2 budget {ROLLBACK_BUDGET_SECONDS}s"
     )
 
-    # Sign-off invariant: both operator (Noa) and moderator (Aisha)
+    # Sign-off invariant: both operator and moderator
     # MUST be present for the drill-record to count.
     assert drill.operator, "rollback-drill requires a named operator"
     assert drill.moderator, "rollback-drill requires a named moderator"
@@ -427,7 +427,7 @@ class DailyStabilityRecord:
     """One day's rollup of the post-cutover stability metrics.
 
     Mirrors the daily-aggregate row the post-cutover 28-day stability
-    report (phase-3-production.md §3.5 + Henrik Audit-Punkt J) emits:
+    report (phase-3-production.md §3.5 + internal audit Audit-Punkt J) emits:
     functional-equivalence score vs. Phase-2 baseline, plus any SLO
     excursion count.
     """
@@ -442,7 +442,7 @@ def _mock_post_cutover_28_day_window() -> list[DailyStabilityRecord]:
 
     All days clear the §3.5 thresholds by construction. The Phase-3-
     trigger sprint replaces this with a loader that reads the actual
-    weekly Doppelbetrieb-rollup + Noa SLO-rollup over the post-cutover
+    weekly Doppelbetrieb-rollup + the observability zone SLO-rollup over the post-cutover
     28-day window.
     """
     return [
@@ -579,7 +579,7 @@ def _verify_chain(chain: list[PhaseManifestRecord]) -> bool:
 
     Returns True iff every chain_digest matches the recomputed value.
     Encodes the verifier the Phase-3-trigger sprint will harden into
-    the Henrik-Audit-Sample ingest path.
+    the internal-audit-Sample ingest path.
     """
     if not chain:
         return True
@@ -648,7 +648,7 @@ def test_gate_aggregator_phase_3_validation_all_green():
     ``test_phase_2_acceptance_gates.py``: surfaces cross-gate
     interactions (e.g. a hash-chain break on Gate-3-5 SHOULD NOT
     silently flip the Rust-parity verdict on Gate-3-1) and emits a
-    JSON-serialisable verdict-map for Henrik's Audit-Sample ingest
+    JSON-serialisable verdict-map for internal audit's Audit-Sample ingest
     (phase-3-production.md §4 Audit-Punkt J + K).
     """
     verdicts: dict[str, bool] = {}
@@ -709,7 +709,7 @@ def test_gate_aggregator_phase_3_validation_all_green():
     assert verdicts["gate-3-5-hash-chain"] is True
 
     # Audit-friendly rollup: deterministic JSON-serialisable verdict-
-    # map for Henrik Audit-Punkt J + K ingest.
+    # map for internal audit Audit-Punkt J + K ingest.
     rollup = json.dumps(verdicts, sort_keys=True)
     assert "gate-3-1-rust-parity" in rollup
     assert rollup == json.dumps(verdicts, sort_keys=True), (

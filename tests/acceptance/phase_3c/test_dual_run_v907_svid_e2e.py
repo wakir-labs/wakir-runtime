@@ -1,26 +1,26 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Doppel-Welle-1+2 E2E acceptance — ``v907_verify`` +
-``svid_workload_identity`` parallel cutover (KW 24).
+"""Phase-3c dual-run wave-1+2 E2E acceptance — ``v907_verify`` +
+``svid_workload_identity`` parallel cutover (calendar week 24).
 
 Anchors
 -------
 
-- ADR-0066 §Beschluss — Doppel-Welle KW 24: Welle-1 + Welle-2 parallel.
-- ADR-0066 §Mitigations §3 — Cutover-Mittwoch bleibt fix; Mo Dry-Run
-  beider, Mi gleichzeitig Cutover, Fr Acceptance-Decision beider.
+- ADR-0066 §Beschluss — dual-run wave calendar week 24: wave 1 + wave 2 parallel.
+- ADR-0066 §Mitigations §3 — cutover-Mittwoch bleibt fix; Mo Dry-Run
+  beider, Mi gleichzeitig cutover, Fr Acceptance-Decision beider.
 - ADR-0065 §Rollback-Strategie — ENV-Flag-Switch ≤10min SLA pro
-  Komponente (asymmetrischer Rollback unter Doppel-Welle).
+  Komponente (asymmetrischer Rollback unter dual-run wave).
 - ``test_v907_verify_e2e.py`` + ``test_welle_2_svid_workload_
-  identity_e2e.py`` — per-welle sister files this doppel-welle file
+  identity_e2e.py`` — per-wave sister files this doppel-wave file
   extends with cross-modul-parallel-cutover acceptance.
 
-Doppel-Welle character
+dual-run wave character
 ----------------------
 
-Welle-1 + Welle-2 is the **read-only-paar**: both moduln are read-only
+wave 1 + wave 2 is the **read-only-paar**: both moduln are read-only
 pathways (V-907-pin-attest verify + SPIRE-SVID-workload-identity-
-lookup). Lowest blast-radius of the three Doppel-Wellen because
+lookup). Lowest blast-radius of the three Doppel-waves because
 neither modul mutates persistent state nor holds long-lived
 subscriptions.
 
@@ -30,7 +30,7 @@ schema, no state, no NATS-subject. The Cross-Modul-Stress-Test
 Rust-backend produces unexpected drift in the *other*'s envelope-trail
 (e.g. accidental shared-cache contention in the engine-runtime).
 
-Per ADR-0066 §Mitigation 1, Welle-1+2 has Standard-Acceptance: no
+Per ADR-0066 §Mitigation 1, wave 1+2 has Standard-Acceptance: no
 extended cross-modul-stress-window beyond the Phase-2-Acceptance-Gate-
 baseline.
 
@@ -65,7 +65,7 @@ pytestmark = pytest.mark.phase_3c_doppel_welle_acceptance
 
 
 def test_doppel_welle_1_2_anchored_to_kw_24() -> None:
-    """Sanity: this file targets the ADR-0066 KW 24 Doppel-Welle pair.
+    """Sanity: this file targets the ADR-0066 calendar week 24 dual-run wave pair.
 
     Guards against accidental modul-name typos cascading into AC-helper
     calls with wrong pair-identity.
@@ -77,7 +77,7 @@ def test_doppel_welle_1_2_anchored_to_kw_24() -> None:
 
 
 # ---------------------------------------------------------------------------
-# DW-AC-1 — Both Doppel-Welle moduln boot with rust-backend.
+# DW-AC-1 — Both dual-run wave moduln boot with rust-backend.
 # ---------------------------------------------------------------------------
 
 
@@ -86,9 +86,9 @@ def test_doppel_welle_1_2_dw_ac_1_both_moduln_boot_rust(
 ) -> None:
     """DW-AC-1: v907_verify + svid_workload_identity both on rust-backend.
 
-    The Cutover-Mittwoch-Doppel-Cutover (ADR-0066 §Mitigation 3) flips
+    The cutover-Mittwoch-Doppel-cutover (ADR-0066 §Mitigation 3) flips
     both moduln in a single engine-boot-cycle. Other five moduln stay
-    on Python pre-Welle-3.
+    on Python pre-wave 3.
     """
     boot = mocked_engine_boot_doppel(MODUL_A, MODUL_B)
     assert_dw_ac_1_both_moduln_boot_rust(
@@ -101,7 +101,7 @@ def test_doppel_welle_1_2_dw_ac_1_boot_failure_blocks(
 ) -> None:
     """DW-AC-1 failure-mode: engine-boot fails → both rollback.
 
-    Per ADR-0066 §Rollback-Strategie, a boot-failure under Doppel-Welle
+    Per ADR-0066 §Rollback-Strategie, a boot-failure under dual-run wave
     conditions triggers a *both-modul* rollback (different from the
     asymmetric single-Komponente-Rollback covered by DW-AC-3, which
     fires post-boot on a runtime-bug).
@@ -123,7 +123,7 @@ def test_doppel_welle_1_2_dw_ac_2_cross_modul_schema_byte_parity(
 ) -> None:
     """DW-AC-2: read-only pair has minimal cross-modul-touchpoints.
 
-    For Welle-1+2 the only meaningful touchpoint is the engine-runtime
+    For wave 1+2 the only meaningful touchpoint is the engine-runtime
     shared substrate (logging-context, persona-def-cache reference).
     Byte-parity is required across the touchpoint set.
     """
@@ -209,9 +209,9 @@ def test_doppel_welle_1_2_dw_ac_3_both_rolled_back_blocks(
 ) -> None:
     """DW-AC-3 failure-mode: partner-also-rolled-back is wrong shape.
 
-    Under Doppel-Welle, single-Komponente-Rollback is the asymmetric
+    Under dual-run wave, single-Komponente-Rollback is the asymmetric
     happy-path; a both-rolled-back path means a *cross-modul-bug* and
-    is governed by a different runbook (covered by Henrik Zone-N
+    is governed by a different runbook (covered by internal audit Zone-N
     audit-trail, not by DW-AC-3 directly).
     """
     record = mocked_single_komponente_rollback(
@@ -235,7 +235,7 @@ def test_doppel_welle_1_2_dw_ac_4_cross_modul_stress_test_green(
     """DW-AC-4: read-only-paar joint-load stress green (no engine-runtime
     cache-contention, no shared-logging-frame drift).
 
-    References Tomás Tag-29 Cross-Modul-Stress-Test substrate
+    References the engineering zone Cross-Modul-Stress-Test substrate
     (Phase-2-Acceptance-Gate-Erweiterung per ADR-0066 §Mitigation 1).
     """
     record = mocked_cross_modul_stress_test(MODUL_A, MODUL_B, total=1000)
@@ -263,7 +263,7 @@ def test_doppel_welle_1_2_dw_ac_4_schema_drift_blocks(
 def test_doppel_welle_1_2_dw_ac_5_backend_decision_audit_two_records(
     mocked_backend_decision_audit,
 ) -> None:
-    """DW-AC-5: Cutover-Mittwoch emits exactly 2 backend-decision-audit
+    """DW-AC-5: cutover-Mittwoch emits exactly 2 backend-decision-audit
     records, both in the same cutover-cycle, both targeting rust.
     """
     records = mocked_backend_decision_audit(MODUL_A, MODUL_B)
@@ -289,7 +289,7 @@ def test_doppel_welle_1_2_dw_ac_5_cycle_id_drift_blocks(
     mocked_backend_decision_audit,
 ) -> None:
     """DW-AC-5 failure-mode: two records in *different* cutover-cycles
-    means they were sequential, not parallel — the Doppel-Welle parallel-
+    means they were sequential, not parallel — the dual-run wave parallel-
     cutover discipline is broken.
     """
     records = mocked_backend_decision_audit(
@@ -315,7 +315,7 @@ def test_doppel_welle_1_2_dw_ac_5_wrong_target_backend_blocks(
 
 
 # ---------------------------------------------------------------------------
-# Doppel-Welle-1+2 substrate sanity — Cutover-Mittwoch runbook drill.
+# dual-run wave-1+2 substrate sanity — cutover-Mittwoch runbook drill.
 # ---------------------------------------------------------------------------
 
 
@@ -323,11 +323,11 @@ def test_doppel_welle_1_2_dw_ac_5_wrong_target_backend_blocks(
     reason="pending Doppel-Welle-cutover — Cutover-Mittwoch runbook drill"
 )
 def test_doppel_welle_1_2_cutover_mittwoch_runbook_drill() -> None:
-    """Doppel-Welle-1+2 Cutover-Mittwoch-Drill: Mo Dry-Run, Mi parallel
-    Cutover, Fr Acceptance-Decision (ADR-0066 §Mitigation 3).
+    """dual-run wave-1+2 cutover-Mittwoch-Drill: Mo Dry-Run, Mi parallel
+    cutover, Fr Acceptance-Decision (ADR-0066 §Mitigation 3).
 
     Operator-Hand drill substrate; hermetic skeleton placeholder. The
-    Doppel-Welle-trigger sprint wires this against the real
+    dual-run wave-trigger sprint wires this against the real
     ``systemctl restart wakir-persona-engine`` + ENV-rewrite cadence.
     """
     raise NotImplementedError("pending Doppel-Welle-cutover")

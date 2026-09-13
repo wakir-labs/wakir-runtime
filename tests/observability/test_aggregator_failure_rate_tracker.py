@@ -8,8 +8,8 @@ Coverage targets the pure-function decision core. The I/O wrappers
 not unit-tested here — integration coverage lives in the dry-run
 fixture-mode entrypoint.
 
-Anchor: ADR-0068 Tag-38 SRE Observability-Substrate.
-Author: Noa Bergstroem (SRE)
+Anchor: ADR-0068 SRE Observability-Substrate.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations
@@ -252,7 +252,7 @@ def test_rollup_window_size_caps_sample_count():
 def test_rollup_latency_percentiles():
     """Latency p50/p95/p99 should reflect the per-job duration distribution."""
     # Construct 10 runs where the aggregator job's duration is i*10
-    # seconds for run i (10s, 20s, ..., 100s).
+    # seconds for run i (10s, 20s,..., 100s).
     runs = []
     for i in range(10):
         durations = {tracker.AGGREGATOR_CHECK_NAME: float((i + 1) * 10)}
@@ -542,7 +542,7 @@ def test_entrypoint_fixture_mode_clean_exits_zero(tmp_path, monkeypatch, capsys)
 def test_entrypoint_fixture_mode_drift_exits_nonzero(tmp_path):
     """End-to-end fixture-mode with one drift event => exit 1.
 
-    Mira-Notify-blocking signal: cutover script must not run when this
+    operator-Notify-blocking signal: cutover script must not run when this
     tracker exits non-zero (ADR-0068 §Migration-Step-3).
     """
     legacy_jobs = [
@@ -608,10 +608,10 @@ def test_escape_label_escapes_quote_and_backslash():
 
 
 # ---------------------------------------------------------------------------
-# Test 17 (Tag-42 regression): gh-cli command builder embeds query in path
+# Test 17 (regression): gh-cli command builder embeds query in path
 # rather than as -f form fields. The original implementation passed
 # ``-f per_page=100 -f page=N`` which forced ``gh`` into POST semantics
-# and yielded HTTP 404 on Reza's Tag-41 probe-run. The fix embeds the
+# and yielded HTTP 404 on the protocol zone's probe-run. The fix embeds the
 # query parameters in the URL path and sets ``-X GET`` explicitly.
 # ---------------------------------------------------------------------------
 
@@ -619,7 +619,7 @@ def test_escape_label_escapes_quote_and_backslash():
 def test_build_gh_cli_get_cmd_embeds_query_in_path():
     """Query params must be in the path, not as ``-f`` form fields.
 
-    Regression test for the Tag-41 404 bug. Asserts:
+    Regression test for the 404 bug. Asserts:
       1. The command does NOT contain ``-f`` flags.
       2. The command DOES contain ``-X GET``.
       3. Query params are URL-encoded in the path argument.

@@ -18,18 +18,18 @@ Coverage:
 5. Bucket selection by name: ``--bucket wakir-schemas`` only touches
    that one bucket and leaves the others alone.
 6. Unknown bucket selector raises a clean ``ValueError``.
-7. (Sprint-4 Tag-4) The 5th bucket ``wakir-schema-registry-entries``
+7. The 5th bucket ``wakir-schema-registry-entries``
    is present in ``PHASE_1_BUCKETS`` and its config mirrors the
    ``wakir-schemas`` cache bucket so the Phase-2 schema-registry
    storage migration is a value-copy without a config-drift step.
-8. (Sprint-4 Tag-5) The 6th bucket ``wakir-federation-routes`` is
+8. The 6th bucket ``wakir-federation-routes`` is
    present in ``PHASE_1_BUCKETS`` and its config mirrors the
    Wirelang-side ``BUCKET_CONFIG`` constant byte-precisely so the
    V-908 federation-route registry consumer
    (``wirelang.federation.route_registry_nats_kv_backend``) and the
    orchestrator init driver agree on a single inventory entry,
-   closing the Sprint-2 Tag-7 Z-B inventory-drift open follow-up.
-9. (Sprint-5 Tag-2) The 7th bucket ``wakir-capability-policies`` is
+   closing the Z-B inventory-drift open follow-up.
+9. The 7th bucket ``wakir-capability-policies`` is
    present in ``PHASE_1_BUCKETS`` in reservation-form (no live
    Phase-1b / Phase-2 consumer) with audit-friendly defaults
    (history=10, max_value_size=4 KiB, unbounded TTL) mirroring the
@@ -273,7 +273,7 @@ def test_unknown_bucket_selector_raises_value_error_with_known_set(mod):
 
 
 def test_phase_1_inventory_is_the_documented_seven_buckets(mod):
-    """Phase-1 inventory contract (Sprint-5 Tag-2 onward).
+    """Phase-1 inventory contract ( onward).
 
     Order matters: the documented order is preserved across tooling
     (runbook, init script JSON output, drift reports). A re-ordering
@@ -355,7 +355,7 @@ def test_exit_code_two_on_drift(mod, event_loop):
 
 
 # ---------------------------------------------------------------------
-# Sprint-4 Tag-4: 5th-bucket-paired-update tests
+#: 5th-bucket-paired-update tests
 # ---------------------------------------------------------------------
 #
 # These tests anchor the contract that the new 5th bucket
@@ -366,7 +366,7 @@ def test_exit_code_two_on_drift(mod, event_loop):
 # layout ready for the Phase-2 schema-registry-storage migration that
 # the Wirelang-side track owns.
 #
-# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T-Tag4-
+# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T--
 # 01..05) plus a registry-entries-config mirror anchor. Live-gated
 # parity-test lives in ``test_check_nats_kv_health.py`` (single live
 # probe; gated by ``WAKIR_NATS_LIVE``).
@@ -461,10 +461,10 @@ def test_t_tag4_04_bucket_filter_can_select_fifth_bucket(mod, event_loop):
     bucket.
 
     Operationally useful: an operator can re-run the init script
-    against a cluster that already has the four pre-Tag-4 Phase-1
+    against a cluster that already has the four pre-Phase-1
     buckets to backfill only the new 5th bucket without churning the
     others. This is the no-downtime upgrade path for a cluster that
-    came up before Sprint-4 Tag-4 landed.
+    came up before landed.
     """
     js = _MockJetStream()
     selected = mod._select_specs(["wakir-schema-registry-entries"])
@@ -488,7 +488,7 @@ def test_t_tag4_05_fifth_bucket_idempotent_replay_marks_unchanged(
     Idempotency contract for the full five-bucket layout: operators
     can re-run ``init-nats-buckets.py`` on a cluster that already has
     the complete inventory without side effects. The 5th bucket gets
-    the same idempotency guarantee as the four pre-Tag-4 buckets.
+    the same idempotency guarantee as the four pre-buckets.
     """
     js = _MockJetStream()
     # First pass: populate all five.
@@ -511,7 +511,7 @@ def test_t_tag4_05_fifth_bucket_idempotent_replay_marks_unchanged(
 
 
 # ---------------------------------------------------------------------
-# Sprint-4 Tag-5: 6th-bucket-paired-update tests (wakir-federation-routes)
+#: 6th-bucket-paired-update tests (wakir-federation-routes)
 # ---------------------------------------------------------------------
 #
 # These tests anchor the contract that the new 6th bucket
@@ -520,12 +520,12 @@ def test_t_tag4_05_fifth_bucket_idempotent_replay_marks_unchanged(
 # and that the create/select/idempotency paths of the planner cover it.
 # Unlike the 5th bucket, the 6th bucket HAS a live Phase-1b consumer:
 # ``wirelang.federation.route_registry_nats_kv_backend.NatsKvRouteRegistry``
-# (Sprint-2 Tag-4 backend + Sprint-2 Tag-6 watch-stream layer). The
+# ( backend + watch-stream layer). The
 # operator bring-up procedure previously created this bucket out of
-# band per Runbook §6.5; Sprint-4 Tag-5 promotes it into the routine
+# band per Runbook §6.5; promotes it into the routine
 # ``init-nats-buckets.py`` pass.
 #
-# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T-Tag5-
+# Auftrags-Quota: "4-6 hermetic Tests". This file adds 5 tests (T--
 # 01..05) anchoring slot, mirror, create-call shape, selector path,
 # and idempotency. The live-gated parity probe lives in
 # ``test_check_nats_kv_health.py``.
@@ -560,8 +560,8 @@ def test_t_tag5_02_sixth_bucket_config_mirrors_wirelang_consumer_bucket_config(m
     This is the dual-anchor parity contract: a drift between the
     orchestrator-side init script and the Wirelang-side consumer is a
     regression that would force the operator to run an out-of-band
-    ``nats kv add`` step. The Sprint-2 Tag-7 Z-B Schluss-Marker called
-    out exactly this gap; Sprint-4 Tag-5 closes it.
+    ``nats kv add`` step. The Z-B Schluss-Marker called
+    out exactly this gap; closes it.
 
     We import the Wirelang module lazily so this test does not depend
     on import-time side effects of the consumer-side codec; if the
@@ -632,10 +632,10 @@ def test_t_tag5_04_bucket_filter_can_select_sixth_bucket(mod, event_loop):
     """``--bucket wakir-federation-routes`` selects only the 6th bucket.
 
     Operationally useful: an operator can re-run the init script
-    against a cluster that already has the five pre-Tag-5 Phase-1
+    against a cluster that already has the five pre-Phase-1
     buckets to backfill only the new 6th bucket without churning the
     others. This is the no-downtime upgrade path for a cluster that
-    came up before Sprint-4 Tag-5 landed (and was using the §6.5
+    came up before landed (and was using the §6.5
     hand-creation fallback for the V-908 bucket).
     """
     js = _MockJetStream()
@@ -660,7 +660,7 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
     Idempotency contract for the full six-bucket layout: operators
     can re-run ``init-nats-buckets.py`` on a cluster that already has
     the complete inventory without side effects. The 6th bucket gets
-    the same idempotency guarantee as the five pre-Tag-5 buckets.
+    the same idempotency guarantee as the five pre-buckets.
     """
     js = _MockJetStream()
     # First pass: populate all six.
@@ -683,7 +683,7 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
 
 
 # ---------------------------------------------------------------------
-# Sprint-5 Tag-2: 7th-bucket-paired-update tests (wakir-capability-policies)
+#: 7th-bucket-paired-update tests (wakir-capability-policies)
 # ---------------------------------------------------------------------
 #
 # These tests anchor the contract that the new 7th bucket
@@ -694,19 +694,19 @@ def test_t_tag5_05_sixth_bucket_idempotent_replay_marks_unchanged(
 # has the bucket layout ready for the Phase-3 capability-policy-
 # persistence promotion that the Wirelang-side track
 # (Wirelang-track-owned per Persona-Matrix §2) will commit a
-# ``BUCKET_CONFIG`` constant for.
-# Until that lands, this is reservation-form (analogous to the Sprint-4
-# Tag-4 5th-bucket pattern, not the Tag-5 6th-bucket cross-import-
+# ``BUCKET_CONFIG`` constant .
+# Until that lands, this is reservation-form (analogous to the
+# 5th-bucket pattern, not the 6th-bucket cross-import-
 # mirror pattern).
 #
-# Cross-reference: Sprint-5 Tag-1 Wirelang-track outbox §6 lists
+# Cross-reference: Wirelang-track outbox §6 lists
 # ``wakir-capability-policies`` as the Phase-3 capability-policy
 # persistence slot; CEO-side strategic call 2026-05-11 promoted the
-# orchestrator-side bucket-inventory-add to Sprint-5 Tag-2 as the
+# orchestrator-side bucket-inventory-add to as the
 # paired update with
-# the Wirelang-side Sprint-5 Tag-2 capability-policy persistence track.
+# the Wirelang-side capability-policy persistence track.
 #
-# Auftrags-Quota analogous to Tag-4 / Tag-5: 5 hermetic tests anchoring
+# Auftrags-Quota analogous to /: 5 hermetic tests anchoring
 # slot, mirror-shape, create-call shape, selector path, and idempotency.
 # The live-gated parity probe lives in
 # ``test_check_nats_kv_health.py``. No cross-import-mirror anchor yet —
@@ -817,10 +817,10 @@ def test_t_tag2_04_bucket_filter_can_select_seventh_bucket(mod, event_loop):
     bucket.
 
     Operationally useful: an operator can re-run the init script
-    against a cluster that already has the six pre-Tag-2 Phase-1
+    against a cluster that already has the six pre-Phase-1
     buckets to backfill only the new 7th bucket without churning the
     others. This is the no-downtime upgrade path for a cluster that
-    came up before Sprint-5 Tag-2 landed.
+    came up before landed.
     """
     js = _MockJetStream()
     selected = mod._select_specs(["wakir-capability-policies"])
@@ -844,7 +844,7 @@ def test_t_tag2_05_seventh_bucket_idempotent_replay_marks_unchanged(
     Idempotency contract for the full seven-bucket layout: operators
     can re-run ``init-nats-buckets.py`` on a cluster that already has
     the complete inventory without side effects. The 7th bucket gets
-    the same idempotency guarantee as the six pre-Tag-2 buckets.
+    the same idempotency guarantee as the six pre-buckets.
     """
     js = _MockJetStream()
     # First pass: populate all seven.

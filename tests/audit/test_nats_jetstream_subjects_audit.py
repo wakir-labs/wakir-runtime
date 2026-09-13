@@ -5,26 +5,26 @@
 All fixtures synthesised in ``tmp_path``. No network. No real
 wakir-runtime scan. Pure stdlib + pytest.
 
-Coverage targets (Tag-43, Selin):
+Coverage targets (the engine zone):
 
-1.  ``classify_call`` returns the expected sigil for each
+1. ``classify_call`` returns the expected sigil for each
     publish/subscribe surface and ``None`` for comment lines.
-2.  ``classify_subject_template`` distinguishes ``ok`` /
+2. ``classify_subject_template`` distinguishes ``ok`` /
     ``regex-drift`` / ``template-drift`` / ``namespace-id`` per
     the canonical ``wakir.<env>.<domain>.…`` rule.
-3.  ``scan_calls`` skips docstring-embedded sigils.
-4.  ``scan_subjects`` reports the literal-line cleanly and
+3. ``scan_calls`` skips docstring-embedded sigils.
+4. ``scan_subjects`` reports the literal-line cleanly and
     de-duplicates same-line repeats.
-5.  ``audit_repo`` over a clean fixture reports zero drift.
-6.  ``audit_repo`` over a drifted fixture surfaces the regex-
+5. ``audit_repo`` over a clean fixture reports zero drift.
+6. ``audit_repo`` over a drifted fixture surfaces the regex-
     drift literal and the namespace-id row.
-7.  ``cross_validate_modes`` flags an ``nc.publish``-only module
+7. ``cross_validate_modes`` flags an ``nc.publish``-only module
     that references the publish-mode discriminator as
     ``adapter-incomplete``.
-8.  ``adapter_config_audit`` flags a subscriber that imports the
+8. ``adapter_config_audit`` flags a subscriber that imports the
     contract but does not call ``require_compatible`` as
     ``preflight-gate-missing``.
-9.  ``adapter_config_audit`` treats a publisher-only contract
+9. ``adapter_config_audit`` treats a publisher-only contract
     importer without ``require_compatible`` as
     ``publisher-no-gate`` (informational, NOT drift).
 10. ``render_report`` is deterministic — two runs with the same
@@ -494,7 +494,7 @@ def test_audit_excludes_tests_and_worktree_paths(
         'X = "wakir.dev.Agent.task.assigned"\n',
         encoding="utf-8",
     )
-    # And a .worktree-* sub-tree.
+    # And a.worktree-* sub-tree.
     (tmp_path / ".worktree-foo" / "src").mkdir(parents=True)
     (tmp_path / ".worktree-foo" / "src" / "bad.py").write_text(
         'X = "wakir.dev.Agent.task.assigned"\n',
@@ -503,7 +503,7 @@ def test_audit_excludes_tests_and_worktree_paths(
 
     result = audit.audit_repo(tmp_path)
     # Zero drift even with the malformed literals under tests/ and
-    # .worktree-*/.
+    #.worktree-*/.
     assert result.drift_count == 0
 
 

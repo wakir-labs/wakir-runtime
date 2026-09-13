@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``wirelang.cli.marker_stack_emit`` and the
-``bin/wakir-marker-stack-emit`` CLI entrypoint (Sprint-Pengine-7
-Tag-5 OI-PILOT-3).
+``bin/wakir-marker-stack-emit`` CLI entrypoint (-Pengine-7
+OI-PILOT-3).
 
 Coverage axes (T-EMIT-01..12):
 
@@ -25,7 +25,7 @@ Coverage axes (T-EMIT-01..12):
 12. CLI ``main`` with ``--marker-kind custom`` round-trips through
     the chain: passing one envelope's ``payload_hash`` as the next
     envelope's ``--chain-prev-hash`` produces a hash-chain whose
-    chain_hash is reproducible via :func:`compute_chain_hash`.
+    chain_hash is reproducible via:func:`compute_chain_hash`.
 
 All tests are hermetic: no NATS, no filesystem mutation outside
 ``tmp_path``.

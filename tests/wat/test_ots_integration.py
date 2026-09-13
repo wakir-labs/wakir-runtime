@@ -27,7 +27,7 @@ Running these in CI on every push would be (a) impolite to the
 calendar operators, who run the public infrastructure for free, and
 (b) flaky, because calendar latency varies by 1-2 orders of magnitude
 during peak load. The ``OTS_INTEGRATION_TEST=1`` gate keeps the tests
-opt-in: developers run them locally before a release, the Tag-22
+opt-: developers run them locally before a release, the
 smoke driver runs them once, and CI never touches them.
 
 Politeness budget
@@ -416,7 +416,7 @@ def test_real_calendar_failover_simulated(tmp_path: Path) -> None:
 def test_real_block_height_finalisation(tmp_path: Path) -> None:
     """Validate the upgrade-then-extract path on a fixture receipt.
 
-    Tag-9 demonstrated the submit + pending-receipt half of the
+    demonstrated the submit + pending-receipt half of the
     pipeline. This test covers the other half: take an OTS receipt
     that is old enough for the calendar batch to have hit Bitcoin,
     upgrade it, and assert the parsed receipt carries at least one
@@ -428,7 +428,7 @@ def test_real_block_height_finalisation(tmp_path: Path) -> None:
     1. Environment variable ``WAT_TEST_FINALISED_RECEIPT`` if set —
        expected to point at a ``.ots`` file paired with a sibling
        data file (the receipt's original input). This is the path
-       used by the Tag-10 outbox memo: a dev runs the test against a
+       used by the outbox memo: a dev runs the test against a
        receipt that survived overnight.
     2. Fallback: ``.runtime/ots-smoketest.txt.ots`` under the
        AI-Corp dev-engineering workspace, which the operator
@@ -498,7 +498,7 @@ def test_real_block_height_finalisation(tmp_path: Path) -> None:
     for line in blob.splitlines():
         stripped = line.strip()
         # The OTS CLI emits lines like:
-        #   verify BitcoinBlockHeaderAttestation(947491)
+        # verify BitcoinBlockHeaderAttestation(947491)
         if "BitcoinBlockHeaderAttestation(" not in stripped:
             continue
         start = stripped.index("BitcoinBlockHeaderAttestation(") + len(

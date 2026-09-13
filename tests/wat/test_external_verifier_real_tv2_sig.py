@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """External-verifier-script ``--real-tv2 --verify-signature`` driver tests.
 
-Sprint-6 Tag-2 substance: wire the Sprint-5 Tag-5 hand-signing pattern
+ substance: wire the hand-signing pattern
 (``tests/wat/test_tv2_real_manifest_sig_verify.py::_stage_signed_hour``)
 into the driver script ``scripts/external_verifier_validation.py`` so
 external implementers can verify wakir-WAT manifests with a single
@@ -55,13 +55,13 @@ Module-level pins:
    leaves the ``tool`` label unchanged (no spurious ``sig:...`` suffix);
    with ``verify_signature=True`` the suffix appears.
 
-Why this is the Sprint-6 Tag-2 substance
+Why this is the substance
 -----------------------------------------
 
-Sprint-5 Tag-5 closed the Python-API gap: ``verify_real_manifest_file``
+ closed the Python-API gap: ``verify_real_manifest_file``
 accepts ``verify_signature=True`` end-to-end. The on-disk driver — what
 an external operator actually invokes — still had no signature-aware
-mode. Tag-2 lifts the test-module's ``_stage_signed_hour`` pattern into
+mode. lifts the test-module's ``_stage_signed_hour`` pattern into
 ``scripts/external_verifier_validation.py:stage_signed_cohort`` and
 adds ``--verify-signature`` to the ``--real-tvN`` driver. This unblocks
 the Brand-Demo TV-2-card external-verifier substrate: a third-party can
@@ -103,7 +103,7 @@ def _import_validation_script():
 
 
 def test_real_tv2_unsigned_path_unchanged(capsys):
-    """``--real-tv2`` alone (no --verify-signature) keeps its Tag-1 verdict."""
+    """``--real-tv2`` alone (no --verify-signature) keeps its verdict."""
     mod = _import_validation_script()
     rc = mod.main(["--real-tv2", "--python-only", "--quiet"])
     captured = capsys.readouterr()

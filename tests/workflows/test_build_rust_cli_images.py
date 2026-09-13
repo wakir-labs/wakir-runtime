@@ -1,30 +1,30 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic workflow-structure tests for the four Tag-33 Mini-Welle
-build-rust-cli workflows (ADR-0066 Welle-4..7 image-build bundle):
+"""Hermetic workflow-structure tests for the four Mini-wave
+build-rust-cli workflows (ADR-0066 wave 4..7 image-build bundle):
 
-  * ``.github/workflows/build-rust-cli-state-backing.yml`` (Welle-4)
+  * ``.github/workflows/build-rust-cli-state-backing.yml`` (wave 4)
   * ``.github/workflows/build-rust-cli-lifecycle-state-machine.yml``
-    (Welle-5)
-  * ``.github/workflows/build-rust-cli-subscribe-loop.yml`` (Welle-6)
+    (wave 5)
+  * ``.github/workflows/build-rust-cli-subscribe-loop.yml`` (wave 6)
   * ``.github/workflows/build-rust-cli-recovery-workflow.yml``
-    (Welle-7)
+    (wave 7)
 
 Each workflow is the substrate that publishes one of the four
 dedicated single-binary Rust-CLI container images for the ADR-0066
-Welle-4..7 cutover steps. These tests assert the workflow STRUCTURE
+wave 4..7 cutover steps. These tests assert the workflow STRUCTURE
 remains correct across all four files in lock-step, so a future edit
 that drops a required step (or relaxes the substrate-fence) in ONE
 workflow regresses with a clear hermetic-test failure rather than a
-silent supply-chain provenance drift in a single Welle.
+silent supply-chain provenance drift in a single wave.
 
 Sandbox boundary
 ----------------
 Tests parse YAML on disk only. No actions runner, no GHCR egress,
 no cargo exec, no cosign exec. Compatible with the claude-dev
-sandbox (no podman-socket needed). Parity with the Tag-26 V907-
-verify test surface (PR #194), Tag-29 SVID-workload-identity test
-surface (PR #201) and Tag-31 bridge-audit-writer test surface
+sandbox (no podman-socket needed). Parity with the V907-
+verify test surface (PR #194), SVID-workload-identity test
+surface (PR #201) and bridge-audit-writer test surface
 (PR #210).
 
 Scope of invariants (per workflow + cross-workflow)
@@ -58,7 +58,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Welle-4..7 workflow + Containerfile + crate + binary mapping. Each
+# wave 4..7 workflow + Containerfile + crate + binary mapping. Each
 # tuple element is (welle_n, workflow_filename, containerfile_dir,
 # crate_path_segment, binary_name).
 WELLE_4_7_BUNDLE = [
@@ -140,7 +140,7 @@ def _step_index(steps: list[dict], name: str) -> int:
     ids=[f"welle-{w}" for w, *_ in WELLE_4_7_BUNDLE],
 )
 class TestWelle4to7Workflow:
-    """Parametrised invariants applied to all four Welle-4..7
+    """Parametrised invariants applied to all four wave 4..7
     workflows.
     """
 
@@ -249,7 +249,7 @@ class TestWelle4to7Workflow:
             "version_tag" in inputs
         ), "workflow_dispatch must accept version_tag input"
         # Default tag is the same MAJOR.MINOR.PATCH-pilot shape across
-        # the four Welle workflows for operator-facing predictability.
+        # the four wave workflows for operator-facing predictability.
         assert inputs["version_tag"].get("default") == "0.1.0-pilot", (
             "workflow_dispatch version_tag default must be "
             "'0.1.0-pilot' (parity with prior image-build workflows)"
@@ -300,7 +300,7 @@ class TestWelle4to7Workflow:
         binary_name: str,
     ) -> None:
         steps = _build_steps(_load_yaml(workflow_filename))
-        # The canonical step-name order across all four Welle-4..7
+        # The canonical step-name order across all four wave 4..7
         # workflows (parity with PR #194 + PR #201 + PR #210).
         EXPECTED_STEP_NAMES = [
             "Checkout",
@@ -420,7 +420,7 @@ class TestWelle4to7Workflow:
         ]
         run = gate.get("run", "")
         # The semver-suffixed substrate-fence regex is the same shape
-        # across all four Welle-4..7 workflows (and the prior three
+        # across all four wave 4..7 workflows (and the prior three
         # image-build workflows). Parity with PR #194 / #201 / #210.
         assert (
             r"^[0-9]+\.[0-9]+\.[0-9]+-pilot$" in run
@@ -511,7 +511,7 @@ class TestWelle4to7Workflow:
     ids=[f"welle-{w}-containerfile" for w, *_ in WELLE_4_7_BUNDLE],
 )
 class TestWelle4to7Containerfile:
-    """Parametrised invariants applied to all four Welle-4..7
+    """Parametrised invariants applied to all four wave 4..7
     Containerfiles.
     """
 
@@ -643,9 +643,9 @@ class TestWelle4to7Containerfile:
 
 
 def test_all_four_workflows_share_same_step_set() -> None:
-    """The four Welle-4..7 workflows MUST share the exact same set of
+    """The four wave 4..7 workflows MUST share the exact same set of
     step names (cross-workflow regression guard — a future edit that
-    adds a step to one Welle workflow but forgets the other three is
+    adds a step to one wave workflow but forgets the other three is
     a supply-chain provenance drift this test catches at policy-
     author time).
     """
@@ -665,7 +665,7 @@ def test_all_four_workflows_share_same_step_set() -> None:
 
 
 def test_all_four_workflows_have_unique_image_names() -> None:
-    """Each Welle-4..7 workflow MUST emit a unique GHCR image name
+    """Each wave 4..7 workflow MUST emit a unique GHCR image name
     (`wakir-persona-engine-<binary>`). A typo that produced two
     workflows pushing to the same image repository would silently
     overwrite digests across cutover-step pin-rotations.

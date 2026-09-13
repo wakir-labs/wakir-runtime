@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Unit tests for the WAT anchor-submit backend dispatcher.
 
-Tag-16 Mini-Welle — Phase-3b production-wiring acceptance gate.
+Mini-wave — Phase-3b production-wiring acceptance gate.
 
 The dispatcher under test is ``wat.anchor.anchor_backend``. It routes
 ``anchor_root`` calls between the legacy in-process Python flow
@@ -22,23 +22,23 @@ Hermetic posture
   guarded behind a ``WAKIR_SUBMIT_WORKER_BIN`` environment lookup
   and skips cleanly when the binary is not on disk. CI is expected to
   build the binary before invoking this suite (mirroring the
-  Tag-14 ``replay_cli`` pattern in ``.github/workflows/tests.yml``).
+  ``replay_cli`` pattern in ``.github/workflows/tests.yml``).
 
-Test inventory (12 tests, covers the five Sprint-Auftrag-named cases
+Test inventory (12 tests, covers the five -assignment-named cases
 plus seven dispatcher invariants):
 
-    Sprint-Auftrag-named:
-      1.  test_backend_python_default_noop_passthrough
-      2.  test_backend_rust_success_path
-      3.  test_backend_rust_throttled_passthrough
-      4.  test_backend_rust_dead_letter_emits_error
-      5.  test_backend_rust_binary_missing_fallback_python
+    -assignment-named:
+      1. test_backend_python_default_noop_passthrough
+      2. test_backend_rust_success_path
+      3. test_backend_rust_throttled_passthrough
+      4. test_backend_rust_dead_letter_emits_error
+      5. test_backend_rust_binary_missing_fallback_python
 
     Dispatcher invariants:
-      6.  test_unknown_backend_value_falls_back_to_python
-      7.  test_resolve_binary_prefers_explicit_env
-      8.  test_resolve_binary_warns_on_invalid_explicit_path
-      9.  test_rust_retrying_translates_to_anchor_error
+      6. test_unknown_backend_value_falls_back_to_python
+      7. test_resolve_binary_prefers_explicit_env
+      8. test_resolve_binary_warns_on_invalid_explicit_path
+      9. test_rust_retrying_translates_to_anchor_error
       10. test_rust_idle_translates_to_anchor_error
       11. test_rust_subprocess_timeout_surfaces_as_anchor_error
       12. test_rust_malformed_stdout_surfaces_as_anchor_error
@@ -121,7 +121,7 @@ def _fake_bridge_result(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Auftrag-named test 1: backend=python default is a no-op passthrough.
+# -assignment-named test 1: backend=python default is a no-op passthrough.
 # ---------------------------------------------------------------------------
 
 
@@ -156,7 +156,7 @@ def test_backend_python_default_noop_passthrough(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Auftrag-named test 2: backend=rust success path.
+# -assignment-named test 2: backend=rust success path.
 # ---------------------------------------------------------------------------
 
 
@@ -213,7 +213,7 @@ def test_backend_rust_success_path(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Auftrag-named test 3: backend=rust throttled passthrough.
+# -assignment-named test 3: backend=rust throttled passthrough.
 # ---------------------------------------------------------------------------
 
 
@@ -251,7 +251,7 @@ def test_backend_rust_throttled_passthrough(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Auftrag-named test 4: backend=rust dead-letter emits error.
+# -assignment-named test 4: backend=rust dead-letter emits error.
 # ---------------------------------------------------------------------------
 
 
@@ -293,7 +293,7 @@ def test_backend_rust_dead_letter_emits_error(
 
 
 # ---------------------------------------------------------------------------
-# Sprint-Auftrag-named test 5: rust backend with missing binary falls back.
+# -assignment-named test 5: rust backend with missing binary falls back.
 # ---------------------------------------------------------------------------
 
 

@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Cutover Welle-5 E2E acceptance — ``lifecycle_state_machine``.
+"""Phase-3c cutover wave 5 E2E acceptance — ``lifecycle_state_machine``.
 
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — Welle-5
+- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — wave 5
   = ``lifecycle_state_machine`` (Stateful, Cross-Modul-Dependency).
-- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — Welle-5
+- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — wave 5
   consumes ``state_backing`` output; cross-modul-schema-drift is now
   a *two-sided* risk (Rust-state_backing × Rust-lifecycle vs.
-  pre-Welle-4 Python-state_backing × Python-lifecycle).
+  pre-wave 4 Python-state_backing × Python-lifecycle).
 
-Welle character
+wave character
 ---------------
 
 ``lifecycle_state_machine`` orchestrates persona lifecycle states
@@ -20,8 +20,8 @@ Welle character
 dependent (reads from ``state_backing``, writes lifecycle-events into
 the Bridge-Audit-Writer trail).
 
-Welle-5 is the first welle where the *cross-modul-schema-contract*
-is the dominant risk: Welle-4 already flipped ``state_backing`` to
+wave 5 is the first wave where the *cross-modul-schema-contract*
+is the dominant risk: wave 4 already flipped ``state_backing`` to
 Rust, so the lifecycle-machine's input is now Rust-produced state-
 records. The transition-table itself must be cross-language
 behaviorally identical.
@@ -96,7 +96,7 @@ def test_welle_5_ac_2_performance_within_headroom() -> None:
 
 
 def test_welle_5_ac_3_bug_rate_zero_s0_s1() -> None:
-    """AC-3: 0 S0/S1 issues during Welle-5 Beobachtungs-Woche."""
+    """AC-3: 0 S0/S1 issues during wave 5 Beobachtungs-Woche."""
     assert_ac_3_bug_rate(s0_count=0, s1_count=0, welle=WELLE_NAME)
 
 
@@ -106,7 +106,7 @@ def test_welle_5_ac_3_bug_rate_zero_s0_s1() -> None:
 
 
 def test_welle_5_ac_4_cross_review_consensus(mocked_cross_review) -> None:
-    """AC-4: Welle-5 Cross-Review-Session all-personas-consent."""
+    """AC-4: wave 5 Cross-Review-Session all-personas-consent."""
     record = mocked_cross_review(WELLE_NAME)
     assert_ac_4_cross_review_consensus(record, WELLE_NAME)
 
@@ -117,7 +117,7 @@ def test_welle_5_ac_4_cross_review_consensus(mocked_cross_review) -> None:
 
 
 def test_welle_5_ac_5_v907_pin_validation_full_pass() -> None:
-    """AC-5: V-907 Pin-Validation 100% post-Welle-5 cutover."""
+    """AC-5: V-907 Pin-Validation 100% post-wave 5 cutover."""
     persona_def_count = 6
     assert_ac_5_v907_pin_validation(
         persona_def_count=persona_def_count,
@@ -127,12 +127,12 @@ def test_welle_5_ac_5_v907_pin_validation_full_pass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Welle-5 substrate sanity — cross-modul-schema-contract verify.
+# wave 5 substrate sanity — cross-modul-schema-contract verify.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_5_five_moduln_rust(mocked_quadlet_env) -> None:
-    """Welle-5 Quadlet-state: 5 rust + 2 python (subscribe_loop +
+    """wave 5 Quadlet-state: 5 rust + 2 python (subscribe_loop +
     recovery_workflow remaining)."""
     env = mocked_quadlet_env(
         WELLE_NAME,
@@ -154,7 +154,7 @@ def test_welle_5_five_moduln_rust(mocked_quadlet_env) -> None:
 
 @pytest.mark.skip(reason="pending welle-cutover — lifecycle transition-table corpus")
 def test_welle_5_transition_table_cross_lang_parity() -> None:
-    """Welle-5-specific: every reachable transition in the lifecycle
+    """wave 5 specific: every reachable transition in the lifecycle
     state-graph behaves identically across Python and Rust.
 
     The corpus is the full transition-table (idle → active → terminating
@@ -166,10 +166,10 @@ def test_welle_5_transition_table_cross_lang_parity() -> None:
 
 @pytest.mark.skip(reason="pending welle-cutover — Welle-4-Welle-5 cross-contract drill")
 def test_welle_5_consumes_welle_4_state_records() -> None:
-    """Welle-5 reads state-records that Welle-4 (Rust-state_backing)
+    """wave 5 reads state-records that wave 4 (Rust-state_backing)
     wrote. Cross-modul-schema-contract verify under
     Rust-state_backing × Rust-lifecycle conditions.
 
-    Coordinated with Selin-Sprint-Pengine-N (ADR-0065 §Folgeartefakte 2).
+    Coordinated with the engine zone--Pengine-N (ADR-0065 §Folgeartefakte 2).
     """
     raise NotImplementedError("pending welle-cutover")

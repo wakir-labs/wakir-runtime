@@ -1,15 +1,15 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-6 bring-up-cleanup
+"""Hermetic acceptance tests for the bring-up-cleanup
 substance-fixes (10 bugs from the live Pilot-VM bring-up 2026-05-14).
 
 Context
 -------
 
 The 2026-05-14 ~01:40 CEST Pilot-VM bring-up succeeded 6/6 on the
-smoke matrix but required 15 substance patches by Operator-Hand. Kai
-owns 10 of the 15 fixes; Tomás owns Bugs 3 + 6, Amara owns Bugs 13
-+ 14. This module is the Kai hermetic surface.
+smoke matrix but required 15 substance patches by Operator-Hand. The infrastructure zone
+owns 10 of the 15 fixes; the engineering zone owns Bugs 3 + 6, the QA zone owns Bugs 13
++ 14. This module is the infrastructure zone hermetic surface.
 
 Test-Vector index (Bug-numbered to keep cross-reference trivial)
 ----------------------------------------------------------------
@@ -46,7 +46,7 @@ that touch network / podman / systemd. Bug 1/15 + Bug 2 + Bug 4
 exercise the bootstrap-script source pattern only — no live agent
 attestation, no live volume creation, no live skopeo inspect.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -214,13 +214,13 @@ def test_tv_s9t6_02_bootstrap_chown_named_volumes() -> None:
 
 
 def test_tv_s9t6_04_skip_cosign_still_passes_provisioner_digest() -> None:
-    """Sprint-9-Tag-6 Bug 4 invariant + Sprint-10-Tag-7 Bug-36 extension.
+    """ Bug 4 invariant + Bug-36 extension.
 
     Bug 4: skip-cosign branch MUST still pass the provisioner digest
-    to the resolver (Sprint-9-Tag-6 substance-fix; the bucket-init
+    to the resolver ( substance-fix; the bucket-init
     Quadlet placeholder must be resolved even in skip-cosign mode).
 
-    Bug-36 (Sprint-10-Tag-7) extends the branch to ALSO pass
+    Bug-36 extends the branch to ALSO pass
     spire-server / spire-agent / python digests via skopeo-only
     resolution. The provisioner digest remains conditional (the image
     may not yet be published) and is appended to skip_args only when
@@ -277,7 +277,7 @@ def test_tv_s9t6_04_skip_cosign_still_passes_provisioner_digest() -> None:
     )
     branch_body = after[:branch_end]
 
-    # Sprint-9-Tag-6 Bug 4 invariant: branch MUST pass --wakir-
+    # Bug 4 invariant: branch MUST pass --wakir-
     # provisioner-digest. (After Bug-36 fix it is conditional on a
     # successful skopeo-inspect; the literal flag still appears in the
     # skip_args conditional append.)
@@ -435,7 +435,7 @@ def test_tv_s9t6_11_agent_single_org_keymanager_disk() -> None:
     )
     # And the legacy ``memory`` form MUST be absent from the active body
     # (commentary that mentions it is allowed; the comment-stripper handles
-    # that). Sprint-9-Tag-6 deliberately diverges single-org from the
+    # that). deliberately diverges single-org from the
     # federation default here.
     assert not re.search(r'KeyManager\s+"memory"', body), (
         "single-org agent config MUST NOT use ``KeyManager \"memory\"`` "
@@ -482,8 +482,8 @@ def test_tv_s9t6_12_tmpfs_mode_0755(path: Path, label: str) -> None:
 
 
 def test_tag6_cleanup_suite_covers_all_kai_vectors() -> None:
-    """Inventory check: the 10 Kai-owned Tag-6 bugs each have a named
-    test function. Bugs 3 + 6 (Tomás) and Bugs 13 + 14 (Amara) are
+    """Inventory check: the 10 the infrastructure zone-owned bugs each have a named
+    test function. Bugs 3 + 6 and Bugs 13 + 14 are
     NOT in this module."""
     module_src = Path(__file__).read_text(encoding="utf-8")
     expected_vectors = [

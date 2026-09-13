@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-7 bring-up-cleanup
+"""Hermetic acceptance tests for the bring-up-cleanup
 substance-fixes (3 bugs from the live Pilot-VM bring-up 2026-05-14
 ~12:00 CEST, V2-Acceptance-Bring-up-3).
 
@@ -9,18 +9,18 @@ Context
 
 Bring-up-3 ran from-scratch out-of-box on the Pilot-VM and reached
 6/6 smoke-pass, but only after the Operator applied 3 hand-patches
-mid-bring-up. These three bugs were NOT caught by the Sprint-9-Tag-6
+mid-bring-up. These three bugs were NOT caught by the
 hermetic surface — the classic Live-Bring-up-Sandbox-Gap. This
 module closes the gap so a future regression on any of the three
 codepaths fails fast in CI.
 
-Test-Vector index (Bug-numbered to continue the Tag-6 ladder)
+Test-Vector index (Bug-numbered to continue the ladder)
 -------------------------------------------------------------
 
   * ``TV-S9T7-16`` Resolver ``resolve_group_tagged`` runs WITHOUT
     Perl on the PATH. Live-Bring-up-3 crashed because FCOS does not
-    ship Perl and the Tag-6 implementation called ``perl -ne`` /
-    ``perl -pi -e``. The Tag-7 refactor uses Bash-native
+    ship Perl and the implementation called ``perl -ne`` /
+    ``perl -pi -e``. The refactor uses Bash-native
     ``[[ =~ ]]`` + ``${BASH_REMATCH[@]}``.
   * ``TV-S9T7-16b`` Bootstrap ``step_1_preflight`` explicitly checks
     a CLI-tool inventory before proceeding so a missing tool fails
@@ -41,7 +41,7 @@ interaction. Bug-16 stripped-PATH test rebuilds ``PATH`` to a
 deliberate minimum-viable subset that EXCLUDES Perl and proves the
 substitution still fires.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def _build_perl_stripped_path(tmp_path: Path) -> str:
     """Return a PATH string containing every binary the resolver needs
     EXCEPT perl. We construct a sandbox bin/ directory that symlinks
     just the required executables; perl is deliberately omitted so
-    a regression to the Tag-6 implementation would fail the test.
+    a regression to the implementation would fail the test.
 
     Required: bash, sed, grep, mktemp, mv, chmod, stat, cat, rm,
     awk (for the help-text); cmp may be exercised through subprocess
@@ -224,8 +224,8 @@ def test_tv_s9t7_16_resolver_substitutes_without_perl_on_path(
     """The resolver MUST substitute the wakir-provisioner placeholder
     when Perl is NOT on the PATH. Live-Bring-up-3 (2026-05-14) on
     Fedora-CoreOS crashed at Step 5 because FCOS does not ship Perl
-    on the host PATH and the Tag-6 implementation called ``perl``
-    directly. Tag-7's Bash-native refactor must close this gap.
+    on the host PATH and the implementation called ``perl``
+    directly. 's Bash-native refactor must close this gap.
     """
     root = tmp_path / "root"
     _build_resolver_skeleton(
@@ -295,11 +295,11 @@ def test_tv_s9t7_16_resolver_substitutes_without_perl_on_path(
 
 def test_tv_s9t7_16_resolver_source_has_no_perl_invocation() -> None:
     """The resolver source MUST NOT contain a ``perl `` invocation.
-    Defensive static check that catches a Tag-6 reversion at lint
+    Defensive static check that catches a reversion at lint
     time (faster than the subprocess-based PATH-stripped test).
     """
     src = RESOLVER.read_text(encoding="utf-8")
-    # We strip comment lines first so the "Sprint-9 Tag-7 Aenderung"
+    # We strip comment lines first so the " Aenderung"
     # commentary which mentions Perl is not a false positive.
     code_lines = []
     for line in src.splitlines():
@@ -308,7 +308,7 @@ def test_tv_s9t7_16_resolver_source_has_no_perl_invocation() -> None:
             continue
         code_lines.append(line)
     code = "\n".join(code_lines)
-    # Forbid any of: 'perl ', 'perl\t', 'perl -...', backtick / $()
+    # Forbid any of: 'perl ', 'perl\t', 'perl -...', backtick / $
     # subshell that invokes perl.
     forbidden_patterns = [
         r"\bperl\s+-",
@@ -427,10 +427,10 @@ def test_tv_s9t7_17_bucket_init_exec_does_not_double_python3() -> None:
 def test_tv_s9t7_17_effective_argv_is_defense_in_depth_safe() -> None:
     """The Quadlet's effective argv MUST work regardless of whether
     the published wakir-provisioner image carries
-    ``ENTRYPOINT ["python3"]`` or no entrypoint at all. The Tag-6
+    ``ENTRYPOINT ["python3"]`` or no entrypoint at all. The
     Containerfile dropped the entrypoint as a defense-in-depth
     measure, but Live-Bring-up-3 (2026-05-14) proved that the
-    published image at :0.1.2 still ships an entrypoint — the
+    published image :0.1.2 still ships an entrypoint — the
     image-rebuild did not land before the Quadlet was rolled.
 
     Two-axis invariant:
@@ -511,7 +511,7 @@ def test_tv_s9t7_18_step_7_daemon_reload_before_start() -> None:
     """``step_7_bucket_init`` MUST run ``systemctl daemon-reload``
     unconditionally AFTER the install (or no-install-needed) block
     and BEFORE the ``systemctl start`` of the bucket-init unit.
-    Live-Bring-up-3 emitted ``The unit file ... changed on disk. Run
+    Live-Bring-up-3 emitted ``The unit file... changed on disk. Run
     'systemctl daemon-reload' to reload units.`` when the reload was
     scoped only to the cmp-mismatch branch.
     """

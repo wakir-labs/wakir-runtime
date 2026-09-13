@@ -1,59 +1,59 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-58 tests for the Wirelang-Spec v0.4.3 pre-cutover-
+Hermetic tests for the Wirelang-Spec v0.4.3 pre-cutover-
 freeze-seal probe
 (``tooling/audit/verify_wirelang_spec_freeze_seal.py``).
 
 Test inventory (>= 12 hermetic, all stdlib):
 
-  T01  helper module imports without side-effects; module-level
+  T01 helper module imports without side-effects; module-level
        constants are well-formed (VERDICT_* strings, REGEX
        patterns, default paths).
-  T02  parse_frontmatter on a synthetic minimal frontmatter
+  T02 parse_frontmatter on a synthetic minimal frontmatter
        returns the expected flat string-to-string mapping; an
        absent frontmatter returns an empty dict.
-  T03  Baseline.from_json_path round-trips the freeze-baseline.json
+  T03 Baseline.from_json_path round-trips the freeze-baseline.json
        structure: frontmatter_invariants, sha256, byte_count,
        line_count, allowlist, freeze_marker, freeze_anchor.
-  T04  detect_freeze_marker reports has_drift=False when the
+  T04 detect_freeze_marker reports has_drift=False when the
        synthetic spec carries the baseline frontmatter and
        has_drift=True when a single key is mutated.
-  T05  diff_against_baseline: synthetic spec matching the baseline
+  T05 diff_against_baseline: synthetic spec matching the baseline
        sha/byte/line counts returns is_intact=True; mutating one
        byte flips all three flags.
-  T06  classify_added_line: a ``## Errata`` anchor classifies as
+  T06 classify_added_line: a ``## Errata`` anchor classifies as
        ``errata-footer``; an inline ``<!-- typo: x -->`` comment
        classifies as ``typo-marker``; a plain content-line outside
        both classifies as ``unallowlisted``.
-  T07  run_audit on a synthetic intact spec returns
+  T07 run_audit on a synthetic intact spec returns
        verdict=SEAL-INTACT, verdict_class=byte-for-byte-match,
-       findings=().
-  T08  run_audit on a synthetic spec with an appended errata-
+       findings=.
+  T08 run_audit on a synthetic spec with an appended errata-
        footer section returns verdict=SEAL-ALLOWED-DELTA,
        verdict_class=errata-footer-only, tally["unallowlisted"]=0.
-  T09  run_audit on a synthetic spec with an inserted typo-marker
+  T09 run_audit on a synthetic spec with an inserted typo-marker
        returns verdict=SEAL-ALLOWED-DELTA,
        verdict_class=typo-marker-only.
-  T10  run_audit on a synthetic spec with an unallowlisted edit
+  T10 run_audit on a synthetic spec with an unallowlisted edit
        (e.g. an injected new ``## 10. New normative section``)
        returns verdict=SEAL-BROKEN,
        verdict_class=unallowlisted-delta.
-  T11  run_audit on a synthetic spec with a frontmatter drift
+  T11 run_audit on a synthetic spec with a frontmatter drift
        (status flipped to ``draft``) returns verdict=SEAL-BROKEN,
        verdict_class=frontmatter-drift, even if the body is
        byte-identical apart from the frontmatter line.
-  T12  SealEnvelope.to_dict round-trips through json.loads with a
+  T12 SealEnvelope.to_dict round-trips through json.loads with a
        stable shape: top-level keys present, ``verdict`` is one
        of the three constants, ``tally`` keys present.
-  T13  Cross-site anchor: when run against the *real* in-tree
+  T13 Cross-site anchor: when run against the *real* in-tree
        spec at ``wirelang/specs/wirelang-spec-v0-4-3.md`` (skip-
        if-absent), the verdict is ``SEAL-INTACT`` with byte-for-
-       byte match — i.e. the in-tree spec on the Tag-58 PR
+       byte match — i.e. The in-tree spec on the PR
        matches the freeze-baseline.json that ships in the same
        PR.
-  T14  CLI smoke: argparse parses ``--enforce`` and ``--tag``,
-       and main() returns 0 on a synthetic intact fixture even
+  T14 CLI smoke: argparse parses ``--enforce`` and ``--tag``,
+       and main returns 0 on a synthetic intact fixture even
        in enforce-mode.
 
 All fixtures (except T13's real-world anchor) are synthesised in
@@ -70,8 +70,8 @@ import unittest
 
 
 # --------------------------------------------------------------- #
-# Helper import (path-driven so tests work both from repo root    #
-# and from a pytest/unittest invocation in tests/audit/)          #
+# Helper import (path-driven so tests work both from repo root #
+# and from a pytest/unittest invocation in tests/audit/) #
 # --------------------------------------------------------------- #
 
 
@@ -98,7 +98,7 @@ _M = _load_helper()
 
 
 # --------------------------------------------------------------- #
-# Synthetic fixture builder                                       #
+# Synthetic fixture builder #
 # --------------------------------------------------------------- #
 
 
@@ -188,7 +188,7 @@ def _make_synthetic_baseline(tmp_path: pathlib.Path) -> tuple[pathlib.Path, path
 
 
 # --------------------------------------------------------------- #
-# Tests                                                            #
+# Tests #
 # --------------------------------------------------------------- #
 
 

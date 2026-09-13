@@ -1,76 +1,76 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-74 tests for the Welle-6 (Cross-Substrate-Parity)
+Hermetic tests for the wave 6 (Cross-Substrate-Parity)
 Spec-Conformance Verifier.
 
 ============================================================================
 Test inventory (>=15 hermetic tests, stdlib + pytest only):
 
-  T01  Helper file exists at the expected path.
-  T02  Helper file declares SPDX Apache-2.0 header and "-- Reza"
+  T01 Helper file exists at the expected path.
+  T02 Helper file declares SPDX Apache-2.0 header and "-- the protocol zone"
        signature line (REUSE-discipline).
-  T03  A minimal valid parity document (all four substrates, one
-       invariant claim, status=parity) passes verify_parity().
-  T04  I-1: A document with tag != 'Tag-74' is rejected.
-  T05  I-1: A document with welle != 'Welle-6' is rejected.
-  T06  I-2: A document with audit_only flipped to false is rejected.
-  T07  I-2: A document with doc_form_only flipped to false is rejected.
-  T08  I-3: A document with parity_scope != 'Cross-Substrate-Parity'
+  T03 A minimal valid parity document (all four substrates, one
+       invariant claim, status=parity) passes verify_parity.
+  T04 I-1: A document with tag != '' is rejected.
+  T05 I-1: A document with wave != 'wave 6' is rejected.
+  T06 I-2: A document with audit_only flipped to false is rejected.
+  T07 I-2: A document with doc_form_only flipped to false is rejected.
+  T08 I-3: A document with parity_scope != 'Cross-Substrate-Parity'
        is rejected.
-  T09  I-4: A document with malformed parity_id (wrong prefix or too
+  T09 I-4: A document with malformed parity_id (wrong prefix or too
        short) is rejected.
-  T10  I-5: A document missing one of the four canonical substrates
+  T10 I-5: A document missing one of the four canonical substrates
        is rejected; a document with five substrates is rejected;
        duplicate substrate-ids are rejected.
-  T11  I-6: A substrate-record with lag_ticks=17 (over budget) is
+  T11 I-6: A substrate-record with lag_ticks=17 (over budget) is
        rejected; with lag_ticks=-1 is rejected; with unknown extra
        field is rejected.
-  T12  I-7: An empty parity_claims list is rejected; a parity_claims
+  T12 I-7: An empty parity_claims list is rejected; a parity_claims
        list with no 'invariant' kind is rejected; duplicate claim_ids
        are rejected.
-  T13  I-8: A claim-record with observed_in not subset of
+  T13 I-8: A claim-record with observed_in not subset of
        expected_substrates is rejected; expected_substrates empty
        is rejected; claim_kind unknown is rejected.
-  T14  I-9: A claim with status='parity' but observed_in != expected
+  T14 I-9: A claim with status='parity' but observed_in != expected
        is rejected; status='unobserved' with non-empty observed_in
        is rejected; status='divergent' with observed_in == expected
        (no actual divergence) is rejected.
-  T15  I-10: A substrate.claim_coverage referencing an unknown
+  T15 I-10: A substrate.claim_coverage referencing an unknown
        claim_id is rejected; a claim declared 'parity' but not
        listed in every expected substrate's coverage is rejected.
-  T16  I-11: divergence_budget missing field is rejected;
+  T16 I-11: divergence_budget missing field is rejected;
        max_divergent_claims out of [0,3] is rejected;
        tolerated_divergence_kinds with non-canonical entry is
        rejected.
-  T17  I-12: divergent claim count exceeding budget is rejected.
-  T18  I-13: substrate.lag_ticks exceeding budget is rejected.
-  T19  I-14: a divergent claim of an intolerable kind is rejected.
-  T20  I-15: sandbox_boundary with one of the five booleans flipped
+  T17 I-12: divergent claim count exceeding budget is rejected.
+  T18 I-13: substrate.lag_ticks exceeding budget is rejected.
+  T19 I-14: a divergent claim of an intolerable kind is rejected.
+  T20 I-15: sandbox_boundary with one of the five booleans flipped
        to false is rejected; probe_default_mode != 'inspection-only'
        is rejected.
-  T21  I-16: cross_anchors missing 'tag_73_capability_layer' is
+  T21 I-16: cross_anchors missing 'tag_73_capability_layer' is
        rejected.
-  T22  I-17: An unknown top-level field is rejected (strict shape).
-  T23  I-18: audit_only as int 1 (truthy but not bool) is rejected.
-  T24  I-19: only two of four substrates with non-empty
+  T22 I-17: An unknown top-level field is rejected (strict shape).
+  T23 I-18: audit_only as int 1 (truthy but not bool) is rejected.
+  T24 I-19: only two of four substrates with non-empty
        claim_coverage is rejected.
-  T25  CLI: subprocess invocation with a valid parity JSON exits 0
+  T25 CLI: subprocess invocation with a valid parity JSON exits 0
        and prints the expected OK banner.
-  T26  CLI: subprocess invocation with no arguments exits non-zero
+  T26 CLI: subprocess invocation with no arguments exits non-zero
        with the usage banner on stderr.
-  T27  CLI: subprocess invocation with a non-existent path exits
+  T27 CLI: subprocess invocation with a non-existent path exits
        non-zero with a 'not found' message on stderr.
-  T28  CLI: subprocess invocation with a malformed JSON file exits
+  T28 CLI: subprocess invocation with a malformed JSON file exits
        non-zero with a JSON parse-error message on stderr.
-  T29  Sandbox-boundary recital: helper does NOT import any module
+  T29 Sandbox-boundary recital: helper does NOT import any module
        outside the stdlib whitelist (no requests, urllib3, httpx,
        NATS-py, etc.).
-  T30  A divergent claim within budget passes verify_parity().
-  T31  An unobserved claim (observed_in == []) passes if all other
+  T30 A divergent claim within budget passes verify_parity.
+  T31 An unobserved claim (observed_in == []) passes if all other
        invariants hold.
 
--- Reza
+-- the protocol zone
 """
 from __future__ import annotations
 
@@ -93,7 +93,7 @@ import verify_cross_substrate_parity_spec as vcsp  # noqa: E402
 
 
 # --------------------------------------------------------------------- #
-# Canonical valid fixtures                                              #
+# Canonical valid fixtures #
 # --------------------------------------------------------------------- #
 
 
@@ -182,7 +182,7 @@ def _base_doc() -> dict:
 
 
 # --------------------------------------------------------------------- #
-# Structural / file-level                                               #
+# Structural / file-level #
 # --------------------------------------------------------------------- #
 
 
@@ -205,7 +205,7 @@ def test_t02_helper_spdx_and_signature() -> None:
 
 
 # --------------------------------------------------------------------- #
-# Happy-path                                                            #
+# Happy-path #
 # --------------------------------------------------------------------- #
 
 
@@ -214,7 +214,7 @@ def test_t03_minimal_valid_parity_doc_passes() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-1                                                                   #
+# I-1 #
 # --------------------------------------------------------------------- #
 
 
@@ -233,7 +233,7 @@ def test_t05_wrong_welle_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-2                                                                   #
+# I-2 #
 # --------------------------------------------------------------------- #
 
 
@@ -252,7 +252,7 @@ def test_t07_doc_form_only_false_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-3                                                                   #
+# I-3 #
 # --------------------------------------------------------------------- #
 
 
@@ -264,7 +264,7 @@ def test_t08_wrong_parity_scope_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-4                                                                   #
+# I-4 #
 # --------------------------------------------------------------------- #
 
 
@@ -282,7 +282,7 @@ def test_t09_malformed_parity_id_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-5                                                                   #
+# I-5 #
 # --------------------------------------------------------------------- #
 
 
@@ -306,7 +306,7 @@ def test_t10_substrates_count_and_uniqueness() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-6                                                                   #
+# I-6 #
 # --------------------------------------------------------------------- #
 
 
@@ -329,7 +329,7 @@ def test_t11_substrate_record_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-7                                                                   #
+# I-7 #
 # --------------------------------------------------------------------- #
 
 
@@ -374,7 +374,7 @@ def test_t12_parity_claims_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-8                                                                   #
+# I-8 #
 # --------------------------------------------------------------------- #
 
 
@@ -410,7 +410,7 @@ def test_t13_claim_record_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-9                                                                   #
+# I-9 #
 # --------------------------------------------------------------------- #
 
 
@@ -438,7 +438,7 @@ def test_t14_parity_status_consistency_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-10                                                                  #
+# I-10 #
 # --------------------------------------------------------------------- #
 
 
@@ -461,7 +461,7 @@ def test_t15_coverage_consistency_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-11                                                                  #
+# I-11 #
 # --------------------------------------------------------------------- #
 
 
@@ -486,7 +486,7 @@ def test_t16_divergence_budget_shape_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-12                                                                  #
+# I-12 #
 # --------------------------------------------------------------------- #
 
 
@@ -515,7 +515,7 @@ def test_t17_divergent_count_over_budget_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-13                                                                  #
+# I-13 #
 # --------------------------------------------------------------------- #
 
 
@@ -528,7 +528,7 @@ def test_t18_substrate_lag_over_budget_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-14                                                                  #
+# I-14 #
 # --------------------------------------------------------------------- #
 
 
@@ -550,7 +550,7 @@ def test_t19_intolerable_divergent_kind_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-15                                                                  #
+# I-15 #
 # --------------------------------------------------------------------- #
 
 
@@ -567,7 +567,7 @@ def test_t20_sandbox_boundary_rejects() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-16                                                                  #
+# I-16 #
 # --------------------------------------------------------------------- #
 
 
@@ -579,7 +579,7 @@ def test_t21_missing_cross_anchor_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-17                                                                  #
+# I-17 #
 # --------------------------------------------------------------------- #
 
 
@@ -591,7 +591,7 @@ def test_t22_unknown_top_level_field_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-18                                                                  #
+# I-18 #
 # --------------------------------------------------------------------- #
 
 
@@ -603,7 +603,7 @@ def test_t23_audit_only_non_bool_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# I-19                                                                  #
+# I-19 #
 # --------------------------------------------------------------------- #
 
 
@@ -634,7 +634,7 @@ def test_t24_coverage_breadth_rejected() -> None:
 
 
 # --------------------------------------------------------------------- #
-# CLI                                                                   #
+# CLI #
 # --------------------------------------------------------------------- #
 
 
@@ -694,7 +694,7 @@ def test_t28_cli_malformed_json_exits_nonzero(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------- #
-# Sandbox-boundary recital                                              #
+# Sandbox-boundary recital #
 # --------------------------------------------------------------------- #
 
 
@@ -729,7 +729,7 @@ def test_t29_helper_imports_stdlib_only() -> None:
 
 
 # --------------------------------------------------------------------- #
-# Additional happy-paths                                                #
+# Additional happy-paths #
 # --------------------------------------------------------------------- #
 
 

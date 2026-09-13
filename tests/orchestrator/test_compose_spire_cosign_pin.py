@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Tag-8 Cosign-Digest-Pin acceptance tests (additive to Tag-6 tests).
+"""Cosign-Digest-Pin acceptance tests (additive to tests).
 
-These tests cover the Tag-8 rebase that brings the Cosign-Digest-Pin
-form (Pfad B) onto the Tag-6 SPIRE-Server-Sidecar substrate. They are
-*additive* to ``test_compose_spire.py`` (16 Tag-6 invariants); they
-DO NOT replace the Tag-6 hermetic-trust-domain (``example.test``)
-posture or the Tag-6 networking layout.
+These tests cover the rebase that brings the Cosign-Digest-Pin
+form (Pfad B) onto the SPIRE-Server-Sidecar substrate. They are
+*additive* to ``test_compose_spire.py`` (16 invariants); they
+DO NOT replace the hermetic-trust-domain (``example.test``)
+posture or the networking layout.
 
-What this file asserts that Tag-6 did not:
+What this file asserts that did not:
 
   * Image-pin form is the Cosign-Digest-Pin shape
-    ``tag@sha256:<digest-or-placeholder>`` (Tag-6 also accepted
+    ``tag@sha256:<digest-or-placeholder>`` (also accepted
     tag-only, this file makes the digest-pin form mandatory).
-  * The pinned tag is exactly ``1.14.6`` (Tag-6 only required
-    ``>= 1.14``; Tag-8 nails the briefing version explicitly so a
+  * The pinned tag is exactly ``1.14.6`` (only required
+    ``>= 1.14``; nails the briefing version explicitly so a
     silent floor-bump can't slip through).
   * Container runs read-only-rootfs.
   * Container runs as non-root uid:gid ``1000:1000``.
@@ -24,13 +24,13 @@ What this file asserts that Tag-6 did not:
 
 What this file does NOT assert (deliberately):
 
-  * Trust-domain ``wakir.dev``. Tag-6's hermetic posture pins the
+  * Trust-domain ``wakir.dev``. 's hermetic posture pins the
     trust-domain to ``example.test`` (IANA-reserved test TLD) and that
-    is the right hermetic-only choice; the Tag-7 worktree had drifted
-    to ``wakir.dev`` which is the production literal. Tag-8 keeps the
-    hermetic Tag-6 trust-domain. Production-trust-domain switch is a
+    is the right hermetic-only choice; the worktree had drifted
+    to ``wakir.dev`` which is the production literal. keeps the
+    hermetic trust-domain. Production-trust-domain switch is a
     Phase-2.4 NATS-JWT-Auth-integration tag, not this rebase.
-  * Healthcheck retries == 3 / interval == 30s exact values. Tag-6's
+  * Healthcheck retries == 3 / interval == 30s exact values. 's
     healthcheck retries == 5 / interval == 10s is the more
     conservative shape for a bootstrap substrate; we keep it.
 
@@ -72,14 +72,14 @@ def spire_service(compose_doc: dict) -> dict:
 
 
 # ---------------------------------------------------------------------
-# Tag-8 image-pin form: Cosign-Digest-Pin (Pfad B)
+# image-pin form: Cosign-Digest-Pin (Pfad B)
 # ---------------------------------------------------------------------
 
 
 def test_image_has_cosign_digest_pin_form(spire_service: dict) -> None:
     """Image MUST be ``tag@sha256:<digest-or-placeholder>``.
 
-    Tag-6 accepted tag-only OR digest-pin; Tag-8 makes the digest-pin
+    accepted tag-only OR digest-pin; makes the digest-pin
     form mandatory. Both real-digest (64 hex) and the documented
     placeholder are acceptable because the Operator-Hand workflow
     fills the canonical digest after ``cosign verify`` + ``skopeo
@@ -121,7 +121,7 @@ def test_image_has_explicit_version_tag(spire_service: dict) -> None:
 
 
 def test_pinned_tag_matches_briefing_version(spire_service: dict) -> None:
-    """Tag-8 nails the briefing version exactly (Tag-6 was '>= 1.14')."""
+    """nails the briefing version exactly (was '>= 1.14')."""
     image = spire_service["image"]
     tag_part, _, _ = image.partition("@")
     assert tag_part.endswith(":1.14.6"), (
@@ -130,7 +130,7 @@ def test_pinned_tag_matches_briefing_version(spire_service: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Tag-8 hardening additions on top of Tag-6 cap_drop/no-new-privileges
+# hardening additions on top of cap_drop/no-new-privileges
 # ---------------------------------------------------------------------
 
 
@@ -161,15 +161,15 @@ def test_tmpfs_for_run_spire(spire_service: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Tag-8 explicit loopback port mapping
+# explicit loopback port mapping
 # ---------------------------------------------------------------------
 
 
 def test_api_port_bound_to_localhost_only(spire_service: dict) -> None:
     """The SPIRE-Server gRPC API (8081) must be host-bound on 127.0.0.1.
 
-    The Sprint-6 substrate is single-host and the API must never be
-    exposed on 0.0.0.0. Tag-6 had no ports mapping at all; Tag-8 adds
+    The substrate is single-host and the API must never be
+    exposed on 0.0.0.0. had no ports mapping at all; adds
     an explicit loopback mapping so an operator can introspect the
     server from the host without exposing it.
     """
@@ -188,17 +188,17 @@ def test_api_port_bound_to_localhost_only(spire_service: dict) -> None:
 
 
 # ---------------------------------------------------------------------
-# Test-count contract (Tag-8 rebase: 16 Tag-6 + 9 Tag-8 = 25 SPIRE-Compose)
+# Test-count contract (rebase: 16 + 9 = 25 SPIRE-Compose)
 # ---------------------------------------------------------------------
 
 
 def test_tag_8_adds_nine_cosign_pin_tests_on_top_of_tag_6_sixteen() -> None:
     """Pure-contract self-check: this file MUST contribute exactly 9
-    tests to the SPIRE-Compose suite. Tag-6's
+    tests to the SPIRE-Compose suite. 's
     ``test_compose_spire.py`` contributes 16 (verified by separate
     collect-only run). Total SPIRE-Compose: 25.
 
-    The 9 Tag-8 additions are:
+    The 9 additions are:
       * 4 image-pin-form (Cosign-Digest-Pin)
       * 3 hardening (read_only, non-root-user, tmpfs)
       * 1 ports (localhost-only API)

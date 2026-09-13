@@ -16,7 +16,7 @@ against the synthetic archive). The probe is forced to return a
 non-finalised result by re-binding ``upgrade_pending`` inside the
 bash heredoc; no public calendar is touched.
 
-Coverage clusters (per Tag-18 mandate):
+Coverage clusters (per mandate):
 
 * deterministic spool generation (1 event, byte-stable);
 * submit-cadence pacing via the daily budget file;
@@ -78,11 +78,11 @@ def test_tv3_script_is_executable() -> None:
 #
 # The mock python3 dispatches on argv:
 #
-#   * ``-m wat.cmd.aggregator_cli build``: write a stub manifest.json
-#     with a deterministic merkle_root derived from the hour slot.
-#   * ``-m wat.cmd.anchor_cli stamp``:     write a placeholder
-#                                           root.bin.ots in --out dir.
-#   * ``-`` and ``-c``:                     fall through to real python.
+# * ``-m wat.cmd.aggregator_cli build``: write a stub manifest.json
+# with a deterministic merkle_root derived from the hour slot.
+# * ``-m wat.cmd.anchor_cli stamp``: write a placeholder
+# root.bin.ots in --out dir.
+# * ``-`` and ``-c``: fall through to real python.
 # ---------------------------------------------------------------------------
 
 
@@ -306,7 +306,7 @@ def test_tv3_live_stamp_within_budget_succeeds(tmp_path: Path) -> None:
     Test isolation: ``WAT_TV3_BUDGET_FILE`` is pointed at a tmp_path
     location so concurrent / pre-existing repo-root budget state
     cannot poison the assertion. Driver supports the override since
-    Tag-20 (2026-05-07).
+    (2026-05-07).
     """
     mock_bin = tmp_path / "mock-bin"
     archive = tmp_path / "tv3-archive"
@@ -495,7 +495,7 @@ def test_tv3_manifest_prev_hour_root_is_null(tmp_path: Path) -> None:
     """TV-3 is by definition single-slot: prev_hour_root must be null.
 
     This pins the contract that TV-3 does NOT thread a prior root —
-    if a future refactor accidentally wires a prev root in, the
+    if a future refactor accidentally wires a prev root , the
     behavioural-probe age math would still work, but the gated
     pytest's manifest cross-check would drift. Pin it here so the
     drift surfaces in script tests.
@@ -513,9 +513,9 @@ def test_tv3_manifest_prev_hour_root_is_null(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Cluster 6: live-stamp receipt persistence (Tag-25 defect-fix).
+# Cluster 6: live-stamp receipt persistence (defect-fix).
 #
-# Background: in Phase-1b Tag-22 + Tag-24 we discovered that the
+# Background: in Phase-1b + we discovered that the
 # step-3 synthetic marker (``SYNTHETIC_TV3_OTS_RECEIPT``, 25 bytes)
 # was still on disk at the path ``ots stamp`` would write the real
 # pending receipt to, and ``ots stamp`` does NOT overwrite an
@@ -533,7 +533,7 @@ def test_tv3_live_stamp_receipt_is_not_synthetic_marker(tmp_path: Path) -> None:
     """After a successful live-stamp run, the receipt file must not
     be the 25-byte synthetic marker from step 3.
 
-    Regression for the Tag-22/Tag-24 defect: the synthetic marker
+    Regression for the/defect: the synthetic marker
     text ``SYNTHETIC_TV3_OTS_RECEIPT`` may not appear at the head of
     ``root.bin.ots`` after step 6 has run.
     """
@@ -569,7 +569,7 @@ def test_tv3_live_stamp_receipt_size_clears_floor(tmp_path: Path) -> None:
     treat the file as a failed persistence (synthetic marker still
     present, or partial write).
 
-    Tag-25 sanity-check pinning: the driver must enforce this and
+    sanity-check pinning: the driver must enforce this and
     exit 7 when the floor is missed; the happy-path mock writes
     1024 bytes so the assertion holds positively.
     """

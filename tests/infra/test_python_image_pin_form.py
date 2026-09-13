@@ -3,15 +3,13 @@
 """Hermetic image-pin syntax invariants for the python:3.13-slim base
 image.
 
-Phase-2 Sprint-9 Tag-1/3 history: the per-org NATS-KV bucket-init
+Phase-2 /3 history: the per-org NATS-KV bucket-init
 Quadlet (``quadlet/wakir-nats-kv-bucket-init.container``) referenced
 ``docker.io/library/python:3.13-slim`` directly, and this test
 asserted the pin on the Quadlet.
 
-Phase-2 Sprint-9 Tag-4 re-target: the Quadlet now references the
-dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image (Mira-Bug-
-Bilanz 2026-05-13, Bug 6 — the slim image does not ship ``nats-py``
-nor ``cryptography``). The ``python:3.13-slim`` reference moved to
+Phase-2 re-target: the Quadlet now references the
+dedicated ``ghcr.io/wakir-labs/wakir-provisioner`` image. The ``python:3.13-slim`` reference moved to
 the ``wakir-provisioner`` Containerfile's ``FROM`` line:
 ``infra/spire/federation/provisioner/Containerfile``. This test was
 updated to target the Containerfile.
@@ -75,7 +73,7 @@ def _read(path: Path) -> str:
 
 def test_containerfile_exists() -> None:
     """The wakir-provisioner Containerfile is the new consuming file
-    for the python base layer (Sprint-9 Tag-4 re-target)."""
+    for the python base layer ( re-target)."""
     assert CONTAINERFILE.exists(), (
         f"missing wakir-provisioner Containerfile: {CONTAINERFILE}"
     )
@@ -99,7 +97,7 @@ def test_python_pin_uses_canonical_form() -> None:
 
 
 def test_python_pin_tag_matches_baseline() -> None:
-    """The pinned tag is ``3.13-slim`` per the Sprint-9 Tag-1 / Tag-4
+    """The pinned tag is ``3.13-slim`` per the /
     baseline. Drift to a different tag (e.g. ``3.13-alpine``) is a
     surface-level decision that must be reflected here AND in
     IMAGE_PINS.md before it lands."""
@@ -162,7 +160,7 @@ def test_image_pins_md_flags_drift_alarm_for_python() -> None:
 
 
 def test_quadlet_no_longer_pins_python_directly() -> None:
-    """Sprint-9 Tag-4 invariant: the Quadlet
+    """ invariant: the Quadlet
     ``wakir-nats-kv-bucket-init.container`` MUST NOT carry a direct
     ``docker.io/library/python`` image pin on its active ``Image=``
     directive. The Quadlet now references
@@ -170,7 +168,7 @@ def test_quadlet_no_longer_pins_python_directly() -> None:
     is exclusively a Containerfile-level concern.
 
     A regression that re-adds a direct python pin to the Quadlet
-    would re-open the Tag-1 wheel-availability gap that Bug 6
+    would re-open the wheel-availability gap that Bug 6
     surfaced on the Pilot-VM bring-up.
     """
     quadlet = (

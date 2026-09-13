@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-10 Tag-1 ``WAKIR_SIDE`` extension of
+"""Hermetic tests for the ``WAKIR_SIDE`` extension of
 ``infra/spire/federation/wakir-pilot-bootstrap.sh``.
 
-Sprint-10 Tag-1 adds Cross-VM-Federation substance: the bootstrap is
+ adds Cross-VM-Federation substance: the bootstrap is
 side-aware via the ``WAKIR_SIDE`` env-var. This test suite asserts
 the script-shape invariants without running a live VM.
 
@@ -17,7 +17,7 @@ Test-Vector index
   * ``TV-SIDE-01`` ``WAKIR_SIDE`` env-var is documented in the header
     block AND in the usage banner AND in the post-defaults validation.
   * ``TV-SIDE-02`` Default value of ``WAKIR_SIDE`` is ``wakir`` (the
-    Sprint-9 Tag-1 baseline; backwards-compat invariant).
+     baseline; backwards-compat invariant).
   * ``TV-SIDE-03`` Validation rejects unknown side literals at startup
     (orbit, partner, wakir accepted; any other -> exit 1).
   * ``TV-SIDE-04`` Auto-sync between ``WAKIR_SIDE`` and
@@ -72,9 +72,9 @@ def test_wakir_side_documented_in_header_block(bootstrap_source: str):
 
 
 def test_wakir_side_documented_in_usage_banner(bootstrap_source: str):
-    # The usage() function emits a banner with env-var hints. WAKIR_SIDE
+    # The usage function emits a banner with env-var hints. WAKIR_SIDE
     # MUST appear there for operators who run --help.
-    # We look for the substring "WAKIR_SIDE" within the usage() body.
+    # We look for the substring "WAKIR_SIDE" within the usage body.
     usage_match = re.search(r"usage\(\)\s*\{(.*?)^\}", bootstrap_source, re.DOTALL | re.MULTILINE)
     assert usage_match, "usage() function not found"
     usage_body = usage_match.group(1)
@@ -230,8 +230,8 @@ def test_orbit_configs_are_structural_mirror_of_wakir_configs():
     bundle format, same insecure_bootstrap posture. Only the trust-
     domain literal and the federates_with peer URL differ.
 
-    This invariant is the Sprint-8 Tag-1 cross-side-byte-parity
-    contract — extending it to orbit is the Sprint-10 Tag-1 substance.
+    This invariant is the cross-side-byte-parity
+    contract — extending it to orbit is the substance.
     """
     wakir = (_REPO_ROOT / "infra" / "spire" / "federation" / "config" / "spire-server-wakir.conf").read_text()
     orbit = _SERVER_ORBIT_CONF.read_text()
@@ -241,7 +241,7 @@ def test_orbit_configs_are_structural_mirror_of_wakir_configs():
         assert re.search(r'bind_port\s*=\s*"8081"', body), (
             f"spire-server-{name}.conf must bind gRPC on port 8081"
         )
-        # Sprint-10 Tag-5 Bug-30/31 substance-fix: the prior assert
+        # Bug-30/31 substance-fix: the prior assert
         # checked ``profile = "https_spiffe"`` as a flat-attribute.
         # That syntax is INVALID HCL for SPIRE 1.14.6 inside
         # bundle_endpoint (parser emits ``malformed configuration``).
@@ -274,7 +274,7 @@ def test_orbit_configs_are_structural_mirror_of_wakir_configs():
 
 
 def test_partner_vm_bring_up_recipe_exists():
-    """The new Sprint-10 Tag-1 Recipe MUST exist at the documented
+    """The new Recipe MUST exist at the documented
     path and reference the WAKIR_SIDE substance + the federation-mode
     smoke check."""
     recipe = _REPO_ROOT / "infra" / "spire" / "federation" / "PARTNER_VM_BRING_UP_RECIPE.md"

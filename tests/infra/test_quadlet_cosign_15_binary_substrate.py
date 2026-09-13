@@ -1,20 +1,20 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic invariants for the Tag-45 Quadlet+Cosign 15-binary
+"""Hermetic invariants for the Quadlet+Cosign 15-binary
 substrate refresh.
 
-Tag-45 Mini-Welle closes Reza's Phase-3a-Foundation 15-module sweep
+Mini-wave closes the protocol zone's Phase-3a-Foundation 15-module sweep
 by extending both the Cosign-Policy (13 -> 15 binaries) and the
 Quadlet installer Exec= loop (9 -> 11 carrier-image binaries). The
 two additions are:
 
-  * ``bridge-audit-replay`` (Tag-37 Mini-Welle PR #246 — 14. Phase-3a
+  * ``bridge-audit-replay`` (Mini-wave PR #246 — 14. Phase-3a
     Modul; deterministic-replay-oracle canonical-trace bridge).
-  * ``migrate-version`` (Tag-38 Mini-Welle PR #250 — 15. Phase-3a
+  * ``migrate-version`` (Mini-wave PR #250 — 15. Phase-3a
     Modul; engine-version migration pre-flight decision canonical-
     trace; closes the Phase-3a-Foundation sweep at 15/15).
 
-This module ships 12 hermetic invariants covering the Tag-45 substrate
+This module ships 12 hermetic invariants covering the substrate
 slice. Live verification (cosign, crane, podman, systemctl) is
 Operator-Hand per ``feedback_sandbox_host_trennung.md`` + ADR-0051;
 this test surface reads files on disk only.
@@ -22,10 +22,9 @@ this test surface reads files on disk only.
 Sibling tests
 -------------
   * ``tests/infra/test_cosign_policy_phase_3b.py`` — Cosign-Policy
-    full-shape invariants (extended to 15 binaries at Tag-45).
+    full-shape invariants (extended to 15 binaries).
   * ``tests/infra/test_quadlets_phase_3b.py`` — Quadlet installer
-    full-shape invariants (extended to 11 carrier-image binaries at
-    Tag-45).
+    full-shape invariants (extended to 11 carrier-image binaries).
   * ``tests/infra/test_quadlet_selinux_relabel.py`` — global
     SELinux-relabel discipline.
 
@@ -33,19 +32,19 @@ Test-Vector index
 -----------------
   * ``TV-T45-01`` policy at 15-binary inventory.
   * ``TV-T45-02`` Quadlet installer at 11-binary carrier-image set.
-  * ``TV-T45-03`` Tag-45 additions present in policy with required keys.
-  * ``TV-T45-04`` Tag-45 additions present in Quadlet Exec= loop.
-  * ``TV-T45-05`` Tag-45 DEFAULT_RUST_*_BIN constants declared.
-  * ``TV-T45-06`` Tag-45 ENV-switches documented in operations doc.
-  * ``TV-T45-07`` Tag-45 in-image paths match Quadlet basenames.
-  * ``TV-T45-08`` Tag-45 crate paths exist on disk with Cargo.toml.
-  * ``TV-T45-09`` Carrier-image set is 11, not 15 (Welle-4..7
+  * ``TV-T45-03`` additions present in policy with required keys.
+  * ``TV-T45-04`` additions present in Quadlet Exec= loop.
+  * ``TV-T45-05`` DEFAULT_RUST_*_BIN constants declared.
+  * ``TV-T45-06`` ENV-switches documented in operations doc.
+  * ``TV-T45-07`` in-image paths match Quadlet basenames.
+  * ``TV-T45-08`` crate paths exist on disk with Cargo.toml.
+  * ``TV-T45-09`` Carrier-image set is 11, not 15 (wave 4..7
     dedicated images stay out of the installer).
-  * ``TV-T45-10`` Tag-45 recipe doc present and anchors policy.
-  * ``TV-T45-11`` Tag-45 landed-PR anchors correct (#246, #250).
-  * ``TV-T45-12`` Sandbox boundary stamp preserved post-Tag-45.
+  * ``TV-T45-10`` recipe doc present and anchors policy.
+  * ``TV-T45-11`` landed-PR anchors correct (#246, #250).
+  * ``TV-T45-12`` Sandbox boundary stamp preserved post-.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -67,7 +66,7 @@ OPERATIONS_DOC = (
     REPO_ROOT / "docs" / "operations" / "cosign-policy-phase-3b.md"
 )
 
-# Tag-45 binary additions — canonical-only bridges shipped in the
+# binary additions — canonical-only bridges shipped in the
 # carrier image (no dedicated single-binary images).
 TAG45_BINARIES = ("bridge-audit-replay", "migrate-version")
 TAG45_IN_IMAGE_PATHS = {
@@ -106,8 +105,8 @@ TAG45_CRATE_PATHS = {
 }
 
 # The 11 carrier-image binaries the installer Exec= loop deploys.
-# The Welle-4..7 dedicated single-binary images (state-backing-welle4
-# etc.) are NOT in this set — they have their own per-Welle Quadlets.
+# The wave 4..7 dedicated single-binary images (state-backing-welle4
+# etc.) are NOT in this set — they have their own per-wave Quadlets.
 EXPECTED_CARRIER_BINARIES = (
     "wakir-persona-engine-recovery",
     "wakir-persona-engine-state-backing",
@@ -118,7 +117,7 @@ EXPECTED_CARRIER_BINARIES = (
     "wakir-persona-engine-anchor-emitter",
     "wakir-persona-engine-svid-workload-identity",
     "wakir-persona-engine-bridge-audit-writer",
-    # Tag-45 additions.
+    # additions.
     "wakir-persona-engine-bridge-audit-replay",
     "wakir-persona-engine-migrate-version",
 )
@@ -153,15 +152,15 @@ def quadlet_text() -> str:
 # TV-T45-01 — policy at 15-binary inventory
 # ---------------------------------------------------------------------------
 def test_policy_at_15_binary_inventory(policy: dict) -> None:
-    """The Tag-45 Cosign-Policy MUST list exactly 15 binary entries.
+    """the Cosign-Policy MUST list exactly 15 binary entries.
 
     The 15-entry set is composed of:
       * 9 carrier-image Phase-3b binaries (recovery, state-backing,
         fsm, v907-verify, bridge-diff, subscribe-loop, anchor-emitter,
         svid-workload-identity, bridge-audit-writer).
-      * 4 Welle-4..7 dedicated single-binary images (state-backing-
+      * 4 wave 4..7 dedicated single-binary images (state-backing-
         welle4, fsm-welle5, subscribe-loop-welle6, recovery-welle7).
-      * 2 Tag-45 canonical-trace bridges (bridge-audit-replay,
+      * 2 canonical-trace bridges (bridge-audit-replay,
         migrate-version).
 
     Drift-guard: any inventory change MUST update this count in
@@ -217,7 +216,7 @@ def test_quadlet_installer_at_11_binary_carrier_image(
 
     # Filter to the Exec= loop body — the shell loop variable ``$b``
     # is referenced in the body via ``\"/opt/wakir/bin/$b\"`` so the
-    # canonical paths above also appear; dedupe via set() captures
+    # canonical paths above also appear; dedupe via set captures
     # both.
     expected_set = set(EXPECTED_CARRIER_BINARIES)
     assert basenames == expected_set, (
@@ -231,19 +230,19 @@ def test_quadlet_installer_at_11_binary_carrier_image(
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-03 — Tag-45 additions present in policy with required keys
+# TV-T45-03 — additions present in policy with required keys
 # ---------------------------------------------------------------------------
 def test_tag45_additions_present_in_policy(policy: dict) -> None:
-    """Both Tag-45 binary entries (bridge-audit-replay,
+    """Both binary entries (bridge-audit-replay,
     migrate-version) MUST be first-class policy entries carrying the
     required key set (name, component, crate_path, in_image_path,
     env_switch, env_switch_value, env_binary_override, landed_pr,
     landed_tag, purpose).
 
-    Drift-guard: a half-resolved Tag-45 substrate-refresh (e.g. the
+    Drift-guard: a half-resolved substrate-refresh (e.g. The
     YAML entry is present but missing the crate_path field) would
     leak through the existing parity tests; this test pins the full
-    key shape per Tag-45 addition.
+    key shape per addition.
     """
     REQUIRED_KEYS = {
         "name",
@@ -282,12 +281,12 @@ def test_tag45_additions_present_in_policy(policy: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-04 — Tag-45 additions present in Quadlet Exec= loop
+# TV-T45-04 — additions present in Quadlet Exec= loop
 # ---------------------------------------------------------------------------
 def test_tag45_additions_present_in_quadlet_exec_loop(
     quadlet_text: str,
 ) -> None:
-    """Both Tag-45 binary basenames (wakir-persona-engine-bridge-
+    """Both binary basenames (wakir-persona-engine-bridge-
     audit-replay, wakir-persona-engine-migrate-version) MUST appear
     in the Quadlet installer Exec= shell loop.
 
@@ -313,10 +312,10 @@ def test_tag45_additions_present_in_quadlet_exec_loop(
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-05 — Tag-45 DEFAULT_RUST_*_BIN constants declared
+# TV-T45-05 — DEFAULT_RUST_*_BIN constants declared
 # ---------------------------------------------------------------------------
 def test_tag45_additions_have_default_rust_bin_constants() -> None:
-    """Both Tag-45 binaries MUST have a corresponding
+    """Both binaries MUST have a corresponding
     ``DEFAULT_RUST_*_BIN`` constant declared in
     ``wirelang/persona_engine/rust_backend_switch.py`` that resolves
     to the canonical ``/opt/wakir/bin/`` path declared by the policy.
@@ -325,7 +324,7 @@ def test_tag45_additions_have_default_rust_bin_constants() -> None:
     binaries via the DEFAULT_RUST_*_BIN constants; if the constant is
     missing, the bridge silently falls back to Python with a
     ``fallback_reason: missing_binary`` audit-record line — which
-    defeats the Tag-45 substrate-refresh intent.
+    defeats the substrate-refresh intent.
     """
     assert RUST_SWITCH_MODULE.exists(), (
         f"rust_backend_switch.py missing at {RUST_SWITCH_MODULE}"
@@ -361,10 +360,10 @@ def test_tag45_additions_have_default_rust_bin_constants() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-06 — Tag-45 ENV-switches documented in operations doc
+# TV-T45-06 — ENV-switches documented in operations doc
 # ---------------------------------------------------------------------------
 def test_tag45_env_switches_documented_in_operations_doc() -> None:
-    """Both Tag-45 ENV-switches (WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND,
+    """Both ENV-switches (WAKIR_BRIDGE_AUDIT_REPLAY_BACKEND,
     WAKIR_MIGRATE_VERSION_BACKEND) MUST appear in the operations doc
     (``docs/operations/cosign-policy-phase-3b.md``).
 
@@ -385,19 +384,19 @@ def test_tag45_env_switches_documented_in_operations_doc() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-07 — Tag-45 in-image paths match Quadlet basenames
+# TV-T45-07 — in-image paths match Quadlet basenames
 # ---------------------------------------------------------------------------
 def test_tag45_in_image_paths_match_quadlet_install_loop(
     policy: dict,
     quadlet_text: str,
 ) -> None:
-    """For each Tag-45 binary the in-image path from the policy MUST
+    """For each binary the in-image path from the policy MUST
     decompose to a basename that appears in the Quadlet Exec= loop
     and reassembles to the canonical /opt/wakir/bin/ form.
 
     Drift-guard: a path-vs-basename mismatch (e.g. policy says
     /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay but the
-    Quadlet only ships .../bridge-audit-replay) would silently leave
+    Quadlet only ships.../bridge-audit-replay) would silently leave
     the bridge resolving the wrong binary.
     """
     by_name = {b["name"]: b for b in policy["binaries"]}
@@ -423,10 +422,10 @@ def test_tag45_in_image_paths_match_quadlet_install_loop(
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-08 — Tag-45 crate paths exist on disk with Cargo.toml
+# TV-T45-08 — crate paths exist on disk with Cargo.toml
 # ---------------------------------------------------------------------------
 def test_tag45_crate_paths_exist_on_disk(policy: dict) -> None:
-    """The crate_path for both Tag-45 binaries MUST point at a
+    """The crate_path for both binaries MUST point at a
     directory that exists on disk and carries a Cargo.toml.
 
     Drift-guard: a typo in the crate_path field (e.g.
@@ -460,13 +459,13 @@ def test_tag45_carrier_image_set_is_11_not_15(quadlet_text: str) -> None:
     """The Quadlet installer Exec= loop MUST iterate exactly 11
     carrier-image binaries, NOT the full 15 from the Cosign-Policy.
 
-    The four Welle-4..7 dedicated single-binary images (state-
+    The four wave 4..7 dedicated single-binary images (state-
     backing-welle4, fsm-welle5, subscribe-loop-welle6, recovery-
-    welle7) are deployed by their own per-Welle Quadlets, not by
+    welle7) are deployed by their own per-wave Quadlets, not by
     this installer.
 
     Drift-guard: an operator copying the Cosign-Policy 15-binary set
-    into the installer Exec= loop would deploy the four Welle-4..7
+    into the installer Exec= loop would deploy the four wave 4..7
     dedicated-image binaries via the wrong substrate; this test
     pins the boundary.
     """
@@ -484,7 +483,7 @@ def test_tag45_carrier_image_set_is_11_not_15(quadlet_text: str) -> None:
     )
     for suffix in welle_4_7_suffixes:
         # The Exec= loop must NOT carry any -welleN-suffixed basename;
-        # those are deployed by per-Welle Quadlets, not by this
+        # those are deployed by per-wave Quadlets, not by this
         # carrier-image installer.
         forbidden_basename = f"wakir-persona-engine-state-backing{suffix}"
         # Construct candidates for each -welleN dedicated binary.
@@ -503,20 +502,20 @@ def test_tag45_carrier_image_set_is_11_not_15(quadlet_text: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-10 — Tag-45 recipe doc present and anchors policy
+# TV-T45-10 — recipe doc present and anchors policy
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
-# TV-T45-11 — Tag-45 landed-PR anchors correct (#246, #250)
+# TV-T45-11 — landed-PR anchors correct (#246, #250)
 # ---------------------------------------------------------------------------
 def test_tag45_landed_pr_anchors_correct(policy: dict) -> None:
-    """The Tag-45 policy entries MUST anchor on the correct landed-PR
-    numbers — #246 for bridge-audit-replay (Tag-37 Mini-Welle, 14.
-    Phase-3a Modul) and #250 for migrate-version (Tag-38 Mini-Welle,
+    """the policy entries MUST anchor on the correct landed-PR
+    numbers — #246 for bridge-audit-replay (Mini-wave, 14.
+    Phase-3a Modul) and #250 for migrate-version (Mini-wave,
     15. Phase-3a Modul).
 
     Drift-guard: a typo in the landed_pr field would break the
     traceability anchor between the Cosign-Policy inventory and the
-    Reza-side Phase-3a-Foundation sweep tracker (ADR-0063
+    the protocol zone-side Phase-3a-Foundation sweep tracker (ADR-0063
     §Folgeartefakte).
     """
     by_name = {b["name"]: b for b in policy["binaries"]}
@@ -530,12 +529,12 @@ def test_tag45_landed_pr_anchors_correct(policy: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-T45-12 — Sandbox boundary stamp preserved post-Tag-45
+# TV-T45-12 — Sandbox boundary stamp preserved post-
 # ---------------------------------------------------------------------------
 def test_tag45_sandbox_boundary_stamp_preserved(policy: dict) -> None:
     """The Cosign-Policy file MUST still carry the sandbox-boundary
-    stamp after the Tag-45 inventory bump — no ``run_in_sandbox:
-    true`` regression leaked in.
+    stamp after the inventory bump — no ``run_in_sandbox:
+    true`` regression leaked .
 
     Drift-guard: a future PR that accidentally adds a sandbox-side
     cosign invocation hook (``run_in_sandbox: true``) would

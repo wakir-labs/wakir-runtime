@@ -1,16 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Bug-42 Regression-Suite (Tag-48).
+"""Bug-42 Regression-Suite.
 
-Owner: Amara Osei (QA)
-Source: Tag-48 Amara Auftrag (Continuous-Mode, 2026-05-18/19)
+Owner: the QA zone Osei (QA)
+Source: the QA zone assignment, 2026-05-18/19)
 Related ADRs / spec sections:
-- Tag-41 PR #265 (Selin) — Bug-42 silent-drop F-1 fix:
+- PR #265 — Bug-42 silent-drop F-1 fix:
   ``wirelang/persona_engine/publish_mode_contract.py`` (Adapter-B
   substrate), ``wirelang/cli/bridge_forward.py`` (``--publish-mode``
   dispatch), ``wirelang/persona_engine/cli.py`` (``require_compatible``
   pre-flight gate).
-- Tag-43 PR #278 (Selin) — NATS-JetStream-Subjects-Audit-Baseline
+- PR #278 — NATS-JetStream-Subjects-Audit-Baseline
   (0 drift) at ``scripts/audit/nats-jetstream-subjects-audit.py``.
 - Spec ``wirelang/specs/wirelang-spec-v0-2.md`` §13.2 / §13.3 / §13.4.
 - Schema ``wirelang/schemas/layer-0-transport.json``
@@ -18,18 +18,18 @@ Related ADRs / spec sections:
 
 Contract scope
 --------------
-This suite asserts that the Bug-42 fix (Tag-41 PR #265) cannot
+This suite asserts that the Bug-42 fix (PR #265) cannot
 silently regress along three axes:
 
-1.  **Section A — Publish-Mode-Contract-Matrix (5 tests).** All four
+1. **Section A — Publish-Mode-Contract-Matrix (5 tests).** All four
     ``publish_mode × subscribe_surface`` combinations behave per the
     spec §13.2 frozen matrix. F-1 / F-2 stay BROKEN; the two HARD-
     COMPATIBLE pairs stay COMPATIBLE; the fan-out pair stays FANOUT-
     dependent; the env-var resolver round-trips both valid modes and
     rejects an unknown mode.
 
-2.  **Section B — NATS-Subject-Pattern-Drift (6 tests).** The 7
-    ``wakir.<env>.*`` literal/template sites listed in the Tag-43
+2. **Section B — NATS-Subject-Pattern-Drift (6 tests).** The 7
+    ``wakir.<env>.*`` literal/template sites listed in the
     audit baseline (2 templates × 4 sites + 2 concrete literals + 1
     output-channel template = 7 hits in 5 distinct files) all match
     the canonical schema regex; the canonical regex itself is pinned
@@ -37,23 +37,23 @@ silently regress along three axes:
     ``Agent``) is classified as drift by the audit's template
     classifier.
 
-3.  **Section C — Failure-Mode-Catalogue (5 tests).** The spec's
+3. **Section C — Failure-Mode-Catalogue (5 tests).** The spec's
     F-1..F-6 catalogue is intact: all six IDs are present in the
     spec; the machine-readable ``_FAILURE_MODE_BY_PAIR`` dispatch
     maps the two BROKEN pairs to F-1 / F-2; ``SurfaceMismatchError``
     carries the verdict on a broken pipe; the recommended-adapter
     sentence references both Adapter-A and Adapter-B per spec §13.4.
 
-4.  **Section D — Audit-Script-Invariants (4 tests).** The Tag-43
+4. **Section D — Audit-Script-Invariants (4 tests).** the
     audit, run against the repo at HEAD, still reports 0 drift, 24
     wakir-namespace literals, 7 NATS subjects, and exactly 3
     mode-cross-validation modules; the audit's exit code stays 0 in
     audit-only mode and 0 in ``--enforce`` mode (drift-free repo).
 
 This is a Zone-M cross-component regression suite: it consumes
-Selin's publish-mode-contract module and Selin's audit script as
+the engine zone's publish-mode-contract module and the engine zone's audit script as
 read-only test surface. It does **not** modify either; it pins their
-observable invariants so Tag-49+ refactors cannot silently break the
+observable invariants so + refactors cannot silently break the
 Bug-42 closure.
 
 Hermetic profile
@@ -63,7 +63,7 @@ Hermetic profile
   ``importlib.util.spec_from_file_location`` because its filename
   contains hyphens (not importable via plain ``import``).
 - The frozen-matrix tests parametrize over the public mode constants
-  exposed by :mod:`wirelang.persona_engine.publish_mode_contract` so
+  exposed :mod:`wirelang.persona_engine.publish_mode_contract` so
   a future rename of a constant is caught at import time (loud) and
   a future addition of a mode shows up as a parametrize gap (loud).
 """
@@ -123,9 +123,9 @@ def audit_result(audit_module):
 #
 # Spec §13.2 frozen matrix:
 #
-#                  | sub=core | sub=js-push | sub=js-pull
-#   pub=core       | COMPAT   | F-2 BROKEN  | F-1 BROKEN
-#   pub=jetstream  | FANOUT   | COMPAT      | COMPAT
+# | sub=core | sub=js-push | sub=js-pull
+# pub=core | COMPAT | F-2 BROKEN | F-1 BROKEN
+# pub=jetstream | FANOUT | COMPAT | COMPAT
 #
 # Every cell is exercised; the matrix is parameterized so a future
 # mode addition surfaces as a parametrize gap.
@@ -196,7 +196,7 @@ def test_a2_matrix_dimensions_pin_2x3_shape() -> None:
 def test_a3_require_compatible_raises_on_broken_pipe() -> None:
     """A3: ``require_compatible`` raises ``SurfaceMismatchError`` on F-1.
 
-    This is the Tag-41 Adapter-B preflight gate — the test pins that
+    This is the Adapter-B preflight gate — the test pins that
     the gate is a hard raise, not a warning.
     """
     with pytest.raises(pmc.SurfaceMismatchError) as exc_info:
@@ -253,11 +253,11 @@ def test_a5_env_var_resolver_roundtrips_and_rejects(monkeypatch) -> None:
 # Section B — NATS-Subject-Pattern-Drift (6 tests)
 # ---------------------------------------------------------------------------
 #
-# Tag-43 baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
+# baseline (`docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md`):
 # - 24 wakir.* literals total (NATS subjects: 7, namespace-ids: 17)
 # - 0 drift rows
 #
-# Tag-48 pins the canonical regex + the 7-subject inventory + the
+# pins the canonical regex + the 7-subject inventory + the
 # template/literal classifier.
 
 
@@ -277,7 +277,7 @@ def test_b1_canonical_subject_regex_mirrors_json_schema(audit_module) -> None:
 
 def test_b2_seven_nats_subjects_inventory_pinned(audit_result) -> None:
     """B2: The audit reports exactly 7 NATS-subject hits (verdict ``ok``
-    or ``ok (template)``). This is the Tag-43 baseline.
+    or ``ok (template)``). This is the baseline.
 
     A new module that introduces an 8th subject MUST be reviewed
     against the schema regex; this test surfaces the introduction
@@ -341,7 +341,7 @@ def test_b4_subjects_cover_expected_event_axes(audit_result) -> None:
         f"literals: {literals}"
     )
     # At least one persona-slug-bound concrete literal must exist
-    # (Tag-43 baseline: tomas + reza).
+    # (baseline: tomas + reza).
     concrete = [lit for lit in literals if "{" not in lit]
     assert any(lit.endswith((".tomas", ".reza")) for lit in concrete), (
         f"expected at least one concrete persona-slug literal "
@@ -352,7 +352,7 @@ def test_b4_subjects_cover_expected_event_axes(audit_result) -> None:
 def test_b5_canonical_regex_rejects_uppercase_domain(audit_module) -> None:
     """B5: The canonical regex MUST reject ``wakir.dev.Agent.task.assigned``
     (capital ``Agent``). This is the regression target the audit's
-    Tag-43 test_subject_pattern_drift uses; pinning it at the
+    test_subject_pattern_drift uses; pinning it at the
     integration layer guards against a silent regex loosening.
     """
     regex = audit_module.SCHEMA_SUBJECT_REGEX
@@ -405,7 +405,7 @@ def test_b6_subject_inventory_seven_hits_distributed_across_languages(audit_resu
 def test_c1_spec_lists_all_six_failure_mode_ids() -> None:
     """C1: ``wirelang/specs/wirelang-spec-v0-2.md`` mentions F-1..F-6.
 
-    The Tag-43 audit's Failure-Mode-Catalogue is built off this spec
+    The audit's Failure-Mode-Catalogue is built off this spec
     block; a silent demotion of an ID (e.g. removing F-3 without
     spec-update + ADR) would re-open a documentation gap.
     """
@@ -463,7 +463,7 @@ def test_c4_recommended_adapter_references_both_a_and_b() -> None:
     both Adapter-A (stream-mirror) and Adapter-B (producer-rewrite,
     Phase-2c strategic target).
 
-    The Tag-41 fix landed Adapter-B substrate; the diagnosis must keep
+    The fix landed Adapter-B substrate; the diagnosis must keep
     citing Adapter-A as the operational default and Adapter-B as the
     strategic target — operator runbooks rely on the two-name pair.
     """
@@ -509,8 +509,8 @@ def test_c5_compatible_and_fanout_verdicts_have_no_failure_mode_id() -> None:
 def test_d1_audit_reports_zero_drift_at_head(audit_result) -> None:
     """D1: At repo HEAD the audit reports exactly 0 drift rows.
 
-    Tag-43 baseline (``docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md``):
-    0 drift, 276 scanned files. Tag-48 pins the 0-drift invariant; the
+    baseline (``docs/archive/evidence/audits/2026-05-18-nats-jetstream-subjects-audit.md``):
+    0 drift, 276 scanned files. pins the 0-drift invariant; the
     file count is allowed to grow as the codebase grows.
     """
     assert audit_result.drift_count == 0, (
@@ -529,7 +529,7 @@ def test_d2_audit_reports_three_mode_check_modules(audit_result) -> None:
     ``persona_engine/cli.py`` (no-publish-mode / consumer),
     ``publish_mode_contract.py`` (no-publish-mode / contract).
 
-    Tag-43 baseline. A 4th module appearing means a new publisher
+    baseline. A 4th module appearing means a new publisher
     landed; that publisher MUST be reviewed for Bug-42 closure
     (Adapter-B dispatch + gate). A drop to 2 means one of the three
     was removed without spec-update.
@@ -545,7 +545,7 @@ def test_d2_audit_reports_three_mode_check_modules(audit_result) -> None:
 
 
 def test_d3_audit_namespace_id_count_pinned(audit_result) -> None:
-    """D3: 17 namespace-id literals at the Tag-43 baseline.
+    """D3: 17 namespace-id literals at the baseline.
 
     Namespace-ids are informational (telemetry meters / schema-ids /
     DID prefixes). A drop indicates a removed metric or schema-id; an
@@ -562,8 +562,8 @@ def test_d3_audit_namespace_id_count_pinned(audit_result) -> None:
     ]
     # Lower bound from the first audit baseline (17), re-pinned to 14 when
     # three dead scripts carrying namespace-id literals were removed
-    # (ADR-0072 W5: welle-1-2-doppel-telemetry-emitter.py,
-    # welle-3-telemetry-emitter.py, spiffe_skizze_constants.py). Upper
+    # (ADR-0072 W5: wave 1 2-doppel-telemetry-emitter.py,
+    # wave 3 telemetry-emitter.py, spiffe_skizze_constants.py). Upper
     # bound generous to accommodate organic growth of telemetry meter names.
     assert len(namespace_ids) >= 14, (
         f"namespace-id count dropped to {len(namespace_ids)}; "
@@ -599,7 +599,7 @@ def test_d4_audit_cli_invocation_exit_zero_drift_free() -> None:
     )
     # Enforce mode — at HEAD the repo is drift-free so this MUST also
     # exit 0. A regression that introduces drift would flip this to 2
-    # on CI and on Tag-48 regression.
+    # on CI and on regression.
     proc_enf = subprocess.run(
         [sys.executable, str(_AUDIT_SCRIPT), "--enforce"],
         cwd=_REPO_ROOT,

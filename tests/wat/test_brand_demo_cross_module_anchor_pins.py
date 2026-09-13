@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Brand-Demo-Verifier Cross-Module byte-coordinated anchor pins.
 
-Sprint-4 Tag-4 — Option A (Brand-Demo-Verifier-Cross-Module-Test).
+ — Option A (Brand-Demo-Verifier-Cross-Module-Test).
 
 This module pins the byte-level Cross-Module contracts that a
 hypothetical Brand-Demo-Snapshot emitter (as specified by

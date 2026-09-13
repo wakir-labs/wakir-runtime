@@ -512,7 +512,7 @@ def test_main_writes_textfile_atomically(
     content = target.read_text()
     assert "wat_anchor_pipeline_scrape_timestamp_seconds 1747400000\n" in content
     assert "wat_anchor_cli_unavailable 1\n" in content
-    # Confirm no .tmp leftover beside the target.
+    # Confirm no.tmp leftover beside the target.
     leftovers = [
         p.name for p in target.parent.iterdir() if p.name != target.name
     ]
@@ -582,7 +582,7 @@ def test_format_value_renders_ints_and_floats() -> None:
     assert obs._format_value(-1) == "-1"
     assert obs._format_value(3.0) == "3"
     assert obs._format_value(0.5) == "0.5"
-    # Bool is an int subclass; defend against truthiness leaking in.
+    # Bool is an int subclass; defend against truthiness leaking .
     assert obs._format_value(True) == "1"
     assert obs._format_value(False) == "0"
     # Non-numeric values render as 0 (gauge stays additive).
@@ -593,9 +593,9 @@ def test_format_value_renders_ints_and_floats() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Per-anchor latency-histogram path (Tag-12 mini-welle).
+# Per-anchor latency-histogram path (mini-wave).
 # Exercises: window-size resolution, JSONL parsing, percentile correctness,
-# histogram bucketization, JSON+Prom rendering, main() dispatch.
+# histogram bucketization, JSON+Prom rendering, main dispatch.
 # ---------------------------------------------------------------------------
 
 
@@ -966,7 +966,7 @@ def test_render_prom_histogram_buckets_are_cumulative_per_stage() -> None:
     assert 'wat_anchor_stage_latency_seconds_bucket{stage="ots_call",le="+Inf"} 5\n' in out
 
 
-# ---- main() dispatch on --format -------------------------------------
+# ---- main dispatch on --format -------------------------------------
 
 
 def test_main_format_json_dry_run_emits_valid_json(
@@ -1051,7 +1051,7 @@ def test_main_format_json_to_stdout_when_textfile_default(
 def test_main_legacy_path_unchanged_without_format(
     tmp_path: Path,
 ) -> None:
-    """Omitting --format keeps the legacy receipt-emitter behavior (Tag-9 contract)."""
+    """Omitting --format keeps the legacy receipt-emitter behavior (contract)."""
     target = tmp_path / "out" / "wat.prom"
     rc = obs.main(
         [

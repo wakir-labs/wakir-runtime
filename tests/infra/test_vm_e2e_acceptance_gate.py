@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic harness-logic tests for the Sprint-9 Tag-5 disposable-VM
+"""Hermetic harness-logic tests for the disposable-VM
 Acceptance-Gate.
 
 The real VM run is Operator-Hand (ADR-0051 sandbox-disziplin); these
@@ -35,7 +35,7 @@ This is the regression net behind the bug-vector classification: if
 the gate's mapping drifts (e.g. someone renames a smoke check), this
 suite fails before the gate is run against a live VM.
 
-— Amara
+— the QA zone
 """
 from __future__ import annotations
 
@@ -487,7 +487,7 @@ def test_gate_check_to_bug_mapping_covers_all_six_smoke_checks() -> None:
     """
     gate_src = GATE_SH.read_text(encoding="utf-8")
     smoke_src = SMOKE_BIN.read_text(encoding="utf-8")
-    # Smoke check names appear in lines like:  RESULTS_NAME+=("quadlet-units-active")
+    # Smoke check names appear in lines like: RESULTS_NAME+=("quadlet-units-active")
     expected = SMOKE_CHECKS
     for c in expected:
         # The mapping in the gate uses single-quoted Python dict keys

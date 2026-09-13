@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for the Sprint-9 Tag-5 race-tolerant retry layer
+"""Hermetic tests for the race-tolerant retry layer
 inside ``bin/proxmox-bringup-smoke``.
 
 These tests reproduce the Pilot-VM 2/6 <-> 4/6 smoke-discrepancy
@@ -322,7 +322,7 @@ def test_nats_jetstream_reachable_race_clears_after_1_retry(tmp_path):
 
 
 def test_pilot_vm_2_to_4_discrepancy_scenario_resolves(tmp_path):
-    """The combined Sprint-9 Tag-5 race: jetstream-init AND bucket-stream
+    """The combined race: jetstream-init AND bucket-stream
     both race-window-pending, both clear inside the retry budget.
 
     This is the smoke-discrepancy reproduction: without the
@@ -388,13 +388,13 @@ def test_pilot_vm_baseline_2_to_4_without_retry_actually_fails(tmp_path):
         "WAKIR_SMOKE_PODMAN": str(podman),
         "WAKIR_SMOKE_CURL": str(curl),
         "WAKIR_SMOKE_SLEEP": str(sleep_noop),
-        # Retry disabled — Tag-1 baseline semantics.
+        # Retry disabled — baseline semantics.
         "WAKIR_SMOKE_RETRY_MAX": "0",
     }
     result = _run_smoke(env, ["--org", "acme"], timeout=15)
     # Exit 2 (some checks FAIL).
     assert result.returncode == 2, result.stdout + result.stderr
-    # Exactly 4/6 PASS (Tag-1 baseline reproduces the Pilot-VM
+    # Exactly 4/6 PASS (baseline reproduces the Pilot-VM
     # 4/6 discrepancy slice).
     assert "SUMMARY: 4/6 checks PASS" in result.stdout, result.stdout
     # Check 2 (jetstream-reachable) FAIL.
@@ -508,7 +508,7 @@ def test_spire_server_health_race_clears(tmp_path):
 
 
 def test_spire_agent_health_race_clears(tmp_path):
-    """SPIRE-agent unhealthy once, then healthy (Kai-Bug-7 fix-window)."""
+    """SPIRE-agent unhealthy once, then healthy."""
     systemctl = _write_systemctl_mock(tmp_path)
     podman = _write_flipping_podman_spire(
         tmp_path,
@@ -540,14 +540,14 @@ def test_spire_agent_health_race_clears(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Backwards compatibility: retry-max=0 collapses to Tag-1 single-shot
+# Backwards compatibility: retry-max=0 collapses to single-shot
 # ---------------------------------------------------------------------------
 
 
 def test_retry_max_zero_collapses_to_tag_1_single_shot(tmp_path):
     """With ``WAKIR_SMOKE_RETRY_MAX=0`` the smoke runs each probe exactly once.
 
-    This preserves Tag-1 hermetic-test compatibility (the
+    This preserves hermetic-test compatibility (the
     existing ``test_proxmox_bringup_smoke.py`` suite injects
     ``WAKIR_SMOKE_RETRY_MAX=0`` to keep tests fast even when the
     mock represents a permanent-failure scenario).
@@ -576,6 +576,6 @@ def test_retry_max_zero_collapses_to_tag_1_single_shot(tmp_path):
         l for l in result.stdout.splitlines()
         if "marker-stack-bucket-present " in l
     ]
-    # No "attempts=N" suffix when the count is 1 (Tag-1 shape).
+    # No "attempts=N" suffix when the count is 1 (shape).
     assert marker_lines and "FAIL" in marker_lines[0]
     assert "attempts=" not in marker_lines[0], marker_lines[0]

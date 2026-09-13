@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for Tag-59 OTS Pre-Anchor Activation Probe.
+"""Hermetic tests for OTS Pre-Anchor Activation Probe.
 
-The Tag-57 audit-only emit (PR #366) plus the Tag-58 spec-seal
-probe (Reza, PR #371) leave one gap before the KW-24 Phase-3c
+The audit-only emit (PR #366) plus the spec-seal
+probe leave one gap before the calendar week 24 Phase-3c
 cutover (2026-06-09 start): no CI-side dry-run that asserts the
 Repo-Side OTS-call pipeline is shape-ready for the real
-``ots stamp`` invocation. Tag-59 closes that gap with a hermetic
+``ots stamp`` invocation. closes that gap with a hermetic
 ``--mode pre-activation-probe`` extension of the existing helper.
 
 Invariants asserted (>=12):
 
-  P01. Helper still stdlib-only after the Tag-59 extension.
+  P01. Helper still stdlib-only after the extension.
   P02. Helper exposes ``MODE_PRE_ACTIVATION_PROBE`` and the
        four probe-stage keys.
   P03. ``--mode pre-activation-probe`` on a valid fixture
@@ -25,13 +25,13 @@ Invariants asserted (>=12):
   P08. Verdict ``ar_authorisation_required`` is always True.
   P09. Verdict ``probed_at_utc`` honours ``--now`` and is
        byte-stable across two invocations.
-  P10. Audit-only mode still works after Tag-59 extension
-       (backwards compat with Tag-57 helper API).
+  P10. Audit-only mode still works after extension
+       (backwards compat with helper API).
   P11. ``--probe-verdict-out`` is required for probe mode
        (exit code 2 when missing).
   P12. ``--marker-out`` is required for audit-only mode
        (exit code 2 when missing).
-  P13. Tag-59 workflow YAML is well-formed and pins the helper.
+  P13. workflow YAML is well-formed and pins the helper.
   P14. Runbook doc contains §6 Pre-Activation-Probe-Mode and
        §7 AR-Authorisierungs-Pfad sections.
   P15. Probing every real pre-cutover manifest from the
@@ -85,7 +85,7 @@ STDLIB_ALLOW: frozenset[str] = frozenset(
 
 
 # Modules that would imply network or subprocess capability. The
-# Tag-59 probe must NOT import any of them — that is the runtime
+# probe must NOT import any of them — that is the runtime
 # guarantee for the ``sandbox_boundary: OK`` stage flag.
 NETWORK_FORBIDDEN: frozenset[str] = frozenset(
     {
@@ -159,7 +159,7 @@ def k2_module():
 
 
 # ----------------------------------------------------------------------
-# P01. Helper still stdlib-only after Tag-59 extension.
+# P01. Helper still stdlib-only after extension.
 # ----------------------------------------------------------------------
 
 
@@ -237,7 +237,7 @@ def test_p04_verdict_envelope_key_set(tmp_path: Path, k2_module):
     payload = json.loads(verdict_out.read_text(encoding="utf-8"))
     assert set(payload.keys()) == VERDICT_REQUIRED_KEYS
     assert set(payload["stages"].keys()) == PROBE_STAGE_KEYS
-    # ``anchors`` cross-links Tag-58 PR #371 and the runbook.
+    # ``anchors`` cross-links PR #371 and the runbook.
     anchors = payload["anchors"]
     assert anchors["reza_tag_58_spec_seal_pr"] == 371
     assert anchors["operator_hand_runbook"] == (
@@ -464,7 +464,7 @@ def test_p12_audit_mode_requires_marker_out(tmp_path: Path, k2_module, capsys):
 
 
 # ----------------------------------------------------------------------
-# P13. Tag-59 workflow YAML well-formed and pins helper.
+# P13. workflow YAML well-formed and pins helper.
 # ----------------------------------------------------------------------
 
 
@@ -506,7 +506,7 @@ def test_p14_runbook_has_section_6_and_7():
     # §7 must reference the pinned cutover window and the spec-seal PR.
     assert "2026-06-09" in text
     assert "PR #371" in text
-    # Old §5 invariants section is preserved (Tag-57 backwards anchor).
+    # Old §5 invariants section is preserved (backwards anchor).
     assert "## 5. CI-Side Invariants" in text
 
 

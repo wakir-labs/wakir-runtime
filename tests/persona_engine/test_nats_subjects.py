@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for :mod:`wirelang.persona_engine.nats_subjects`.
+"""Tests :mod:`wirelang.persona_engine.nats_subjects`.
 
-These tests close the Tag-14 Python-Side-Sync loop:
+These tests close the Python-Side-Sync loop:
 
 - Each typed-builder function round-trips to the expected canonical
   subject string.
-- Each invalid-input class raises :class:`SubjectError` with the
+- Each invalid-input class raises:class:`SubjectError` with the
   correct ``kind`` and ``field`` attributes (parity with the Rust
   ``SubjectError`` discriminant tags).
 - The 8 pin-pack fixtures are bit-identical between Rust and Python
@@ -55,16 +55,16 @@ from wirelang.persona_engine.nats_subjects import (
 # update on both sides — that is the whole point of the parity test.
 #
 # Hash derivation:
-#   sha256("\n".join([
-#       "persona.lifecycle.reza-2026-05-17.spawned",
-#       "persona.lifecycle.reza-2026-05-17.despawned",
-#       "persona.federation.cluster-eu-1.reza-2026-05-17.frame",
-#       "persona.audit.identity-rotate.run-0001",
-#       "persona.audit.policy-violation.run-0002",
-#       "persona.anchor.batch-2026-05-17.submitted",
-#       "persona.recovery.replay.run-0003",
-#       "persona.recovery.verify.run-0003",
-#   ]).encode("utf-8"))
+# sha256("\n".join([
+# "persona.lifecycle.reza-2026-05-17.spawned",
+# "persona.lifecycle.reza-2026-05-17.despawned",
+# "persona.federation.cluster-eu-1.reza-2026-05-17.frame",
+# "persona.audit.identity-rotate.run-0001",
+# "persona.audit.policy-violation.run-0002",
+# "persona.anchor.batch-2026-05-17.submitted",
+# "persona.recovery.replay.run-0003",
+# "persona.recovery.verify.run-0003",
+# ]).encode("utf-8"))
 PIN_PACK_SHA256_HEX = (
     "57a28150010f8a42f46b83a8c83d9939cfe27f3ae9133716a86b8d0886994976"
 )

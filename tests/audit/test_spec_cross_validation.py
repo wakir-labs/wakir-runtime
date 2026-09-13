@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 """
-Hermetic Tag-78 tests for the Wirelang-Spec v0.4.3 vs v0.4.4-draft
+Hermetic tests for the Wirelang-Spec v0.4.3 vs v0.4.4-draft
 cross-validation helper
 ``tooling/audit/cross_validate_v0_4_3_vs_v0_4_4.py``.
 =========================================================================
 
 Three-axis coverage:
 
-  Axis I   -- Live-spec smoke tests against the in-repo
+  Axis I -- Live-spec smoke tests against the in-repo
               v0.4.3 + v0.4.4-draft files. These confirm that the
               helper passes on the actual cutover-gate substrate.
 
-  Axis II  -- Hermetic mutilation tests using temporary fixture
+  Axis II -- Hermetic mutilation tests using temporary fixture
               specs that violate one cross-validation invariant
               at a time. These confirm that each family of the
               helper has actual detection power (not just

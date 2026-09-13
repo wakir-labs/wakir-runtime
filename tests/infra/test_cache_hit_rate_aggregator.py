@@ -1,15 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/cache-hit-rate-aggregator.py — Sprint-Phase-2b MINI.
+"""Tests for scripts/cache-hit-rate-aggregator.py — -Phase-2b MINI.
 
 Hermetic — no real persona-engine, no real textfile-collector
 directory. Drives the aggregator's public functions against
 fabricated structured-JSON log fixtures and asserts:
 
-  - The ``anthropic_cache_telemetry`` event shape (Selin PR #97)
+  - The ``anthropic_cache_telemetry`` event shape
     round-trips through token extraction.
-  - Per-(persona, model) separation is correct (Tomas + Selin,
-    Opus + Sonnet stay isolated even when they share a model).
+  - Per-(persona, model) separation is correct.
   - The cache-hit-rate math is token-weighted and consistent with
     ``CacheTelemetry.cache_hit_rate_input_only`` semantics.
   - Cost-savings vs. cache-creation premium follow the ADR-0064
@@ -74,7 +73,7 @@ def telemetry_record(
     cache_read_input_tokens: int = 0,
     cache_creation_input_tokens: int = 0,
 ) -> dict:
-    """Mirror CacheTelemetry.to_structured_log_dict (Selin PR #97).
+    """Mirror CacheTelemetry.to_structured_log_dict.
 
     Carries the ``event`` discriminator + the affinity-key shape that
     embeds (model, persona, v907_pin, ttl) so the aggregator resolves

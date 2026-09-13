@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic Quadlet-unit invariant tests for the Sprint-Pengine-7
-# Tag-5 OI-PILOT-4 recovery-drill WAT-anchor oneshot + its sister
-# timer unit (Cross-Pair Reza OI-PEF-11).
+# Hermetic Quadlet-unit invariant tests for the -Pengine-7
+# OI-PILOT-4 recovery-drill WAT-anchor oneshot + its sister
+# timer unit (Cross-Pair the protocol zone OI-PEF-11).
 
 from __future__ import annotations
 

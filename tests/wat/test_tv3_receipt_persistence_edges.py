@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""TV-3 receipt-persistence edge-case hardening, Sprint-4 Tag-1.
+"""TV-3 receipt-persistence edge-case hardening,.
 
-Sprint-3 Tag-3 introduced three on-disk corruption tests against the
+ introduced three on-disk corruption tests against the
 TV-3 cohort: ``root.bin`` truncated to 16 bytes, ``root.bin.ots``
 truncated to 1 byte, and ``root.bin`` with a flipped first byte
 (side-file lying about the stamped root).
 
-Sprint-4 Tag-1 extends that coverage with six further realistic
+ extends that coverage with six further realistic
 shapes the verifier must reject (or fail cleanly on) without crashing
 or surfacing a misleading green verdict.
 
@@ -18,27 +18,27 @@ For each shape, a tmp-path copy of the TV-3 T17 hour-receipt is
 mutated on disk and then run through
 :func:`wat.verify.manifest_v2.verify_real_manifest_file` with
 ``check_ots_anchor=True``. The test pins both the overall verdict
-(``ok`` False) and the specific :class:`OtsAnchorCheck` discriminator
+(``ok`` False) and the specific:class:`OtsAnchorCheck` discriminator
 that should be tripped, so we catch silent reclassifications across
 future verifier changes.
 
 1. ``test_empty_root_bin_rejected`` — ``root.bin`` truncated to zero
    bytes. Hits the ``len(raw) != 32`` branch in
    ``_check_ots_anchor_side_files`` with the smallest possible
-   payload. Complements the Tag-3 16-byte truncation by exercising
+   payload. Complements the 16-byte truncation by exercising
    the boundary case (a 0-byte file is still a file).
 2. ``test_root_bin_missing_rejected`` — ``root.bin`` removed entirely.
    Hits the distinct ``not root_bin.exists()`` branch (different
    diagnostic, different ``OtsAnchorCheck`` field set: not even
    ``root_bin_present`` should flip true).
 3. ``test_ots_file_missing_rejected`` — ``root.bin.ots`` removed
-   entirely. Hits the ``not ots_file.exists()`` branch. The Tag-3
+   entirely. Hits the ``not ots_file.exists()`` branch. The
    truncated-ots case stopped at "magic-header check fails on
    one-byte file"; this case stops earlier, at "file not present".
 4. ``test_ots_file_wrong_magic_correct_length_rejected`` — sixteen
    bytes of non-magic content (the same length as the real magic
    header but valued ``\\xff``). Distinguishes "magic-header
-   mismatch on a present, sized file" from Tag-3's "truncated to
+   mismatch on a present, sized file" from 's "truncated to
    one byte". Production aggregator bug shape: writes the wrong
    prefix into a sidecar of the correct size.
 5. ``test_root_bin_oversize_rejected`` — ``root.bin`` padded to 64
@@ -51,17 +51,17 @@ future verifier changes.
    chmod is a no-op for euid 0).
 
 All shapes are hermetic: ``tmp_path`` only, no network, no Bitcoin
-RPC, no external binary. The Tag-3 edge cases remain in
+RPC, no external binary. The edge cases remain in
 ``test_tv3_real_manifest_live_run.py`` — this module is additive,
 not a rewrite.
 
-Why a sibling module rather than appending to Tag-3's module
+Why a sibling module rather than appending to 's module
 ------------------------------------------------------------
 
-Keeps the Sprint-3 Tag-3 acceptance surface immutable (closeout
+Keeps the acceptance surface immutable (closeout
 stamp already ratified 2026-05-07). Future cohort-level
 edge-case clusters (TV-4+, parameterised over cohort table) can
-slot into this module without touching the Tag-3 closeout module.
+slot into this module without touching the closeout module.
 """
 
 from __future__ import annotations
@@ -76,7 +76,7 @@ import pytest
 from wat.verify.manifest_v2 import verify_real_manifest_file
 
 # ---------------------------------------------------------------------------
-# Fixture access (re-uses the Tag-3-committed TV-3 cohort)
+# Fixture access (re-uses the-committed TV-3 cohort)
 # ---------------------------------------------------------------------------
 
 TV3_FIXTURE_ROOT = Path(__file__).resolve().parents[1] / "fixtures" / "wat-tv3-real"
@@ -129,7 +129,7 @@ def test_empty_root_bin_rejected(tmp_path):
 
 
 def test_root_bin_missing_rejected(tmp_path):
-    """A missing ``root.bin`` hits the exists()-branch with the right diagnostic."""
+    """A missing ``root.bin`` hits the exists-branch with the right diagnostic."""
     dst_dir = _copy_cohort(tmp_path)
     (dst_dir / "root.bin").unlink()
 
@@ -141,7 +141,7 @@ def test_root_bin_missing_rejected(tmp_path):
 
     assert not result.ok, "missing root.bin must not pass"
     assert not result.ots_anchor.ok
-    # The exists()-branch fires before any other field flips.
+    # The exists-branch fires before any other field flips.
     assert result.ots_anchor.root_bin_present is False
     assert result.ots_anchor.root_bin_matches_manifest is False
     assert result.ots_anchor.ots_present is False
@@ -154,9 +154,9 @@ def test_root_bin_missing_rejected(tmp_path):
 
 
 def test_ots_file_missing_rejected(tmp_path):
-    """A missing ``root.bin.ots`` rejects via the ots-side exists()-branch.
+    """A missing ``root.bin.ots`` rejects via the ots-side exists-branch.
 
-    Distinguished from Tag-3's "truncated to 1 byte" case: there the
+    Distinguished from 's "truncated to 1 byte" case: there the
     file is present but its magic header is absent; here the file
     itself is absent. The verifier must report each diagnostic
     accurately, not merge them into a single "ots broken" verdict.
@@ -224,7 +224,7 @@ def test_ots_file_wrong_magic_correct_length_rejected(tmp_path):
 def test_root_bin_oversize_rejected(tmp_path):
     """A 64-byte ``root.bin`` (double-write / append bug shape) is rejected.
 
-    Complements Tag-3's "truncated to 16 bytes" case by exercising
+    Complements 's "truncated to 16 bytes" case by exercising
     the opposite side of the ``len(raw) != 32`` branch. Production
     bug shape: a write-retry path that appended instead of replacing,
     or a concatenated-payload bug that emitted root || root.
@@ -273,7 +273,7 @@ def test_root_bin_permission_denied_handled(tmp_path):
     dst_dir = _copy_cohort(tmp_path)
     root_bin = dst_dir / "root.bin"
     # Drop all bits. Keep the parent dir traversable so the
-    # exists()-check succeeds and we drive the read_bytes path.
+    # exists-check succeeds and we drive the read_bytes path.
     root_bin.chmod(0o000)
     try:
         # The verifier must not raise; it should classify the error

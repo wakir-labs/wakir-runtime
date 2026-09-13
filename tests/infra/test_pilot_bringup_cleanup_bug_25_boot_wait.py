@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-10 bring-up-cleanup
-substance fix (Bug-25 — service-boot-wait race, AR Fred bring-up-3/4/5/6
+"""Hermetic acceptance tests for the bring-up-cleanup
+substance fix (Bug-25 — service-boot-wait race, the operator bring-up-3/4/5/6
 evidence 2026-05-12 through 2026-05-14).
 
 Context
@@ -24,7 +24,7 @@ had already exhibited:
     Workload-API socket was not bound.
   * Run-3 (post-cold-cache): 6/6 PASS.
 
-The Tag-9 (Bug-22) fix addressed the Time-of-Check-vs-Time-of-Use
+The (Bug-22) fix addressed the Time-of-Check-vs-Time-of-Use
 race on the volume-owner only. The service-boot timing race is a
 distinct class — it survives even with perfect volume ownership.
 
@@ -45,38 +45,38 @@ The smoke-test (Pfad B, defence-in-depth) additionally retries
 ``quadlet-units-active`` and ``spire-workload-api-reachable`` via
 ``with_retry`` and bumps the default ``RETRY_MAX`` from 5 to 30.
 
-Test-Vector index (continues the Tag-7/Tag-8/Tag-9 ladder)
+Test-Vector index (continues the//ladder)
 ----------------------------------------------------------
 
-  * ``TV-S9T10-25a``  ``_wait_for_service_active`` happy path: probe
+  * ``TV-S9T10-25a`` ``_wait_for_service_active`` happy path: probe
     eventually flips to active, helper returns 0 within the timeout.
-  * ``TV-S9T10-25b``  ``_wait_for_service_active`` hard halts on
+  * ``TV-S9T10-25b`` ``_wait_for_service_active`` hard halts on
     timeout exhaustion (returns 2, surfaces diagnostic).
-  * ``TV-S9T10-25c``  ``_wait_for_service_active`` fast-path: unit
+  * ``TV-S9T10-25c`` ``_wait_for_service_active`` fast-path: unit
     already active returns 0 on the first probe (no sleep, no second
     is-active call).
-  * ``TV-S9T10-25d``  ``_wait_for_workload_api_socket`` happy path:
+  * ``TV-S9T10-25d`` ``_wait_for_workload_api_socket`` happy path:
     ``podman exec ... test -S`` eventually returns 0, helper exits 0.
-  * ``TV-S9T10-25e``  ``_wait_for_workload_api_socket`` hard halts on
+  * ``TV-S9T10-25e`` ``_wait_for_workload_api_socket`` hard halts on
     timeout exhaustion.
-  * ``TV-S9T10-25f``  Source-discipline drift guards — the bootstrap
+  * ``TV-S9T10-25f`` Source-discipline drift guards — the bootstrap
     calls each new helper from the right step-6 spots and the smoke
     test wraps the right check functions with ``with_retry``.
-  * ``TV-S9T10-25g``  Mutation test (Zone X / Amara): rolling back the
+  * ``TV-S9T10-25g`` Mutation test (Zone X / the QA zone): rolling back the
     wait-and-verify scaffold (removing the helper definition) makes
     the drift-guard tests red.
 
 Sandbox boundary
 ----------------
 
-Same shape as Tag-9: PATH-injected mocks for ``systemctl``, ``podman``,
+Same shape as: PATH-injected mocks for ``systemctl``, ``podman``,
 ``sleep``; the helper bodies are extracted into a tiny driver script
 that exercises the post-fix invariants without booting systemd. The
 mocks use file-system sentinels (a counter file) to model
 ``activating -> active`` and ``socket-absent -> socket-present``
 transitions over N polls.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -601,7 +601,7 @@ def test_smoke_retry_max_default_bumped_for_first_boot_wait_window() -> None:
 def test_helper_driver_mirrors_source_wait_invariants() -> None:
     """Drift-guard: the test-internal helper-driver text mirrors the
     source's post-fix invariants (timeout env var names, poll env var
-    names, Bug-25 diagnostic tag). Same shape as Tag-8/Tag-9 mirrors.
+    names, Bug-25 diagnostic tag). Same shape as /mirrors.
     """
     src = BOOTSTRAP.read_text()
     # Env var names must remain stable for operator runbooks.
@@ -619,7 +619,7 @@ def test_helper_driver_mirrors_source_wait_invariants() -> None:
 
 
 # ---------------------------------------------------------------------------
-# TV-S9T10-25g: mutation test (Zone X / Amara cross-review).
+# TV-S9T10-25g: mutation test (Zone X / the QA zone cross-review).
 # Roll back the wait-and-verify scaffold (remove the helper definition
 # from a synthetic copy of the bootstrap source) and assert that the
 # drift-guard test_bootstrap_defines_wait_for_service_active_helper
@@ -644,7 +644,7 @@ def test_mutation_rollback_breaks_drift_guard(tmp_path: Path) -> None:
     assert mutated != original, "mutation must change the source text"
 
     # Re-run the equivalent drift-guard assertion against the mutated
-    # text. Must fail (i.e. the helper definition string is gone).
+    # text. Must fail (i.e. The helper definition string is gone).
     assert "_wait_for_service_active()" not in mutated, (
         "Zone-X mutation control: rollback must remove the helper "
         "definition — if this assertion passes the mutation is a no-op "

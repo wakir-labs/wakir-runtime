@@ -2,8 +2,8 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """TV-2 real-manifest live-run + optional signature-verification.
 
-Sprint-5 Tag-5 substance: extend the Sprint-3 Tag-2 TV-2 real-manifest
-live-run validation cohort with the Sprint-5 Tag-2 verifier-side
+ substance: extend the TV-2 real-manifest
+live-run validation cohort with the verifier-side
 signature wire-up. The production aggregator
 (``wat/cmd/aggregator_cli.py`` v1) does not emit signed manifests
 today, so this module hand-signs deep-copies of each TV-2 hour-
@@ -23,7 +23,7 @@ Per real TV-2 hour-receipt (4 of them, 2026-05-27T00..T03):
 
 2. Same call with ``verify_signature=False`` (default) ignores any
    signature slot and leaves ``signature_status=""`` — backward-
-   compat pin for pre-Tag-5 callers.
+   compat pin for pre-callers.
 
 3. Same call with ``verify_signature_mode=STRICT`` against an
    unsigned (stock) TV-2 manifest returns
@@ -44,14 +44,14 @@ Negative-path against tampered signed copies of T00:
    ``verify_signature_public_key=None``, signed manifest) ->
    ``signature_status="structural-error"``, ``ok=False``.
 
-Why this is hard substance for Phase-2 Sprint-5
+Why this is hard substance for Phase-2
 -----------------------------------------------
 
-Sprint-3 Tag-2 pinned the real-manifest live-run pipeline against
+ pinned the real-manifest live-run pipeline against
 real Bitcoin-anchored production output (schema-file accept +
 in-code-validator accept + OTS-anchor-side-file well-formedness).
-Sprint-5 Tag-2 wired the optional signature-slot consumer into the
-synthetic v2 path. Tag-5 closes the loop: the same pipeline now
+ wired the optional signature-slot consumer into the
+synthetic v2 path. closes the loop: the same pipeline now
 accepts a signed real on-disk manifest end-to-end (schema +
 integrity + multi-cap-root + OTS-anchor + signature), exercised
 against the same TV-2 cohort the Brand-Demo card publishes. When
@@ -100,7 +100,7 @@ TV2_HOUR_SLOTS: tuple[str, ...] = (
 
 #: Test-only kid value. Hand-authored signing; the kid does not
 #: resolve through the AIP-document anchor-kid path here (that is
-#: covered separately by Sprint-5 Tag-3 cross-review-zone-1).
+#: covered separately by cross-review-zone-1).
 TEST_KID = "kid-tv2-sig-verify-tag5"
 
 
@@ -211,9 +211,9 @@ def test_tv2_default_off_ignores_signature_slot(tmp_path):
     (default) ignores the slot.
 
     The signed real-manifest with a signature slot is still accepted
-    by the default (Tag-2-and-earlier-callers) pipeline; the
+    by the default (-and-earlier-callers) pipeline; the
     signature_status field stays empty. This is the backward-compat
-    pin that protects every pre-Tag-5 caller of
+    pin that protects every pre-caller of
     ``verify_real_manifest_file``.
     """
     priv, _pub = _signing_keypair()
@@ -400,8 +400,8 @@ def test_tv2_missing_public_key_on_signed_manifest_is_structural_error(
 def test_tv2_stock_cohort_signature_status_empty_under_default(slot):
     """T-WAT-TV2-SIG-10..13: stock TV-2 default path -> sig_status="".
 
-    Regression-pin: the Sprint-3 Tag-2 stock-cohort live-run path
-    keeps ``signature_status=""`` after the Tag-5 additive field.
+    Regression-pin: the stock-cohort live-run path
+    keeps ``signature_status=""`` after the additive field.
     This guards against an accidental flip of the default behaviour
     in any subsequent refactor of ``verify_real_manifest_file``.
     """

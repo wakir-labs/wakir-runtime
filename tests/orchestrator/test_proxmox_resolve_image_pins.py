@@ -2,12 +2,12 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Hermetic tests for ``infra/spire/federation/proxmox/resolve-image-pins.sh``.
 
-Phase-2 Sprint-9 Tag-6 — the Operator-Hand Pilot-VM resolver MUST
+Phase-2 — the Operator-Hand Pilot-VM resolver MUST
 match the wakir-provisioner placeholder regardless of which ``:<tag>``
 the Quadlet currently carries.
 
 Anlass: Live-Bring-up-2-Bilanz 2026-05-14, Bug 3. The BSL-Bulk-Edit-
-Welle (PR #37, e5067b4) rotated the bucket-init Quadlet pin from
+wave (PR #37, e5067b4) rotated the bucket-init Quadlet pin from
 ``ghcr.io/wakir-labs/wakir-provisioner:0.1.0@sha256:DIGEST_PENDING_TOMAS_REVIEW``
 to ``:0.1.2``. The resolver previously hard-coded the
 ``:0.1.0`` prefix and silently skipped the substitution; the Pilot-VM
@@ -15,14 +15,14 @@ crashed at bucket-init unit start with ``invalid reference format``.
 
 Coverage axes:
 
-* ``--help`` exits 0 and documents the Tag-6 ``--wakir-provisioner-
+* ``--help`` exits 0 and documents the ``--wakir-provisioner-
   version`` flag.
 * Bash syntax is clean.
 * Resolver substitutes a ``:0.1.0`` placeholder (legacy form).
-* Resolver substitutes a ``:0.1.2`` placeholder (Tag-6 form). This is
+* Resolver substitutes a ``:0.1.2`` placeholder (form). This is
   the concrete regression Bug 3 exposes.
 * Resolver substitutes a ``:0.99.99-rc1`` placeholder (future-form;
-  Tag-6 tolerates arbitrary tags).
+  tolerates arbitrary tags).
 * Resolver substitutes a bare-image placeholder (no tag at all).
 * ``--wakir-provisioner-version <new-tag>`` rotates the tag in the
   same pass.
@@ -168,17 +168,17 @@ def test_resolver_help_documents_tag_6_version_flag() -> None:
         check=False, capture_output=True, text=True,
     )
     assert rc.returncode == 0
-    # Tag-6 addition.
+    # addition.
     assert "--wakir-provisioner-version" in rc.stdout, (
         "resolver --help must document the Sprint-9 Tag-6 "
         "--wakir-provisioner-version flag"
     )
-    # The pre-Tag-6 flag stays documented.
+    # The pre-flag stays documented.
     assert "--wakir-provisioner-digest" in rc.stdout
 
 
 # ----------------------------------------------------------------------
-# Tag-tolerant substitution — the core of Sprint-9 Tag-6.
+# Tag-tolerant substitution — the core of.
 # ----------------------------------------------------------------------
 
 @pytest.mark.parametrize(
@@ -304,7 +304,7 @@ def test_resolver_rejects_malformed_version_flag(tmp_path: Path) -> None:
 def test_resolver_still_substitutes_spire_pins(tmp_path: Path) -> None:
     """SPIRE-Server / SPIRE-Agent / python pins MUST still resolve
     unchanged — they live on the tag-EXACT codepath that pre-dates
-    Sprint-9 Tag-6."""
+    the digest-pinning work."""
     root = tmp_path / "root"
     _build_skeleton(
         root,
@@ -337,7 +337,7 @@ def test_resolver_still_substitutes_spire_pins(tmp_path: Path) -> None:
 
 def test_resolver_dry_run_does_not_mutate(tmp_path: Path) -> None:
     """Without --apply, no file mutation. This is the long-standing
-    invariant; Sprint-9 Tag-6 must not regress it."""
+    invariant; must not regress it."""
     root = tmp_path / "root"
     _build_skeleton(
         root,
@@ -432,7 +432,7 @@ def test_resolver_does_not_rewrite_already_resolved_digest(
 
 
 # ----------------------------------------------------------------------
-# Sprint-10 Tag-5 Bug-33 substance-fix: --provisioner-only mode.
+# Bug-33 substance-fix: --provisioner-only mode.
 #
 # Skip-cosign-verify mode in wakir-pilot-bootstrap.sh step 5 must be
 # able to call the resolver with ONLY --wakir-provisioner-digest +

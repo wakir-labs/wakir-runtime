@@ -2,24 +2,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-74 Welle-6
-Cross-Substrate-Parity-Alert-Routing-Erweiterung + Tomas-Tag-73
-``reuse-lint`` pre-commit-hook follow-up (Noa SRE,
-Continuous-Mode-Marathon).
+"""Hermetic observability tests for the wave 6
+Cross-Substrate-Parity-Alert-Routing-Erweiterung + the engineering zone-
+``reuse-lint`` pre-commit-hook follow-up.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-74 Noa Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon):
+The observability zone assignment:
 
-Teil 1 -- Welle-6 Cross-Substrate-Parity-Alert-Routing-Erweiterung.
-Two additional Welle-6 subscribe-loop alarms close the positive-
-confirmation + consumer-lag routing gap surfaced during the KW-27
+Teil 1 -- wave 6 Cross-Substrate-Parity-Alert-Routing-Erweiterung.
+Two additional wave 6 subscribe-loop alarms close the positive-
+confirmation + consumer-lag routing gap surfaced during the calendar week 27
 doppel-cutover audit (cross-substrate-parity race patterns, see
 ``tests/phase_3c/test_doppel_welle_6_7_acceptance.py``):
 
-  * WakirPhase3Welle6SubscribeLoopHealthy   (info)
-  * WakirPhase3Welle6JetStreamConsumerLag   (warning,
+  * WakirPhase3Welle6SubscribeLoopHealthy (info)
+  * WakirPhase3Welle6JetStreamConsumerLag (warning,
                                               consumer-lag-Pfad)
 
 Both alerts are appended to the existing ``welle-6-alerts``
@@ -30,10 +29,9 @@ catalog table and ROUTING_CLASS_CHANNELS table are extended to
 cover the new alerts + routing class. Both files are mirrored
 byte-equal into ``wirelang/specs/protocol-mirror-seed/``.
 
-Teil 2 -- ``reuse-lint`` pre-commit-hook follow-up (Tomas Tag-73
-recommendation). The existing Tag-61 hint-mode hook caught drift
-advisorily but did NOT block commits, and four Tag-66/68/71 drift
-episodes slipped through despite the advisory. Tag-74 adds a
+Teil 2 -- ``reuse-lint`` pre-commit-hook follow-up. The existing hint-mode hook caught drift
+advisorily but did NOT block commits, and four /68/71 drift
+episodes slipped through despite the advisory. adds a
 second hook bound to the same lint helper in enforce-mode,
 scoped narrowly to ``tests/observability/**/*.py`` and
 ``tests/phase_3c/**/*.py`` where the drift recurs.
@@ -41,7 +39,7 @@ scoped narrowly to ``tests/observability/**/*.py`` and
 Scope
 -----
 
-* Welle-6 alert YAML surface (alert names, severity, labels,
+* wave 6 alert YAML surface (alert names, severity, labels,
   routing class, expr contract).
 * Bridge ALERT_CATALOG entries + routing-class table.
 * Cross-Repo-Mirror byte-equality.
@@ -144,19 +142,19 @@ def pre_commit_text() -> str:
 
 
 # ---------------------------------------------------------------
-# Section 1: Welle-6 alert YAML surface.
+# Section 1: wave 6 alert YAML surface.
 # ---------------------------------------------------------------
 
 
 def test_both_tag74_alerts_present_in_yaml(alerts_text: str) -> None:
-    """The two Tag-74 alerts are appended to the alerts YAML."""
+    """The two alerts are appended to the alerts YAML."""
     assert "WakirPhase3Welle6SubscribeLoopHealthy" in alerts_text
     assert "WakirPhase3Welle6JetStreamConsumerLag" in alerts_text
 
 
 def test_tag74_alerts_live_in_welle_6_group(alerts_doc: dict) -> None:
     """Both alerts must be in the existing ``welle-6-alerts``
-    group, not in a new top-level group. This keeps the Welle-6
+    group, not in a new top-level group. This keeps the wave 6
     subscribe-loop observability surface contiguous and
     grep-discoverable.
     """
@@ -169,7 +167,7 @@ def test_tag74_alerts_live_in_welle_6_group(alerts_doc: dict) -> None:
     rule_names = [r["alert"] for r in welle_6_groups[0]["rules"]]
     assert "WakirPhase3Welle6SubscribeLoopHealthy" in rule_names
     assert "WakirPhase3Welle6JetStreamConsumerLag" in rule_names
-    # Both Tag-74 alerts MUST come AFTER the pre-existing Welle-6
+    # Both alerts MUST come AFTER the pre-existing wave 6
     # page-level alerts (append, not prepend).
     idx_replay = rule_names.index("WakirWelle6SubscribeLoopReplayStorm")
     idx_healthy = rule_names.index(
@@ -185,7 +183,7 @@ def test_subscribe_loop_healthy_severity_info_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The Healthy alert must be severity=info with the
-    canonical Tag-74 Welle-6 labels.
+    canonical wave 6 labels.
     """
     rule = _find_rule(
         alerts_doc, "WakirPhase3Welle6SubscribeLoopHealthy"
@@ -206,7 +204,7 @@ def test_consumer_lag_severity_warning_and_labels(
     alerts_doc: dict,
 ) -> None:
     """The ConsumerLag alert must be severity=warning
-    (consumer-lag-Pfad, NOT page) with the canonical Tag-74
+    (consumer-lag-Pfad, NOT page) with the canonical
     labels plus the ``lag_path: consumer-pending-past-target-
     threshold`` discriminator.
     """
@@ -252,7 +250,7 @@ def test_consumer_lag_expr_uses_pending_gauge(
     messages gauge ``wakir_welle6_jetstream_consumer_pending_messages``
     with the >= 500 threshold (target SLO is < 100, the
     >= 500 threshold flags accumulated backlog before delivery
-    races materialise per ADR-0066 KW-27 doppel-cutover spec).
+    races materialise per ADR-0066 calendar week 27 doppel-cutover spec).
     """
     rule = _find_rule(
         alerts_doc, "WakirPhase3Welle6JetStreamConsumerLag"
@@ -265,7 +263,7 @@ def test_consumer_lag_expr_uses_pending_gauge(
 
 
 def test_both_alerts_notify_path_is_info_only(alerts_doc: dict) -> None:
-    """Both Tag-74 alerts must route to ntfy:ar-hand-info +
+    """Both alerts must route to ntfy:ar-hand-info +
     activity-log:append only. No pagerduty, no on-call page.
     """
     for name in (
@@ -302,7 +300,7 @@ def test_tag74_alerts_carry_runbook_url(alerts_doc: dict) -> None:
 
 
 def test_tag74_header_comment_present(alerts_text: str) -> None:
-    """A Tag-74 header comment anchors the new block for future
+    """A header comment anchors the new block for future
     grep-ability and audit-trail reading.
     """
     assert (
@@ -312,7 +310,7 @@ def test_tag74_header_comment_present(alerts_text: str) -> None:
 
 
 def test_tag74_alerts_carry_for_window(alerts_doc: dict) -> None:
-    """Both Tag-74 alerts must declare a 2m ``for:`` window to
+    """Both alerts must declare a 2m ``for:`` window to
     survive a single Prometheus scrape gap (~15s) without
     false-positives on transient state-flips.
     """
@@ -333,7 +331,7 @@ def test_tag74_alerts_carry_for_window(alerts_doc: dict) -> None:
 
 
 def test_bridge_catalog_has_both_tag74_alerts(bridge_module) -> None:
-    """Both Tag-74 alerts must be catalogued in ALERT_CATALOG
+    """Both alerts must be catalogued in ALERT_CATALOG
     with the correct severity + runbook_url.
     """
     cat = bridge_module.ALERT_CATALOG
@@ -381,7 +379,7 @@ def test_bridge_new_routing_class_registered(bridge_module) -> None:
 
 def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
     """The lookup_* helpers return the correct values for the
-    new Tag-74 routing class.
+    new routing class.
     """
     assert bridge_module.lookup_routing_class_channels(
         "welle-6-subscribe-loop-info"
@@ -395,8 +393,8 @@ def test_bridge_routing_class_lookup_helpers(bridge_module) -> None:
 
 
 def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
-    """Adding the Tag-74 routing class must NOT break the
-    trinary routing-table shape invariants (Tag-64 contract).
+    """Adding the routing class must NOT break the
+    trinary routing-table shape invariants (contract).
     """
     shape = bridge_module.validate_trinary_routing_table_shape()
     assert shape == {
@@ -409,8 +407,8 @@ def test_bridge_trinary_shape_still_ok(bridge_module) -> None:
 def test_bridge_lookup_catalog_returns_tag74_entries(
     bridge_module,
 ) -> None:
-    """lookup_catalog() must return a copy of the catalog entry
-    for both Tag-74 alerts (and the copy must be independent of
+    """lookup_catalog must return a copy of the catalog entry
+    for both alerts (and the copy must be independent of
     the catalog dict).
     """
     e1 = bridge_module.lookup_catalog(
@@ -436,8 +434,8 @@ def test_bridge_lookup_catalog_returns_tag74_entries(
 def test_bridge_prior_routing_classes_still_registered(
     bridge_module,
 ) -> None:
-    """Regression guard: Tag-74 addition must NOT remove the
-    Tag-72 ``welle-4-state-backing-info`` or Tag-73
+    """Regression guard: addition must NOT remove the
+    ``welle-4-state-backing-info`` or
     ``welle-5-capability-token-info`` routing classes.
     """
     for rc in (
@@ -551,7 +549,7 @@ def test_alert_yaml_severity_matches_bridge_catalog(
 
 
 def test_failure_mode_id_tag74_prefix(bridge_module) -> None:
-    """Both Tag-74 catalog entries must carry a failure_mode_id
+    """Both catalog entries must carry a failure_mode_id
     prefixed with ``Tag-74-Welle6-SubscribeLoop-`` for audit-trail
     grep-ability.
     """
@@ -568,14 +566,14 @@ def test_failure_mode_id_tag74_prefix(bridge_module) -> None:
 
 
 # ---------------------------------------------------------------
-# Section 5: Tag-74 ``reuse-lint`` pre-commit-hook enforce-mode.
+# Section 5: ``reuse-lint`` pre-commit-hook enforce-mode.
 # ---------------------------------------------------------------
 
 
 def test_pre_commit_config_has_tag74_enforce_hook(
     pre_commit_doc: dict,
 ) -> None:
-    """``.pre-commit-config.yaml`` must contain the Tag-74
+    """``.pre-commit-config.yaml`` must contain the
     enforce-mode hook ``reuse-wrap-pre-merge-lint-enforce`` in
     the local-repo section.
     """
@@ -587,7 +585,7 @@ def test_pre_commit_config_has_tag74_enforce_hook(
     assert "reuse-wrap-pre-merge-lint-enforce" in hook_ids, (
         "Tag-74 enforce-mode hook missing from local hooks"
     )
-    # Tag-61 hint-mode hook must still be present (additive,
+    # hint-mode hook must still be present (additive,
     # not replacement).
     assert "reuse-wrap-pre-merge-lint" in hook_ids, (
         "Tag-61 hint-mode hook regression: must remain present"
@@ -597,7 +595,7 @@ def test_pre_commit_config_has_tag74_enforce_hook(
 def test_pre_commit_enforce_hook_runs_enforce_mode(
     pre_commit_doc: dict,
 ) -> None:
-    """The Tag-74 enforce hook must invoke the lint helper with
+    """the enforce hook must invoke the lint helper with
     ``--mode enforce`` (NOT hint), so the commit blocks on
     findings.
     """
@@ -618,10 +616,10 @@ def test_pre_commit_enforce_hook_runs_enforce_mode(
 def test_pre_commit_enforce_hook_scope_is_narrow(
     pre_commit_doc: dict,
 ) -> None:
-    """The Tag-74 enforce hook ``files:`` regex must scope to
+    """the enforce hook ``files:`` regex must scope to
     ``tests/observability/**/*.py`` AND ``tests/phase_3c/**/*.py``
     only -- broader scope would block non-observability test work
-    on wrap-style drift. The Tag-61 hint-mode hook covers the
+    on wrap-style drift. The hint-mode hook covers the
     broader ``tests/**/*.py`` advisorily.
     """
     enforce_hook = _find_pre_commit_hook(
@@ -645,8 +643,8 @@ def test_pre_commit_enforce_hook_scope_is_narrow(
 def test_pre_commit_enforce_hook_preserves_hint_hook(
     pre_commit_doc: dict,
 ) -> None:
-    """The Tag-61 hint-mode hook must remain in the config and
-    keep its broader ``tests/**/*.py`` scope, so the Tag-74
+    """the hint-mode hook must remain in the config and
+    keep its broader ``tests/**/*.py`` scope, so the
     enforce-mode hook is additive (not replacement).
     """
     hint_hook = _find_pre_commit_hook(
@@ -659,8 +657,8 @@ def test_pre_commit_enforce_hook_preserves_hint_hook(
 def test_pre_commit_config_carries_tag74_header_comment(
     pre_commit_text: str,
 ) -> None:
-    """A Tag-74 header comment block anchors the new hook for
-    audit-trail grep-ability, mirroring the Tag-61 block above.
+    """A header comment block anchors the new hook for
+    audit-trail grep-ability, mirroring the block above.
     """
     assert (
         "Tag-74 — REUSE-IgnoreStart/End wrap pre-merge lint"
@@ -669,7 +667,7 @@ def test_pre_commit_config_carries_tag74_header_comment(
         in pre_commit_text
         or "Tag-74" in pre_commit_text
     ), "Tag-74 header comment missing from .pre-commit-config.yaml"
-    # The Tomas-Tag-73 follow-up attribution must be referenced.
+    # The the engineering zone-follow-up attribution must be referenced.
     assert "Tomás" in pre_commit_text or "Tomas" in pre_commit_text
 
 

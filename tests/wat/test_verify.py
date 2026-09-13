@@ -10,7 +10,7 @@ Strategy
 --------
 
 These tests do not contact real OTS calendars or Bitcoin nodes.
-Every call into :mod:`wat.anchor.ots_anchor.verify_receipt` is
+Every call into:mod:`wat.anchor.ots_anchor.verify_receipt` is
 patched to return a deterministic boolean. Manifest layouts are
 materialised on a per-test ``tmp_path`` so the verifier sees an
 honest filesystem rather than mocked ``Path`` objects.

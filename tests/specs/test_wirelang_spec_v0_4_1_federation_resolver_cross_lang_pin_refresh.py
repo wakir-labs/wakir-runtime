@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tag-49 hermetic Cross-Lang-Pin-Coverage refresh for
+"""hermetic Cross-Lang-Pin-Coverage refresh for
 `persona-engine-federation-resolver` post Spec v0.4.1.
 
-Tag-48 PR #308 added `persona-engine-federation-resolver` as Row 16
-to the wirelang-spec-v0-4-1.md §3.1 catalogue. Tag-49 verifies the
+PR #308 added `persona-engine-federation-resolver` as Row 16
+to the wirelang-spec-v0-4-1.md §3.1 catalogue. verifies the
 Cross-Lang-Pin-Coverage promise is intact:
 
 - Python sibling exists and exposes the documented constants /
@@ -20,11 +20,11 @@ no engine boot, no Rust build, no network. The actual byte-parity
 `tests/identity/test_federation_resolver_cross_lang_parity.py`
 (Python, 26 cases) and
 `wirelang-rust/crates/persona-engine-federation-resolver/tests/`
-(Rust, 21 cases combined unit+integration). Tag-49 keeps the
+(Rust, 21 cases combined unit+integration). keeps the
 boundary between "byte-parity enforced" and "wiring-pin enforced"
 explicit by separating into two suites.
 
-Drift discovery (DRIFT-S4 candidate, not patched in Tag-49):
+Drift discovery (DRIFT-S4 candidate, not patched):
 -----------------------------------------------------------
 
 A separate, larger drift between Spec v0.4.0/v0.4.1 §4.1 (the nine
@@ -35,9 +35,9 @@ recovery_workflow, canonical_form, anchor_emitter) and the
 pin-pack-0.5.0-pre-cutover.yaml §boot_wired_crates (nine wired
 crates named `WAKIR_*_BACKEND` without the `_PE_` infix, with
 federation-resolver in slot #9 in place of canonical_form) is
-beyond the Tag-49 cross-lang-pin scope. This is recorded as a
-DRIFT-S4 candidate in the Tag-49 done report for CEO triage and is
-NOT reconciled here. The Tag-49 cross-lang-pin promise
+beyond the cross-lang-pin scope. This is recorded as a
+DRIFT-S4 candidate in the done report for CEO triage and is
+NOT reconciled here. The cross-lang-pin promise
 (Python+Rust byte-parity for federation-resolver) is independent
 of this naming-and-counting drift.
 """
@@ -349,7 +349,7 @@ def test_t14_rust_parity_test_suite_references_fixture_file() -> None:
 
 def test_t15_fixture_file_pin_date_consistent_with_tag_24() -> None:
     """The fixture file's documented pin-date is 2026-05-17
-    (Tag-24 mini-welle), as cited by the Python sibling docstring."""
+    (mini-wave), as cited by the Python sibling docstring."""
     assert "2026-05-17" in FIXTURE_FILE.read_text(), (
         "Fixture file does not document Tag-24 pin date 2026-05-17 "
         "in its _comment field; pin lineage cannot be verified."

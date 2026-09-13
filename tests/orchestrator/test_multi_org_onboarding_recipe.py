@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BUSL-1.1
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for the Multi-Org-Onboarding-Recipe substrate
-(Phase-2 Sprint-9 Tag-2).
+(Phase-2).
 
 The recipe itself is an Operator-Hand markdown document
 (`infra/spire/federation/MULTI_ORG_ONBOARDING_RECIPE.md`); these

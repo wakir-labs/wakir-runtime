@@ -159,7 +159,7 @@ def test_v1_minimal_manifest_validates_and_is_consistent(tmp_path: Path) -> None
 def test_v2_manifest_multi_event_passes_strict_default(tmp_path: Path) -> None:
     """v2 with two multi-cap events validates in strict (default) mode.
 
-    Strict mode is the default since Sprint-2 Tag-4 (OQ-1 ratified
+    Strict mode is the default since (OQ-1 ratified
     ordered-Merkle 2026-05-07 by wirelang-engineering Cross-Review-
     Zone-2). The reference verifier recomputes ``caprefs_root`` over
     ``caprefs_full`` using the ordered convention and reports
@@ -359,7 +359,7 @@ def test_strict_mode_multi_cap_root_mismatch_detected(tmp_path: Path) -> None:
     assert lenient.ok
     assert lenient.multi_cap_root_status == "deferred"
 
-    # Strict (default since Sprint-2 Tag-4): fails.
+    # Strict (default): fails.
     strict = verify_manifest_v2_file(path)
     assert not strict.ok
     assert strict.multi_cap_root_status == "mismatch"
@@ -402,7 +402,7 @@ def test_cli_main_returns_one_on_tampered_manifest(tmp_path: Path, capsys) -> No
 
 
 # ---------------------------------------------------------------------------
-# JSON output mode (Sprint-2 Tag-2 — frontend-cross-review pickup)
+# JSON output mode ( — frontend-cross-review pickup)
 # ---------------------------------------------------------------------------
 
 
@@ -442,7 +442,7 @@ def test_cli_output_json_emits_single_line_object_on_success(
 ) -> None:
     """``--output json`` emits a JSON object on stdout, exit-code 0.
 
-    Default-strict-mode (Sprint-2 Tag-4 onwards) reports
+    Default-strict-mode ( onwards) reports
     ``multi_cap_root_status="verified"`` for a clean v2 manifest
     whose ``caprefs_root`` is the ordered-Merkle hash of
     ``caprefs_full``.
@@ -476,7 +476,7 @@ def test_cli_output_json_no_strict_flag_emits_deferred_status(
 
     Escape hatch for third-party verifiers that have not yet adopted
     the OQ-1-ratified ordered-Merkle convention; preserved as a CLI
-    flag since Sprint-2 Tag-4 default-flip.
+    flag since default-flip.
     """
     events = [_make_event(1, capref_hash_hex="a" * 64)]
     manifest = _build_v2_manifest(
@@ -551,7 +551,7 @@ def test_cli_output_json_keys_are_sorted(tmp_path: Path, capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Audit-trail-entry export contract (Sprint-2 Tag-3 — paired-update with
+# Audit-trail-entry export contract ( — paired-update with
 # frontend AuditTrailEntry consumer)
 # ---------------------------------------------------------------------------
 
@@ -569,7 +569,7 @@ _PINNED_AUDIT_TRAIL_ENTRY_KEYS = frozenset(
         "branches",
         "ok",
         "failure_reason",
-        # Sprint-5 Tag-3 additive: signature_status (12th key, within
+        # additive: signature_status (12th key, within
         # wakir-verify-manifest-v2/0 — additive-only evolution rule).
         "signature_status",
     }
@@ -579,7 +579,7 @@ _PINNED_AUDIT_TRAIL_ENTRY_KEYS = frozenset(
 def test_as_audit_trail_entry_returns_pinned_eleven_keys() -> None:
     """The entry exposes exactly the documented twelve keys, always.
 
-    Naming kept stable across the Sprint-5 Tag-3 11 -> 12 field bump
+    Naming kept stable across the 11 -> 12 field bump
     (renaming the test would touch CI logs / search indexes for no
     contract gain).
     """
@@ -846,7 +846,7 @@ def test_cli_output_audit_trail_entry_emits_eleven_field_object(
     assert payload["event_count"] == 2
     assert payload["anchor_root_hex"] == manifest["merkle_root"]
     assert payload["identity"] == "wat-hour 2026-05-26T17"
-    # Strict default since Sprint-2 Tag-4 (OQ-1 ratified ordered-Merkle):
+    # Strict default since (OQ-1 ratified ordered-Merkle):
     # verdict is "verified" for a clean v2 manifest whose caprefs_root is
     # the ordered hash of caprefs_full.
     assert payload["branches"][0]["verdict"] == "verified"
@@ -893,12 +893,12 @@ def test_cli_output_audit_trail_entry_keys_are_sorted(tmp_path: Path, capsys) ->
 
     out = capsys.readouterr().out.strip()
     payload = json.loads(out)
-    # ensure_ascii=False matches the Python-side dump in main()
+    # ensure_ascii=False matches the Python-side dump in main
     assert out == json.dumps(payload, sort_keys=True, ensure_ascii=False)
 
 
 # ---------------------------------------------------------------------------
-# Sprint-2 Tag-5: Real-manifest mode + OTS-pin-anchor side-files
+#: Real-manifest mode + OTS-pin-anchor side-files
 # ---------------------------------------------------------------------------
 #
 # These tests exercise the verifier against the on-disk wire-form the
@@ -1150,7 +1150,7 @@ def test_real_manifest_no_check_ots_anchor_skips_side_files(tmp_path: Path) -> N
     """``check_ots_anchor=False`` skips the side-file check entirely."""
     events = [_make_event(i, capref_hash_hex="7" * 64) for i in (0,)]
     manifest = _build_real_v1_manifest(events)
-    # Write only the manifest, no root.bin / .ots. Should still pass.
+    # Write only the manifest, no root.bin /.ots. Should still pass.
     mpath = tmp_path / "manifest.json"
     mpath.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
 
@@ -1219,7 +1219,7 @@ def test_real_manifest_with_multi_cap_uses_strict_default(tmp_path: Path) -> Non
     """Real manifest carrying multi-cap sidecar runs strict-mode by default.
 
     Future v2 producer-code will emit ``multi_cap_events`` /
-    ``multi_cap_summary``. The same Sprint-2 Tag-4 strict default
+    ``multi_cap_summary``. The same strict default
     governs the recompute on the real-manifest path.
     """
     events = [_make_event(i, capref_hash_hex="a" * 64) for i in (0, 1)]
@@ -1270,7 +1270,7 @@ def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
     assert rc == 0
     payload = json.loads(out)
     # Same twelve keys as the v2-spec audit-trail-entry contract
-    # (bumped 11 -> 12 in Sprint-5 Tag-3, additive within
+    # (bumped 11 -> 12 , additive within
     # wakir-verify-manifest-v2/0).
     assert set(payload.keys()) == _PINNED_AUDIT_TRAIL_ENTRY_KEYS
     assert payload["kind"] == "wat-tv-pin-pack"
@@ -1282,7 +1282,7 @@ def test_real_manifest_audit_trail_entry_bridges_to_v2_shape(
 
 
 # ---------------------------------------------------------------------------
-# Real-manifest schema-file mode (Sprint-2 Tag-6)
+# Real-manifest schema-file mode
 # ---------------------------------------------------------------------------
 
 
@@ -1318,7 +1318,7 @@ def test_real_manifest_schema_file_default_path_resolves() -> None:
     )
     with DEFAULT_REAL_SCHEMA_PATH.open("r", encoding="utf-8") as fh:
         schema = json.load(fh)
-    # Schema $id bumped 0.1.0 -> 0.2.0 on Sprint-5 Tag-5 (additive
+    # Schema $id bumped 0.1.0 -> 0.2.0 on (additive
     # optional `signature` top-level slot).
     assert schema["$id"].endswith("/wakir-wat-manifest-v1/0.2.0")
     assert "wakir-wat-manifest/v1" in schema["properties"]["version"]["enum"]
@@ -1420,9 +1420,9 @@ def test_real_manifest_schema_file_off_default_runs_in_code_validator(
 ) -> None:
     """``use_schema_file=False`` (default) runs only the in-code validator.
 
-    Sanity-check that Sprint-2 Tag-5 behaviour is preserved: the
+    Sanity-check that behaviour is preserved: the
     in-code validator alone accepts a happy-path real-manifest, and
-    the schema-file path is opt-in.
+    the schema-file path is opt-.
     """
     events = [_make_event(i, capref_hash_hex="8" * 64) for i in (0,)]
     manifest = _build_real_v1_manifest(events)

@@ -7,8 +7,8 @@ Coverage targets the pure-function rollup core. I/O wrappers
 (``walk_probe_reports``, ``load_henrik_signoffs_from_file``) are
 covered via tmp_path fixtures.
 
-Anchor: Tag-42 Noa-SRE Pre-Cutover-Probe-Observability.
-Author: Noa Bergstroem (SRE)
+Anchor: the observability zone-SRE pre-cutover-Probe-Observability.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations
@@ -82,12 +82,12 @@ def _mk_signoff(
 
 
 # ---------------------------------------------------------------------------
-# Test 1: WELLE_SLUGS invariant — seven Welle in cutover-order.
+# Test 1: WELLE_SLUGS invariant — seven wave in cutover-order.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_slugs_invariant():
-    """Welle slugs must be welle-1..welle-7 in that order."""
+    """wave slugs must be wave 1..wave 7 in that order."""
     assert tracker.WELLE_SLUGS == (
         "welle-1",
         "welle-2",
@@ -119,13 +119,13 @@ def test_allowed_verdicts_invariant():
 
 
 # ---------------------------------------------------------------------------
-# Test 3: rollup_per_welle yields one rollup per Welle, in order, even
-# when zero probes were recorded for some Wellen.
+# Test 3: rollup_per_welle yields one rollup per wave, in order, even
+# when zero probes were recorded for some waves.
 # ---------------------------------------------------------------------------
 
 
 def test_rollup_per_welle_empty_input_returns_pending_per_welle():
-    """With no probes + no Henrik-Signoffs, every Welle gets PENDING."""
+    """With no probes + no internal audit-Signoffs, every wave gets PENDING."""
     rollups = tracker.rollup_per_welle([], [])
     assert len(rollups) == 7
     assert [r.welle for r in rollups] == list(tracker.WELLE_SLUGS)
@@ -135,8 +135,8 @@ def test_rollup_per_welle_empty_input_returns_pending_per_welle():
         assert r.henrik_signed_off is False
         # PENDING wellen have no coupling-blockers from their deps,
         # because deps are likewise PENDING+unsigned; check the matrix.
-        # welle-1..-4 have no deps -> always met.
-        # welle-5..-7 have deps; with empty inputs they are blocked.
+        # wave 1..-4 have no deps -> always met.
+        # wave 5..-7 have deps; with empty inputs they are blocked.
         if r.welle in ("welle-5", "welle-6", "welle-7"):
             assert r.coupling_pre_conditions_met is False
             assert r.coupling_blockers, f"{r.welle} should list blockers"
@@ -193,13 +193,13 @@ def test_stability_consecutive_green_counts_correctly():
 
 
 # ---------------------------------------------------------------------------
-# Test 6: Coupling pre-conditions — Welle-7 needs Welle-3 sign-off AND
-# Welle-4 Cutover-Done.
+# Test 6: Coupling pre-conditions — wave 7 needs wave 3 sign-off AND
+# wave 4 cutover-Done.
 # ---------------------------------------------------------------------------
 
 
 def test_coupling_pre_conditions_welle_7_unblocked_only_when_deps_met():
-    """Welle-7 blocked until Welle-3 signed AND Welle-4 GREEN+signed."""
+    """wave 7 blocked until wave 3 signed AND wave 4 GREEN+signed."""
     # Case A: deps unmet -> blocked.
     probes_a = [_mk_probe("welle-7", "GREEN", ts=1718000000.0)]
     rollups_a = tracker.rollup_per_welle(probes_a, [])
@@ -225,12 +225,12 @@ def test_coupling_pre_conditions_welle_7_unblocked_only_when_deps_met():
 
 
 # ---------------------------------------------------------------------------
-# Test 7: compute_marathon_readiness_score — 7x GREEN + 7x Henrik = 100%.
+# Test 7: compute_marathon_readiness_score — 7x GREEN + 7x internal audit = 100%.
 # ---------------------------------------------------------------------------
 
 
 def test_marathon_readiness_score_full_house_is_100_percent():
-    """All 7 GREEN + all 7 Henrik-signed => 100% (capped)."""
+    """All 7 GREEN + all 7 internal audit-signed => 100% (capped)."""
     probes = [
         _mk_probe(w, "GREEN", ts=1718000000.0) for w in tracker.WELLE_SLUGS
     ]
@@ -248,17 +248,17 @@ def test_marathon_readiness_score_pending_is_zero():
 
 
 def test_marathon_readiness_score_block_zero_henrik_partial():
-    """A BLOCK Welle contributes 0; Henrik-signed adds 5pp."""
+    """A BLOCK wave contributes 0; internal audit-signed adds 5pp."""
     probes = [_mk_probe("welle-1", "BLOCK", ts=1718000000.0)]
     signoffs = [_mk_signoff("welle-1")]
     rollups = tracker.rollup_per_welle(probes, signoffs)
     score = tracker.compute_marathon_readiness_score(rollups)
-    # BLOCK -> 0pp verdict; Henrik-signed -> 5pp.
+    # BLOCK -> 0pp verdict; internal audit-signed -> 5pp.
     assert score == pytest.approx(5.0, abs=0.01)
 
 
 def test_marathon_readiness_score_caution_is_half():
-    """A CAUTION Welle contributes half a GREEN."""
+    """A CAUTION wave contributes half a GREEN."""
     probes = [_mk_probe("welle-1", "CAUTION", ts=1718000000.0)]
     rollups = tracker.rollup_per_welle(probes, [])
     score = tracker.compute_marathon_readiness_score(rollups)
@@ -272,7 +272,7 @@ def test_marathon_readiness_score_caution_is_half():
 
 
 def test_render_prometheus_textfile_emits_expected_metrics():
-    """The textfile must contain every required metric name + per-Welle rows."""
+    """The textfile must contain every required metric name + per-wave rows."""
     probes = [_mk_probe("welle-1", "GREEN", ts=1718000000.0)]
     rollups = tracker.rollup_per_welle(probes, [])
     score = tracker.compute_marathon_readiness_score(rollups)
@@ -292,7 +292,7 @@ def test_render_prometheus_textfile_emits_expected_metrics():
         # HELP + TYPE for every metric.
         assert f"# HELP {metric}" in text
         assert f"# TYPE {metric} gauge" in text
-    # One verdict line per Welle.
+    # One verdict line per wave.
     for slug in tracker.WELLE_SLUGS:
         assert (
             f'wakir_pre_cutover_probe_verdict{{welle="{slug}"}}' in text
@@ -300,12 +300,12 @@ def test_render_prometheus_textfile_emits_expected_metrics():
 
 
 # ---------------------------------------------------------------------------
-# Test 9: render_json_rollup is valid JSON and contains all Wellen.
+# Test 9: render_json_rollup is valid JSON and contains all waves.
 # ---------------------------------------------------------------------------
 
 
 def test_render_json_rollup_is_valid_json_with_all_wellen():
-    """JSON output must parse and contain seven Welle entries."""
+    """JSON output must parse and contain seven wave entries."""
     rollups = tracker.rollup_per_welle([], [])
     text = tracker.render_json_rollup(
         rollups, marathon_score=0.0, timestamp_unixtime=1718000000.0
@@ -316,7 +316,7 @@ def test_render_json_rollup_is_valid_json_with_all_wellen():
     assert len(obj["wellen"]) == 7
     welle_slugs = [w["welle"] for w in obj["wellen"]]
     assert welle_slugs == list(tracker.WELLE_SLUGS)
-    # Cutover-window populated per ADR-0066.
+    # cutover-window populated per ADR-0066.
     for w in obj["wellen"]:
         assert "cutover_window" in w
         assert "week" in w["cutover_window"]
@@ -329,7 +329,7 @@ def test_render_json_rollup_is_valid_json_with_all_wellen():
 
 
 def test_parse_probe_report_extracts_verdict_from_welle_1_format():
-    """Parse the Welle-1 probe-report format Reza-Tag-41 emits."""
+    """Parse the wave 1 probe-report format the protocol zone-emits."""
     text = """# Welle-1 v907_verify Pre-Cutover-Probe (Tag-41)
 
 Operator: Reza Hassani
@@ -408,7 +408,7 @@ def test_walk_probe_reports_returns_empty_on_missing_dir(tmp_path):
 
 
 def test_load_fixture_probes_round_trip(tmp_path):
-    """Fixture-mode JSON loads both probes and Henrik-Signoffs."""
+    """Fixture-mode JSON loads both probes and internal audit-Signoffs."""
     fixture = {
         "probes": [
             {
@@ -494,7 +494,7 @@ def test_main_fixture_mode_writes_all_outputs(tmp_path):
 
 
 def test_main_fixture_mode_fail_on_block_exits_one(tmp_path):
-    """--fail-on-block returns rc=1 when any Welle is BLOCK."""
+    """--fail-on-block returns rc=1 when any wave is BLOCK."""
     fixture = {
         "probes": [
             {
@@ -522,12 +522,12 @@ def test_main_fixture_mode_fail_on_block_exits_one(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Test 14: CUTOVER_DAY_WINDOWS contains all seven Wellen with required keys.
+# Test 14: CUTOVER_DAY_WINDOWS contains all seven waves with required keys.
 # ---------------------------------------------------------------------------
 
 
 def test_cutover_day_windows_complete_and_well_formed():
-    """Every Welle slug has a window entry with week+date+slot."""
+    """Every wave slug has a window entry with week+date+slot."""
     assert set(tracker.CUTOVER_DAY_WINDOWS.keys()) == set(tracker.WELLE_SLUGS)
     for slug, win in tracker.CUTOVER_DAY_WINDOWS.items():
         assert "week" in win and win["week"].startswith("KW-")

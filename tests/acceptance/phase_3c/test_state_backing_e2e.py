@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Phase-3c Cutover Welle-4 E2E acceptance — ``state_backing``.
+"""Phase-3c cutover wave 4 E2E acceptance — ``state_backing``.
 
 Anchors
 -------
 
-- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — Welle-4
+- ADR-0065 §Verifikations-Plan §"Vorgeschlagene Reihenfolge" — wave 4
   = ``state_backing`` (Persistenter State, höheres Risiko).
 - ADR-0065 §Rollback-Procedure pro Komponente §3 — Schema-Migrations-
-  Rollback-Plan is *required pre-Welle* for ``state_backing``.
-- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — Welle-4 is
+  Rollback-Plan is *required pre-wave* for ``state_backing``.
+- ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" — wave 4 is
   the *source* of any schema drift that downstream moduln consume.
 
-Welle character
+wave character
 ---------------
 
 ``state_backing`` is the persistent-state substrate for the engine:
@@ -22,9 +22,9 @@ introduces serialisation-byte-exact-parity requirements (any byte-
 divergence in JCS output across Python/Rust would cause hash-anchor
 drift downstream).
 
-Welle-4 is the *first* welle where the Schema-Migrations-Rollback-Plan
-(ADR-0065 §Rollback-Procedure §3) is a hard pre-requisite — Welle-1/2
-were read-only, Welle-3 was idempotent. From Welle-4 onwards, state-
+wave 4 is the *first* wave where the Schema-Migrations-Rollback-Plan
+(ADR-0065 §Rollback-Procedure §3) is a hard pre-requisite — wave 1/2
+were read-only, wave 3 was idempotent. From wave 4 onwards, state-
 on-disk could outlast a rollback.
 """
 
@@ -65,7 +65,7 @@ def test_welle_4_ac_1_jcs_byte_drift_blocks(
 ) -> None:
     """AC-1 failure-mode: JCS-byte-divergence in state-write envelope.
 
-    Welle-4-specific drift-source: any Unicode-normalisation or float-
+    wave 4 specific drift-source: any Unicode-normalisation or float-
     formatting difference between Python's ``rfc8785`` and the Rust
     JCS-implementation would produce a one-byte payload diff → sha256
     diff → AC-1 drift.
@@ -103,7 +103,7 @@ def test_welle_4_ac_2_performance_within_headroom() -> None:
 
 
 def test_welle_4_ac_3_bug_rate_zero_s0_s1() -> None:
-    """AC-3: 0 S0/S1 issues during Welle-4 Beobachtungs-Woche."""
+    """AC-3: 0 S0/S1 issues during wave 4 Beobachtungs-Woche."""
     assert_ac_3_bug_rate(s0_count=0, s1_count=0, welle=WELLE_NAME)
 
 
@@ -113,10 +113,10 @@ def test_welle_4_ac_3_bug_rate_zero_s0_s1() -> None:
 
 
 def test_welle_4_ac_4_cross_review_consensus(mocked_cross_review) -> None:
-    """AC-4: Welle-4 Cross-Review-Session all-personas-consent.
+    """AC-4: wave 4 Cross-Review-Session all-personas-consent.
 
-    Welle-4 is the first state-mutating welle → Selin (Persona-Engine-
-    Owner) and Tomás (Engineering-Lead) consent are non-negotiable.
+    wave 4 is the first state-mutating wave → the engine zone (Persona-Engine-
+    Owner) and the engineering zone (Engineering-Lead) consent are non-negotiable.
     """
     record = mocked_cross_review(WELLE_NAME)
     assert_ac_4_cross_review_consensus(record, WELLE_NAME)
@@ -128,7 +128,7 @@ def test_welle_4_ac_4_cross_review_consensus(mocked_cross_review) -> None:
 
 
 def test_welle_4_ac_5_v907_pin_validation_full_pass() -> None:
-    """AC-5: V-907 Pin-Validation 100% post-Welle-4 cutover."""
+    """AC-5: V-907 Pin-Validation 100% post-wave 4 cutover."""
     persona_def_count = 6
     assert_ac_5_v907_pin_validation(
         persona_def_count=persona_def_count,
@@ -138,12 +138,12 @@ def test_welle_4_ac_5_v907_pin_validation_full_pass() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Welle-4 substrate sanity — schema-migration rollback drill.
+# wave 4 substrate sanity — schema-migration rollback drill.
 # ---------------------------------------------------------------------------
 
 
 def test_welle_4_three_moduln_rust_four_python(mocked_quadlet_env) -> None:
-    """Welle-4 Quadlet-state: Welle-1/2/3 + Welle-4 on rust, Welle-5/6/7
+    """wave 4 Quadlet-state: wave 1/2/3 + wave 4 on rust, wave 5/6/7
     on python.
     """
     env = mocked_quadlet_env(
@@ -165,24 +165,24 @@ def test_welle_4_three_moduln_rust_four_python(mocked_quadlet_env) -> None:
 
 @pytest.mark.skip(reason="pending welle-cutover — Schema-Migrations-Rollback-Plan drill")
 def test_welle_4_schema_migration_rollback_under_2h() -> None:
-    """Welle-4 Rollback-SLA: ≤2 Stunden bei Schema-Migration-Rollback
+    """wave 4 Rollback-SLA: ≤2 Stunden bei Schema-Migration-Rollback
     (ADR-0065 §Rollback-Strategie).
 
-    Welle-4 is the first welle where state-on-disk could outlast a
+    wave 4 is the first wave where state-on-disk could outlast a
     rollback — the Schema-Migrations-Rollback-Plan must be drilled
-    pre-Welle. Operator-Hand drill substrate.
+    pre-wave. Operator-Hand drill substrate.
     """
     raise NotImplementedError("pending welle-cutover")
 
 
 @pytest.mark.skip(reason="pending welle-cutover — Cross-Komponenten-Schema-Verify wiring")
 def test_welle_4_state_schema_readable_by_python_lifecycle() -> None:
-    """Welle-4 Cross-Komponenten-Schema check: state written by Rust-
+    """wave 4 Cross-Komponenten-Schema check: state written by Rust-
     state_backing must be readable by the *still-Python*
-    lifecycle_state_machine (Welle-5 not yet flipped).
+    lifecycle_state_machine (wave 5 not yet flipped).
 
     ADR-0065 §Risiken §"Cross-Komponenten-Schema-Drift" mitigation.
-    Selin-Sprint-Pengine-N produces the cross-schema-verify substrate;
-    this test wires into it post-Welle-4.
+    The engine zone--Pengine-N produces the cross-schema-verify substrate;
+    this test wires into it post-wave 4.
     """
     raise NotImplementedError("pending welle-cutover")

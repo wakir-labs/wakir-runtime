@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 # REUSE-IgnoreEnd
-"""Hermetic observability tests for the Tag-71 Live-Smoke
-Stability-Window-Operator-Runbook + Welle-3 Pre-Auditor Routing
-Element (Noa SRE, Continuous-Mode-Marathon).
+"""Hermetic observability tests for the Live-Smoke
+Stability-Window-Operator-Runbook + wave 3 Pre-Auditor Routing
+Element.
 
-Auftrag-Anker
+Scope anchor
 -------------
 
-Tag-71 Noa Auftrag (Mira, 2026-05-19, Continuous-Mode-Marathon):
-Operator-Doc that describes the Tag-69 Live-Smoke Stability-
-Window-Probe as a Day-1 operator action + a Welle-3-specific
+The observability zone assignment:
+Operator-Doc that describes the Live-Smoke Stability-
+Window-Probe as a Day-1 operator action + a wave 3 specific
 routing element (Pre-Auditor positive-confirmation alert).
 
 The Operator-Runbook lives at
@@ -19,7 +19,7 @@ The Operator-Runbook lives at
 and is mirrored to
 ``wirelang/specs/protocol-mirror-seed/docs/observability/``.
 
-The Welle-3 Pre-Auditor alert
+The wave 3 Pre-Auditor alert
 (``WakirPhase3Welle3PreAuditorDesignated``) is appended to the
 existing ``phase-3-marathon-failure-mode-b3-iia-1130-default``
 alert-group in ``dashboards/phase-3-marathon-alerts.yaml`` and
@@ -30,9 +30,9 @@ Scope
 
 * Operator-Runbook structural assertions (sections, gates,
   trinary-verdict matrix, hand-off fields).
-* Welle-3 Pre-Auditor alert structural assertions in the
+* wave 3 Pre-Auditor alert structural assertions in the
   alerts YAML (alert name, severity, routing class, expr
-  contract, mutual exclusion vs. the Tag-45 default-path
+  contract, mutual exclusion vs. The default-path
   warning).
 * Cross-Repo-Mirror byte-equality.
 """
@@ -105,7 +105,7 @@ def alerts_mirror_text() -> str:
 
 
 def test_runbook_exists_and_nonempty(runbook_text: str) -> None:
-    """The Tag-71 operator-runbook is committed and not empty."""
+    """the operator-runbook is committed and not empty."""
     assert RUNBOOK_PATH.exists(), (
         f"runbook missing at {RUNBOOK_PATH}"
     )
@@ -127,7 +127,7 @@ def test_runbook_has_spdx_header(runbook_text: str) -> None:
 
 def test_runbook_has_six_sections(runbook_text: str) -> None:
     """The runbook carries the six Day-1-operator sections plus
-    references. Auftrag-Spec: 6 Sektionen, Day-1-Operator-Aktion.
+    references. assignment-Spec: 6 Sektionen, Day-1-Operator-Aktion.
     """
     required_headings = [
         "## 1. Purpose",
@@ -142,7 +142,7 @@ def test_runbook_has_six_sections(runbook_text: str) -> None:
 
 
 def test_runbook_trinary_verdict_matrix(runbook_text: str) -> None:
-    """All three Tag-59 N-Run-Pattern verdicts must be enumerated
+    """All three N-Run-Pattern verdicts must be enumerated
     in Section 4 with explicit operator actions for each.
     """
     for verdict in (
@@ -181,7 +181,7 @@ def test_runbook_handoff_fields(runbook_text: str) -> None:
 
 
 def test_runbook_section_6_welle3_routing(runbook_text: str) -> None:
-    """Section 6 documents the Tag-71 Welle-3 Pre-Auditor
+    """Section 6 documents the wave 3 Pre-Auditor
     routing element with the four-row table (alert name, severity,
     routing class, notify path)."""
     sec6_marker = "## 6. Welle-3 Pre-Auditor Routing Element"
@@ -193,14 +193,14 @@ def test_runbook_section_6_welle3_routing(runbook_text: str) -> None:
     assert "welle-3-pre-auditor-info" in section_6
     assert "ntfy:ar-hand-info" in section_6
     assert "external-pre-auditor" in section_6
-    # The mutual-exclusion-with-Tag-45-alert is the load-bearing
+    # The mutual-exclusion-with--alert is the load-bearing
     # contract; it must be spelled out.
     assert "WakirPhase3FailureModeB3Iia1130DefaultPath" in section_6
 
 
 def test_runbook_failure_mode_escalation_table(runbook_text: str) -> None:
     """Section 7 enumerates the symptom -> action -> escalation
-    table including the Welle-3 Pre-Auditor designation row."""
+    table including the wave 3 Pre-Auditor designation row."""
     sec7_marker = "## 7. Failure-Mode Escalation Table"
     assert sec7_marker in runbook_text
     sec8_idx = runbook_text.index("## 8. References")
@@ -211,19 +211,19 @@ def test_runbook_failure_mode_escalation_table(runbook_text: str) -> None:
 
 
 # ---------------------------------------------------------------
-# Section 2: Welle-3 Pre-Auditor alert YAML surface.
+# Section 2: wave 3 Pre-Auditor alert YAML surface.
 # ---------------------------------------------------------------
 
 
 def test_alerts_yaml_contains_new_alert(alerts_text: str) -> None:
-    """The Tag-71 alert is appended to the alerts YAML."""
+    """the alert is appended to the alerts YAML."""
     assert "WakirPhase3Welle3PreAuditorDesignated" in alerts_text
 
 
 def test_alert_carries_info_severity_and_routing_class(alerts_text: str) -> None:
     """The new alert must be severity=info and carry the
     `welle-3-pre-auditor-info` routing class (so the AlertManager
-    route-tree fans out to AR-Hand info topic + activity-log).
+    route-tree fans out to operator-hand info topic + activity-log).
     """
     # Slice to the alert block: from the alert-key to the next
     # blank line that's not inside an annotation block.
@@ -243,7 +243,7 @@ def test_alert_expr_uses_external_pre_auditor_signoff(alerts_text: str) -> None:
     """The expr must positively match
     auditor=external-pre-auditor AND negatively match
     auditor=henrik. This is the mutual-exclusion contract that
-    distinguishes Tag-71 (positive ack) from Tag-45 (warning).
+    distinguishes (positive ack) from (warning).
     """
     alert_start = alerts_text.index("WakirPhase3Welle3PreAuditorDesignated")
     block = alerts_text[alert_start:alert_start + 2500]
@@ -274,10 +274,10 @@ def test_alert_notify_path_is_info_only(alerts_text: str) -> None:
 
 
 def test_alert_is_in_b3_group_not_new_group(alerts_text: str) -> None:
-    """The Tag-71 alert is appended to the existing
+    """the alert is appended to the existing
     `phase-3-marathon-failure-mode-b3-iia-1130-default` group,
     not lifted into a new top-level group. This preserves the
-    mutual-exclusion locality with the Tag-45 default-path
+    mutual-exclusion locality with the default-path
     warning."""
     group_marker = (
         "- name: phase-3-marathon-failure-mode-b3-iia-1130-default"
@@ -344,7 +344,7 @@ def test_alerts_mirror_byte_equal(
 
 
 def test_runbook_references_tag_69_workflow_filename(runbook_text: str) -> None:
-    """The runbook must point at the Tag-69 workflow file
+    """The runbook must point at the workflow file
     by exact relative path so the operator can find it."""
     assert (
         ".github/workflows/live-smoke-stability-window-probe.yml"

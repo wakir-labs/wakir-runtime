@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for alert-rule-to-mira-notify-bridge.py (Tag-47).
+"""Hermetic tests for alert-rule-to-mira-notify-bridge.py.
 
 Coverage targets:
 * Pure-function core: ``lookup_catalog``, ``normalise_severity``,
@@ -10,14 +10,14 @@ Coverage targets:
   ``extract_alert_names_from_rules_yaml``,
   ``audit_catalog_against_rules``.
 * End-to-end I/O surface: ``route_envelope`` -> ``infra/notify-log.jsonl``
-  + integration with the Tag-46 receiver materialisation.
+  + integration with the receiver materialisation.
 * CLI: ``route --input`` + ``validate-catalog --rules``.
 * Cross-validation: every alert in
   ``dashboards/phase-3-marathon-alerts.yaml`` is in the catalog.
 
-Author: Noa Bergstroem (SRE)
-Anchor: Tag-45 catalog PR #292; Tag-46 emitter+receiver PR #296;
-        Tag-47 bridge substance.
+Author: the observability zone Bergstroem (SRE)
+Anchor: catalog PR #292; emitter+receiver PR #296;
+        bridge substance.
 """
 
 from __future__ import annotations
@@ -421,7 +421,7 @@ def test_route_envelope_deterministic_event_id(
     assert len(lines) == 2
     obj_a = json.loads(lines[0])
     obj_b = json.loads(lines[1])
-    # Same alert -> same deterministic id (the Tag-46 receiver dedupes).
+    # Same alert -> same deterministic id (the receiver dedupes).
     assert obj_a["event_id"] == obj_b["event_id"]
 
 
@@ -481,7 +481,7 @@ def test_audit_catalog_reports_missing():
 # ---------------------------------------------------------------------------
 # Test 15: cross-check against the real phase-3-marathon-alerts.yaml.
 # Every alert in the YAML MUST appear in either ALERT_CATALOG or
-# CATALOG_NON_PRE_MORTEM.  If this fails: the catalog is stale
+# CATALOG_NON_PRE_MORTEM. If this fails: the catalog is stale
 # relative to the rules YAML.
 # ---------------------------------------------------------------------------
 
@@ -550,10 +550,10 @@ def test_cli_validate_catalog_real_rules():
 
 
 # ---------------------------------------------------------------------------
-# Test 18: End-to-end with Tag-46 receiver --mode=file materialises
-# a Mira-Hand inbox markdown file from a bridge-routed envelope.
-# This is the *wiring proof*: Tag-45 alert -> Tag-46 emitter ->
-# Tag-46 receiver -> Mira-Hand inbox.
+# Test 18: End-to-end with receiver --mode=file materialises
+# a operator-Hand inbox markdown file from a bridge-routed envelope.
+# This is the *wiring proof*: alert -> emitter ->
+# receiver -> operator-Hand inbox.
 # ---------------------------------------------------------------------------
 
 

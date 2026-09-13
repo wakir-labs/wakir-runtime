@@ -9,14 +9,14 @@ Anchors
 - ADR-0065 §Rollback-Strategie — ENV-Flag-Switch ≤10min SLA pro
   Komponente; Bridge-Audit-Writer-Konsistenz-Re-Verify post-rollback;
   Postmortem-Pflicht.
-- ADR-0066 §Rollback — Doppel-Welle-Rollback-Kompatibilität (gleicher
+- ADR-0066 §Rollback — dual-run wave-Rollback-Kompatibilität (gleicher
   10min SLA pro Komponente, sequential application).
-- ``tests/acceptance/phase_3c/conftest.py`` (Amara, PR series) — the
+- ``tests/acceptance/phase_3c/conftest.py`` — the
   parent fixture-set providing ``WELLE_ORDER``, the existing record
   dataclasses (``BackendDecisionRecord``,
-  ``SingleKomponenteRollbackRecord``), and the per-welle oracle
+  ``SingleKomponenteRollbackRecord``), and the per-wave oracle
   builders. This sub-conftest extends — not replaces — that surface.
-- ``tests/acceptance/phase_3c/_ac_assertions.py`` (Amara, PR series) —
+- ``tests/acceptance/phase_3c/_ac_assertions.py`` —
   the ``ROLLBACK_SLA_SECONDS = 600.0`` constant and ``DW-AC-3``
   asymmetric-rollback assertion-helper. Both are imported here.
 
@@ -49,28 +49,28 @@ Component inventory
 
 Phase-3c-Komponenten covered by this drill-suite:
 
-1. ``v907_verify`` (ADR-0065 §Verifikations-Plan Welle-1)
-2. ``svid_workload_identity`` (Welle-2)
-3. ``bridge_audit_writer`` (Welle-3, Henrik-Caution-Carve-out)
-4. ``state_backing`` (Welle-4)
-5. ``lifecycle_state_machine`` (Welle-5)
-6. ``subscribe_loop`` (Welle-6)
-7. ``recovery_workflow`` (Welle-7)
+1. ``v907_verify`` (ADR-0065 §Verifikations-Plan wave 1)
+2. ``svid_workload_identity`` (wave 2)
+3. ``bridge_audit_writer`` (wave 3, internal audit-Caution-Carve-out)
+4. ``state_backing`` (wave 4)
+5. ``lifecycle_state_machine`` (wave 5)
+6. ``subscribe_loop`` (wave 6)
+7. ``recovery_workflow`` (wave 7)
 8. ``anchor_emitter`` (additional Phase-3c-Komponente; Bridge-side
-   anchor-fan-out, see ``wakir-runtime`` PR series Tag-18+).
+   anchor-fan-out, see ``wakir-runtime`` PR series +).
 9. ``federation_resolver`` (additional Phase-3c-Komponente; cross-
-   org-name resolution, see ``wakir-runtime`` PR series Tag-14+).
+   org-name resolution, see ``wakir-runtime`` PR series +).
 
-Components 1...7 mirror the ADR-0065 §Verifikations-Plan welle-list.
-Components 8 + 9 are the two non-welle Phase-3c-cutover-surfaces that
+Components 1...7 mirror the ADR-0065 §Verifikations-Plan wave-list.
+Components 8 + 9 are the two non-wave Phase-3c-cutover-surfaces that
 the SLA-verification must also cover (ENV-Flag-Switch substrate
 identical, rollback contract identical).
 
 Opt-in gate
 -----------
 
-Two independent opt-in paths (parallel to the per-welle and Doppel-
-Welle skeletons):
+Two independent opt-in paths (parallel to the per-wave and Doppel-
+wave skeletons):
 
 1. ``pytest --rollback-drill`` — explicit CLI flag.
 2. ``WAKIR_PHASE_3C_ROLLBACK_DRILL=1`` — env-var.
@@ -94,13 +94,13 @@ Vermutungs-Kennzeichnung (P2)
 -----------------------------
 
 * The ``ROLLBACK_SLA_SECONDS = 600.0`` constant is ADR-0065/-0066-
-  fixed (10min ENV-Flag-Switch); the Welle-4-specific 2-Stunden
+  fixed (10min ENV-Flag-Switch); the wave 4 specific 2-Stunden
   Schema-Migrations-Rollback drill is *not* covered here (separate
-  Reza-Folge-Spawn-Artefakt per ADR-0065 §Folgeartefakte 3).
+  the protocol zone-Folge-Spawn-Artefakt per ADR-0065 §Folgeartefakte 3).
 * The ``mocked_phase_2_acceptance_gate`` fixture emits a
   green-by-construction Phase-2-Acceptance-Gate record (RD-3
   oracle). The Phase-3c-trigger-sprint wires this against the real
-  Tomás Tag-29 Cross-Modul-Stress-Test substrate output.
+  the engineering zone Cross-Modul-Stress-Test substrate output.
 * Operator-actor-string ``operator-hand-rollback-runbook`` is a
   placeholder anchor; sprint-time wiring replaces with the actual
   ``operator/<handle>`` field from the Quadlet-ENV-rewrite tooling.
@@ -160,9 +160,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Skip ``phase_3c_rollback_drill``-marked tests unless opt-in.
+    """Skip ``phase_3c_rollback_drill``-marked tests unless opt-.
 
-    Mirrors the per-welle and Doppel-Welle opt-in patterns: collection-
+    Mirrors the per-wave and dual-run wave opt-in patterns: collection-
     time skip-marker so default CI runs see a clean fast-skip without
     fixture-evaluation surprises.
     """
@@ -189,18 +189,18 @@ def pytest_collection_modifyitems(
 #: All Phase-3c-Komponenten covered by the rollback-drill suite.
 #:
 #: Tuples 1...7 mirror ``WELLE_ORDER`` from the parent conftest (the
-#: ADR-0065 §Verifikations-Plan welle-sequence). Tuples 8 + 9 are the
+#: ADR-0065 §Verifikations-Plan wave-sequence). Tuples 8 + 9 are the
 #: two additional Phase-3c-Komponenten that share the same ENV-Flag-
-#: Switch rollback substrate but are not part of the seven-welle
+#: Switch rollback substrate but are not part of the seven-wave
 #: cutover sequence:
 #:
 #: * ``anchor_emitter`` — Bridge-side anchor-fan-out surface (PR series
-#:   wakir-runtime Tag-18+).
+#: wakir-runtime +).
 #: * ``federation_resolver`` — cross-org-name resolution surface
-#:   (PR series wakir-runtime Tag-14+).
+#: (PR series wakir-runtime +).
 #:
 #: Both share ``WAKIR_ENGINE_<MODUL>_BACKEND`` flag semantics with the
-#: seven welle-Komponenten and are therefore drill-eligible.
+#: seven wave-Komponenten and are therefore drill-eligible.
 PHASE_3C_COMPONENTS: tuple[str, ...] = tuple(
     modul for _, modul in WELLE_ORDER
 ) + (
@@ -270,12 +270,12 @@ def mocked_rollback_event() -> Callable[..., RollbackEvent]:
       broken post-rollback (RD-3 contributor, also flagged separately
       by ``mocked_phase_2_acceptance_gate``).
     * ``missing_audit=True`` — engine emitted no audit-record on the
-      rollback boot (RD-2 failure-shape; rare but Henrik-Audit-relevant).
+      rollback boot (RD-2 failure-shape; rare but internal-audit-relevant).
 
     The mocked-clock substrate is deliberately coarse (the fixture
     accepts an ``elapsed_seconds`` float directly) — the Phase-3c-
     trigger-sprint wires this against the real Quadlet-restart elapsed-
-    seconds measured by Noa-Prometheus-Gauges in the
+    seconds measured by the observability zone-Prometheus-Gauges in the
     ``operator-hand-rollback-runbook`` lane.
     """
 
@@ -327,8 +327,8 @@ def mocked_rollback_event() -> Callable[..., RollbackEvent]:
 #
 # Post-rollback the system must re-pass the Phase-2-Acceptance-Gate
 # (Cross-Modul-Konsistenz). This fixture is the mocked output of that
-# gate; the Phase-3c-trigger-sprint replaces it with the real Tomás
-# Tag-29 Cross-Modul-Stress-Test substrate emitting a real pass/fail.
+# gate; the Phase-3c-trigger-sprint replaces it with the real the engineering zone
+# Cross-Modul-Stress-Test substrate emitting a real pass/fail.
 # ---------------------------------------------------------------------------
 
 
@@ -410,7 +410,7 @@ def assert_rd_1_env_flag_switch_effective(
 
     * The event's ``modul`` matches the drill target.
     * Pre-switch backend was ``"rust"`` (else there was nothing to roll
-      back from).
+      back).
     * Post-switch backend is ``"python"`` (the rollback direction).
     """
     assert event.modul == modul, (
@@ -440,7 +440,7 @@ def assert_rd_2_audit_record_documents_rollback(
       direction; the cutover-flip emits ``"rust"``, the rollback-flip
       emits ``"python"``).
     * Audit-record carries a non-empty ``cutover_cycle_id`` (required
-      for Henrik-Audit-Trail-Consistency, Zone-N).
+      for internal-audit-Trail-Consistency, Zone-N).
     * Audit-record names an operator-actor (the Operator-Hand-runbook
       ran the switch).
     """

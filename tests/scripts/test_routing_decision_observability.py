@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Tests for scripts/routing-decision-observability.py — Tag-16 Mini-Welle.
+"""Tests for scripts/routing-decision-observability.py — Mini-wave.
 
 Hermetic, stdlib-only: the aggregator module is loaded via importlib
 from its hyphenated path under ``scripts/``. JSONL inputs are written
@@ -9,15 +9,15 @@ to ``tmp_path`` fixtures. No network, no real Prometheus collector.
 Scope (12 tests)
 ----------------
 
-1.  test_module_loads_and_exports_public_surface
-2.  test_read_decision_records_tolerates_malformed_and_empty_lines
-3.  test_read_decision_records_raises_on_missing_file
-4.  test_select_window_returns_trailing_records
-5.  test_select_window_clamps_nonpositive_to_default
-6.  test_read_window_size_from_env_parses_valid_and_falls_back
-7.  test_aggregate_decisions_counts_per_model_and_per_mode
-8.  test_aggregate_decisions_latency_percentiles_per_mode
-9.  test_aggregate_decisions_classifier_hit_rate
+1. test_module_loads_and_exports_public_surface
+2. test_read_decision_records_tolerates_malformed_and_empty_lines
+3. test_read_decision_records_raises_on_missing_file
+4. test_select_window_returns_trailing_records
+5. test_select_window_clamps_nonpositive_to_default
+6. test_read_window_size_from_env_parses_valid_and_falls_back
+7. test_aggregate_decisions_counts_per_model_and_per_mode
+8. test_aggregate_decisions_latency_percentiles_per_mode
+9. test_aggregate_decisions_classifier_hit_rate
 10. test_render_prometheus_emits_expected_metric_names
 11. test_main_json_format_round_trip_via_cli
 12. test_main_prometheus_dry_run_writes_to_stdout
@@ -168,7 +168,7 @@ def test_read_decision_records_tolerates_malformed_and_empty_lines(tmp_path: Pat
 
 
 def test_read_decision_records_raises_on_missing_file(tmp_path: Path):
-    """A missing path raises :class:`JsonlReadError` so the CLI can map
+    """A missing path raises:class:`JsonlReadError` so the CLI can map
     it to exit-code 1. The aggregator never silently treats a missing
     file as 'zero decisions' — that would mask an operator misconfig.
     """
@@ -288,7 +288,7 @@ def test_aggregate_decisions_latency_percentiles_per_mode():
     integer values that correspond to real observed latencies, not
     interpolated phantoms.
 
-    For sorted [10, 20, 30, ..., 100] (10 items):
+    For sorted [10, 20, 30,..., 100] (10 items):
       - p50 -> ceil(0.5*10)=5 -> values[4] = 50
       - p95 -> ceil(0.95*10)=10 -> values[9] = 100
       - p99 -> ceil(0.99*10)=10 -> values[9] = 100

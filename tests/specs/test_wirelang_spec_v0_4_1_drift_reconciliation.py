@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tag-48 hermetic test suite for wirelang-spec-v0-4-1.md drift reconciliation.
+"""hermetic test suite for wirelang-spec-v0-4-1.md drift reconciliation.
 
 This suite verifies the additive patch v0.4.1 over v0.4.0 captures the three
-drift items recorded in the Tag-47 audit report:
+drift items recorded in the audit report:
 
 - DRIFT-S1: persona-engine-federation-resolver added to spec §3.1 row 16
 - DRIFT-S2: persona-engine-recovery-replay companion-vs-row clarification (§3.1.14)
@@ -121,9 +121,9 @@ def test_t07_federation_resolver_has_substantive_source():
 
 
 def test_t08_spec_v041_documents_off_welle_classification_for_row_16():
-    """T-08: row 16 is classified Off-Welle (boot), not on Phase-3c path."""
+    """T-08: row 16 is classified Off-wave (boot), not on Phase-3c path."""
     body = SPEC_V041.read_text(encoding="utf-8")
-    # The Off-Welle phrase must appear in close proximity to row 16's
+    # The Off-wave phrase must appear in close proximity to row 16's
     # federation-resolver content.
     assert "Off-Welle" in body, "v0.4.1 must classify row 16 as Off-Welle"
     # Either §3.1.16 subsection or the §3.1 row itself documents it.
@@ -173,7 +173,7 @@ def test_t12_spec_v041_does_not_modify_env_flag_schema():
 
 
 def test_t13_audit_report_is_cited():
-    """T-13: v0.4.1 citation pointers reference the Tag-47 audit report."""
+    """T-13: v0.4.1 citation pointers reference the audit report."""
     body = SPEC_V041.read_text(encoding="utf-8")
     assert (
         "phase-3a-15-crate-consistency-2026-05-19.md" in body
@@ -225,7 +225,7 @@ def test_t16_open_items_section_present():
     """T-16: §6 lists open items deferred to v0.5 (no silent debt)."""
     body = SPEC_V041.read_text(encoding="utf-8")
     assert "## 6. Open items" in body, "open items section must be present"
-    # Welle-0 deferral.
+    # wave 0 deferral.
     assert "Welle-0" in body or "Welle 0" in body, (
         "Welle-0 boot-fan-out classification deferral must be noted"
     )

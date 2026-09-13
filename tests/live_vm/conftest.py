@@ -16,9 +16,9 @@ The hermetic claude-dev Sandbox cannot reach an SSH-driven Pilot-VM
 default is therefore the *correct* CI behaviour. The on-VM
 acceptance lane that these tests harden lives in
 ``scripts/federation-live-vm-acceptance.sh`` and is operator-hand
-(Mira-Hand) triggered.
+ triggered.
 
-— Amara
+— the QA zone
 """
 
 from __future__ import annotations
@@ -35,7 +35,7 @@ _ENV_VAR = "WAKIR_LIVE_VM_ACCEPTANCE"
 def pytest_addoption(parser: pytest.Parser) -> None:
     """Register the ``--run-live-vm`` CLI flag.
 
-    Defaults to False; only opt-in. The flag is intentionally
+    Defaults to False; only opt-. The flag is intentionally
     redundant with the env-var: both must agree to switch the suite
     on. This is a belt-and-braces guard against the CI lane and the
     operator-hand lane drifting out of sync.

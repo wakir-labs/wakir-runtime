@@ -2,18 +2,18 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Live-NATS-Test-Mode cross-validation for ``scripts/init-nats-buckets.py``.
 
-This suite is the substrate for the Sprint-4 Tag-1 Live-NATS-Test-Mode
+This suite is the substrate for the Live-NATS-Test-Mode
 contract (ADR-0051-rejected, CEO-side operative practice retained):
 
-* **Hermetic default.** All tests in :class:`HermeticCrossValidationTests`
+* **Hermetic default.** All tests :class:`HermeticCrossValidationTests`
   run without a live NATS-JetStream cluster. They exercise the
   ``plan_and_apply`` planner against the same ``_MockJetStream`` surface
   the existing ``test_init_nats_buckets.py`` suite uses, and lock down
   the byte-shape of the planner's ``InitReport.to_json()`` output for
   the two stable scenarios cross-validated against the live cluster:
 
-      1. *empty cluster, dry-run*  -> all four buckets ``would_create``
-      2. *fully-populated cluster, dry-run*  -> all four buckets ``unchanged``
+      1. *empty cluster, dry-run* -> all four buckets ``would_create``
+      2. *fully-populated cluster, dry-run* -> all four buckets ``unchanged``
 
   These two scenarios were chosen because they are deterministic on
   both transports: dry-run never mutates state, and both scenarios
@@ -180,7 +180,7 @@ def _run_planner(js: Any, mod, *, dry_run: bool) -> str:
     in production; we treat the byte sequence as the cross-validation
     artefact.
 
-    Uses :func:`asyncio.run` rather than ``get_event_loop`` because
+    Uses:func:`asyncio.run` rather than ``get_event_loop`` because
     Python 3.12+ refuses to lazily create a loop when none is set,
     which would otherwise make this helper fragile under the
     repository's pytest invocation (Python 3.14 in CI).
@@ -311,7 +311,7 @@ _LIVE_REASON = (
 class LiveCrossValidationSmokeTests(unittest.TestCase):
     """Mock-vs-Live byte-identical cross-validation of the init planner.
 
-    Pre-conditions (enforced by :py:meth:`setUpClass`):
+    Pre-conditions (enforced :py:meth:`setUpClass`):
 
     * ``WAKIR_NATS_LIVE=1`` in the environment.
     * ``nats-py`` importable.

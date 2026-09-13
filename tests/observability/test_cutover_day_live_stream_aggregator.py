@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
-"""Hermetic tests for cutover-day-live-stream-aggregator.py (Tag-41).
+"""Hermetic tests for cutover-day-live-stream-aggregator.py.
 
 Coverage targets the pure-function decision core: sliding-window
 ingestion, distribution normalisation, total-variation drift
@@ -12,7 +12,7 @@ The I/O wrappers (NATS-CLI subshell, signal handlers, file-tail) are
 NOT unit-tested here; integration coverage lives in the fixture-mode
 entrypoint and the Bash wrapper's dry-run rehearsal.
 
-Anchor: ADR-0066 Phase-3c, Tag-41 Noa SRE.
+Anchor: ADR-0066 Phase-3c, the observability zone SRE.
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ def test_parse_event_json_well_formed():
 
 
 def test_parse_event_json_rejects_missing_required_fields():
-    # Missing welle.
+    # Missing wave.
     assert agg.parse_event_json('{"outcome": "production"}') is None
     # Missing outcome.
     assert agg.parse_event_json('{"welle": "welle-3"}') is None
@@ -277,7 +277,7 @@ def test_band_crossings_detected_on_transition():
         state.ingest(_mk_event("welle-4", "production"))
         state.ingest(_mk_event("welle-5", "production"))
     state.snapshot(timestamp_unixtime=1.0)  # record GREEN as previous.
-    # Phase 2: welle-5 shifts to fallback → RED.
+    # Phase 2: wave 5 shifts to fallback → RED.
     for _ in range(40):
         state.ingest(_mk_event("welle-5", "fallback"))
     _, crossings = state.snapshot(timestamp_unixtime=2.0)
@@ -352,12 +352,12 @@ def test_render_prometheus_textfile_emits_help_type_and_gauges():
     assert "# HELP wakir_cutover_live_drift" in text
     assert "# HELP wakir_cutover_live_drift_red" in text
     assert "# HELP wakir_cutover_live_drift_amber" in text
-    # Distribution gauge present with welle + outcome labels.
+    # Distribution gauge present with wave + outcome labels.
     assert (
         'wakir_cutover_live_distribution{welle="welle-3",outcome="production"} 1.000000'
         in text
     )
-    # Sample-count gauge has the welle label.
+    # Sample-count gauge has the wave label.
     assert 'wakir_cutover_live_sample_count{welle="welle-3"} 10' in text
 
 
@@ -403,7 +403,7 @@ def test_render_notify_line_amber_prefix():
 
 def test_run_pipeline_ingests_and_emits_snapshots():
     state = agg.AggregatorState(window_size=100)
-    # 12 lines: 6 welle-4 production, 6 welle-5 production.
+    # 12 lines: 6 wave 4 production, 6 wave 5 production.
     lines = []
     for _ in range(6):
         lines.append(_event_line("welle-4", "production"))
@@ -423,7 +423,7 @@ def test_run_pipeline_ingests_and_emits_snapshots():
     assert count == 12  # malformed line skipped
     # Aggregator should have emitted two snapshots (after event 5 and 10).
     json_output = json_sink.getvalue()
-    # Both Wellen present in final state.
+    # Both waves present in final state.
     assert "welle-4" in json_output
     assert "welle-5" in json_output
 
@@ -450,11 +450,11 @@ def test_run_pipeline_writes_prometheus_textfile(tmp_path):
 def test_run_pipeline_emits_notify_on_band_crossing():
     state = agg.AggregatorState(window_size=100)
     lines = []
-    # Phase 1: 10 events each Welle, both production → GREEN.
+    # Phase 1: 10 events each wave, both production → GREEN.
     for _ in range(10):
         lines.append(_event_line("welle-4", "production"))
         lines.append(_event_line("welle-5", "production"))
-    # Phase 2: 40 fallback on welle-5 → drift jumps into AMBER/RED.
+    # Phase 2: 40 fallback on wave 5 → drift jumps into AMBER/RED.
     for _ in range(40):
         lines.append(_event_line("welle-5", "fallback"))
     json_sink = io.StringIO()
@@ -489,16 +489,16 @@ def test_final_state_dump_is_valid_json():
 
 
 # ---------------------------------------------------------------------------
-# 10. Welle-inventory consistency with dashboard
+# 10. wave-inventory consistency with dashboard
 # ---------------------------------------------------------------------------
 
 
 def test_welle_inventory_matches_dashboard():
     """Aggregator's WELLE_NAMES must match the dashboard templating list.
 
-    Drift between code and dashboard would mean an active Welle that
+    Drift between code and dashboard would mean an active wave that
     the dashboard cannot filter on (operator-blind spot during
-    Cutover-Tag-Morgen). The dashboard JSON is the source-of-truth
+    cutover-Tag-Morgen). The dashboard JSON is the source-of-truth
     for the templating-variable; we read it and compare.
     """
     dashboard_path = (

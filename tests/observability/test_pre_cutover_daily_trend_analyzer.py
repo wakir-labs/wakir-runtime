@@ -7,17 +7,17 @@ These tests are stdlib-only (pytest as test runner). No network,
 no podman, no live VM. The analyzer's I/O surface is exercised
 via ``tmp_path`` fixtures.
 
-Test coverage (>= 12 tests, Auftrag-Tag-44 minimum):
+Test coverage (>= 12 tests, assignment-minimum):
 
-  1.  test_parse_envelope_persisted_shape_roundtrip
-  2.  test_parse_envelope_live_demo_shape_extracts_per_welle
-  3.  test_classify_change_status_new_when_no_previous
-  4.  test_classify_change_status_degraded_caution_to_block
-  5.  test_classify_change_status_improved_block_to_green
-  6.  test_classify_change_status_lateral_same_verdict
-  7.  test_detect_changes_only_returns_non_lateral
-  8.  test_window_dates_returns_iso_oldest_to_newest
-  9.  test_build_window_histories_fills_missing_with_dash
+  1. test_parse_envelope_persisted_shape_roundtrip
+  2. test_parse_envelope_live_demo_shape_extracts_per_welle
+  3. test_classify_change_status_new_when_no_previous
+  4. test_classify_change_status_degraded_caution_to_block
+  5. test_classify_change_status_improved_block_to_green
+  6. test_classify_change_status_lateral_same_verdict
+  7. test_detect_changes_only_returns_non_lateral
+  8. test_window_dates_returns_iso_oldest_to_newest
+  9. test_build_window_histories_fills_missing_with_dash
   10. test_stability_pct_full_match_returns_hundred
   11. test_stability_pct_one_flip_returns_six_of_seven
   12. test_aggregate_stability_counts_handles_unknown_values
@@ -33,8 +33,8 @@ Test coverage (>= 12 tests, Auftrag-Tag-44 minimum):
   22. test_cli_weekly_bilanz_mode_renders_summary
 
 Anchors:
-  * Reza Tag-44 daily-probe-driver.
-  * Reza Tag-43 PR #277 Pre-Cutover-Live-Demo (envelope source shape).
+  * the protocol zone daily-probe-driver.
+  * the protocol zone PR #277 pre-cutover-Live-Demo (envelope source shape).
 """
 
 from __future__ import annotations
@@ -217,11 +217,11 @@ def test_detect_changes_only_returns_non_lateral(analyzer):
     )
     changes = analyzer.detect_changes(today, yesterday)
     welle_scopes = [c.scope for c in changes]
-    # Only welle-3 flipped CAUTION->BLOCK; rest were lateral.
+    # Only wave 3 flipped CAUTION->BLOCK; rest were lateral.
     assert "welle-3" in welle_scopes
     # No aggregate change (both BLOCK).
     assert "aggregate" not in welle_scopes
-    # Verify the welle-3 entry classifies as DEGRADED.
+    # Verify the wave 3 entry classifies as DEGRADED.
     welle_3 = next(c for c in changes if c.scope == "welle-3")
     assert welle_3.kind == analyzer.CHANGE_KIND_DEGRADED
     assert welle_3.previous == "CAUTION"
@@ -328,7 +328,7 @@ def test_build_trend_report_with_yesterday_detects_degradation(analyzer):
     }
     report = analyzer.build_trend_report(today, envelopes, window=7)
     assert report.yesterday_envelope is not None
-    # welle-7 degraded CAUTION->BLOCK; aggregate degraded CAUTION->BLOCK.
+    # wave 7 degraded CAUTION->BLOCK; aggregate degraded CAUTION->BLOCK.
     degraded = [
         c for c in report.changes if c.kind == analyzer.CHANGE_KIND_DEGRADED
     ]
@@ -419,7 +419,7 @@ def test_build_notify_events_skips_lateral(analyzer):
     assert all(
         ev["kind"] != analyzer.CHANGE_KIND_LATERAL for ev in events
     )
-    # welle-1 changed CAUTION->BLOCK; should appear.
+    # wave 1 changed CAUTION->BLOCK; should appear.
     welle_scopes = {ev["scope"] for ev in events}
     assert "welle-1" in welle_scopes
 
@@ -531,7 +531,7 @@ def test_cli_daily_mode_writes_outputs_and_notify(
     assert out_md.exists()
     # State dir got today's snapshot.
     assert (state_dir / "2026-05-18.json").exists()
-    # Notify feed has at least the welle-7 degradation + aggregate.
+    # Notify feed has at least the wave 7 degradation + aggregate.
     assert notify_path.exists()
     events = [
         json.loads(line)

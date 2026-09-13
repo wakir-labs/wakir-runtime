@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Hermetic parity tests for the Phase-2 Sprint-6 Tag-11 Quadlet dual-
+# Hermetic parity tests for the Phase-2 Quadlet dual-
 # track SPIRE unit files (quadlet/wakir-spire-server.container,
 # quadlet/wakir-spire-agent.container, plus four volume sidecars)
 # against the primary compose contract surface compose/spire.yaml.
@@ -20,7 +20,7 @@
 # wakir-nats.container parity test and reused here; the test only
 # asserts that both surfaces declare *some* restart-on-failure policy.
 #
-# Pattern: mirrors the Tag-1 NATS quadlet parity convention from
+# Pattern: mirrors the NATS quadlet parity convention from
 # tests/orchestrator/test_quadlet_nats.py.
 
 from __future__ import annotations
@@ -159,7 +159,7 @@ def test_quadlet_spire_unit_has_expected_sections(
 # Accepts either the placeholder token DIGEST_PENDING_TOMAS_REVIEW
 # (pre-Cross-Review-Zone-C-ack) or a 64-hex sha256 digest. Same
 # acceptance pattern as the compose-side test_compose_spire_cosign_pin
-# suite (Tag-8 rebase).
+# suite (rebase).
 _DIGEST_OR_PLACEHOLDER = re.compile(
     r"@sha256:(?:[0-9a-f]{64}|DIGEST_PENDING_TOMAS_REVIEW)$"
 )
@@ -242,7 +242,7 @@ def test_quadlet_spire_agent_container_name(
 def test_quadlet_spire_server_port_is_loopback_only(
     compose_doc: dict,
 ) -> None:
-    """Mirror of compose 127.0.0.1:8081:8081 (Tag-8 explicit ports
+    """Mirror of compose 127.0.0.1:8081:8081 (explicit ports
     addition). The hermetic Phase-2.1 substrate must NEVER expose the
     SPIRE-Server gRPC to a non-loopback interface."""
     publish_ports = _section_lines(QUADLET_SERVER, "Container", "PublishPort")
@@ -329,15 +329,15 @@ def test_quadlet_spire_server_volumes_match_compose(
     )
 
     # Named-volume: wakir-spire-server-data.volume sidecar.
-    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # Bug-20: ``:Z`` SELinux-relabel flag is mandatory
     # on FCOS-enforced hosts. compose/spire.yaml carries no equivalent
     # because docker-compose volume options use a different (driver-
     # level) syntax; the Quadlet side is the canonical install path on
     # the pilot and ``:Z`` is the operator-correct mount option there.
     #
-    # Sprint-9-Tag-11 Bug-26 follow-up (Live-Diagnose 2026-05-15 ~01:35
+    # Bug-26 follow-up (Live-Diagnose 2026-05-15 ~01:35
     # UTC, Pilot-VM 192.168.178.116, ADR-0051-Revision): ``:Z`` alone
-    # leaves the volume root-owned because podman's :Z-relabel resets
+    # leaves the volume root-owned because podman's:Z-relabel resets
     # the mountpoint owner; the SPIRE-Server container running as
     # uid 1000 then fails to write into /var/lib/spire/server. The
     # corrective ``:U`` chown-to-container-user flag (PR #55) was added
@@ -345,7 +345,7 @@ def test_quadlet_spire_server_volumes_match_compose(
     # ``User=`` directive. The sister-test suite
     # ``tests/infra/test_quadlet_selinux_relabel.py`` enforces ``:U`` on
     # the same target lines; this assertion mirrors that contract so
-    # both test surfaces stay consistent (Stability-Sprint-Tag-1).
+    # both test surfaces stay consistent (Stability--).
     data_mounts = [v for v in quadlet_volumes if "wakir-spire-server-data.volume" in v]
     assert data_mounts == ["wakir-spire-server-data.volume:/var/lib/spire/server:Z,U"], (
         f"server data named-volume mount drift; got: {data_mounts!r}"
@@ -384,12 +384,12 @@ def test_quadlet_spire_agent_volumes_match_compose(
     assert ":/etc/spire/agent/agent.conf:" in config_mounts[0]
     assert "ro" in config_mounts[0].split(":")[-1].split(",")
 
-    # Sprint-9-Tag-8 Bug-20: ``:Z`` SELinux-relabel flag is mandatory
+    # Bug-20: ``:Z`` SELinux-relabel flag is mandatory
     # on FCOS-enforced hosts; see the server-side test above for the
-    # full rationale. Sprint-9-Tag-11 Bug-26 follow-up (PR #55) adds
+    # full rationale. Bug-26 follow-up (PR #55) adds
     # the ``:U`` chown-to-container-user flag on all rw named-volume
     # mounts so the SPIRE-Agent (running as uid 1000) can write into
-    # the volume after podman's :Z-relabel resets the mountpoint owner
+    # the volume after podman's:Z-relabel resets the mountpoint owner
     # — see the server-side data_mounts assertion above for the full
     # Live-Diagnose evidence (2026-05-15 ~01:35 UTC, Pilot-VM, ADR-0051-
     # Revision). Sister-test enforcement in
@@ -658,9 +658,9 @@ def test_quadlet_spire_declares_restart_policy(
     request: pytest.FixtureRequest, unit_fixture: str
 ) -> None:
     """Compose declares ``restart: unless-stopped``; systemd's closest
-    equivalent is ``Restart=on-failure``. Parity with the Tag-1
+    equivalent is ``Restart=on-failure``. Parity with the
     NATS quadlet pattern (both on-failure and always are operator-
-    acceptable per the Skizze §3 equivalence table)."""
+    acceptable per the sketch §3 equivalence table)."""
     unit = request.getfixturevalue(unit_fixture)
     restart = unit.get("Service", "Restart")
     assert restart in {"on-failure", "always"}, (

@@ -1,19 +1,19 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for Sprint-Tag-8 Bug-39 Option-A substrate:
+"""Hermetic tests for -Bug-39 Option-A substrate:
 bilateral-federation-handshake-precheck (`step_15_bilateral_precheck`)
 in `infra/spire/federation/wakir-pilot-bootstrap.sh`, and the Option-B
 decision-note at `docs/decisions/topology-bilateral-federation.md`.
 
 Anlass — AR-Direktive 2026-05-15 23:35 CEST. Bug-39 surfaced from
-Tag-13/14 Live-VM-Acceptance: the Cross-VM-Federation 8/8 smoke
+/14 Live-VM-Acceptance: the Cross-VM-Federation 8/8 smoke
 requires BOTH peer VMs to be in federation-mode, but the Pilot
 topology is asymmetric (wakir-pilot single-org, wakir-orbit
 federation). Two options ship in this PR as substrate:
 
 * Option A — Pilot-Symmetric (step_15 precheck, gated on
   WAKIR_BILATERAL_PRECHECK=1).
-* Option B — Sprint-12+ Production-Setup-Item (decision-note).
+* Option B — + Production-Setup-Item (decision-note).
 
 Test-Vector index
 -----------------
@@ -29,7 +29,7 @@ Test-Vector index
   against the peer.
 * ``TV-B39-A-07`` step_15 records the persona re-spawn-window (or
   warns if unset).
-* ``TV-B39-A-08`` step_15 is wired into main() AFTER step_8_smoke.
+* ``TV-B39-A-08`` step_15 is wired into main AFTER step_8_smoke.
 * ``TV-B39-B-09`` Decision-note exists at
   docs/decisions/topology-bilateral-federation.md.
 * ``TV-B39-B-10`` Decision-note declares both options A and B,
@@ -165,7 +165,7 @@ def test_step_15_respawn_window(bootstrap_source: str) -> None:
 
 
 def test_step_15_wired_after_step_8(bootstrap_source: str) -> None:
-    """step_15 must run AFTER step_8_smoke in main()."""
+    """step_15 must run AFTER step_8_smoke in main."""
     main_start = bootstrap_source.find("main() {")
     main_end = bootstrap_source.find("\n}", main_start)
     main_body = bootstrap_source[main_start:main_end]

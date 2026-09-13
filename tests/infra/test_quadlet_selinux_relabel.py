@@ -6,7 +6,7 @@
 Context
 -------
 
-Sprint-9-Tag-8 Bug-20: SPIRE-Agent crash-looped on Bring-up-4 (AR Fred
+ Bug-20: SPIRE-Agent crash-looped on Bring-up-4 (the operator
 2026-05-14 13:15 CEST) with::
 
     level=error msg="Failed to configure plugin"
@@ -52,7 +52,7 @@ Sandbox boundary
 Source-static only. No podman, no SELinux, no host file-system. The
 test parses Quadlet text and asserts a textual invariant.
 
--- Tomás
+-- the engineering zone
 """
 
 from __future__ import annotations
@@ -65,9 +65,9 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Canonical set of Quadlet units in this repo as of Sprint-9-Tag-8,
-# extended for Sprint-Pengine-7 Tag-5 OI-PILOT-1 + OI-PILOT-4 to add
-# the Tomás-Persona pilot container and the recovery-drill WAT-anchor
+# Canonical set of Quadlet units in this repo as of,
+# extended for -Pengine-7 OI-PILOT-1 + OI-PILOT-4 to add
+# the engineering zone-Persona pilot container and the recovery-drill WAT-anchor
 # oneshot.
 # The discovery glob below is the source of truth; this list is the
 # expected-set against which discovery is sanity-checked so a future
@@ -80,10 +80,10 @@ EXPECTED_QUADLET_FILES = {
     "quadlet/wakir-persona-tomas.container",
     "quadlet/wakir-recovery-drill-anchor.container",
     "quadlet/wakir-rust-cli.container",
-    # Tag-55 closeout: 4 dedicated per-Welle Quadlets added in lock-step
+    # closeout: 4 dedicated per-wave Quadlets added in lock-step
     # with the Cosign-Strict-Mode readiness-check G5 substanz-vollendung.
-    # Each installs one welle-suffix Rust-CLI binary from a dedicated
-    # single-binary image (Tag-33 Mini-Welle policy inventory convention;
+    # Each installs one wave-suffix Rust-CLI binary from a dedicated
+    # single-binary image (Mini-wave policy inventory convention;
     # carrier-image installer ``wakir-rust-cli.container`` keeps shipping
     # the existing 11 carrier-image binaries).
     "quadlet/wakir-rust-cli-welle4.container",
@@ -287,7 +287,7 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
             "quadlet/wakir-spire-server.container",
             "wakir-spire-server-sockets.volume:/run/spire/sockets",
         ),
-        # Bug-20 cross-audit catch (NATS — found during Tomás sweep):
+        # Bug-20 cross-audit catch (NATS — found during the engineering zone sweep):
         (
             "quadlet/wakir-nats.container",
             "wakir-nats-jetstream-data.volume:/data/jetstream",
@@ -297,7 +297,7 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
     for rel, prefix in targets:
         path = REPO_ROOT / rel
         text = path.read_text()
-        # Match the prefix and assert the next char-window contains :Z.
+        # Match the prefix and assert the next char-window contains:Z.
         pattern = re.compile(
             r"^Volume=" + re.escape(prefix) + r"(?::([^\r\n]*))?\s*$",
             re.MULTILINE,
@@ -322,38 +322,38 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
 
 
 # ====================================================================
-# Sprint-9-Tag-11 Bug-26 — :U-Flag-Disziplin (Volume-Chown-on-Mount)
+# Bug-26 —:U-Flag-Disziplin (Volume-Chown-on-Mount)
 # ====================================================================
 #
 # AR-Live-Diagnose 2026-05-15 ~01:35 UTC auf Pilot-VM 192.168.178.116
-# via Mira-SSH (ADR-0051-Revision):
+# via operator-SSH (ADR-0051-Revision):
 #
-#   01:34:57  Owner=1000:1000  Mtime=01:34:57         (Bootstrap-chown OK)
-#   01:35:09  Owner=1000:1000  Mtime=01:34:57         (stat-verify happy)
-#   01:35:14  Owner=0:0        Mtime=2026-04-27 23:31 (Container-Start!
-#                                                     Podman re-init)
-#   01:35:19+ Owner=0:0        SELinux-MCS-cat ändert sich pro Restart
+# 01:34:57 Owner=1000:1000 Mtime=01:34:57 (Bootstrap-chown OK)
+# 01:35:09 Owner=1000:1000 Mtime=01:34:57 (stat-verify happy)
+# 01:35:14 Owner=0:0 Mtime=2026-04-27 23:31 (Container-Start!
+# Podman re-init)
+# 01:35:19+ Owner=0:0 SELinux-MCS-cat ändert sich pro Restart
 #
-# Root cause: Tag-8 :Z-Flag macht SELinux-Relabel, NICHT chown auf
-# Container-User. Podman-Volume-Mount mit :Z plus --user 1000:1000 ohne
-# :U lässt Mountpoint root-owned → Container kann nicht in Volume
+# Root cause::Z-Flag macht SELinux-Relabel, NICHT chown auf
+# Container-User. Podman-Volume-Mount mit:Z plus --user 1000:1000 ohne
+#:U lässt Mountpoint root-owned → Container kann nicht in Volume
 # schreiben → KeyManager-Disk crash.
 #
-# Fix: zusätzlich :U-Flag — Podman chown'd Volume auf Container-User
+# Fix: zusätzlich:U-Flag — Podman chown'd Volume auf Container-User
 # bei jedem Mount. Bootstrap-chown wird damit redundant, kann bleiben
 # als defense-in-depth.
 #
 # Test-Vector index
 # -----------------
 #
-#   * TV-S9T11-26a  Every named-volume Volume= line in a Quadlet that
-#     declares ``User=1000`` carries ``:U`` in its options (in addition
-#     to ``:Z``). Bind-mounts (absolute host paths) and ``:ro,Z``
-#     volumes are exempt.
+# * TV-S9T11-26a Every named-volume Volume= line in a Quadlet that
+# declares ``User=1000`` carries ``:U`` in its options (in addition
+# to ``:Z``). Bind-mounts (absolute host paths) and ``:ro,Z``
+# volumes are exempt.
 #
-#   * TV-S9T11-26b  Per-line allow-list: the 10 specific Volume= lines
-#     that triggered Bug-26 in Live-Bring-up-7 (2026-05-14 ~19:30 CEST,
-#     ~01:35 UTC 2026-05-15) are individually verified.
+# * TV-S9T11-26b Per-line allow-list: the 10 specific Volume= lines
+# that triggered Bug-26 in Live-Bring-up-7 (2026-05-14 ~19:30 CEST,
+# ~01:35 UTC 2026-05-15) are individually verified.
 #
 # Sandbox boundary: pure source-static, no podman exec, no live-VM.
 
@@ -372,7 +372,7 @@ def _quadlet_declares_user_1000(path: Path) -> bool:
 
 def _is_named_volume_rw_mount(line: str) -> bool:
     """Filter: is this Volume= line a named-volume (not bind-mount) and
-    not :ro? Only those need :U."""
+    not:ro? Only those need:U."""
     body = line.removeprefix("Volume=").strip()
     # Bind-mount: source starts with '/'
     if body.startswith("/"):

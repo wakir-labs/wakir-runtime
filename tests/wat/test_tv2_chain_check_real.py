@@ -7,13 +7,13 @@ exercises:
 
 1. multi-hour synthetic event generation (``H`` consecutive hour
    slots, 5 events per hour, deterministic shape),
-2. the production aggregator (``python -m wat.cmd.aggregator_cli``)
+2. The production aggregator (``python -m wat.cmd.aggregator_cli``)
    wiring each subsequent hour to the previous via the
    ``--prev-hour-root`` flag,
-3. the production OTS anchor wrapper
+3. The production OTS anchor wrapper
    (``python -m wat.cmd.anchor_cli stamp``) submitting one stamp
    per hour to the four default public calendars,
-4. the production verify CLI (``python -m wat.verify.cli``) with
+4. The production verify CLI (``python -m wat.verify.cli``) with
    ``--chain-check`` walking each hour back to its predecessor,
 5. a negative-path sub-check that rewrites a single
    ``prev_hour_root`` field after the chain is built and confirms

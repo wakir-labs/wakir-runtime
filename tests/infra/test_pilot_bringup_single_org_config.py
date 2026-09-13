@@ -1,21 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic acceptance tests for the Sprint-9-Tag-5 Bug 7 substance-fix:
+"""Hermetic acceptance tests for the Bug 7 substance-fix:
 single-org SPIRE-Server / SPIRE-Agent config variants for the
 Phase-1b Pilot-VM bring-up.
 
 Context
 -------
 
-The Sprint-8 Tag-1/Tag-2 federation configs declare a
+The/federation configs declare a
 ``federates_with "partner.test"`` block on the server side and
 ``insecure_bootstrap = false`` + ``trust_bundle_path = .../bootstrap.jwks``
 on the agent side. On a single-org Pilot-VM there is no partner peer:
-the server fails to resolve the peer DNS name, the agent cannot
+The server fails to resolve the peer DNS name, the agent cannot
 bootstrap the trust-anchor, and both crash-loop (live-bring-up
-2026-05-13, Mira-Bug-Bilanz §Bug-7).
+2026-05-13, operator-Bug-Bilanz §Bug-7).
 
-The Sprint-9-Tag-5 substance-fix ships two new config variants:
+The substance-fix ships two new config variants:
 
   * ``infra/spire/federation/config/spire-server-pilot-single-org.conf``
     -- no ``federates_with``, no ``federation { bundle_endpoint }``
@@ -72,9 +72,9 @@ Test-Vector index
     (no broad grants).
   * ``TV-S9T5-15`` invalid ``WAKIR_PILOT_MODE`` value fails
     pre-flight with exit-code 1.
-  * ``TV-S9T5-16`` Sprint-8-Tag-1/Tag-2 federation configs remain
+  * ``TV-S9T5-16`` /federation configs remain
     untouched on disk (so Phase-2.1 dual-side bring-up still works
-    after the Sprint-9-Tag-5 fix lands).
+    after the fix lands).
 
 Sandbox boundary
 ----------------
@@ -84,7 +84,7 @@ that could touch network, podman, or systemd. The bootstrap-script
 test surface uses ``bash -c`` to drive only the variable-resolution
 and case-validation logic, not Phases 1-8.
 
--- Kai
+-- the infrastructure zone
 """
 
 from __future__ import annotations
@@ -132,7 +132,7 @@ def _strip_hcl_comments(text: str) -> str:
     (``/* ... */``) are not used in our Mock/Stub configs but are
     handled defensively.
     """
-    # Strip /* ... */ block comments.
+    # Strip /*... */ block comments.
     text = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
     lines = []
     for line in text.splitlines():
@@ -196,7 +196,7 @@ def test_tv_s9t5_02_server_single_org_has_no_bundle_endpoint() -> None:
 
 
 def test_tv_s9t5_03_server_single_org_trust_domain() -> None:
-    # Sprint-10-Tag-2 Bug-28 update: single-org config is now
+    # Bug-28 update: single-org config is now
     # ``<TRUST_DOMAIN>``-tokenised so the bootstrap can substitute the
     # side-specific trust-domain at install time (wakir.test, orbit.test,
     # etc.). The literal-trust-domain invariant moves to the agent ↔
@@ -506,7 +506,7 @@ def test_tv_s9t5_15_bootstrap_rejects_invalid_pilot_mode(tmp_path: Path) -> None
 
 
 # ---------------------------------------------------------------------------
-# TV-S9T5-16 — Sprint-8 federation configs preserved
+# TV-S9T5-16 — federation configs preserved
 # ---------------------------------------------------------------------------
 
 
@@ -520,7 +520,7 @@ def test_tv_s9t5_15_bootstrap_rejects_invalid_pilot_mode(tmp_path: Path) -> None
     ],
 )
 def test_tv_s9t5_16_federation_configs_preserved(preserved_conf: Path) -> None:
-    """The Sprint-9-Tag-5 fix MUST NOT delete or alter the Sprint-8
+    """the fix MUST NOT delete or alter the
     federation config variants -- they are needed for Phase-2.1
     dual-side bring-up (``WAKIR_PILOT_MODE=federation``)."""
     assert preserved_conf.exists(), (
@@ -550,7 +550,7 @@ def test_tv_s9t5_16_federation_configs_preserved(preserved_conf: Path) -> None:
 
 def test_single_org_suite_covers_all_sprint9_tag5_vectors() -> None:
     """Inventory check: the 16 test-vector groups exist as named
-    test functions in this module. Future Sprint-9-Tag-5 follow-ups
+    test functions in this module. Future follow-ups
     land here so the substance-fix and the regression net stay
     synchronized."""
     module_src = Path(__file__).read_text(encoding="utf-8")

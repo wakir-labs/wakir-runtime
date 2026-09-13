@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Tag-53 hermetic test suite for wirelang-spec-v0-4-3.md pre-cutover-freeze.
+"""hermetic test suite for wirelang-spec-v0-4-3.md pre-cutover-freeze.
 
 This suite verifies the strict-superset freeze-marker v0.4.3 over v0.4.2:
 
-- FREEZE-S1: spec-side pre-cutover closure-bit. The Tag-52 Persona-Engine
+- FREEZE-S1: spec-side pre-cutover closure-bit. The Persona-Engine
   0.5.2-final-pre-cutover (PR #336) declared engine-side closure. v0.4.3
   declares the complementary spec-side closure via
   `status: pre-cutover-freeze` plus `freeze-marker: kw-24-cutover-gate`
@@ -39,7 +39,7 @@ PIN_PACK_PATH = (
 # v0.4.2 §4.1 forward unchanged; the table must still cite every
 # Pin-Pack-wired component name + selector_env. We re-pin the
 # byte-anchor here so a regression in either spec would break this
-# suite, not just the Tag-50 suite.
+# suite, not just the suite.
 PIN_PACK_TEN_RECORDS_ORDERED = [
     (1, "persona-engine-recovery", "WAKIR_RECOVERY_BACKEND"),
     (2, "persona-engine-state-backing", "WAKIR_STATE_BACKING_BACKEND"),
@@ -235,15 +235,15 @@ def test_t07_spec_v043_declares_no_substance_diff_prominently():
 
 
 # ---------------------------------------------------------------------------
-# T-08: freeze-anchor must cite Tag-52 Persona-Engine 0.5.2-final-pre-cutover
+# T-08: freeze-anchor must cite Persona-Engine 0.5.2-final-pre-cutover
 # ---------------------------------------------------------------------------
 
 
 def test_t08_spec_v043_cites_engine_side_freeze_anchor():
-    """T-08: v0.4.3 must cite the Tag-52 engine-side freeze counterpart.
+    """T-08: v0.4.3 must cite the engine-side freeze counterpart.
 
     The freeze-anchor declares which engine binary v0.4.3 is bound to.
-    The body must cross-reference both the engine tag and the Tag-52
+    The body must cross-reference both the engine tag and the
     PR for traceability.
     """
     body = SPEC_V043.read_text(encoding="utf-8")
@@ -264,7 +264,7 @@ def test_t08_spec_v043_cites_engine_side_freeze_anchor():
 
 
 def test_t09_spec_v043_cites_v042_substance_baseline():
-    """T-09: v0.4.3 must cite Tag-50 PR #320 (v0.4.2 substance baseline)."""
+    """T-09: v0.4.3 must cite PR #320 (v0.4.2 substance baseline)."""
     body = SPEC_V043.read_text(encoding="utf-8")
     assert "v0.4.2" in body, "v0.4.3 must cite v0.4.2 (substance baseline)"
     assert "Tag-50" in body, "v0.4.3 must cite Tag-50 (v0.4.2 release)"
@@ -303,7 +303,7 @@ def test_t10_spec_v043_predecessor_chain_intact():
 
 
 def test_t11_spec_v043_declares_kw_24_cutover_gate():
-    """T-11: v0.4.3 must declare the KW-24-cutover-gate identity."""
+    """T-11: v0.4.3 must declare the calendar week 24-cutover-gate identity."""
     body = SPEC_V043.read_text(encoding="utf-8")
     assert "kw-24-cutover-gate" in body.lower() or "kw 24" in body.lower() or "kw-24" in body.lower(), (
         "v0.4.3 must declare the KW-24 cutover-gate identity"

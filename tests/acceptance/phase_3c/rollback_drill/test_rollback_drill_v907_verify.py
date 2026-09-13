@@ -5,10 +5,10 @@
 Anchors
 -------
 
-- ADR-0065 §Rollback-Strategie (Welle-1 = ``v907_verify``, lowest
+- ADR-0065 §Rollback-Strategie (wave 1 = ``v907_verify``, lowest
   blast-radius read-only verify pathway).
-- ADR-0066 §Rollback (Doppel-Welle-Rollback-Kompatibilität).
-- Sister per-welle E2E acceptance file: ``test_welle_1_v907_verify_
+- ADR-0066 §Rollback (dual-run wave-Rollback-Kompatibilität).
+- Sister per-wave E2E acceptance file: ``test_welle_1_v907_verify_
   e2e.py`` — same modul, different gate-surface (AC-1...AC-5 vs.
   RD-1...RD-4).
 
@@ -64,7 +64,7 @@ def test_rd_2_audit_record_documents_rollback(mocked_rollback_event) -> None:
     with ``target_backend=python``, modul-name correct, operator-actor
     populated, and a non-empty cutover-cycle-id. Mirrors the cutover-
     flip audit-trail (DW-AC-5) but with the inverse target-backend.
-    Henrik-Zone-N consumes this audit-record on his audit-sample.
+    internal audit-Zone-N consumes this audit-record on his audit-sample.
     """
     event = mocked_rollback_event(MODUL)
     assert_rd_2_audit_record_documents_rollback(event, MODUL)
@@ -75,8 +75,7 @@ def test_rd_3_cross_modul_konsistenz_post_rollback(
 ) -> None:
     """RD-3 — Cross-Modul-Konsistenz nach Rollback grün.
 
-    Re-run of the Phase-2-Acceptance-Gate (Tomás Tag-29 substrate,
-    ADR-0066 §Mitigation 1) after the rollback completes must return
+    Re-run of the Phase-2-Acceptance-Gate after the rollback completes must return
     green: no cross-modul-schema-drift, no failed sub-gates. For
     ``v907_verify`` the cross-modul touchpoint is the Bridge-Audit-
     Writer-Konsistenz-Report (ADR-0065 §Rollback-Strategie step 4),

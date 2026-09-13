@@ -3,9 +3,9 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Hermetic tests for ``scripts/observability/watch-day-practice-run.py``.
 
-These tests pin the Tag-55 Watch-Day-Practice-Run simulator. The
+These tests pin the watch-day-Practice-Run simulator. The
 simulator drives the §4 six-slot procedure end-to-end through
-deterministic mock-input scenarios and reuses the Tag-54
+deterministic mock-input scenarios and reuses the
 ``pre-cutover-watch-day-verdict.py`` pure-function reference
 implementation for the §7 verdict-formula and §10 schema-validation.
 
@@ -30,9 +30,9 @@ Test coverage (>= 12 tests):
   15. test_cli_json_output_is_valid_json
   16. test_cli_scenario_filter_runs_subset
 
-Anchor: Tag-55 Noa-SRE Watch-Day-Practice-Run.
-Predecessor: Tag-54 Pre-Cutover-Watch-Day Spec.
-Author: Noa Bergstroem (SRE)
+Anchor: the observability zone-SRE watch-day-Practice-Run.
+Predecessor: pre-cutover-watch-day Spec.
+Author: the observability zone Bergstroem (SRE)
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def test_all_green_scenario_yields_green_verdict():
 
 
 # ---------------------------------------------------------------------------
-# 2. dashboard drift -> AMBER (drift-type-A, Noa-domain).
+# 2. dashboard drift -> AMBER (drift-type-A, the observability zone-domain).
 # ---------------------------------------------------------------------------
 
 def test_amber_dashboard_drift_scenario_yields_amber():
@@ -135,7 +135,7 @@ def test_red_hard_zero_slo_scenario_yields_red():
 
 
 # ---------------------------------------------------------------------------
-# 6. Welle-SLO fast-burn WITH tomorrow-cutover -> RED.
+# 6. wave-SLO fast-burn WITH tomorrow-cutover -> RED.
 # ---------------------------------------------------------------------------
 
 def test_red_welle_slo_fast_burn_scenario_yields_red():
@@ -181,7 +181,7 @@ def test_multi_blocker_red_blockers_in_stable_order():
     scenario = practice_mod.scenario_red_multi_blocker()
     result = practice_mod.simulate_scenario(scenario)
     assert result.computed_verdict == "RED"
-    # Stable order: probe-RED -> hard-zero -> welle-slo -> ci-gate.
+    # Stable order: probe-RED -> hard-zero -> wave-slo -> ci-gate.
     expected = (
         "probe-verdict-RED:welle-1",
         "hard-zero-slo-burn:SLO-5",
