@@ -10,7 +10,7 @@
 #
 # The gate uses ``tooling/ci/verify_containerfile_base_image_digest.py``
 # (stdlib-only). It allows the documented placeholder tokens
-# (``DIGEST_PENDING_*_REVIEW``) because the Welle-N image-pin-rotation
+# (``DIGEST_PENDING_*_REVIEW``) because the per-wave image-pin-rotation
 # pattern relies on them as resolve-image-pins-ci substrate. Any FROM
 # line with ``:tag`` only (no digest suffix) breaks the gate.
 

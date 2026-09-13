@@ -18,7 +18,7 @@
 #   2. Pin-Pack ................. infra/persona-engine/pin-pack-0.5.2-final-pre-cutover.yaml
 #   3. engine.py-Resolver ....... wirelang/persona_engine/engine.py
 #
-# Vertrag B schließt Tag-56-Audit OPEN-J1 (Cross-substrate-
+# Vertrag B schließt Audit-Item OPEN-J1 (Cross-substrate-
 # parity-gate green on PR). Die drei Substrate sind triple-witness
 # für die 10-Record-Boot-Fan-Out-Ordnung; jede Drift (Record
 # hinzugefügt / entfernt / umbenannt) muss laut tönen.
@@ -46,7 +46,7 @@
 # Required-Status-Check (operator follow-up)
 # ---------------------------------------
 # Erste Phase: **advisory**. Sobald dieser Workflow einmal auf
-# `main` grün läuft, soll Mira ihn unter
+# `main` grün läuft, soll der Operator ihn unter
 # Settings → Branches → main → Required status checks aktivieren.
 # Der Job-Display-Name `cross-substrate parity (cosign ↔ quadlet ↔
 # backend-switch)` ist der exakte zu aktivierende String per
@@ -116,9 +116,9 @@ jobs:
         # Manifest, Pin-Pack und engine.py-Resolver-Imports failt
         # eine oder mehrere ihrer Assertions.
         #
-        # Closeout-Anker: Selin Persona-Engine-0.5.2-final
+        # Closeout-Anker: Persona-Engine-0.5.2-final
         # Production-Readiness-Audit OPEN-J1 ("Cross-substrate-
-        # parity-gate green on PR"). wires the manifest-side
+        # parity-gate green on PR"). This gate wires the manifest-side
         # parity into the gate so the OPEN-J1 contract is enforced
         # per-PR, not only via post-merge spot-checks.
         run: |

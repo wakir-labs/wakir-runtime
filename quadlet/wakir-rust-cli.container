@@ -64,7 +64,7 @@
 #     Modul; deterministic-replay-oracle from ADR-0063 §Folgeartefakte
 #     Item 11. Binary lives in the same
 #     ``persona-engine-bridge-audit-replay`` crate as the existing
-#     bridge-audit-writer; the promotes the
+#     bridge-audit-writer; the replay binary promotes the
 #     canonical-trace surface to the
 #     /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay path.)
 #   * ``migrate-version`` (PR #250 — 15. Phase-3a
@@ -96,10 +96,9 @@
 # Purpose
 # -------
 # Installs the nine Phase-3b Rust-CLI binaries from the published
-# ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image (
-# through + + PRs #167, #169, #171,
-# #175, #181, #184 + the SVID-image-build PR + the
-# bridge-audit-writer image-build PR) into the Pilot-VM host
+# ``ghcr.io/wakir-labs/wakir-persona-engine`` carrier image
+# (PRs #167, #169, #171, #175, #181, #184 + the SVID-image-build
+# PR #201 + the bridge-audit-writer image-build PR #210) into the Pilot-VM host
 # filesystem at the canonical ``/opt/wakir/bin/`` paths. The default
 # ``DEFAULT_RUST_*_BIN`` constants in
 # ``wirelang/persona_engine/rust_backend_switch.py`` resolve to

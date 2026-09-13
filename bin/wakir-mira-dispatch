@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Callandor GmbH and contributors
 #
-# OI-PEFR-7 — Mira-Dispatcher Side-CLI entrypoint.
+# OI-PEFR-7 — mira-dispatch Side-CLI entrypoint.
 # Thin shim over ``wirelang.cli.mira_dispatch``.
 #
 # See ``wirelang/cli/mira_dispatch.py`` module docstring and

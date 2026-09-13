@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build + sign + push the wakir-provisioner image (
-#).
+# Build + sign + push the wakir-provisioner image.
 #
 # Posture
 # -------
@@ -59,8 +58,8 @@ on:
         default: 'false'
 
 permissions:
-  # Least-privilege permission set for build + sign + push (
-  # CI-hygiene review). Each scope is required for a specific
+  # Least-privilege permission set for build + sign + push
+  # (CI-hygiene review). Each scope is required for a specific
   # step; removing any of these will fail the run.
   #
   #   contents:  read   — actions/checkout pulls workflow + source.

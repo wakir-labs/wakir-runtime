@@ -51,8 +51,8 @@
 #
 # A LIVE-cosign refresh (operator-hand only, on a host with
 # Sigstore-network egress) is documented in
-# ``docs/operations/cosign-keyless-oidc-drift-probe.md`` (
-# follow-up). The fixture-mode probe consumes the live snapshot
+# ``docs/operations/cosign-keyless-oidc-drift-probe.md``.
+# The fixture-mode probe consumes the live snapshot
 # the operator captures.
 #
 # Trigger surface

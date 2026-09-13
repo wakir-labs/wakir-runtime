@@ -308,15 +308,15 @@ jobs:
           item="${{ matrix.res_d_item }}"
           echo "tag-66 res-d-item-probe: item=${item} verdict=${verdict} enforce=${enforce}"
           if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::error:: ${item} probe is PROBE-DEFECT. Refusing to merge — see job summary."
+            echo "::error::${item} probe is PROBE-DEFECT. Refusing to merge — see job summary."
             exit 1
           fi
           if [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::warning:: ${item} probe is DEFECT — running audit-only."
+            echo "::warning::${item} probe is DEFECT — running audit-only."
           fi
 
   # ----------------------------------------------------------------
-  # aggregator: collect all 5 per-item verdicts, run the
+  # Aggregator: collect all 5 per-item verdicts, run the
   # hermetic test-suite, emit a single aggregate summary.
   # ----------------------------------------------------------------
   wirelang-spec-res-d-aggregate:
@@ -391,11 +391,11 @@ jobs:
           verdict="${{ steps.aggregate.outputs.aggregate }}"
           enforce="${PROBE_ENFORCE}"
           if [ "${enforce}" = "true" ] && [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::error:: RES-D aggregate is PROBE-DEFECT. Refusing to merge — see job summary."
+            echo "::error::RES-D aggregate is PROBE-DEFECT. Refusing to merge — see job summary."
             exit 1
           fi
           if [ "${verdict}" = "PROBE-DEFECT" ]; then
-            echo "::warning:: RES-D aggregate DEFECT — audit-only."
+            echo "::warning::RES-D aggregate DEFECT — audit-only."
           else
-            echo " RES-D aggregate READY."
+            echo "RES-D aggregate READY."
           fi

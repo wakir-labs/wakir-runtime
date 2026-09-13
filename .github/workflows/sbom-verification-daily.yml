@@ -10,7 +10,7 @@
 # fresh SBOMs every morning at 07:00 UTC. What PR #310 does NOT do
 # is compare today's SBOMs against a baseline: the operator can
 # read the SBOM but cannot answer "did anything change since
-# operator sign-off gate sign-off?".
+# the last operator sign-off?".
 #
 # This verification workflow runs the generator under
 # the same hermetic --mode=stdlib path (no live cargo / network),
@@ -60,7 +60,7 @@
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §operator sign-off gate requires a full provenance bundle at the
+# The ADR-0066 sign-off gate requires a full provenance bundle at the
 # pre-cutover hand-off. The SBOM provides the snapshot;
 # this verifier provides the *delta-vs-pinned-baseline*
 # axis. The operator reads the GREEN aggregate verdict as

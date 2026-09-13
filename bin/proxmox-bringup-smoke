@@ -20,13 +20,13 @@
 # spire-agent-healthy, marker-stack-bucket-present) verwenden einen
 # Retry-Wrapper mit exponentiellem Backoff. Default: 5 Retries + 1
 # initial; Sleeps 0.5/1/2/4/5s; Worst-case ~12.5s pro Check.
-# 9-Tag-5-Race-Window-Hypothesen (live bring-up bug report 2026-05-13):
+# Race-Window-Hypothesen (live bring-up bug report 2026-05-13):
 #   - JWT-Auth-Timing-Race (Hypothese 1): SPIRE-Agent-SVID-Issuance + NATS-Connect
 #   - Trust-Bundle-Rotation-Race (Hypothese 2): Server-Bundle-Lag
 #   - SPIFFE-Workload-API-Socket-Permission-Drift (Hypothese 3): SELinux/uid
 #   - NATS-KV-Bucket-Init-Race (Hypothese 4): JetStream-Stream-Registration
-# adressiert (1), (2), (4) ueber den Retry-Wrapper plus
-# das wirelang-side `connect_retry`-Modul. (3) ist iteration-9-Tag-5-Bug-7
+# Der Retry-Wrapper adressiert (1), (2), (4) zusammen mit
+# dem wirelang-side `connect_retry`-Modul. (3) ist Bug-7
 # (SPIRE-Agent-Stabilitaet) — der Retry-Wrapper toleriert (3) als generischen
 # Connect-Fail aber loest das Permission-Issue nicht.
 #
@@ -65,11 +65,11 @@
 #   WAKIR_SMOKE_NATS       Pfad zu einem alternativen nats-CLI-Wrapper
 #   WAKIR_SMOKE_RETRY_MAX  Max-Anzahl Retry-Versuche pro Race-toleranter Check
 #                          (Default 5; Wert 0 deaktiviert das Retry-Wrapping
-#                          und ist die 9-Tag-1-Baseline-Semantik).
+#                          und ist die Baseline-Semantik).
 #   WAKIR_SMOKE_RETRY_BASE Backoff-Basisintervall in Sekunden (Default 0.5).
 #                          Effektive Sleeps: 0.5s, 1.0s, 2.0s, 3.0s, 5.0s
 #                          fuer die Default-Sequenz. Race-Toleranz adressiert
-#                          die 9-Tag-5-Bug-Bilanz (2/6 <-> 4/6
+#                          die Bug-Bilanz (2/6 <-> 4/6
 #                          Smoke-Discrepancy via SVID-Cache-Race +
 #                          JetStream-Stream-Init-Race).
 #   WAKIR_SMOKE_SLEEP      Pfad zu einem alternativen sleep-Wrapper

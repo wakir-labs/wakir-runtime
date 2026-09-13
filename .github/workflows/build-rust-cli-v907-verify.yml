@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
-# Build + sign + push the wakir-v907-verify image (
-# ADR-0065 wave-1 `v907_verify` pre-cutover image).
+# Build + sign + push the wakir-v907-verify image
+# (ADR-0065 wave-1 `v907_verify` pre-cutover image).
 #
 # Posture
 # -------

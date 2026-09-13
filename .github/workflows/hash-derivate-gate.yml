@@ -34,7 +34,7 @@
 #
 # Required-Status-Check
 # ---------------------
-# Sobald dieser Workflow auf `main` einmal gruen laeuft, soll Mira
+# Sobald dieser Workflow auf `main` einmal gruen laeuft, soll der Operator
 # (Operator-Hand, GitHub-Repo-Settings) ihn unter
 # `Settings -> Branches -> main -> Branch Protection Rules ->
 #  Require status checks to pass before merging` aktivieren (analog

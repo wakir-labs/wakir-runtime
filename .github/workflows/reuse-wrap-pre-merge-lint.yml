@@ -7,9 +7,9 @@
 # Three consecutive hot-fix episodes on the License-Hygiene Gate
 # (`license-gate.yml`, ADR-0061 Schritt 8) confirmed a Pattern:
 #
-#   * Kai hot-fix a58f6e9 (his own test file)
-#   * Mira hot-fix 046a5e5 (the SRE test file)
-#   * Kai self-fix 211dbfb (his own test file)
+#   * hot-fix a58f6e9 (infra test file)
+#   * hot-fix 046a5e5 (SRE test file)
+#   * self-fix 211dbfb (infra test file)
 #
 # All three were "freshly-merged test contains SPDX-string-literal
 # payload outside REUSE-IgnoreStart/End markers, license-gate goes

@@ -16,8 +16,8 @@
 #     digest to ``expected_image_digest`` slot).
 #
 # ------------------------
-# Inventory extended from 4 to 5 binaries: ``bridge-diff`` (
-# increment PR #175) is now a first-class policy entry. The
+# Inventory extended from 4 to 5 binaries: ``bridge-diff`` (PR #175)
+# is now a first-class policy entry. The
 # Quadlet installer (``quadlet/wakir-rust-cli.container``, PR #180)
 # already inventoried all five binaries; this update closes the
 # cross-substrate inventory gap so both files list the same five
@@ -64,7 +64,7 @@
 #     Crate `persona-engine-subscribe-loop` adds an `[[bin]]` target
 #     producing `wakir-persona-engine-subscribe-loop`. The
 #     subscribe-loop binary already shipped in the carrier image; the
-# entry adds the dedicated single-binary image for the
+#     this entry adds the dedicated single-binary image for the
 #     wave-6 cutover step. Ships at
 #     ``/opt/wakir/bin/wakir-persona-engine-subscribe-loop-welle6``).
 #   * ``recovery-welle7`` (ADR-0066 wave-7
@@ -114,7 +114,7 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Quadlet installer.
 #
-# update (ADR-0066 wave-3 image-build)
+# Inventory update (ADR-0066 wave-3 image-build)
 # -------------------------------------------------------
 # Inventory extended from 8 to 9 binaries in lock-step with the
 # Quadlet installer update. One addition:
@@ -136,7 +136,7 @@
 # (test_cross_substrate_parity_with_quadlet_installer) enforces
 # lock-step agreement with the Quadlet installer.
 #
-# update (ADR-0066 wave-2 image-build)
+# Inventory update (ADR-0066 wave-2 image-build)
 # -------------------------------------------------------
 # Inventory extended from 7 to 8 binaries in lock-step with the
 # Quadlet installer update. One addition:
@@ -200,14 +200,14 @@ policy:
     switch subprocess-bridges to. The first nine (recovery, state-
     backing, fsm, v907-verify, bridge-diff, subscribe-loop,
     anchor-emitter, svid-workload-identity, bridge-audit-writer)
-    landed through; the adds the
-    dedicated single-binary images for the waves 4..7 cutover steps
-    (state-backing, lifecycle-state-machine, subscribe-loop and
-    recovery-workflow); the closes the
+    landed first (PRs #167..#210); the single-binary image bundle
+    (PR #226) adds the dedicated images for the waves 4..7 cutover
+    steps (state-backing, lifecycle-state-machine, subscribe-loop and
+    recovery-workflow); the final increment closes the
     Phase-3a-Foundation sweep with the canonical-trace bridges
     bridge-audit-replay (PR #246, 14. Modul) and migrate-version
     (PR #250, 15. Modul). Inventory order in `binaries:` below
-    follows chronological landing order across...
+    follows chronological landing order.
 
   # Sigstore-keyless OIDC identity of the GitHub-Actions runner that
   # builds and signs the carrier image. Same shape as the
@@ -252,7 +252,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_RECOVERY_BIN
     landed_pr: '#167'
-    landed_tag: Tag-17 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       Persona-engine R1..R4 Recovery-Workflow subprocess-bridge.
       Schema-parity with wirelang/persona_engine/recovery_workflow.py.
@@ -265,7 +265,7 @@ binaries:
     env_switch_value: rust_inmemory|rust_natskv
     env_binary_override: WAKIR_RUST_STATE_BACKING_BIN
     landed_pr: '#167'
-    landed_tag: Tag-17 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       NATS-KV Persona-State backing subprocess-bridge.
       Schema-parity with wirelang/persona_engine/state_backing.py.
@@ -278,7 +278,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_FSM_BIN
     landed_pr: '#169'
-    landed_tag: Tag-18 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       Persona-engine lifecycle FSM (spec §3.3, six states, nine
       transitions) subprocess-bridge. Schema-parity with
@@ -292,7 +292,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_V907_VERIFY_BIN
     landed_pr: '#171'
-    landed_tag: Tag-19 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       V-907 persona-hash pin-compute + verify subprocess-bridge.
       Schema-parity with wirelang/persona_engine/v907_verify.py;
@@ -306,7 +306,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_BRIDGE_DIFF_BIN
     landed_pr: '#175'
-    landed_tag: Tag-20 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       Phase-3a/3b Doppelbetrieb diff-oracle subprocess-bridge.
       Schema-parity with
@@ -324,7 +324,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_SUBSCRIBE_LOOP_BIN
     landed_pr: '#181'
-    landed_tag: Tag-22 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       NATS-JetStream subscribe-loop ack-record subprocess-bridge.
       Schema-parity with wirelang/persona_engine/subscribe_ack.py
@@ -339,7 +339,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_ANCHOR_EMITTER_BIN
     landed_pr: '#184'
-    landed_tag: Tag-23 Mini-Welle
+    landed_tag: phase-3b-carrier-image
     purpose: >
       WAT-anchor-envelope wire-shape emitter subprocess-bridge.
       Schema-parity with wirelang/persona_engine/anchor_emitter.py
@@ -354,7 +354,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_SVID_WORKLOAD_IDENTITY_BIN
     landed_pr: '#191'
-    landed_tag: Tag-25 Mini-Welle (resolver), Tag-29 Mini-Welle (crate)
+    landed_tag: phase-3b-carrier-image (resolver + crate)
     purpose: >
       SPIFFE Workload-API socket-presence probe subprocess-bridge.
       Skeleton scope: probe + info subcommands (mirror of Python
@@ -371,8 +371,8 @@ binaries:
     env_switch: WAKIR_BRIDGE_AUDIT_WRITER_BACKEND
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_BRIDGE_AUDIT_WRITER_BIN
-    landed_pr: 'Tag-31 Mini-Welle'
-    landed_tag: Tag-31 Mini-Welle
+    landed_pr: '#203'
+    landed_tag: phase-3b-carrier-image
     purpose: >
       Doppelbetrieb-Shadow EngineeringOutputEvent envelope writer
       subprocess-bridge. Schema-parity with
@@ -395,7 +395,7 @@ binaries:
   # the persona-engine production-default switch. The crate_path for
   # state-backing, fsm, subscribe-loop and recovery already existed
   # (sibling waves landed the library scaffolds);
-  # the adds the `[[bin]]` target + the dedicated
+  # the image-build bundle adds the `[[bin]]` target + the dedicated
   # build workflow + the Containerfile.
 
   - name: state-backing-welle4
@@ -405,8 +405,8 @@ binaries:
     env_switch: WAKIR_STATE_BACKING_BACKEND
     env_switch_value: rust_inmemory|rust_natskv
     env_binary_override: WAKIR_RUST_STATE_BACKING_BIN
-    landed_pr: 'Tag-33 Mini-Welle'
-    landed_tag: Tag-33 Mini-Welle
+    landed_pr: '#226'
+    landed_tag: ADR-0066-single-binary-image
     purpose: >
       ADR-0066 wave-4 pre-cutover single-binary image
       (wakir-persona-engine-state-backing-welle4). Surfaces the
@@ -428,8 +428,8 @@ binaries:
     env_switch: WAKIR_FSM_BACKEND
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_FSM_BIN
-    landed_pr: 'Tag-33 Mini-Welle'
-    landed_tag: Tag-33 Mini-Welle
+    landed_pr: '#226'
+    landed_tag: ADR-0066-single-binary-image
     purpose: >
       ADR-0066 wave-5 pre-cutover single-binary image
       (wakir-persona-engine-fsm-welle5). Surfaces the canonical
@@ -447,8 +447,8 @@ binaries:
     env_switch: WAKIR_SUBSCRIBE_LOOP_BACKEND
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_SUBSCRIBE_LOOP_BIN
-    landed_pr: 'Tag-33 Mini-Welle'
-    landed_tag: Tag-33 Mini-Welle
+    landed_pr: '#226'
+    landed_tag: ADR-0066-single-binary-image
     purpose: >
       ADR-0066 wave-6 pre-cutover single-binary image
       (wakir-persona-engine-subscribe-loop-welle6). Surfaces the
@@ -467,8 +467,8 @@ binaries:
     env_switch: WAKIR_RECOVERY_BACKEND
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_RECOVERY_BIN
-    landed_pr: 'Tag-33 Mini-Welle'
-    landed_tag: Tag-33 Mini-Welle
+    landed_pr: '#226'
+    landed_tag: ADR-0066-single-binary-image
     purpose: >
       ADR-0066 wave-7 pre-cutover single-binary image
       (wakir-persona-engine-recovery-welle7). Surfaces the canonical
@@ -497,7 +497,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_BRIDGE_AUDIT_REPLAY_BIN
     landed_pr: '#246'
-    landed_tag: Tag-37 Mini-Welle (14. Phase-3a Modul)
+    landed_tag: phase-3a-foundation-closeout (14. Phase-3a Modul)
     purpose: >
       Phase-3a-Foundation 14. Modul — deterministic-replay-oracle
       subprocess-bridge (ADR-0063 §Folgeartefakte Item 11). Closes
@@ -509,7 +509,7 @@ binaries:
       9 alphabetically-sorted JCS keys per the
       wakir.persona-engine.bridge-audit-replay-canonical/1 schema.
       Binary lives in the same crate as the existing
-      bridge-audit-writer + replay_cli; the increment
+      bridge-audit-writer + replay_cli; this entry
       promotes the canonical-trace surface to the
       /opt/wakir/bin/wakir-persona-engine-bridge-audit-replay path.
 
@@ -521,7 +521,7 @@ binaries:
     env_switch_value: rust
     env_binary_override: WAKIR_RUST_MIGRATE_VERSION_BIN
     landed_pr: '#250'
-    landed_tag: Tag-38 Mini-Welle (15. Phase-3a Modul — closes Phase-3a-Foundation)
+    landed_tag: phase-3a-foundation-closeout (15. Phase-3a Modul — closes Phase-3a-Foundation)
     purpose: >
       Phase-3a-Foundation 15. Modul — engine-version migration
       pre-flight decision canonical-trace subprocess-bridge. Closes

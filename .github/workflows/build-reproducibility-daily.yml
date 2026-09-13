@@ -6,7 +6,7 @@
 # Purpose
 # -------
 #
-#..50 covered the inventory-shape, coverage-matrix,
+# Earlier daily workflows covered the inventory-shape, coverage-matrix,
 # OIDC-drift, SBOM-generation, SBOM-baseline-verification, and
 # SBOM-baseline-refresh axes of the 15-binary substrate. None of
 # them captures *build-fingerprint determinism* -- the property

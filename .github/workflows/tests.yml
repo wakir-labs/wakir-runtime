@@ -8,7 +8,7 @@
 # and that the test-count delta between this lane and the sandbox lane
 # stays within the documented envelope. Together with `sandbox-ci.yml`
 # this forms the two-sided cross-check described in the
-# auftrag (sandbox = lower bound, production = upper bound).
+# lane contract (sandbox = lower bound, production = upper bound).
 #
 # Lane policy
 # -----------
@@ -31,8 +31,8 @@
 #     `peer_org` / `federation_route` are jsonschema-gated by design;
 #     §6.3 re-baseline list item 1 in
 #     wirelang/specs/datalog-caveat-vocabulary-phase-2.md.
-#   - (ADR-0052 Class-P promotion of
-#     `caveat_hash`): five new schema-admission probes
+#   - ADR-0052 Class-P promotion of
+#     `caveat_hash`: five new schema-admission probes
 #     (T-V0.2.1-01..05) land jsonschema-gated;
 #     EXPECTED_DELTA re-baselined 149 → 154 per §6.3 re-baseline
 #     list item 1.
@@ -228,7 +228,7 @@ jobs:
             -v --tb=short
 
       # ------------------------------------------------------------------
-      #: build the submit_worker binary so the
+      # Build the submit_worker binary so the
       # tests/wat/test_anchor_backend.py real-binary smoke test
       # (test_real_binary_smoke_ots_cli_path_aborts_without_ots) runs
       # instead of skipping. Same restricted-build pattern as
@@ -337,7 +337,7 @@ jobs:
         #   datalog-caveat-vocabulary-phase-2.md, item 1: vocabulary
         #   addition `peer_org` / `federation_route` triggered the
         #   schema-admission test additions).
-        # -: ADR-0052 Class-P promotion of
+        # - ADR-0052 Class-P promotion of
         #   `caveat_hash` lands five new jsonschema-gated probes in
         #   test_datalog_vocabulary_phase_2.py (T-V0.2.1-01..05);
         #   the five new ratification probes in
@@ -454,12 +454,12 @@ jobs:
           # Same importorskip("yaml") pattern as the 0.5.2-final
           # manifest tests; production collects 16, sandbox skips
           # all 16. Delta lifts by exactly 16 (529 + 16 = 545).
-          #: re-baselined 545 -> 563 because
+          # Re-baselined 545 -> 563 because
           # the engine-0.5.3-production-readiness-audit (post-
-          # Final-Bump counterpart of) adds one new PyYAML-gated
+          # Final-Bump counterpart of the pre-cutover audit) adds one new PyYAML-gated
           # test module:
           #   - test_tag63_production_readiness_audit.py: 18 tests
-          # Same importorskip("yaml") pattern as; production
+          # Same importorskip("yaml") pattern as above; production
           # collects 18, sandbox skips all 18. Delta lifts by exactly
           # 18 (545 + 18 = 563).
           EXPECTED_DELTA: '563'

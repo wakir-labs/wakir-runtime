@@ -55,8 +55,8 @@
 #   podman volume rm wakir-spire-server-data
 #   podman volume rm wakir-spire-server-sockets
 #
-# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose iteration-6-
-# Tag-8 rebase): the placeholder token `DIGEST_PENDING_TOMAS_REVIEW`
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of the compose
+# Pfad-B rebase): the placeholder token `DIGEST_PENDING_TOMAS_REVIEW`
 # is intentionally NOT a real digest — Operator-Hand must run `cosign
 # verify` and `skopeo inspect` to resolve the canonical digest and
 # commit the substitution before any live bring-up. The parity test

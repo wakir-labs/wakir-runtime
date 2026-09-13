@@ -98,7 +98,7 @@ on:
   workflow_dispatch:
     inputs:
       approval_token:
-        description: "AR-Hand-Gate token (AR-HAND-GATE-YYYY-MM-DD-<initials>)."
+        description: "Operator sign-off token (AR-HAND-GATE-YYYY-MM-DD-<initials>)."
         required: true
       allow_checksum_changed:
         description: "Permit refresh through checksum-changed drift (RED)."
@@ -275,7 +275,7 @@ jobs:
             echo "1. Download the \`sbom-baseline-refresh-${{ github.run_id }}\` artefact."
             echo "2. Inspect the receipt + diff locally."
             echo "3. Open a PR with the baseline-mutation + receipt"
-            echo " so the operator sign-off gate sign-off has a normal PR-review trail."
+            echo "   so the operator sign-off has a normal PR-review trail."
             echo ""
             echo "See \`docs/operations/15-binary-sbom-baseline-refresh.md\`"
             echo "for the full operator runbook."

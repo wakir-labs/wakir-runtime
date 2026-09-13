@@ -15,7 +15,7 @@
 #      Substance-Datei einen SPDX-License-Identifier-Header trägt
 #      und dass jede in irgendeinem Header genannte Lizenz auch
 #      als Volltext im `LICENSES/`-Verzeichnis liegt. Dieser Gate
-#      bleibt RED, bis Reza das `LICENSES/`-Verzeichnis mit den
+#      bleibt RED, bis das `LICENSES/`-Verzeichnis mit den
 #      drei Volltexten (Apache-2.0, BUSL-1.1, CC-BY-4.0) gemerged
 #      hat. Das ist beabsichtigt — der Gate fungiert als Merge-
 #      Koordinations-Anker für die wave.
@@ -56,12 +56,12 @@
 #      Header trägt und gleichzeitig den underscored-Namens-
 #      Geschwister-Import (`-` → `_`, `.py`-Suffix) macht, dessen
 #      Geschwister `BUSL-1.1` trägt, ist ein License-Mismatch und
-#      bricht den Gate. Reza fixt das in ihrer wave-PR; dieser
+#      bricht den Gate. Der Fix landet in der Lizenz-PR; dieser
 #      Gate macht die Mismatch-Liste sichtbar.
 #
 # Required-Status-Check
 # ---------------------
-# Sobald dieser Workflow auf `main` einmal grün läuft, soll Mira
+# Sobald dieser Workflow auf `main` einmal grün läuft, soll der Operator
 # (Operator-Hand, GitHub-Repo-Settings) ihn unter
 # `Settings → Branches → main → Branch Protection Rules →
 #  Require status checks to pass before merging` aktivieren. Damit
@@ -155,7 +155,7 @@ jobs:
         #     similar declaration scheme),
         #   - every license mentioned in any header has a matching
         #     full-text file under `LICENSES/`.
-        # While the wave is in flight (Reza has not yet shipped
+        # While the license wave is in flight (the license PR has not yet shipped
         # `LICENSES/Apache-2.0.txt`, `BUSL-1.1.txt`, `CC-BY-4.0.txt`),
         # this step is allowed to be RED. The other stages still run
         # so the PR-Run shows a complete diagnostic.
@@ -311,5 +311,5 @@ jobs:
             echo "license-gate: invalid-SPDX-expression warnings are tracked as Phase-1-Folge-Item."
           else
             echo "license-gate: wave in flight — LICENSES/ not yet complete."
-            echo "license-gate: reuse lint may be RED until Reza-PR merges."
+            echo "license-gate: reuse lint may be RED until the license PR merges."
           fi

@@ -250,7 +250,7 @@ SPIRE-Server, no SVID issuance.
   remains operator-hand.
 - **OI-Q4 (deferred to Phase-3):** If Quadlet becomes primary at
   Phase-3, the compose-test surface needs a Quadlet-equivalent
-  refactor. Estimated effort: one Phase-3-iteration-N box.
+  refactor. Estimated effort: one Phase-3 work package.
 
 ---
 

@@ -14,7 +14,7 @@
 #               operator companion + §4 pre-existing-failure-pattern
 #               catalogue
 #
-# extends the workflow with the
+# A later increment extends the workflow with the
 # Phase-3b backend-matrix lane that validates the Rust-default-
 # switches landed in PR #167. Two follow-on jobs run after the
 # base lane: `live-vm-acceptance-phase-3b` spawns one matrix-cell
@@ -87,7 +87,7 @@
 # * Zone-N (QA × internal audit) — the Wrapper-Run summary-JSON and
 #   the pytest JUnit-XML uploaded as artefact are the evidence-
 #   source for Phase-2 Audit-Sample §4-A / §4-B (PR #116 §3).
-# * Zone-M (CLI substance-bestätigung Tomás/Selin/Reza) — until
+# * Zone-M (CLI substance-bestätigung by the CLI owners) — until
 #   §5 of the test-plan is signed off, several TV-LVD vectors stay
 #   `xfail-on-CLI-mismatch`; this lane surfaces those as
 #   structured pytest output rather than silent skips.
@@ -496,7 +496,7 @@ jobs:
   #
   # The matrix is only spawned when at least one of
   # ``recovery_backend`` / ``state_backing_backend`` is non-``none``.
-  # When both are ``none``, the job no-ops cleanly so Tag-17-style
+  # When both are ``none``, the job no-ops cleanly so legacy
   # invocations (Phase-2-only) keep their existing semantics.
   #
   # Sandbox boundary: identical to the job. No SSH key, no

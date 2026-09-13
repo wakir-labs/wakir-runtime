@@ -30,7 +30,7 @@
 # Audit-Trail anchor
 # ------------------
 #
-# ADR-0066 §operator sign-off gate requires a full provenance bundle at the
+# The ADR-0066 sign-off gate requires a full provenance bundle at the
 # pre-cutover hand-off. The SBOM bundle is the missing
 # ``components-and-versions`` axis the operator hands AR alongside
 # the cosign-verified image digests.

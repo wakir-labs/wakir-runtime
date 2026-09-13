@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# OI-PILOT-4 + Cross-Pair Reza
-# OI-PEF-11 — One-shot Quadlet unit that anchors unanchored
+# OI-PILOT-4 / OI-PEF-11 — One-shot Quadlet unit that anchors unanchored
 # recovery_drill_outcome envelopes from the persona-state
 # NATS-KV bucket to the WAT spool.
 #
@@ -57,7 +56,7 @@
 # same Python wheel set the anchor driver needs: nats-py +
 # cryptography for the WAT bridge-audit-writer). The placeholder
 # token ``DIGEST_PENDING_REZA_CROSS_REVIEW`` is the OI-PEF-11
-# Cross-Pair anchor: Reza is the WAT-anchoring owner and reviews
+# Cross-Pair anchor: the WAT-anchoring owner reviews
 # the digest pin before live bring-up.
 
 [Unit]
@@ -74,7 +73,7 @@ ContainerName=wakir-recovery-drill-anchor
 # because it ships the wheel set the driver needs (nats-py +
 # cryptography for the WAT bridge-audit-writer's hash chain).
 # The placeholder token is resolved Operator-Hand under
-# Cross-Review Zone-L with Reza (OI-PEF-11 WAT-anchoring owner).
+# Cross-Review Zone-L (OI-PEF-11 WAT-anchoring owner).
 Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_REZA_CROSS_REVIEW
 
 # Exec invokes the anchor driver against the operator-supplied

@@ -54,7 +54,7 @@
 #   podman volume rm wakir-spire-agent-data
 #   podman volume rm wakir-spire-agent-sockets
 #
-# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of compose iteration-6-
+# Image-Pin form (Cosign-Digest-Pin Pfad B, mirror of the compose form,
 # with parity to server form): placeholder token
 # `DIGEST_PENDING_TOMAS_REVIEW` resolved by Operator-Hand before live
 # bring-up (Cross-Review Zone-C, image-pipeline review).

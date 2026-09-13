@@ -2,10 +2,8 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
 # SPIRE-Server hermetic sidecar substrate.
-# Cosign-Digest-Pin form (Pfad B) added on
-#   top of the substrate per iteration brief (rebase of
-# substance that was authored on a /tmp-worktree without
-#   origin-setup). Header preserved; hermetic posture (trust-
+# Cosign-Digest-Pin form (Pfad B) added on top of the hermetic
+#   substrate. Header preserved; hermetic posture (trust-
 #   domain ``example.test``, networks, deploy-limits, named volumes)
 #   is unchanged. The added items are: image @sha256-digest-pin form,
 #   read_only rootfs, non-root user, tmpfs for /run/spire, and an
@@ -25,7 +23,7 @@
 #   ``spire_agent_sockets`` volume read-only at the same path.
 #   Cosign-Digest-Pin form mirrors the SPIRE-Server convention.
 #   See ``docs/spire-agent-phase-2-2.md`` for the SPIFFE-ID-Binding
-#   cross-reference (Reza ``wirelang/specs/identity-substrate.md`` §5,
+#   cross-reference (``wirelang/specs/identity-substrate.md`` §5,
 #   Mock-Adapter ``wirelang/adapters/spiffe_workload_api.py`` on the
 # track; real-adapter ``real_spiffe_workload_
 #   api.py`` is a slot, not present in the baseline).
@@ -45,7 +43,7 @@
 #   * No SVID issuance round-trip — that is the Phase-2.3 live-gated
 #     test slot (``WAKIR_SPIRE_LIVE=1``).
 #   * No X.509-CA trust-bundle rotation — that is Phase-2.6 §7.8 runbook
-#     extension (Trust-Bundle-Rotation-Sequence; Reza-Z-A-Ack §4.4).
+#     extension (Trust-Bundle-Rotation-Sequence; Zone-A ack §4.4).
 #   * No NATS-JWT-Auth integration — the NATS service continues to run
 #     in Phase-1b auth-free mode in ``compose/nats.yaml``; JWT-Auth
 #     switch is Phase-2.4.
@@ -87,7 +85,7 @@
 #   is the hermetic skeleton, not a production stand.
 #
 # Image-Tag rationale (P7 verified 2026-05-11; Cosign-Digest-Pin form
-# added rebase per iteration brief):
+# added in the Pfad-B rebase):
 #   * Image: ``ghcr.io/spiffe/spire-server``
 #   * Tag:   ``1.14.6``
 #   * Latest stable release at authoring time: SPIRE v1.14.6

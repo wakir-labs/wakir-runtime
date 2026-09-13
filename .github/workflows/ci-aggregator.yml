@@ -38,7 +38,7 @@
 #
 # - ADR-0068 §Beschluss (approved 2026-05-18) — this workflow is the
 #   ``Folgeartefakt`` directly cited in the ADR.
-# - Tomás-Audit PR #231 §Phase-C — long-term-fix recommendation
+# - CI audit PR #231 §Phase-C — long-term-fix recommendation
 #   that ADR-0068 ratified.
 # - ``feedback_branch_protection_check_names.md`` — operator-side
 #   memory item documenting the Required-vs-display-name footgun that

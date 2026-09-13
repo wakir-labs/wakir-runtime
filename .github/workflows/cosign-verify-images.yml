@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # Cosign + digest-resolver pre-build verification of the SPIRE-Federation
-# image pins (Tomás follow-up to).
+# image pins.
 #
 # Posture:
 #   workflow_dispatch ONLY for the pilot phase. The job pulls from
@@ -238,7 +238,7 @@ jobs:
   # ------------------------------------------------------------------
   # Job 3: ghcr.io/wakir-labs/wakir-provisioner — GHCR + Sigstore
   #        keyless cosign verify against the build workflow's OIDC
-  #        identity. Added in.
+  #        identity.
   # ------------------------------------------------------------------
   cosign-verify-wakir-provisioner:
     name: cosign verify wakir-provisioner

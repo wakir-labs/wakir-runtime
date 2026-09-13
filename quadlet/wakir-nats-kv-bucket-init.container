@@ -9,8 +9,8 @@
 # PER-ORG bucket FAMILIES:
 #   - ``wakir-marker-stack-{org_id}`` (marker-stack
 #     event log, ``wirelang.federation.marker_stack_kv``)
-#   - ``wakir-caveat-override-export-sequence-{org_id}`` (
-# durable :class:`SequenceNumberLedger`,
+#   - ``wakir-caveat-override-export-sequence-{org_id}`` (durable
+#     :class:`SequenceNumberLedger`,
 #     ``wirelang.federation.sequence_number_ledger_kv``)
 # The family is provisioned via the multi-family driver
 # registry; defensive-import: if the Wirelang-side module is

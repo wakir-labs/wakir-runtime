@@ -17,10 +17,10 @@
 #   * engine.py resolver-block — the import block + resolver-call
 #     sites in ``wirelang/persona_engine/engine.py``.
 #
-# A silent earlier edit to any of these three surfaces breaks the
+# A silent edit to any of these three surfaces breaks the
 # V-907 pin. The spec-seal probe
 # (``wirelang-spec-freeze-seal-probe.yml``) caught the spec-side
-# analog of this drift class; closes the persona-engine-side
+# analog of this drift class; this gate closes the persona-engine-side
 # gap with a dedicated hash-pin build-step.
 #
 # Stages
@@ -46,12 +46,12 @@
 # ``wirelang/tests/persona_engine/test_v907_hash_pin_build_step_tag59.py``
 # (>= 12 stdlib-only tests). The workflow runs them on every trigger.
 #
-# Scope discipline (Selin, ADR-0036/0043/0065/0066)
+# Scope discipline (ADR-0036/0043/0065/0066)
 # -------------------------------------------------
 # This gate pins the persona-engine CI surface. It does **not**
-# modify persona definitions (Aisha-Domäne), WAT-core / V-907 logic
-# (Tomás-Domäne, Zone-K), identity-substrate (Reza-Domäne, Zone-L),
-# or container-infra (Kai-Domäne, Zone-J). Cross-zone unangetastet.
+# modify persona definitions, WAT-core / V-907 logic (Zone-K),
+# identity-substrate (Zone-L) or container-infra (Zone-J).
+# Cross-zone unangetastet.
 
 name: v907-persona-hash-pin-build-step
 

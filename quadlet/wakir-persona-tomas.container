@@ -80,8 +80,7 @@
 #   - wakir-spire-agent.service      (Phase-2.2; provides Workload-API
 #                                    socket at
 #                                    /run/spire/agent-sockets/api.sock)
-#   - wakir-nats-kv-bucket-init.service (
-# OI-PILOT-2:
+#   - wakir-nats-kv-bucket-init.service (OI-PILOT-2:
 #                                    must have provisioned the
 #                                    persona-state bucket
 #                                    wakir-persona-state-acme-tomas
@@ -130,8 +129,8 @@
 # Image-Pin form (Cosign-Digest-Pin Pfad B): placeholder token
 # ``DIGEST_PENDING_KAI_CROSS_REVIEW`` is resolved by Operator-Hand
 # before live bring-up. The persona-engine container image is built
-# from the wakir-runtime persona-engine source tree (Selin iteration-
-# Pengine-7 Tag-1-4 substrate) and is digest-pinned via the same
+# from the wakir-runtime persona-engine source tree (persona-engine
+# substrate) and is digest-pinned via the same
 # Cross-Review Zone-C workflow as the SPIRE-Server / SPIRE-Agent
 # digests. The image is sourced from the
 # ``ghcr.io/wakir-labs/wakir-persona-engine`` repository; the tag
@@ -159,8 +158,8 @@ Image=ghcr.io/wakir-labs/wakir-persona-engine:0.1.0-pilot@sha256:6bd39e57173d999
 # Command-line arguments — invokes the persona-engine entrypoint
 # with the tomas persona slug and the pilot-phase mode (which
 # anchors the Doppelbetrieb-shadow semantics). Both arguments are
-# documented in the persona-engine CLI manpage (Selin iteration-
-# Pengine-7 `wirelang/specs/persona-engine-format-spec.md`
+# documented in the persona-engine CLI manpage
+# (`wirelang/specs/persona-engine-format-spec.md`
 # §"CLI invocation contract").
 Exec=spawn --persona-slug tomas --pilot-phase doppelbetrieb-shadow
 
@@ -200,8 +199,8 @@ Group=1000
 Volume=/etc/wakir/persona/tomas.md:/etc/wakir/persona/tomas.md:ro,Z
 #
 # 2) Wakir persona-JSON (read-only, axis-C canonical form). The
-#    persona-engine converter (Selin
-#    Crate-8 ``persona-engine-format``) emits the axis-C
+#    persona-engine converter (crate
+#    ``persona-engine-format``) emits the axis-C
 #    ``wakir.persona/<slug>.json`` canonical form. The operator
 #    stages a copy at ``/etc/wakir/persona/<slug>.json`` on the
 #    Pilot-VM. This is the form the persona-engine consumes inside
