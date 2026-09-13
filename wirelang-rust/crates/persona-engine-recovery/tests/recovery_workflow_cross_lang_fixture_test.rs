@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
 // Cross-lang fixture parity tests for persona-engine-recovery
-// (Tag-20 Mini-Welle, Phase-3a Python-sync, Item 6).
+// (Mini-Welle, Phase-3a Python-sync, Item 6).
 //
 // These tests consume the same authoritative JSON fixture file
 // (`tests/fixtures/recovery-workflow-cross-lang/fixtures.json` at the
@@ -34,7 +34,7 @@
 // remains text-only. Rather than add the `base64` crate as a
 // dev-dependency we inline a small lookup-table decoder; the
 // fixture data is hard-coded and base64-decoded once per test.
-// Identical pattern to the `persona-engine-subscribe-loop` Tag-19
+// Identical pattern to the `persona-engine-subscribe-loop`
 // PR #172 fixture test.
 
 use persona_engine_recovery::{

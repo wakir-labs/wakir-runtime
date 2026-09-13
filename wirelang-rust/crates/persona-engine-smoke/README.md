@@ -16,7 +16,7 @@ stable channel) before the Phase-3a-Trigger (~KW 27, ~2026-06-26).
 
 This crate is **not** a production primitive layer. It exists only so
 that crate-version drift, link-time conflicts, or feature-flag misses
-surface here — early — and not in the Phase-3a-Initial-Sprint hot
+surface here — early — and not in the Phase-3a-Initial- hot
 window.
 
 ## Scope
@@ -38,7 +38,7 @@ One smoke function per Decision-Doc axis:
 The TLS smoke is a **construct-only** test — it builds a rustls
 `ClientConfig` wired to the aws-lc-rs `CryptoProvider` but does not
 open a network socket. Live TLS-1.3 handshake against a test-SPIRE
-server is Phase-3a-Initial-Sprint scope per Decision-Doc.
+server is Phase-3a-Initial- scope per Decision-Doc.
 
 ## Running
 
@@ -52,7 +52,7 @@ pre-confirmation to be valid.
 
 ## Cross-references
 
-- ADR-0063 §Folgeartefakte Item 1 — Reza-Crate-Wahl-Klärung-Folge.
+- ADR-0063 §Folgeartefakte Item 1 — Crate-Wahl-Klärung-Folge.
 - `docs/decisions/rust-rewrite-crate-wahlen.md` — full per-axis
   rationale, HTTP-200 stamps, and risk assessments.
 - `docs/decisions/persona-engine-rust-rewrite-roadmap.md` §2.3 —
@@ -61,9 +61,9 @@ pre-confirmation to be valid.
 ## Non-goals
 
 - No cross-language byte-equivalence (Python ↔ Rust). That is the
-  Phase-3a-Initial-Sprint test-vector-suite scope.
+  Phase-3a-Initial- test-vector-suite scope.
 - No production-primitive surface. Reach for the sister `persona-*`
   crates for production hashing, JCS, persona-engine logic.
 - No `cargo audit` gate (Phase-3a-Trigger-Pre-Check item).
 
-— Reza Tehrani (Dev-Engineering-2), 2026-05-16
+— the protocol side Tehrani (Dev-Engineering-2), 2026-05-16

@@ -5,14 +5,14 @@
 # Purpose
 # -------
 # Hello-World smoke-tests for the ten Crate-Wahl-Decisions from
-# `docs/decisions/rust-rewrite-crate-wahlen.md` (Reza-Tehrani, 2026-05-16).
+# `docs/decisions/rust-rewrite-crate-wahlen.md` (protocol-Tehrani, 2026-05-16).
 # This crate is the substantive pre-confirmation that the chosen crates
 # actually compile and round-trip on the target toolchain before
 # Phase-3a-Trigger (~KW 27, ~2026-06-26).
 #
 # ADR anchors
 # -----------
-# - ADR-0063 §Folgeartefakte Item 1 — Reza-Crate-Wahl-Klärung-Folge.
+# - ADR-0063 §Folgeartefakte Item 1 — Crate-Wahl-Klärung-Folge.
 # - docs/decisions/rust-rewrite-crate-wahlen.md — Decision-Doc with
 #   per-axis HTTP-200 stamps and version-pins.
 #
@@ -36,7 +36,7 @@
 # - chacha20poly1305 =0.10.1 : AEAD default (Decision §Wahlachse 3 Stack 4)
 # - aes-gcm       =0.10.3  : AEAD FIPS-Pfad (Decision §Wahlachse 3 Stack 4)
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wakir-runtime/wirelang/` (Python engine unchanged).
 # - No LICENSING / NOTICE / .github/workflows touches.
@@ -49,7 +49,7 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Reza Tehrani <reza@wakir.local>"]
+authors = ["Wakir Labs"]
 description = "Hello-World smoke-tests for the ten Phase-3a crate choices (ADR-0063 §Folgeartefakte Item 1)."
 publish = false
 

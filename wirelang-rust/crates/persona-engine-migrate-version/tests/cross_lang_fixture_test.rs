@@ -20,7 +20,7 @@
 // breaks both lanes simultaneously — that is the cross-lang
 // contract.
 //
-// Tag-38 Phase-3a-Foundation 15. Modul.
+// Phase-3a-Foundation 15. Modul.
 
 use persona_engine_migrate_version::{
     build_migrate_version_decision_trace, serialize_trace, trace_hash_prefixed,
@@ -298,7 +298,7 @@ fn t05_hash_shape_pin() {
 //
 // Minimal RFC 4648 base64 decoder for ASCII input with padding.
 // Same posture as the inline decoder in the bridge-audit-replay
-// cross-lang test suite (PR #246, Tag-37).
+// cross-lang test suite (PR #246).
 fn base64_decode(input: &str) -> Vec<u8> {
     fn idx(c: u8) -> Option<u8> {
         match c {

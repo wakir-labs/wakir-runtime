@@ -6,7 +6,7 @@
 # -------
 # Initial Rust scaffold of the persona-engine R1..R4 Recovery-Workflow.
 # Schema-parity with the Python reference implementation
-# `wirelang/persona_engine/recovery_workflow.py` (Selin Sprint-Pengine-8
+# `wirelang/persona_engine/recovery_workflow.py` (the persona-engine side
 # PR #65, anchored in persona-engine-format-spec §3.7.4).
 #
 # This crate is the deterministic substrate for the Phase-3a
@@ -26,28 +26,28 @@
 #   Python `PHASE_SOFT_CAPS_SEC`                 <-> Rust const
 #   Python `RECOVERY_WORKFLOW_PHASE_ORDER`       <-> Rust const
 #
-# Naming note (Sprint-Auftrag vs. PR-65)
+# Naming note (vs. PR-65)
 # --------------------------------------
-# The Sprint-Auftrag mentions `R1Refetch / R2Resubscribe / R3Restart /
+# The mentions `R1Refetch / R2Resubscribe / R3Restart /
 # R4Escalate` as Rust enum variants. The Python foundation (PR #65,
 # spec §3.7.4.2) is `R1 Detect / R2 Reload / R3 Re-register / R4 Resume`.
 # Hard-constraint "Schema-Parität zu Python recovery_workflow.py" wins
 # — we mirror the Python canonical phase labels exactly. The
-# Sprint-Auftrag action-hooks (SVID-Refetch, NATS-Resubscribe,
+# Action-hooks (SVID-Refetch, NATS-Resubscribe,
 # FSM-Restart, Operator-Escalation) map onto the four phases as
 # advisory action-hooks via the `RecoveryHooks` injection point.
 #
 # ADR anchors
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 4.
-# - Selin PR #65  (Sprint-Pengine-8) — Python schema authority.
-# - Selin PR #113 (3-way-triangle) — Doppelbetrieb substrate.
-# - Selin PR #131 (bridge-diff-engine-rust) — sibling crate.
-# - Reza  PR #132 (subscribe-loop-rust) — sibling crate.
+# - PR #65 — Python schema authority.
+# - PR #113 (3-way-triangle) — Doppelbetrieb substrate.
+# - PR #131 (bridge-diff-engine-rust) — sibling crate.
+# - PR #132 (subscribe-loop-rust) — sibling crate.
 # - persona-engine-format-spec §3.7.4 — R1..R4 phase contract.
 #
 # Versioning rationale (verified 2026-05-16 23:38 CEST, matching the
-# Reza-PR-132 precedent):
+# PR-132 precedent):
 # - tokio =1.52.3      : async runtime; `rt-multi-thread` + `macros` +
 #   `sync` + `time` features cover `#[tokio::test]` and the soft-cap /
 #   hard-cap timeout paths.
@@ -55,7 +55,7 @@
 # - serde_json =1.0.140 : JSON audit-record construction (cross-lang
 #   parity pin; matches workspace pin).
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints
 # -------------------------------------
 # - No touches to `wirelang/persona_engine/recovery_workflow.py`.
 # - No LICENSING / NOTICE / .github/workflows touches.
@@ -69,8 +69,8 @@ edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/wakir-labs/wakir-runtime"
-authors = ["Selin Celik <selin@wakir.local>"]
-description = "Initial Rust scaffold of the persona-engine R1..R4 Recovery-Workflow (Phase-3a Item 4, schema-parity with Selin PR #65)."
+authors = ["Wakir Labs"]
+description = "Initial Rust scaffold of the persona-engine R1..R4 Recovery-Workflow (Phase-3a Item 4, schema-parity with PR #65)."
 publish = false
 
 [lib]
@@ -79,7 +79,7 @@ path = "src/lib.rs"
 
 # Operator-CLI binary: surface the R1..R4 recovery-workflow spec
 # (phase-order + budget + soft-caps + canonical schema) to operator
-# scripts. Subcommands: `info`, `--version`, `--help`. Tag-33
+# scripts. Subcommands: `info`, `--version`, `--help`.
 # Mini-Welle, ADR-0066 Welle-7 `recovery_workflow` pre-cutover
 # image. Parity with the `wakir-persona-engine-state-backing` and
 # `wakir-persona-engine-fsm` operator-CLI surface.
@@ -92,11 +92,11 @@ tokio = { version = "=1.52.3", features = ["rt-multi-thread", "macros", "sync", 
 chrono = { version = "=0.4.44", default-features = false, features = ["clock", "std"] }
 # `preserve_order` mirrors the workspace pin in `wirelang-rust/Cargo.toml`
 # (=1.0.140) — required because the canonical-projection builder
-# (Tag-20 cross-lang parity sweep) constructs a `serde_json::Map` and
+# (cross-lang parity sweep) constructs a `serde_json::Map` and
 # relies on JCS to apply the lexicographic ordering downstream.
 serde_json = { version = "=1.0.140", features = ["preserve_order"] }
 # RFC 8785 JCS canonicaliser — byte-identical with Python `rfc8785`
-# (already a top-level dep in `pyproject.toml`). Used by the Tag-20
+# (already a top-level dep in `pyproject.toml`). Used by the
 # cross-lang parity sweep to pin `RecoveryOutcome` canonical bytes
 # across the Rust+Python sides.
 serde_jcs = "=0.2.0"

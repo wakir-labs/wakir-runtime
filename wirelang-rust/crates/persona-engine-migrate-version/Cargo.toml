@@ -4,7 +4,7 @@
 # decision canonical-trace (Rust pendant of
 # `wirelang.persona_engine.migrate_version_canonical`).
 #
-# Tag-38 Phase-3a-Foundation 15. Modul (closes the Phase-3a-Foundation
+# Phase-3a-Foundation 15. Modul (closes the Phase-3a-Foundation
 # sweep). Provides a pure-function canonical-trace projection of the
 # pre-flight migration decision (semver parse + known-version check +
 # major-bump policy evaluation) that runs before any

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Recovery-Replay-Engine smoke-tests.
 //!
-//! Sprint-Recovery-Replay-Engine-Rust-MINI (ADR-0063 §Folgeartefakte
+//! (ADR-0063 §Folgeartefakte
 //! Phase-3a Item 13).
 //!
-//! Three Recovery-Fixtures cover the Sprint-Auftrag matrix:
+//! Three Recovery-Fixtures cover the matrix:
 //!
 //! - F1 (clean R1->R4): full 4-phase happy-path drill.
 //! - F2 (R2-fail-retry): 5-phase trajectory with R2 retried after a
@@ -119,7 +119,7 @@ fn f3_skip_workflow() -> Vec<PhaseResult> {
 
 #[test]
 fn test_01_recovery_step_alias_resolves_to_phase_result() {
-    // Sprint-Auftrag-signature: RecoveryStep is a type alias for
+    // RecoveryStep is a type alias for
     // PhaseResult. The two types must be assignment-compatible.
     let p: PhaseResult = mk_phase("R1", "detected", 0.0, "ann");
     let s: RecoveryStep = p.clone();

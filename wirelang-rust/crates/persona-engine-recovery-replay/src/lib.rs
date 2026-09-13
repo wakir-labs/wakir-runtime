@@ -2,7 +2,7 @@
 //! Deterministic Recovery-Workflow R1..R4 replay engine for the
 //! Phase-3a Doppelbetrieb-Konsistenz drill.
 //!
-//! Sprint-Recovery-Replay-Engine-Rust-MINI (ADR-0063 §Folgeartefakte
+//! (ADR-0063 §Folgeartefakte
 //! Phase-3a Item 13).
 //!
 //! Where [`persona_engine_bridge_audit_replay`] is the stream-level
@@ -47,12 +47,12 @@
 //! Naming note
 //! -----------
 //!
-//! The Sprint-Auftrag refers to `RecoveryStep`. The Rust pendant of
+//! The refers to `RecoveryStep`. The Rust pendant of
 //! the Python recovery type is `PhaseResult` (see
 //! `persona-engine-recovery` PR #135 / Python `recovery_workflow.py`).
 //! `PhaseResult` is the recovery step result — we re-export it as
-//! [`RecoveryStep`] in this crate for Sprint-Auftrag-signature-parity
-//! and to give the replay-engine API the Sprint-Auftrag-named handle.
+//! [`RecoveryStep`] in this crate
+//! and to give the replay-engine API the handle.
 //! The underlying type is unchanged.
 //!
 //! Out of scope (deliberately)
@@ -76,9 +76,9 @@ use sha2::{Digest, Sha256};
 
 pub use persona_engine_recovery::PhaseResult;
 
-/// Sprint-Auftrag-signature-parity alias for [`PhaseResult`]. The
+/// alias for [`PhaseResult`]. The
 /// underlying type lives in `persona-engine-recovery` (PR #135). We
-/// re-export under the Sprint-Auftrag name so the replay-engine API
+/// re-export under the name so the replay-engine API
 /// reads `replay_workflow(steps: &[RecoveryStep])` rather than
 /// `replay_workflow(steps: &[PhaseResult])`.
 pub type RecoveryStep = PhaseResult;
@@ -441,7 +441,7 @@ impl RecoveryReplayEngine {
     /// Replay an actual recovery-workflow step sequence against
     /// `expected` and produce a [`RecoveryReplayReport`].
     ///
-    /// Sprint-Auftrag signature: takes `&[RecoveryStep]` (alias for
+    /// signature: takes `&[RecoveryStep]` (alias for
     /// `&[PhaseResult]`) and an [`ExpectedRecoveryTrajectory`].
     ///
     /// The replay is deterministic: identical inputs produce bit-
