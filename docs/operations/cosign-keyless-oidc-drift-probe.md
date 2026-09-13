@@ -5,14 +5,14 @@ SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 
 # Cosign-Keyless-OIDC-Drift-Probe — Operator Recipe
 
-**Status:** Tag-47 substrate, Operator-Hand refresh recipe.
-**Owner:** Kai Hoffmann (Dev-Engineering-3, Container-Orchestration).
-**Cross-Review zones:** C (Container-Image-Pipeline x Tomás-OTS).
+**Status:** substrate, Operator-Hand refresh recipe.
+**Owner:** infrastructure engineering.
+**Cross-Review zones:** C (Container-Image-Pipeline x OTS).
 
 ## 1. What this probe does
 
 Tracks the **time-axis** drift of the Sigstore-keyless-OIDC chain
-that signs the 15-binary Tag-45 Cosign-Policy inventory:
+that signs the 15-binary Cosign-Policy inventory:
 
   * **Trust-Root axis** — Sigstore project re-tags the cosign-installer
     action, rotates the Fulcio root CA, or cuts a new Rekor
@@ -21,7 +21,7 @@ that signs the 15-binary Tag-45 Cosign-Policy inventory:
     changes, or the per-binary build_workflow path is renamed and
     the identity-claim regexp no longer matches.
 
-Tag-45 PR #294 + Tag-46 PR #298 pin the static substrate shape;
+PR #294 + PR #298 pin the static substrate shape;
 this probe extends the coverage along the time-axis so an operator
 notices upstream shifts within ~24h instead of at the next
 cosign-verify failure.
@@ -41,7 +41,7 @@ python3 scripts/observability/cosign-keyless-oidc-drift-probe.py \
 Baseline mode synthesises a self-consistent snapshot from the
 policy + pinned-trust-root files. It catches substrate-side drift:
 
-  - policy YAML inventory drifted from the Tag-45 canonical 15
+  - policy YAML inventory drifted from the canonical 15
   - per-binary build_workflow path renamed / deleted
   - policy schema_version changed
   - pinned-trust-root JSON malformed / missing keys
@@ -92,7 +92,7 @@ EOF
 
 ### 3.2 Capture per-binary OIDC identities
 
-For each of the 15 binaries in the Tag-45 inventory, cosign-verify
+For each of the 15 binaries in the inventory, cosign-verify
 against the carrier image and extract the identity from the
 keyless cert:
 
@@ -134,7 +134,7 @@ review the Markdown summary for the per-binary verdict + reason.
 When the Sigstore project re-tags the cosign-installer or rotates
 the Fulcio CA, an Operator-Hand PR updates
 `tooling/baselines/cosign-drift/pinned-trust-root.json` with the new values.
-Zone-C cross-review by Tomás is required (Container-Image-Pipeline
+Zone-C cross-review by dev engineering is required (Container-Image-Pipeline
 x OTS-Anchoring).
 
 The PR should:
@@ -168,7 +168,7 @@ If the probe emits a non-GREEN aggregate verdict:
      OIDC subject claim matches a known build-workflow URL. If the
      identity URL is unfamiliar, the carrier image may have been
      signed by an unauthorised workflow run — halt + escalate to
-     Tomás (Zone-C) + Mira.
+     dev engineering (Zone-C) + the CEO.
   5. For `DRIFT-CERTIFICATE-ISSUER`: the OIDC issuer URL changed.
      The canonical issuer is
      `https://token.actions.githubusercontent.com`. A different
@@ -180,8 +180,8 @@ If the probe emits a non-GREEN aggregate verdict:
 
 ## 6. Anchors
 
-  * Tag-45 PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
-  * Tag-46 PR #298 — A6 substrate-layer coverage matrix.
+  * PR #294 — Quadlet+Cosign 15-Binary substrate refresh.
+  * PR #298 — A6 substrate-layer coverage matrix.
   * `feedback_sandbox_host_trennung.md` — no sandbox cosign egress.
   * `docs/operations/cosign-policy-phase-3b.md` — sibling living
     operator reference for the policy substrate.

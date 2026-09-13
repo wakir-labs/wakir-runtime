@@ -2,8 +2,8 @@
 
 **Module:** `wirelang.schemas.publisher_cli`
 **Subcommand:** `unrevoke`
-**Sprint:** Phase-2 Sprint-6 Tag-7 (additive over Sprint-6 Tag-2
-`revoke` subcommand and Sprint-6 Tag-1 revocation backend axis)
+**Phase:** Phase-2 (additive over the
+`revoke` subcommand and revocation backend axis)
 **Bucket touched:** `wakir-capability-policies` (NOT `wakir-schemas`)
 
 ---
@@ -51,7 +51,7 @@ It does NOT touch the `wakir-schemas` schema-registry bucket.
 
 ## Why LWW only
 
-The Sprint-6 Tag-1 backend revocation-monotonic invariant on the
+The backend revocation-monotonic invariant on the
 CAS-pin path (`NatsKvCapabilityPolicyBackend.put_with_revision`)
 refuses any write that:
 
@@ -62,7 +62,7 @@ refuses any write that:
 
 Both raise `CapabilityPolicyRevocationConflict`. The LWW path
 (`NatsKvCapabilityPolicyBackend.put`) does NOT enforce the
-invariant — by Sprint-6 Tag-1 design, the LWW path is the
+invariant — by design, the LWW path is the
 operator-deliberate escape-hatch.
 
 The unrevoke gesture is therefore by construction an LWW write.
@@ -274,13 +274,13 @@ bundle state by unrevoking.
 
 ### Audit-consumer side observation
 
-The Sprint-6 Tag-3 consumer-side revocation-event-filter
+The consumer-side revocation-event-filter
 (`RevocationEventClassifier`) observes the unrevoke LWW write as a
 PUT event with `event.record.policy.revoked_at == None` against a
 prior-revoked classifier state. The classifier currently classifies
 this as `REVOCATION_MONOTONIC_BREACH` because the LWW envelope
 alone does NOT carry an operator marker distinguishing
-"deliberate unrevoke via the Tag-7 CLI" from "accidental
+"deliberate unrevoke via the CLI" from "accidental
 non-monotonic write via some other path".
 
 This is acceptable behaviour for Phase-2 because:
@@ -304,13 +304,13 @@ for v0.20.0.
 
 ### Cross-bucket replication
 
-The Sprint-6 Tag-6 `CapabilityPolicyReplicator` carries unrevoked
+The `CapabilityPolicyReplicator` carries unrevoked
 records byte-precisely via the same `_record_to_envelope` codec.
 An unrevoke on the source bucket therefore replicates to the
 target as a PUT event with `revoked_at=None` (the same shape as a
 fresh unrevoked policy). Under `SOURCE_WINS` conflict policy the
 target's LWW path applies the write; under `CAS_PIN` the target's
-Sprint-6 Tag-1 backend gate refuses the write and the replicator
+backend gate refuses the write and the replicator
 advances `revocation_breaches` (the operator MUST then run
 `unrevoke` against the target bucket independently — replication
 does not propagate operator authority).
@@ -330,14 +330,14 @@ or accept the LWW semantics.
 
 ## Cross-references
 
-- Sprint-6 Tag-1 backend revocation-monotonic invariant:
+- backend revocation-monotonic invariant:
   `wirelang/schemas/capability_policy_nats_kv_backend.py`
   (`put_with_revision`, `CapabilityPolicyRevocationConflict`).
-- Sprint-6 Tag-2 `revoke` subcommand:
+- `revoke` subcommand:
   `docs/publisher-cli-revoke.md`.
-- Sprint-6 Tag-3 consumer-side revocation-event-filter:
+- consumer-side revocation-event-filter:
   `docs/revocation-event-filter.md`.
-- Sprint-6 Tag-6 cross-bucket replicator:
+- cross-bucket replicator:
   `wirelang.schemas.capability_policy_replication`.
 - Schema-registry spec (change-log entry for v0.20.0):
   `wirelang/specs/schema-registry-spec.md`.

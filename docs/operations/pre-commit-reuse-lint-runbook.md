@@ -6,8 +6,8 @@ REUSE-IgnoreStart
 
 # Pre-Commit REUSE-Lint Hook — Operator Runbook
 
-**ADR-Anker:** ADR-0061 (License-Hygiene Gate) Tag-32 EXT-AUDIT-FOLGE.
-**Audit-Anlass:** Kai-PR #211 (LICENSING-Audit) fixed 11 Invalid-SPDX-
+**ADR-Anker:** ADR-0061 (License-Hygiene Gate) EXT-AUDIT-FOLGE.
+**Audit-Anlass:** PR #211 (LICENSING-Audit) fixed 11 Invalid-SPDX-
 Headers in Tests, brauchte drei Rebase-Iterationen wegen paralleler
 Merges. Pre-Commit-Hook spiegelt die `license-gate.yml`-Invarianten
 client-seitig vor `git commit`.
@@ -57,8 +57,8 @@ der Server-side Gate). Bricht den Commit ab bei:
 - Lizenz in einem Header genannt, aber kein Volltext unter
   `LICENSES/`.
 
-**Bemerkung:** Während der Welle (vor Reza-Merge der `LICENSES/`-
-Volltexte) kann dieser Hook RED sein. Das ist erwartet und
+**Note:** Before the `LICENSES/` full texts are merged this hook can
+report RED. Das ist erwartet und
 spiegelt das Server-side-Verhalten 1:1.
 
 ### Layer 2 — `spdx-header-check`
@@ -110,7 +110,7 @@ mid-rebase-Crash. Beides ist nicht der Entwickler-Default-Pfad.
 
 ## Drift-Prevention-Pattern — Lessons Learned aus PR #211
 
-Kai-PR #211 musste dreimal rebased werden, weil **andere** PRs
+PR #211 musste dreimal rebased werden, weil **andere** PRs
 während des Audits frische SPDX-Drift in den Tree gespült haben
 (neue Test-Dateien ohne Header). Der Pre-Commit-Hook unterbindet
 genau dieses Muster:
@@ -135,12 +135,11 @@ which pre-commit  # sollte einen Pfad im Venv ausgeben.
 
 ### `reuse lint` schlägt fehl mit "Missing licenses: N"
 
-Beabsichtigtes Welle-Verhalten bis `LICENSES/Apache-2.0.txt` +
-`BUSL-1.1.txt` + `CC-BY-4.0.txt` gemerged sind. Workaround
-während der Welle:
+Intended behaviour until `LICENSES/Apache-2.0.txt` +
+`BUSL-1.1.txt` + `CC-BY-4.0.txt` are merged. Workaround until then:
 
 ```bash
-# Lokales Skip nur des Layer-1-Hooks (für Welle-interne Commits).
+# Skip only the layer-1 hook locally (for in-flight increments).
 SKIP=reuse pre-commit run
 ```
 
@@ -168,10 +167,10 @@ hook-Pfad in `<repo>/.git/worktrees/<name>/hooks/`).
 
 | Anlass | Ansprechpartner |
 |---|---|
-| Hook bricht False-Positive | Tomás (Matrix-Lead-Funktion) |
-| `REUSE.toml`-Annotation-Drift | Kai (Substrate-Owner) |
-| BSL-Subtree-Header-Drift | Reza (Federation-BSL-Owner) |
-| `license-gate.yml`-Server-side-Bruch | Mira (CEO) per CTO-Pfad |
+| Hook trips on a false positive | dev engineering |
+| `REUSE.toml` annotation drift | infrastructure engineering (substrate owner) |
+| BSL subtree header drift | protocol engineering (federation BSL owner) |
+| `license-gate.yml` server-side break | the CEO via the CTO path |
 
 ## Acceptance-Kriterien
 
@@ -185,7 +184,5 @@ hook-Pfad in `<repo>/.git/worktrees/<name>/hooks/`).
       hook-trigger-conditions, SPDX-Drift-Detection,
       REUSE.toml-Annotation-Check, runbook-presence).
 
-— Tomás
 
 <!-- REUSE-IgnoreEnd -->
-

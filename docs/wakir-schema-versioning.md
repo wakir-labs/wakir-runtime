@@ -1,6 +1,6 @@
 # Wakir Schema Versioning Convention (Phase-1a)
 
-**Status:** Phase-1a Tag-15 baseline. Owner: wirelang-eng
+**Status:** Phase-1a baseline. Owner: wirelang-eng
 (Wirelang / Capability-Token-Layer / Identity-Substrate-Owner).
 This convention covers the seven Wirelang schemas indexed in
 [`wirelang-schema-inventory.md`](./wirelang-schema-inventory.md).
@@ -98,9 +98,9 @@ migrates by:
 3. Filing a short PR-description that names the old `$id`, the
    new `$id`, and which fields the migration touched.
 
-## Consumer Obligation: Registry-Lookup Only (Tag-16)
+## Consumer Obligation: Registry-Lookup Only
 
-**Effective Phase-1a Tag-16, every Wirelang-internal consumer of
+**Effective Phase-1a, every Wirelang-internal consumer of
 a Wakir schema MUST go through the registry API.** Direct
 file-path opens of `wirelang/schemas/*.json` are no longer the
 supported pattern.
@@ -137,14 +137,14 @@ with SCHEMA_PATH.open("r", encoding="utf-8") as fh:
   `$id` cannot accidentally drift onto a future MAJOR bump's
   file when the legacy file is renamed.
 - **Audit-trail.** Every `get_schema` call is greppable; direct
-  `json.load(SCHEMA_DIR / ...)` calls are not.
+  `json.load(SCHEMA_DIR /...)` calls are not.
 
 ### Out-of-scope (still allowed on direct path)
 
 The registry indexes **schemas only**. Test fixtures, example
 frames, and golden vectors stay on direct file-path access — they
 are illustrative payloads, not registry-indexed artefacts. The
-Tag-16 migration left the example-frame fixtures
+migration left the example-frame fixtures
 (`frame-domain-event-example.json`, etc.) untouched on purpose.
 
 ### Phase-1b Onboarding Hook
@@ -155,12 +155,12 @@ it MUST onboard directly on `get_schema($id)` from day one.
 **Onboarding via direct
 file-path access is not a supported migration step.** This is
 a hard rule, not a recommendation: a Phase-1b consumer that
-shows up with a `Path(...) / "schemas" / ...` import in its
+shows up with a `Path(...) / "schemas" /...` import in its
 review carries a blocking comment.
 
-### Lint Hook (Tag-17, wired as pytest-AST test)
+### Lint Hook (wired as pytest-AST test)
 
-Effective Phase-1a Tag-17, the Consumer Obligation is enforced
+Effective Phase-1a, the Consumer Obligation is enforced
 mechanically by
 [`wirelang/tests/test_no_direct_schema_imports.py`](../wirelang/tests/test_no_direct_schema_imports.py).
 The test walks every `.py` file under `wirelang/`, parses the AST,
@@ -180,7 +180,7 @@ of the form `wirelang/schemas/<slug>.json` (or
 
 * a freshly introduced `Path("wirelang/schemas/...json")` literal
   in any code path under `wirelang/` (positive test;
-  breach-probe-verified on Tag-17);
+  breach-probe-verified on);
 * a literal split across an f-string concatenation chunk that
   re-assembles the forbidden path;
 * a same-style literal inside a `JoinedStr` (f-string).
@@ -204,10 +204,10 @@ with a one-line comment justifying the exemption. Reviewers
 (wirelang-eng or wat-eng / Matrix-Lead under Zone 3) decide
 whether to accept the exemption or push back.
 
-**Pre-commit-Hook (Phase-1b candidate, not Tag-17):** the same
+**Pre-commit-Hook (Phase-1b candidate, not):** the same
 AST scan can be re-packaged as a pre-commit hook so violations
-fail before push, not only at CI time. A Tag-17 sketch lives in
-the Tag-17 outbox §3 (KW-21+ work item; pytest-AST already
+fail before push, not only at CI time. A sketch lives in
+the outbox §3 (work item; pytest-AST already
 provides the CI gate, pre-commit would be a usability uplift, not
 a correctness uplift).
 
@@ -221,7 +221,7 @@ the **producer-side workflow** (steps 1-5 above) to land cleanly
 in the registry.
 
 The first `1.0.0` triggers the full overlap-window discipline.
-Phase-1a Tag-15 does not target a `1.0.0`; that decision belongs
+Phase-1a does not target a `1.0.0`; that decision belongs
 to Phase-1b or later.
 
 ## Cross-Review Notes
