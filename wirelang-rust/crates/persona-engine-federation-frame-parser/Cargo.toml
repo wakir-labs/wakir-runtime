@@ -9,7 +9,7 @@
 # Auftrag, persona task output, multi-org attestation pointer, SPIFFE
 # trust-bundle sync notice) for transport between Wakir-Runtime
 # instances belonging to different operator-orgs (or, in single-org
-# pilot mode, between Mira-Sandbox and the Pilot-VM).
+# pilot mode, between the build sandbox and the Pilot-VM).
 #
 # Phase-3a positioning
 # --------------------
@@ -41,12 +41,12 @@
 #   `FederationPayload::TaskAssigned` variant carries verbatim.
 #
 # Because no Python `federation_frame.py` exists, this crate ships
-# in **"reine Rust-Seite + Pin-Placeholder"** mode per the Sprint-
+# in **"reine Rust-Seite + Pin-Placeholder"** mode per the crate brief.
 # Auftrag explicit fallback: the cross-lang `FRAME_FIXTURE_*`
 # constants in the test surface are pinned against the Rust JCS
 # output, and a TODO marker (`TODO_PYTHON_FRAME_PARITY_PIN`) flags
 # the spots where a future Python `federation_frame.py` must
-# byte-match. Selin will own the Python sibling in the Sprint-
+# byte-match. The persona-engine track owns the Python sibling in the
 # Federation-Frame-Python-Sync follow-up (not in this PR).
 #
 # Schema-parity table (Rust <-> Python, prospective)
@@ -89,7 +89,7 @@
 #                                         the JCS bytes of {header, payload})
 # }
 #
-# Hard-Constraints (per Sprint-Auftrag)
+# Hard-Constraints (per crate brief)
 # -------------------------------------
 # - No touches to `wirelang/persona_engine/` or `wirelang/federation/`
 #   Python source.
@@ -113,9 +113,9 @@
 # -----------
 # - ADR-0063 §Folgeartefakte Phase-3a Item 9 (this crate).
 # - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
-# - Tomás Sprint-10 Tag-6 PR #69 — `bridge-forward-pipe-v1.md` is the
+# - PR #69 — `bridge-forward-pipe-v1.md` is the
 #   payload-kind-`task-assigned` schema authority.
-# - Reza Sprint-7 Tag-1 — `multi_org_substrate.py` is the payload-kind-
+# - The multi-org substrate — `multi_org_substrate.py` is the payload-kind-
 #   `multi-org-attestation` schema authority.
 
 [package]

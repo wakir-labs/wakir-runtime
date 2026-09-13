@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 Callandor GmbH and contributors
 //
-// persona-engine-anchor-submit-worker smoke tests — Tag-13 Mini-Welle.
+// persona-engine-anchor-submit-worker smoke tests — this crate.
 //
-// Test inventory (mapped to Sprint-Auftrag-named tests + FSM corners)
+// Test inventory (mapped to crate brief-named tests + FSM corners)
 // -------------------------------------------------------------------
 //
-//   Sprint-Auftrag-named:
+//   crate brief-named:
 //     1. rate_limit_honored
 //     2. retry_monotonic_backoff
 //     3. dead_letter_after_max

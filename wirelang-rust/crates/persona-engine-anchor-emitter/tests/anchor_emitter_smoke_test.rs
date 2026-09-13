@@ -37,7 +37,7 @@ use persona_engine_anchor_emitter::{
 /// Fixture envelope input. Pinned in T08 / T09 cross-lang vectors;
 /// any field-shape change here must be paired with a Python-side pin
 /// update in `wirelang/persona/recovery_drill_anchor.py`'s sibling
-/// test (Reza will land the matching Python pin in the next sweep).
+/// test (the Wirelang track will land the matching Python pin in the next sweep).
 fn fixture_input() -> AnchorEmitterInput {
     AnchorEmitterInput {
         event_id: "evt-2026-05-17-anchor-fixture-01".to_string(),

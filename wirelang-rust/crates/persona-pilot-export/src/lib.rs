@@ -22,7 +22,7 @@
 //! # Pipeline
 //!
 //! 1. Read `--persona-def` markdown and map it to `wakir-persona-v1`
-//!    via the byte-deterministic Sprint-Pengine-7 Tag-1 converter
+//! via the byte-deterministic converter
 //!    ([`persona_engine_format::map_claude_native_to_wakir_v1`]).
 //! 2. Compute the V-907 persona-hash on the resulting document.
 //! 3. Walk `--workspace-dir` (read-only) and produce a manifest of
@@ -55,10 +55,9 @@
 //! }
 //! ```
 //!
-//! The bundle is the read-only export artefact that the operator
-//! transfers (out-of-band scp or USB) to the Pilot-VM; the Pilot-VM
-//! spawn-side (Schritt 9) consumes the bundle and reconstitutes the
-//! Tomás-Persona context.
+//! The bundle is the read-only export artefact that the operator transfers
+//! (out-of-band scp or USB) to the Pilot-VM; the Pilot-VM spawn-side (Schritt 9)
+//! consumes the bundle and reconstitutes the persona context.
 //!
 //! # Exit codes
 //!
@@ -118,7 +117,7 @@ pub const PILOT_EXPORT_SCHEMA_VERSION: &str = "wakir-pilot-export-v1";
 #[command(
     name = "wakir-persona-pilot-export",
     about = "ADR-0058 Pilot-Persona Migration Schritt 8: produce a deterministic state-export bundle (persona-definition + workspace-state + active-spawn-memory) for the wakir-runtime spawn pipeline (Schritt 9).",
-    long_about = "Operator CLI that walks the Claude-Code-Sandbox-side persona artefacts and produces a JCS-canonicalised JSON bundle ready for transfer to the Pilot-VM. Pipeline: (1) convert .claude/agents/<slug>.md to wakir-persona-v1 via the Sprint-Pengine-7 Tag-1 byte-deterministic converter; (2) compute the V-907 persona-hash; (3) walk the workspace directory (read-only) and produce a sha256-anchored manifest; (4) optionally embed an operator-supplied active-spawn-memory snapshot; (5) write the JCS bytes to --out. Anchors: ADR-0058 §Persona-Engine-Format-Specs, persona-engine-format-spec.md §3, ADR-0036 Self-Migration-Konverter.",
+    long_about = "Operator CLI that walks the Claude-Code-Sandbox-side persona artefacts and produces a JCS-canonicalised JSON bundle ready for transfer to the Pilot-VM. Pipeline: (1) convert .claude/agents/<slug>.md to wakir-persona-v1 via the byte-deterministic converter; (2) compute the V-907 persona-hash; (3) walk the workspace directory (read-only) and produce a sha256-anchored manifest; (4) optionally embed an operator-supplied active-spawn-memory snapshot; (5) write the JCS bytes to --out. Anchors: ADR-0058 §Persona-Engine-Format-Specs, persona-engine-format-spec.md §3, ADR-0036 Self-Migration-Konverter.",
     version
 )]
 pub struct Cli {

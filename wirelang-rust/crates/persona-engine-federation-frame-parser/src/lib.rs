@@ -50,14 +50,14 @@
 //!
 //! - ADR-0063 §Folgeartefakte Phase-3a Item 9 (this crate).
 //! - ADR-0035 Errata 1 — Rust as Phase-1c language for persona-engine.
-//! - Tomás Sprint-10 Tag-6 — `bridge-forward-pipe-v1.md` (task-assigned
+//! - — `bridge-forward-pipe-v1.md` (task-assigned
 //!   payload schema authority).
-//! - Reza Sprint-7 Tag-1 — `multi_org_substrate.py`
+//! - The multi-org substrate — `multi_org_substrate.py`
 //!   (multi-org-attestation payload schema authority).
 //!
 //! # Cross-language sync
 //!
-//! Tag-14 Mini-Welle landed the Python sibling
+//! A follow-up landed the Python sibling
 //! `wirelang/federation/federation_frame.py`. The constant
 //! [`CROSS_LANG_PYTHON_FRAME_PARITY_PIN`] points at the fixture file
 //! at `tests/federation/fixtures/federation_frame_cross_lang_pins.json`
@@ -101,7 +101,7 @@ pub const PAYLOAD_SCHEMA_MULTI_ORG_ATTESTATION: &str =
 
 /// Schema identifier for the SPIFFE trust-bundle sync notice. No
 /// Python counterpart exists yet; the Python side will land via
-/// the Sprint-Federation-Frame-Python-Sync follow-up.
+/// the the Python-sync follow-up.
 pub const PAYLOAD_SCHEMA_SPIFFE_BUNDLE_SYNC: &str =
     "wakir.federation.spiffe-bundle-sync/1";
 
@@ -141,7 +141,7 @@ pub const SHA256_HEX_LEN: usize = 64;
 /// identical output for each fixture input.
 ///
 /// This constant was previously called `TODO_PYTHON_FRAME_PARITY_PIN`
-/// (Phase-3a Item 9 ship-day placeholder); Tag-14 Mini-Welle landed
+/// (Phase-3a Item 9 ship-day placeholder); A follow-up landed
 /// the Python sibling and elevated the placeholder to a real pin
 /// reference. The old name is retained as a deprecated alias below
 /// for one release cycle so any downstream consumer that read the
@@ -158,7 +158,7 @@ pub const CROSS_LANG_PYTHON_FRAME_PARITY_PIN: &str =
     since = "0.1.1",
     note = "Use CROSS_LANG_PYTHON_FRAME_PARITY_PIN. \
             The TODO_* name was the Phase-3a Item 9 placeholder; \
-            Tag-14 Mini-Welle landed the Python sibling and the \
+            A follow-up landed the Python sibling and the \
             pin is no longer a TODO."
 )]
 pub const TODO_PYTHON_FRAME_PARITY_PIN: &str =

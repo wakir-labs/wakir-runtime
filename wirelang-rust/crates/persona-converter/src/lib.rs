@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Operator CLI for the Sprint-Pengine-7 Tag-1 mapping pipeline.
+//! Operator CLI for the mapping pipeline.
 //!
-//! Sprint-Pengine-7 Tag-2 implementation. Thin shim around
+//! implementation. Thin shim around
 //! [`persona_engine_format::map_claude_native_to_wakir_v1`] for
 //! ad-hoc operator use, the Self-Migration shell scripts (ADR-0036),
 //! and the CI cut-over pipeline that produces the operator-side
@@ -95,7 +95,7 @@ pub const EXIT_USAGE_ERROR: i32 = 64;
 #[derive(Debug, Parser)]
 #[command(
     name = "wakir-persona-convert",
-    about = "Operator CLI for the .claude/agents/*.md -> wakir.persona/*.json byte-deterministic converter (Sprint-Pengine-7 Tag-2, V-907 pin-verified).",
+    about = "Operator CLI for the .claude/agents/*.md -> wakir.persona/*.json byte-deterministic converter (an earlier increment, V-907 pin-verified).",
     version,
     disable_help_subcommand = true
 )]

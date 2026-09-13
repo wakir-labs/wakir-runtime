@@ -5,7 +5,7 @@
 # multi-input `migrate_persona` dispatcher + optional post-migration
 # re-hash assertion).
 #
-# Scope (Phase-1c Sprint-4 Tag-5):
+# Scope:
 # - Multi-input `migrate_persona` dispatcher (JsonValue | &str | &Path)
 #   pendant of Python `migrate_persona(dict | str | Path)`.
 # - `resolve_chain` + `find_step_by_source` chain-resolver pendant of
@@ -31,7 +31,7 @@
 #
 # Out-of-scope (Phase-1c follow-up box, in the crate-doc-header):
 # - Persona-CLI binary (`wakir-persona migrate`) — separate `persona-cli`
-#   crate, Sprint-5/6 candidate.
+# crate, a later candidate.
 # - WAT-leaf migration-audit-trail (Phase-2 P2-01, Cross-Review Zone K
 #   wat-eng-owned).
 # - Branching DAG resolver (Phase-2) — linear chain only, same posture
