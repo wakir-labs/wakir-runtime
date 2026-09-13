@@ -74,11 +74,11 @@ from wirelang.schemas.registry_nats_kv_backend import (
 # JCS resolver indirection (mirrors wirelang.identity.aip_signing).
 # ---------------------------------------------------------------------------
 
-try: # pragma: no cover -- production path
+try:  # pragma: no cover -- production path
     import rfc8785 as _rfc8785_lib
 
     _HAS_RFC8785 = True
-except ImportError: # pragma: no cover -- sandbox fallback path
+except ImportError:  # pragma: no cover -- sandbox fallback path
     _rfc8785_lib = None
     _HAS_RFC8785 = False
 
@@ -144,7 +144,7 @@ class VerifyMode(enum.Enum):
 
 
 SIGNATURE_ALG: str = "Ed25519"
-_SIGNATURE_HEX_LEN: int = 128 # 64 bytes Ed25519 signature = 128 hex chars
+_SIGNATURE_HEX_LEN: int = 128  # 64 bytes Ed25519 signature = 128 hex chars
 _ED25519_KEY_LEN: int = 32
 
 
@@ -474,7 +474,7 @@ def envelope_to_signed_entry(
         raise SchemaRegistryEnvelopeError(
             f"envelope re-parse failed: {exc!r}"
         ) from exc
-    if not isinstance(payload, dict): # pragma: no cover -- base codec catches
+    if not isinstance(payload, dict):  # pragma: no cover -- base codec
         raise SchemaRegistryEnvelopeError(
             "envelope is not a JSON object on re-parse"
         )

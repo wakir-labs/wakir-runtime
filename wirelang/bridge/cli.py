@@ -254,7 +254,7 @@ def live_snapshot_probe(
     stream_name: Optional[str] = None,
     consumer_name: Optional[str] = None,
     timeout_seconds: float = 5.0,
-) -> dict: # pragma: no cover - exercised by Operator-Hand-Live-VM
+) -> dict:  # pragma: no cover - exercised by Operator-Hand-Live-VM
     """Live JetStream probe — lazy-imports ``nats-py``.
 
     Returns a snapshot dict with the five contract keys. This path is
@@ -276,7 +276,7 @@ def live_snapshot_probe(
     """
     import asyncio
 
-    import nats # type: ignore
+    import nats  # type: ignore
 
     async def _probe() -> dict:
         token = os.environ.get("WAKIR_NATS_TOKEN") or None
@@ -558,7 +558,7 @@ def main(
             file=sys.stderr,
         )
         return 1
-    except Exception as exc: # pragma: no cover - live-mode catch-all
+    except Exception as exc:  # pragma: no cover - live-mode catch-all
         print(
             f"[wakir-bridge subscribe-loop-summary] ERROR: "
             f"live probe failed: {exc!r}",

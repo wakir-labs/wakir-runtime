@@ -474,7 +474,7 @@ class HTTPSDocumentTransport:
                 raise HTTPSTransportError(
                     f"transport error to {current_url!r}: {e!r}", url=current_url
                 ) from e
-            except TimeoutError as e: # pragma: no cover -- covered via URLError on stdlib
+            except TimeoutError as e:  # pragma: no cover -- covered via URLError on stdlib
                 raise HTTPSTransportError(
                     f"timeout to {current_url!r}: {e!r}", url=current_url
                 ) from e
@@ -559,7 +559,7 @@ class HTTPSDocumentTransport:
 #: into the federation pipeline's
 #: :class:`~wirelang.identity.federation_resolver.AIPDocumentLike`.
 #:
-#: Production deployments bind this to the class:`wirelang.identity.aip_resolver.AIPResolver`'s verify-and-
+#: Production deployments bind this to the :class:`wirelang.identity.aip_resolver.AIPResolver`'s verify-and-
 #: project step (consuming JCS-recomputation, schema validation, and
 #: signature verification). Sandbox tests inject a stub that accepts
 #: pre-canonical inputs and returns a canned ``AIPDocumentLike`` so
@@ -601,7 +601,7 @@ class HTTPSAipResolver:
             resolve_federated_aip,
         )
 
-        prod_aip = AIPResolver(...) # verify pipeline
+        prod_aip = AIPResolver(...)  # verify pipeline
 
         def verify(uri, body_bytes, body):
             # Phase-1a verify path consumes raw bytes for JCS:

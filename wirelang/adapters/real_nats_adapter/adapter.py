@@ -380,7 +380,7 @@ class RealNatsConnectionAdapter:
             server_url = os.environ.get(_NATS_URL_ENV, _DEFAULT_NATS_URL)
         self._server_url = server_url
         self._connect_timeout = connect_timeout_seconds
-        self._client = None # nats-py Client instance, lazy-init on connect()
+        self._client = None  # nats-py Client instance, lazy-init on connect()
         self._connected = False
         self._auth_mode = self._resolve_auth_mode()
 

@@ -22,17 +22,17 @@ Subset coverage
 ---------------
 
 Implemented keywords:
-- ``type`` (string, integer, number, object, array, boolean, null)
-- ``required`` (List[str])
-- ``properties`` (Dict[str, Schema])
-- ``additionalProperties`` (bool or Schema)
-- ``enum`` (List[Hashable])
-- ``const`` (any JSON-comparable value)
-- ``pattern`` (str, ECMA-262-style regex; we use Python re)
-- ``minLength`` (int)
-- ``minItems`` (int)
-- ``items`` (Schema, applied to each array element)
-- ``anyOf`` (List[Schema], at least one must match)
+- ``type``                  (string, integer, number, object, array, boolean, null)
+- ``required``              (List[str])
+- ``properties``            (Dict[str, Schema])
+- ``additionalProperties``  (bool or Schema)
+- ``enum``                  (List[Hashable])
+- ``const``                 (any JSON-comparable value)
+- ``pattern``               (str, ECMA-262-style regex; we use Python re)
+- ``minLength``             (int)
+- ``minItems``              (int)
+- ``items``                 (Schema, applied to each array element)
+- ``anyOf``                 (List[Schema], at least one must match)
 - ``format`` for ``"uri"``, ``"date-time"`` (structural check, not RFC-3339-strict)
 
 Refused keywords (raise NotImplementedError):

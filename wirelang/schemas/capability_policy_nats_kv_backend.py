@@ -1522,28 +1522,28 @@ async def _list_keys(kv: Any) -> list:
 # Boundary:
 #
 # - The watch-stream is a *consumer* surface. Operators connect the
-# stream to a long-running supervisor task; the supervisor keeps a
-# :class:`LiveCapabilityPolicySnapshot` warm and hands frozen
-# :class:`CapabilityPolicyRegistry` instances to the
-# :func:`check_registered_by_capability` gate per pass. The
-# watch-stream itself is not the registry.
+#   stream to a long-running supervisor task; the supervisor keeps a
+#   :class:`LiveCapabilityPolicySnapshot` warm and hands frozen
+#   :class:`CapabilityPolicyRegistry` instances to the
+#   :func:`check_registered_by_capability` gate per pass. The
+#   watch-stream itself is not the registry.
 # - A poisoned envelope on the stream raises
-# :class:`CapabilityPolicyEnvelopeError` from the consumer iterator
-# and terminates the iterator. The operator must observe the error,
-# drop the :class:`LiveCapabilityPolicySnapshot`, and re-bootstrap
-# from a fresh :meth:`NatsKvCapabilityPolicyBackend.snapshot`.
-# does not silently swallow envelope poison
-# (same contract as the full snapshot path).
+#   :class:`CapabilityPolicyEnvelopeError` from the consumer iterator
+#   and terminates the iterator. The operator must observe the error,
+#   drop the :class:`LiveCapabilityPolicySnapshot`, and re-bootstrap
+#   from a fresh :meth:`NatsKvCapabilityPolicyBackend.snapshot`.
+#   The watch path does not silently swallow envelope poison
+#   (same contract as the full snapshot path).
 # - Watch-stream resumption / replay-from-revision is a Phase-3
-# concern (nats-py supports it via ``watchall(..., resume_from=...)``;
-# the stream wrapper exposes the underlying revision
-# but does not bake in resume policy).
+#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+#   the stream wrapper exposes the underlying revision but does not
+#   bake in resume policy).
 # - The watch-stream is orthogonal to the CAS-pin surface. A
-# CAS-pin PUT (lossless update) yields one PUT event on the stream
-# identical to a LWW PUT; an LWW write yields one PUT event; a
-# stale CAS-pin write rejected by the bucket yields NO event (the
-# write was not durable). Determinism contract: the stream is a
-# strict suffix of the durable bucket history.
+#   CAS-pin PUT (lossless update) yields one PUT event on the stream
+#   identical to a LWW PUT; an LWW write yields one PUT event; a
+#   stale CAS-pin write rejected by the bucket yields NO event (the
+#   write was not durable). Determinism contract: the stream is a
+#   strict suffix of the durable bucket history.
 
 
 class CapabilityPolicyWatchOp(enum.Enum):
@@ -1807,9 +1807,9 @@ class LiveCapabilityPolicySnapshot:
     :class:`wirelang.schemas.registry_nats_kv_backend.LiveSchemaSnapshot`.
     """
 
-    initial: list # list[CapabilityPolicyRecord]
+    initial: list  # list[CapabilityPolicyRecord]
     last_revision: int = 0
-    _live: dict = field(init=False) # dict[str, CapabilityPolicyRecord]
+    _live: dict = field(init=False)  # dict[str, CapabilityPolicyRecord]
 
     def __post_init__(self) -> None:
         # Defensive copy: callers may keep a reference to ``initial``
@@ -2114,20 +2114,20 @@ class RevocationEventClassifier:
 
         Decision table (extended with marker column):
 
-        =========== ============ ============ ============ ==================================
-        op prior state incoming marker kind
-        =========== ============ ============ ============ ==================================
-        PUT absent None any NOT_REVOCATION_RELATED
-        PUT absent non-None any REVOCATION_TRANSITION
-        PUT None None any NOT_REVOCATION_RELATED
-        PUT None non-None any REVOCATION_TRANSITION
-        PUT non-None X None marker.prev=X EXPLICIT_UNREVOKE
-        PUT non-None X None absent / mismatch REVOCATION_MONOTONIC_BREACH
-        PUT non-None X non-None X any REVOCATION_REFRESH
-        PUT non-None X non-None Y any REVOCATION_MONOTONIC_BREACH
-        DELETE any N/A N/A KEY_REMOVED
-        PURGE any N/A N/A KEY_REMOVED
-        =========== ============ ============ ============ ==================================
+        ===========  ============  ============  ============  ==================================
+        op           prior state   incoming      marker        kind
+        ===========  ============  ============  ============  ==================================
+        PUT          absent        None          any           NOT_REVOCATION_RELATED
+        PUT          absent        non-None      any           REVOCATION_TRANSITION
+        PUT          None          None          any           NOT_REVOCATION_RELATED
+        PUT          None          non-None      any           REVOCATION_TRANSITION
+        PUT          non-None X    None          marker.prev=X EXPLICIT_UNREVOKE
+        PUT          non-None X    None          absent / mismatch REVOCATION_MONOTONIC_BREACH
+        PUT          non-None X    non-None X    any           REVOCATION_REFRESH
+        PUT          non-None X    non-None Y    any           REVOCATION_MONOTONIC_BREACH
+        DELETE       any           N/A           N/A           KEY_REMOVED
+        PURGE        any           N/A           N/A           KEY_REMOVED
+        ===========  ============  ============  ============  ==================================
 
         Marker semantics: the
         :class:`UnrevokeAuditMarker` on the incoming record carries

@@ -165,34 +165,34 @@ class ExitCode(enum.IntEnum):
     """
 
     OK = 0
-    USAGE_ERROR = 2 # argparse default
-    INPUT_ERROR = 3 # file not found / unreadable / not JSON
-    VALIDATION_ERROR = 4 # schema-body shape / id / hash gate failure
-    CAS_CONFLICT = 5 # CAS-pin or create-only conflict
-    BACKEND_ERROR = 6 # any other backend / transport failure
-    CAPABILITY_DENY = 7 # --gate decision was a deny
-    REVOCATION_CONFLICT = 8 # revoke CAS-pin path tripped
-    # the revocation-monotonicity
-    # invariant (un-revoke or advance-instant).
-    REVOKE_TARGET_NOT_FOUND = 9 # revoke target
-    # (registered_by, policy_id) does not
-    # exist on the bucket. Distinct from
-    # INPUT_ERROR so pipelines can detect
-    # "policy never existed" vs. "operator
-    # typo in flag".
-    UNREVOKE_TARGET_NOT_REVOKED = 10 # unrevoke target
-    # exists on the bucket but is NOT
-    # currently revoked. Distinct from
-    # REVOKE_TARGET_NOT_FOUND so
-    # pipelines can distinguish
-    # "policy never existed" from
-    # "policy exists but is already
-    # unrevoked" — an unrevoke against
-    # an unrevoked policy is a no-op
-    # surface; refusing it keeps the
-    # audit trail crisp (no spurious
-    # unrevoke receipts for already-
-    # unrevoked policies).
+    USAGE_ERROR = 2  # argparse default
+    INPUT_ERROR = 3  # file not found / unreadable / not JSON
+    VALIDATION_ERROR = 4  # schema-body shape / id / hash gate failure
+    CAS_CONFLICT = 5  # CAS-pin or create-only conflict
+    BACKEND_ERROR = 6  # any other backend / transport failure
+    CAPABILITY_DENY = 7  # --gate decision was a deny
+    REVOCATION_CONFLICT = 8  # revoke CAS-pin path tripped the
+    #                          revocation-monotonicity invariant
+    #                          (un-revoke or advance-instant).
+    REVOKE_TARGET_NOT_FOUND = 9  # revoke target
+    #                              (registered_by, policy_id) does not
+    #                              exist on the bucket. Distinct from
+    #                              INPUT_ERROR so pipelines can detect
+    #                              "policy never existed" vs. "operator
+    #                              typo in flag".
+    UNREVOKE_TARGET_NOT_REVOKED = 10  # unrevoke target
+    #                                   exists on the bucket but is NOT
+    #                                   currently revoked. Distinct from
+    #                                   REVOKE_TARGET_NOT_FOUND so
+    #                                   pipelines can distinguish
+    #                                   "policy never existed" from
+    #                                   "policy exists but is already
+    #                                   unrevoked" — an unrevoke against
+    #                                   an unrevoked policy is a no-op
+    #                                   surface; refusing it keeps the
+    #                                   audit trail crisp (no spurious
+    #                                   unrevoke receipts for already-
+    #                                   unrevoked policies).
 
 
 # ---------------------------------------------------------------------------
@@ -240,7 +240,7 @@ class PublishReceipt:
       ``gate_policy_source == 'bucket'``").
     """
 
-    mode: str # "lww" | "cas" | "create-only" | "dry-run"
+    mode: str  # "lww" | "cas" | "create-only" | "dry-run"
     key: str
     layer: str
     name: str
@@ -324,8 +324,8 @@ class RevokeReceipt:
       receipt's audit gesture).
     """
 
-    cmd: str # always "revoke"
-    mode: str # "cas" | "lww"
+    cmd: str  # always "revoke"
+    mode: str  # "cas" | "lww"
     key: str
     registered_by: str
     policy_id: str
@@ -433,8 +433,8 @@ class UnrevokeReceipt:
       ``registered_by_publisher`` which are bookkeeping fields).
     """
 
-    cmd: str # always "unrevoke"
-    mode: str # always "lww"
+    cmd: str  # always "unrevoke"
+    mode: str  # always "lww"
     key: str
     registered_by: str
     policy_id: str
@@ -1117,7 +1117,7 @@ def _load_ed25519_priv_key(
 
     if hex_value is not None:
         return _decode_hex_seed(hex_value, source="--ed25519-priv-key-hex")
-    assert file_value is not None # _validate_capability_flag_consistency
+    assert file_value is not None  # _validate_capability_flag_consistency
     path = Path(file_value)
     raw = path.read_bytes()
     if len(raw) == 32:
@@ -1170,7 +1170,7 @@ def _load_capability_registry(path_str: str) -> CapabilityPolicyRegistry:
               "allowed_kids": ["biscuit-root-1"],
               "allowed_triples": [["wire", "layer-1-*"], ["*", "*"]],
               "not_before": "2026-05-01T00:00:00Z",
-              "not_after": "2027-05-01T00:00:00Z",
+              "not_after":  "2027-05-01T00:00:00Z",
               "disabled": false,
               "note": "wirelang engineering publisher"
             },
@@ -1244,7 +1244,7 @@ def _policy_from_dict(item: Mapping[str, Any], *, index: int) -> CapabilityPolic
             f"must be a list of [layer, name_glob] pairs"
         )
     triples: Tuple[Tuple[str, str], ...] = tuple(
-        (t[0], t[1]) if isinstance(t, list) and len(t) == 2 else (None, None) # type: ignore[arg-type]
+        (t[0], t[1]) if isinstance(t, list) and len(t) == 2 else (None, None)  # type: ignore[arg-type]
         for t in raw_triples
     )
     not_before = _parse_optional_rfc3339(
@@ -1395,7 +1395,7 @@ async def _default_connect_factory(
 
     # Late import: the CLI module loads cleanly even without nats-py
     # installed (test paths never exercise this branch).
-    import nats # type: ignore
+    import nats  # type: ignore
 
     nc = await nats.connect(connect_url)
     js = nc.jetstream()
@@ -1421,7 +1421,7 @@ async def _default_capability_bucket_factory(
     """
 
     # Late import: hermetic test paths never exercise this branch.
-    import nats # type: ignore
+    import nats  # type: ignore
 
     nc = await nats.connect(connect_url)
     js = nc.jetstream()
@@ -1522,7 +1522,7 @@ async def _run_publish(
             )
             signed_entry = sign_entry(entry, priv_key, kid=args.kid)
         if getattr(args, "gate", False):
-            assert signed_entry is not None # consistency check above
+            assert signed_entry is not None  # consistency check above
             # two policy sources, mutually exclusive.
             if getattr(args, "capability_bucket", False):
                 factory = (
@@ -1599,7 +1599,7 @@ async def _run_publish(
             # poisoned-read shape) but route it through anyway.
             _print_error_stderr(ExitCode.BACKEND_ERROR, str(exc), stderr)
             return int(ExitCode.BACKEND_ERROR)
-        except Exception as exc: # backend transport / unknown error
+        except Exception as exc:  # backend transport / unknown error
             _print_error_stderr(
                 ExitCode.BACKEND_ERROR,
                 f"backend error: {type(exc).__name__}: {exc}",
@@ -1848,7 +1848,7 @@ async def _run_revoke(
         except CapabilityPolicyBackendError as exc:
             _print_error_stderr(ExitCode.BACKEND_ERROR, str(exc), stderr)
             return int(ExitCode.BACKEND_ERROR)
-        except Exception as exc: # transport / unknown
+        except Exception as exc:  # transport / unknown
             _print_error_stderr(
                 ExitCode.BACKEND_ERROR,
                 f"backend error: {type(exc).__name__}: {exc}",
@@ -2085,7 +2085,7 @@ async def _run_unrevoke(
         except CapabilityPolicyBackendError as exc:
             _print_error_stderr(ExitCode.BACKEND_ERROR, str(exc), stderr)
             return int(ExitCode.BACKEND_ERROR)
-        except Exception as exc: # transport / unknown
+        except Exception as exc:  # transport / unknown
             _print_error_stderr(
                 ExitCode.BACKEND_ERROR,
                 f"backend error: {type(exc).__name__}: {exc}",
@@ -2303,5 +2303,5 @@ def run(
     )
 
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(run())

@@ -214,7 +214,7 @@ def verify_from_transport(
     # 1. Transport
     try:
         resp = transport.get(doc_id)
-    except Exception as exc: # transport may raise any exception
+    except Exception as exc:  # transport may raise any exception
         return VerifyResult(
             ok=False,
             document=None,
@@ -276,7 +276,7 @@ def verify_from_transport(
                 False, None, None, doc_id,
                 VerifyError("schema-failed", str(exc), exc),
             )
-        raise # programmer error -- let it propagate
+        raise  # programmer error -- let it propagate
 
     # 4. ID sanity
     if body.get("id") != doc_id:
@@ -400,14 +400,14 @@ def make_https_aip_verify_fn(
     """Build a ``verify_fn`` callable compatible with
     :class:`wirelang.identity.aip_https_backend.HTTPSAipResolver`.
 
-    PS-7-Wiring: the class:`HTTPSAipResolver` accepts
+    PS-7-Wiring: the :class:`HTTPSAipResolver` accepts
     a caller-supplied ``verify_fn`` of shape
     ``(uri, body_bytes, body) -> AIPDocumentLike``; this factory
     returns a closure that runs the full verify pipeline against
     the supplied (already-fetched) body.
 
     The closure raises (instead of returning a :class:`VerifyResult`)
-    so it slots into the class:`HTTPSAipResolver` exception-flow
+    so it slots into the :class:`HTTPSAipResolver` exception-flow
     contract; failures surface as :class:`VerifyError`-tagged
     :class:`RuntimeError` exceptions whose ``args[0]`` is a
     :class:`VerifyError`. Callers needing the result-type API call
@@ -434,7 +434,7 @@ def make_https_aip_verify_fn(
             self._body = body
             self._body_bytes = body_bytes
 
-        def get(self, uri: str): # noqa: ARG002 -- uri is captured upstream
+        def get(self, uri: str):  # noqa: ARG002 -- uri is captured upstream
             return _FetchedResponse(body=self._body, body_bytes=self._body_bytes)
 
     @dataclass(frozen=True)
@@ -459,7 +459,7 @@ def make_https_aip_verify_fn(
         # an AIPDocumentLike via project_aip_document, but the
         # production verify_fn returned just the
         # parsed body too.
-        return result.document # type: ignore[return-value]
+        return result.document  # type: ignore[return-value]
 
     return _verify_fn
 

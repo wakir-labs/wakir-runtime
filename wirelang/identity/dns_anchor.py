@@ -211,7 +211,7 @@ class StdlibDoHResolver:
                 body = resp.read()
         except urllib.error.URLError as e:
             raise _DohSoftFailure(f"transport error to {url}: {e!r}") from e
-        except TimeoutError as e: # pragma: no cover -- urllib raises socket.timeout subclass
+        except TimeoutError as e:  # pragma: no cover -- urllib raises socket.timeout subclass
             raise _DohSoftFailure(f"timeout to {url}: {e!r}") from e
 
         try:
@@ -220,9 +220,9 @@ class StdlibDoHResolver:
             raise _DohSoftFailure(f"invalid JSON from {url}: {e!r}") from e
 
         # Status field semantics per RFC 8484 / DoH-JSON conventions:
-        # 0 NOERROR -- pick TXT records (may still be empty)
-        # 3 NXDOMAIN -- absence; return []
-        # any other -- treat as soft failure (failover to next provider)
+        #  0 NOERROR -- pick TXT records (may still be empty)
+        #  3 NXDOMAIN -- absence; return []
+        #  any other -- treat as soft failure (failover to next provider)
         status = payload.get("Status")
         if status == 3:
             return []
@@ -329,7 +329,7 @@ class DnsPythonResolver:
 
     def __init__(self, nameservers: list[str] | None = None) -> None:
         try:
-            import dns.resolver # noqa: F401 -- presence check only
+            import dns.resolver  # noqa: F401  -- presence check only
         except ImportError as e:
             raise DnsAnchorError(
                 "DnsPythonResolver requires the 'dnspython' package; "

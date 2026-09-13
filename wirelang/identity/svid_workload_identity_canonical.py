@@ -134,28 +134,28 @@ Schema-parity table (Python <-> Rust pendant slot)
 
 ::
 
-    Python <-> Rust
-    ------ --- ----
-    SVID_WORKLOAD_IDENTITY_SCHEMA SVID_WORKLOAD_IDENTITY_SCHEMA
-    HASH_PREFIX HASH_PREFIX
-    SHA256_HEX_LEN SHA256_HEX_LEN
-    BIND_STATE_PREFIX BIND_STATE_PREFIX
-    SvidWorkloadBinding { struct SvidWorkloadBinding {
-      bind_state_sha256, bind_state_sha256,
-      expired, expired,
-      not_after_utc, not_after_utc,
-      org_id, org_id,
-      persona_id, persona_id,
-      spiffe_id, spiffe_id,
-    } }
-    SvidWorkloadIdentitySnapshot { struct SvidWorkloadIdentitySnapshot {
-      bindings: Vec<SvidWorkloadBinding>, bindings: Vec<SvidWorkloadBinding>,
-      schema, schema,
-    } }
-    InMemorySvidWorkloadRegistry InMemorySvidWorkloadRegistry
-    .register(binding) .register(binding)
-    .snapshot() -> Snapshot .snapshot() -> Snapshot
-    .resolve(org_id, persona_id, now_utc) -> Option .resolve(org_id, persona_id, now_utc) -> Option
+    Python                                              <-> Rust
+    ------                                              ---     ----
+    SVID_WORKLOAD_IDENTITY_SCHEMA                       SVID_WORKLOAD_IDENTITY_SCHEMA
+    HASH_PREFIX                                         HASH_PREFIX
+    SHA256_HEX_LEN                                      SHA256_HEX_LEN
+    BIND_STATE_PREFIX                                   BIND_STATE_PREFIX
+    SvidWorkloadBinding {                               struct SvidWorkloadBinding {
+      bind_state_sha256,                                  bind_state_sha256,
+      expired,                                            expired,
+      not_after_utc,                                      not_after_utc,
+      org_id,                                             org_id,
+      persona_id,                                         persona_id,
+      spiffe_id,                                          spiffe_id,
+    }                                                   }
+    SvidWorkloadIdentitySnapshot {                      struct SvidWorkloadIdentitySnapshot {
+      bindings: Vec<SvidWorkloadBinding>,                 bindings: Vec<SvidWorkloadBinding>,
+      schema,                                             schema,
+    }                                                   }
+    InMemorySvidWorkloadRegistry                        InMemorySvidWorkloadRegistry
+    .register(binding)                                  .register(binding)
+    .snapshot() -> Snapshot                             .snapshot() -> Snapshot
+    .resolve(org_id, persona_id, now_utc) -> Option     .resolve(org_id, persona_id, now_utc) -> Option
 
 References (URL-200-stamped 2026-05-18):
 
@@ -483,7 +483,7 @@ class InMemorySvidWorkloadRegistry:
         # Materialise expired against now_utc for caller consistency.
         return SvidWorkloadBinding(
             bind_state_sha256=chosen.bind_state_sha256,
-            expired=False, # in-window by construction
+            expired=False,  # in-window by construction
             not_after_utc=chosen.not_after_utc,
             org_id=chosen.org_id,
             persona_id=chosen.persona_id,

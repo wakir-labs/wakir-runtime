@@ -167,21 +167,21 @@ DEFAULT_JWT_CACHE_WAIT_SECONDS: float = 1.0
 
 #: Reason codes the retry layer attaches to attempt records.
 #:
-#: ``"tcp-unreachable"`` — :class:`NatsAdapterUnavailable`
-#: surfaced from the adapter's
-#: pre-connect reachability probe.
-#: ``"nats-py-connect-fail"`` — :class:`NatsAdapterUnavailable`
-#: surfaced from the nats-py
-#: upstream connect-error mapping.
-#: ``"auth-rejected"`` — :class:`NatsAdapterAuthenticationError`
-#: surfaced from the nats-py auth-
-#: keyword mapping.
-#: ``"jwt-cache-cold"`` — :class:`NatsJwtCallbackCacheEmpty`
-#: or the retry layer's own cache-
-#: ready poll exhausted its budget.
-#: ``"unknown-transient"`` — any other :class:`NatsAdapterError`
-#: subclass; retried defensively.
-#: ``"success"`` — adapter.connect() completed.
+#: ``"tcp-unreachable"``       — :class:`NatsAdapterUnavailable`
+#:                                surfaced from the adapter's
+#:                                pre-connect reachability probe.
+#: ``"nats-py-connect-fail"``  — :class:`NatsAdapterUnavailable`
+#:                                surfaced from the nats-py
+#:                                upstream connect-error mapping.
+#: ``"auth-rejected"``         — :class:`NatsAdapterAuthenticationError`
+#:                                surfaced from the nats-py auth-
+#:                                keyword mapping.
+#: ``"jwt-cache-cold"``        — :class:`NatsJwtCallbackCacheEmpty`
+#:                                or the retry layer's own cache-
+#:                                ready poll exhausted its budget.
+#: ``"unknown-transient"``     — any other :class:`NatsAdapterError`
+#:                                subclass; retried defensively.
+#: ``"success"``               — adapter.connect() completed.
 REASON_TCP_UNREACHABLE = "tcp-unreachable"
 REASON_NATS_PY_CONNECT_FAIL = "nats-py-connect-fail"
 REASON_AUTH_REJECTED = "auth-rejected"
@@ -548,7 +548,7 @@ async def connect_with_retry(
         attempt_start = _clock()
         try:
             await connect()
-        except BaseException as exc: # noqa: BLE001
+        except BaseException as exc:  # noqa: BLE001
             reason = classify_failure(exc)
             elapsed = _clock() - attempt_start
             if reason == REASON_UNKNOWN_TRANSIENT and not isinstance(
@@ -612,7 +612,7 @@ async def connect_with_retry(
 
     # Unreachable: the loop always returns inside its body.
     # Defensive return for type-checkers.
-    return log # pragma: no cover
+    return log  # pragma: no cover
 
 
 # ---------------------------------------------------------------------------

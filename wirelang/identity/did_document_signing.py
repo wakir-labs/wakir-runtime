@@ -71,7 +71,7 @@ try:
     import rfc8785 as _rfc8785_lib
 
     _HAS_RFC8785 = True
-except ImportError: # pragma: no cover -- exercised when rfc8785 absent
+except ImportError:  # pragma: no cover -- exercised when rfc8785 absent
     _rfc8785_lib = None
     _HAS_RFC8785 = False
 

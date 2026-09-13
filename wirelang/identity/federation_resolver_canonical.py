@@ -87,17 +87,17 @@ Schema-parity table (Python <-> Rust)
 
 ::
 
-    Python <-> Rust
+    Python                                          <-> Rust
     -------------------------------------------------------------------------
-    FederationResolver (Protocol) <-> FederationResolver (trait)
-    InMemoryFederationResolver <-> InMemoryFederationResolver
-    OperatorOrgKeyEntry (dataclass) <-> OperatorOrgKeyEntry (struct)
-    FederationResolverSnapshot (dataclass) <-> FederationResolverSnapshot (struct)
-    serialize_resolver_snapshot(snap) -> bytes <-> serialize_resolver_snapshot
-    resolver_snapshot_sha256_hex(snap) -> str <-> resolver_snapshot_sha256_hex
-    resolver_snapshot_hash_prefixed(snap) -> str <-> resolver_snapshot_hash_prefixed
+    FederationResolver (Protocol)                   <-> FederationResolver (trait)
+    InMemoryFederationResolver                      <-> InMemoryFederationResolver
+    OperatorOrgKeyEntry (dataclass)                 <-> OperatorOrgKeyEntry (struct)
+    FederationResolverSnapshot (dataclass)          <-> FederationResolverSnapshot (struct)
+    serialize_resolver_snapshot(snap) -> bytes      <-> serialize_resolver_snapshot
+    resolver_snapshot_sha256_hex(snap) -> str       <-> resolver_snapshot_sha256_hex
+    resolver_snapshot_hash_prefixed(snap) -> str    <-> resolver_snapshot_hash_prefixed
     FEDERATION_RESOLVER_SCHEMA / HASH_PREFIX /
-      SHA256_HEX_LEN / DEFAULT_ALG <-> same constants
+      SHA256_HEX_LEN / DEFAULT_ALG                  <-> same constants
 
 ADR anchors
 -----------

@@ -238,7 +238,7 @@ class RealSpiffeWorkloadApiAdapter:
         # ``ModuleNotFoundError`` surfaces at construction time
         # (clear failure) rather than on the first method call
         # (confusing failure).
-        self._client = None # placeholder for upstream client handle.
+        self._client = None  # placeholder for upstream client handle.
 
     @property
     def workload_socket_path(self) -> str:
@@ -332,4 +332,4 @@ __all__ = [
 
 _RealSpiffeWorkloadApiAdapter_protocol_conformance_check: type[
     SpiffeWorkloadApiAdapter
-] = RealSpiffeWorkloadApiAdapter # type: ignore[assignment]
+] = RealSpiffeWorkloadApiAdapter  # type: ignore[assignment]

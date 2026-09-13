@@ -198,7 +198,7 @@ def __dir__() -> list[str]:
     return sorted(set(globals().keys()) | set(_LAZY_CRYPTO_ATTRS.keys()))
 
 
-if TYPE_CHECKING: # pragma: no cover - import for type-checker only
+if TYPE_CHECKING:  # pragma: no cover - import for type-checker only
     # Re-import for static type-checkers: these names are
     # available at runtime via __getattr__ but type-checkers
     # benefit from a concrete declaration.

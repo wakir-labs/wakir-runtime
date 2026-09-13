@@ -623,7 +623,7 @@ def check_registered_by_capability(
         return fallback
     # Defensive fall-through; control flow should always have returned
     # by now.
-    return CapabilityGateDecision( # pragma: no cover
+    return CapabilityGateDecision(  # pragma: no cover
         allowed=False,
         reason=(
             f"no policy matched for registered_by={entry.registered_by!r}"
@@ -639,7 +639,7 @@ def check_registered_by_capability(
 
 
 def gate_signed_entry(
-    signed: "Any", # SignedSchemaRegistryEntry, lazy-imported to avoid cycle
+    signed: "Any",  # SignedSchemaRegistryEntry, lazy-imported to avoid cycle
     registry: CapabilityPolicyRegistry,
     *,
     as_of: Optional[datetime] = None,

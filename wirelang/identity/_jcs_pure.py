@@ -22,7 +22,7 @@ References (URL-200-stamped 2026-05-07):
 
 Spec-coverage map (RFC 8785 § 3):
 
-- § 3.1 UTF-8 output (no BOM, no trailing whitespace).
+- § 3.1   UTF-8 output (no BOM, no trailing whitespace).
 - § 3.2.1 Numbers per ECMA-262 § 7.1.12.1; this module handles
           integers exactly (Python ``int`` repr) and provides a
           defensive float branch using ``repr`` (Python's own
@@ -112,7 +112,7 @@ def _serialize_float(value: float) -> str:
     # Python's float ``repr`` already implements
     # shortest-roundtrip (since Python 3.1, see PEP 3101 / CPython
     # ``floatobject.c``). Special values below match ECMA-262 step 1-4.
-    if value != value: # NaN
+    if value != value:  # NaN
         raise ValueError("JCS: NaN is not a valid JSON number (RFC 8785 § 3.2.1)")
     if value == float("inf"):
         raise ValueError("JCS: +Infinity is not a valid JSON number (RFC 8785 § 3.2.1)")

@@ -5,19 +5,19 @@ This module is the Phase-2 follow-up to the ``kid_resolver`` boundary statement:
 the AIP document over transport". This module plugs that gap with a thin
 composition layer that:
 
-1. Maps an ``aip:web:host/path`` identifier to a canonical
+1.  Maps an ``aip:web:host/path`` identifier to a canonical
     ``https://host/.well-known/aip/<path>.json`` URL (the Wakir
     convention; see ``wirelang/tests/test_layer_3_capability_token.py``
     ``aip_document_ref = "https://wakir.dev/.well-known/aip/<persona>.json"``
     for the reference shape).
-2. Fetches the body via the Phase-1b V-908 HTTPS-transport layer
+2.  Fetches the body via the Phase-1b V-908 HTTPS-transport layer
     (``wirelang.identity.aip_https_backend.HTTPSDocumentTransport``).
-3. Optionally cross-checks the document against a Wakir-style DNS
+3.  Optionally cross-checks the document against a Wakir-style DNS
     TXT anchor record at ``_wakir-aip.<host>`` (V-908 §3.4 federation
     pattern extended from FTD to AIP-document; same shape
     ``v=1; sha256=<64-hex>`` over ``SHA-256(JCS(body without
     document_signature))``).
-4. Returns the verified body alongside its JCS byte-anchor for
+4.  Returns the verified body alongside its JCS byte-anchor for
     direct hand-off to :func:`wirelang.identity.resolve_kid`.
 
 boundary
@@ -333,7 +333,7 @@ def _jcs_anchor_hex(aip_doc: dict) -> str:
     # dependency import-time-lazy avoids a chain where any consumer of
     # aip_document_transport_fetch pays the aip_signing import cost
     # whether or not they touch the anchor path.
-    from .aip_signing import _jcs_canonicalize # noqa: WPS437 -- internal-use OK
+    from .aip_signing import _jcs_canonicalize  # noqa: WPS437 -- internal-use OK
 
     body = copy.deepcopy(aip_doc)
     body.pop("document_signature", None)

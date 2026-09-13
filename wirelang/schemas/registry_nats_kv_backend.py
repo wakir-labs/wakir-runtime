@@ -385,7 +385,7 @@ def _jcs_canonicalise(obj: Any) -> bytes:
     no number-encoding edge cases that JCS would treat differently).
     """
     try:
-        from wirelang.canonical.jcs import canonicalise # type: ignore
+        from wirelang.canonical.jcs import canonicalise  # type: ignore
         return canonicalise(obj)
     except Exception:
         # Fallback: sorted keys + compact separators. Stable for the
@@ -1042,20 +1042,20 @@ async def _list_keys(kv: Any) -> list:
 # Boundary (Phase-1b):
 #
 # - The watch-stream is a *consumer* surface. Operators connect the
-# stream to a long-running supervisor task; the supervisor keeps a
-# :class:`LiveSchemaSnapshot` warm and hands frozen
-# :class:`InMemorySchemaRegistry` instances to verifier modules per
-# pass. The watch-stream itself is not the registry.
+#   stream to a long-running supervisor task; the supervisor keeps a
+#   :class:`LiveSchemaSnapshot` warm and hands frozen
+#   :class:`InMemorySchemaRegistry` instances to verifier modules per
+#   pass. The watch-stream itself is not the registry.
 # - A poisoned envelope on the stream raises
-# :class:`SchemaRegistryEnvelopeError` from the consumer iterator
-# and terminates the iterator. The operator must observe the error,
-# drop the :class:`LiveSchemaSnapshot`, and re-bootstrap from a fresh
-# :meth:`NatsKvSchemaRegistry.snapshot`. Phase-1c does not silently
-# swallow envelope poison (same contract as full snapshot).
+#   :class:`SchemaRegistryEnvelopeError` from the consumer iterator
+#   and terminates the iterator. The operator must observe the error,
+#   drop the :class:`LiveSchemaSnapshot`, and re-bootstrap from a fresh
+#   :meth:`NatsKvSchemaRegistry.snapshot`. Phase-1c does not silently
+#   swallow envelope poison (same contract as full snapshot).
 # - Watch-stream resumption / replay-from-revision is a Phase-2
-# concern (nats-py supports it via ``watchall(..., resume_from=...)``;
-# the Phase-1c stream wrapper exposes the underlying revision but
-# does not bake in resume policy).
+#   concern (nats-py supports it via ``watchall(..., resume_from=...)``;
+#   the Phase-1c stream wrapper exposes the underlying revision but
+#   does not bake in resume policy).
 
 
 class WatchOp(enum.Enum):

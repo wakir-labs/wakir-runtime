@@ -102,7 +102,7 @@ SUPPORTED_ALG: str = "Ed25519"
 """Identity-document layer curve per Z-1-K-3 consensus."""
 
 _ED25519_KEY_LEN: int = 32
-_ED25519_KEY_HEX_LEN: int = 64 # 32 bytes = 64 hex chars
+_ED25519_KEY_HEX_LEN: int = 64  # 32 bytes = 64 hex chars
 
 
 # ---------------------------------------------------------------------------

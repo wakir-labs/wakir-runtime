@@ -18,22 +18,22 @@ document's signing key.
 
 Pipeline shape (V-908 section 4.1, Phase-1b):
 
-1. Token shape parse (caller-side; not implemented here).
-2. FTD lookup (caller passes the FTD ``id`` and pre-fetched body
+1.  Token shape parse (caller-side; not implemented here).
+2.  FTD lookup (caller passes the FTD ``id`` and pre-fetched body
     bytes; HTTPS transport is caller-side per V-908 section 3.3).
-3. FTD verify (delegated to ``ftd_verifier.verify_ftd_document``).
-4. **AIP fetch.** AIP-doc fetched via the caller-supplied
+3.  FTD verify (delegated to ``ftd_verifier.verify_ftd_document``).
+4.  **AIP fetch.** AIP-doc fetched via the caller-supplied
     :class:`AIPResolverLike` backend. The AIP URL host MUST equal
     the FTD ``domain`` field; mismatch raises
     :class:`FTDDomainMismatchError` (V-908 section 4.6 row).
-5. AIP schema-check (delegated to the resolver).
-6. AIP ``id`` consistency (delegated; Phase-1a phishing-guard).
-7. **AIP signature verify with FTD cross-check.** The AIP's
+5.  AIP schema-check (delegated to the resolver).
+6.  AIP ``id`` consistency (delegated; Phase-1a phishing-guard).
+7.  **AIP signature verify with FTD cross-check.** The AIP's
     signing key MUST be present in the FTD's
     ``valid_issuer_keys`` set with ``purpose == 'biscuit-root'``;
     mismatch raises :class:`FederatedIssuerKeyError`.
-8. JCS recompute (delegated).
-9. Optional caller pin (delegated).
+8.  JCS recompute (delegated).
+9.  Optional caller pin (delegated).
 10. Cache update + result return.
 
 Layering / sandbox boundary
@@ -248,8 +248,8 @@ def _aip_url_host(aip_id: str) -> str:
 
     This helper accepts both shapes:
 
-    - ``aip:web:host/path`` -> ``host``
-    - ``aip:web:host:port/path`` -> ``host:port``
+    - ``aip:web:host/path``                   -> ``host``
+    - ``aip:web:host:port/path``              -> ``host:port``
     - ``https://host/path`` or ``http://...`` -> ``host`` (incl. port)
 
     Returns the lower-cased host string. Raises
@@ -311,7 +311,7 @@ def resolve_federated_aip(
     aip_id: str,
     ftd_id: str,
     *,
-    ftd_resolver, # TxtResolver from .dns_anchor
+    ftd_resolver,  # TxtResolver from .dns_anchor
     ftd_doc_jcs_bytes: bytes,
     aip_resolver: AIPResolverLike,
     ftd_cache: Optional[FTDCache] = None,
@@ -382,7 +382,7 @@ def resolve_federated_aip(
             resolver=ftd_resolver,
             now=now,
             dns_timeout_s=dns_timeout_s,
-            cache=ftd_cache, # verify_ftd_document handles put-on-success
+            cache=ftd_cache,  # verify_ftd_document handles put-on-success
         )
 
     # ----- Step 4: AIP fetch with FTD-domain enforcement -------------
