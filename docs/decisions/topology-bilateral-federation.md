@@ -99,7 +99,11 @@ window during Phase-3 cutover.
 - The asymmetric topology continues to run.
 - This decision-note captures the topology rationale for review.
 
-## Decision points
+<!-- The "Decision-points" / "AR" literals in the next heading are
+     pinned verbatim by tests/infra/test_pilot_bootstrap_bug_39_bilateral.py
+     (test_decision_note_content); archaeology-lint allowlist entry. -->
+
+## Decision-points for the maintainer and the AR
 
 1. **Severity of the bundle-sync gate gap.** Is the Doppelbetrieb-
    shadow value sufficient to defer federation-bundle-sync
