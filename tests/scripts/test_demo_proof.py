@@ -742,19 +742,18 @@ def test_step3_aggregator_input_is_byte_equal_to_the_spool_b1_tuple(
         assert agg[field] == record[field], field
 
 
-def test_step3_empty_capability_token_hash_is_a_value_not_a_gap(demo_dir: Path):
-    """``wirelang/specs/wat-leaf-projection.md`` §3.4 defines ``""`` as
-    the no-capability sentinel. Where it does occur it must pass
-    through verbatim rather than be treated as a missing field —
-    otherwise step 3 would repair it and we would be back to a manifest
-    that disagrees with its own spool.
+def test_step3_passes_an_empty_capability_through_to_the_aggregator(demo_dir: Path):
+    """An empty ``capability_token_hash`` in the spool must reach the
+    aggregator unchanged and be rejected *there*, on the manifest
+    schema's terms — not be quietly replaced by step 3.
 
-    Note the cross-repo consequence, deliberately not hidden: the
-    wakir-protocol manifest schema constrains `capability_token_hash`
-    to `^[0-9a-f]{64}$`, so a manifest built over a genuine
-    no-capability event is rejected by `cross-repo-compat.yml`. That
-    contradiction between the runtime spec and the protocol schema is
-    a real open item, not something this projection should paper over.
+    Where it is rejected matters. The projection's job is to be
+    faithful; deciding that a manifest digest is 64 hex characters is
+    the aggregator's job, per the Cross-Review-Zone-3 pin in
+    ``tests/compat/test_zone3_capability_token_hash.py``. The old
+    behaviour collapsed the two: step 3 substituted the envelope's
+    placeholder, and nobody found out that the spool and the manifest
+    disagreed.
     """
     spool = demo_dir / "spool" / helpers.DEFAULT_PERSONA / f"{HOUR}.jsonl"
     spool.parent.mkdir(parents=True, exist_ok=True)
@@ -770,8 +769,20 @@ def test_step3_empty_capability_token_hash_is_a_value_not_a_gap(demo_dir: Path):
         + "\n",
         encoding="utf-8",
     )
-    manifest = _build(demo_dir)
-    assert manifest["events"][0]["capability_token_hash"] == ""
+    projection_out = demo_dir / "manifest-projection.json"
+    from wat.cmd.aggregator_cli import ValidationError
+
+    with pytest.raises(ValidationError) as excinfo:
+        _build(demo_dir, projection_out=projection_out)
+    assert "capability_token_hash" in str(excinfo.value)
+
+    # The projection ran and repaired nothing on the way.
+    projection = json.loads(projection_out.read_text(encoding="utf-8"))
+    assert projection["envelope_projection_used"] is False
+    agg = json.loads(
+        (demo_dir / "manifest-input.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert agg["capability_token_hash"] == ""
 
 
 def test_step3_projection_is_opt_in_and_recorded(

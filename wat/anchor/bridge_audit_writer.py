@@ -75,7 +75,7 @@ from wat.ingestion.spool_writer import (
     append_leaf_to_spool,
     hour_slot_for_time,
 )
-from wat.ingestion.wirelang_bridge import NO_CAPABILITY_SENTINEL, LeafRecord
+from wat.ingestion.wirelang_bridge import LeafRecord
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +198,20 @@ def _compose_bezug(payload_hash: str, metadata: Mapping[str, Any]) -> str:
     return f"payload={short_hash}"
 
 
+#: What this writer records for an event that was not taken under a
+#: capability token. The leaf-projection spec's projection rule
+#: (``wirelang/specs/wat-leaf-projection.md`` §3.4) says the empty
+#: string, but that rule is about projecting a Layer-1 frame's
+#: ``caprefs``; this writer synthesises a leaf instead. Inside an
+#: anchored manifest ``capability_token_hash`` is a fixed-width digest
+#: — ``wirelang/schemas/wakir-wat-manifest-v1.json`` requires
+#: ``^[0-9a-f]{64}$`` — so "no capability" is the all-zero digest here.
+#: This is the Cross-Review-Zone-3 decision recorded in
+#: ``tests/compat/test_zone3_capability_token_hash.py`` (ADR-0072 W4);
+#: this constant is the producer half of it.
+NO_CAPABILITY_DIGEST = "0" * 64
+
+
 def _build_leaf_record(
     *,
     persona_id: str,
@@ -205,7 +219,7 @@ def _build_leaf_record(
     event_time: str,
     payload_hash: str,
     metadata: Mapping[str, Any],
-    capability_token_hash: str = NO_CAPABILITY_SENTINEL,
+    capability_token_hash: str = NO_CAPABILITY_DIGEST,
 ) -> LeafRecord:
     """Construct a LeafRecord for the WAT-side spool.
 
@@ -220,17 +234,15 @@ def _build_leaf_record(
       inputs, which makes idempotent retry safe.
     - ``time``: caller-provided RFC-3339 UTC.
     - ``payload_hash``: caller-provided hex string.
-    - ``capability_token_hash``: the caller's value, verbatim, or the
-      no-capability sentinel (empty string) when the caller has none.
-      It used to be hardcoded to the sentinel, which meant the writer
-      dropped the capability binding of the very event it was
-      auditing; a caller that knows the token hash must be able to put
-      it in the leaf, because the leaf hash is what the inclusion
-      proof commits to. Note that the sentinel is spec-legal
-      (``wirelang/specs/wat-leaf-projection.md`` §3.4) but is
-      *rejected* by the wakir-protocol manifest schema, which requires
-      ``^[0-9a-f]{64}$`` — see the note in
-      ``docs/architecture/layers.md``.
+    - ``capability_token_hash``: the caller's value, verbatim, or
+      :data:`NO_CAPABILITY_DIGEST` when the caller has none. It used
+      to be hardcoded to the empty string, which did two things at
+      once: it dropped the capability binding of the very event being
+      audited (a caller that knows the token hash could not put it in
+      the leaf, and the leaf hash is what the inclusion proof commits
+      to), and it produced manifests that violate the canonical
+      manifest schema. Both are the Zone-3 follow-up tracked in
+      ``tests/compat/test_zone3_capability_token_hash.py``.
     - ``source``: ``"wakir-bridge-audit-writer"`` literal.
     - ``actorrole``: ``persona_id`` echoed (one role per persona during
       pilot).
@@ -299,7 +311,7 @@ def write_bridge_audit(
     spool_root: str | os.PathLike[str],
     activity_log_path: str | os.PathLike[str],
     event_time: Optional[str] = None,
-    capability_token_hash: str = NO_CAPABILITY_SENTINEL,
+    capability_token_hash: str = NO_CAPABILITY_DIGEST,
     _fail_wat: bool = False,
     _fail_pre_framework: bool = False,
 ) -> BridgeWriteResult:
@@ -335,9 +347,9 @@ def write_bridge_audit(
     capability_token_hash
         Hex-lower digest of the capability token the action was taken
         under, forwarded into the leaf tuple unchanged. Defaults to
-        the no-capability sentinel (empty string) so existing callers
-        are unaffected. Pass the real value when the caller has one —
-        the leaf hash, and therefore the inclusion proof, commits to
+        :data:`NO_CAPABILITY_DIGEST` (the all-zero digest) for events
+        taken without one. Pass the real value when the caller has one
+        — the leaf hash, and therefore the inclusion proof, commits to
         whatever lands here.
     _fail_wat
         Test hook: when true, the WAT-side write raises before any
@@ -513,6 +525,7 @@ def count_activity_log_lines_for_persona(
 
 __all__ = [
     "BridgeWriteResult",
+    "NO_CAPABILITY_DIGEST",
     "STATUS_OK",
     "STATUS_PRE_FRAMEWORK_FAILED",
     "STATUS_WAT_FAILED",

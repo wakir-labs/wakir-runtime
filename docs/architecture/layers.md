@@ -248,21 +248,25 @@ pass. The step is also never
 silently dropped; all five demo steps appear in every report,
 including failed ones, with downstream steps marked `not_run`.
 
-**`capability_token_hash` has two contradictory definitions across
-the repositories.** `wirelang/specs/wat-leaf-projection.md` §3.4 and
-`wat.merkle.aggregator.compute_leaf_hash` define the empty string as
-the normative value for an event without `caprefs`. The wakir-protocol
-manifest schema constrains the same field to `^[0-9a-f]{64}$` and
-therefore rejects it. Until 2026-09-14 nobody noticed, because the
-bridge audit writer emitted the empty sentinel and step 3 silently
-replaced it with the demo envelope's placeholder before hashing — so
-the manifest satisfied the protocol schema while describing a tuple
-the spool never held. Both halves of that are gone: the bridge now
-carries the capability digest it audits, and step 3 hashes exactly
-what the spool holds. The consequence is that a genuine no-capability
-event now produces a manifest that `cross-repo-compat.yml` rejects.
-That is the correct signal, and the contradiction is an open item for
-wakir-protocol, not something this line should absorb.
+**`capability_token_hash` had two definitions, and the demo was
+hiding the difference.** The leaf-projection rule
+(`wirelang/specs/wat-leaf-projection.md` §3.4) makes the empty string
+the value for an event without `caprefs`; the canonical manifest
+schema constrains the same field to `^[0-9a-f]{64}$`. Cross-Review
+Zone 3 decided in favour of the schema — inside an anchored manifest
+the field is a fixed-width digest, and "no capability" is the all-zero
+one — and tracked the producer change as a follow-up
+(`tests/compat/test_zone3_capability_token_hash.py`). Nothing forced
+the follow-up, because the bridge audit writer emitted the empty
+string into the spool and step 3 replaced it with the demo envelope's
+all-zero placeholder before hashing: the manifest satisfied the schema
+while describing a tuple the spool never held. Removing that repair on
+2026-09-14 turned `cross-repo-compat.yml` red and named the pin. The
+follow-up is now done on both sides: the writer defaults to
+`NO_CAPABILITY_DIGEST` and forwards a real digest when the caller has
+one, and `aggregator_cli._validate_events` enforces the schema pattern
+so a manifest that could not be published can no longer be built. The
+leaf-hash primitive stays permissive on purpose.
 
 **Bitcoin time-binding sits one step beyond this line.** Anchoring an
 hourly root through OpenTimestamps (`wat/anchor/ots_anchor.py`) is

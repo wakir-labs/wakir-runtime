@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence
@@ -130,13 +131,39 @@ def _read_events(input_path: Path) -> List[dict[str, Any]]:
     return events
 
 
+#: Fields whose value the canonical manifest schema
+#: (``wirelang/schemas/wakir-wat-manifest-v1.json``) constrains to a
+#: 64-character lower-case hex digest. Checking them here rather than
+#: only at schema-validation time means the aggregator refuses to
+#: *build* a manifest it could not publish, and the operator gets the
+#: event index instead of a JSON-pointer.
+#:
+#: ``capability_token_hash`` is on this list as the consumer half of
+#: the Cross-Review-Zone-3 decision (ADR-0072 W4, pinned in
+#: ``tests/compat/test_zone3_capability_token_hash.py``): the pilot
+#: writer's empty sentinel became the all-zero digest
+#: (``wat.anchor.bridge_audit_writer.NO_CAPABILITY_DIGEST``), so the
+#: empty string is no longer a manifest-domain value. The leaf-hash
+#: primitive stays permissive on purpose — it hashes whatever tuple it
+#: is handed, and ``tests/fixtures/jcs-leaf-vectors`` still covers the
+#: empty string.
+HEX64_FIELDS: tuple[str, ...] = (
+    "payload_hash",
+    "capability_token_hash",
+)
+
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+
 def _validate_events(events: Iterable[dict[str, Any]]) -> List[dict[str, Any]]:
     """Validate the B1-shape of every event and return them as a list.
 
     For each event, all four required fields must be present and must
-    be strings. Any deviation raises ``ValidationError`` with the
-    event index and the missing/wrong field — operators see a single
-    actionable error rather than a stack trace.
+    be strings, and the digest fields in :data:`HEX64_FIELDS` must
+    match the manifest schema's ``^[0-9a-f]{64}$``. Any deviation
+    raises ``ValidationError`` with the event index and the offending
+    field — operators see a single actionable error rather than a
+    stack trace.
     """
     validated: List[dict[str, Any]] = []
     for idx, event in enumerate(events):
@@ -150,6 +177,13 @@ def _validate_events(events: Iterable[dict[str, Any]]) -> List[dict[str, Any]]:
                 raise ValidationError(
                     f"event[{idx}].{field}: expected string, got "
                     f"{type(event[field]).__name__}"
+                )
+        for field in HEX64_FIELDS:
+            if not _HEX64.match(event[field]):
+                raise ValidationError(
+                    f"event[{idx}].{field}: expected 64 lower-case hex "
+                    f"characters (manifest schema '^[0-9a-f]{{64}}$'), got "
+                    f"{event[field]!r}"
                 )
         validated.append(event)
     return validated
@@ -775,6 +809,7 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 __all__ = [
+    "HEX64_FIELDS",
     "MANIFEST_VERSION",
     "REQUIRED_FIELDS",
     "ValidationError",
