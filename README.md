@@ -57,6 +57,14 @@ either as a PyPI dependency or as a sibling clone during
 development. See [Protocol-layer dependency](#protocol-layer-dependency)
 below.
 
+Two orientation documents sit next to this README:
+
+- [`docs/architecture/layers.md`](docs/architecture/layers.md) — the
+  five layers, what each one answers, and the proof path drawn as a
+  single line through them.
+- [`STABILITY.md`](STABILITY.md) — per-component maturity, with the
+  gate or artefact that backs each status.
+
 ## WAT module
 
 The Wakir Audit Trail aggregates inter-agent messages into a
