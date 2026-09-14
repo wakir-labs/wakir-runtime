@@ -156,12 +156,6 @@ BSL_TEST_SOURCES: tuple[str, ...] = (
     "infra/spire/federation/provisioner/tests/test_requirements_hash_form.py",
 )
 
-# Brand-Proof carve-out per ADR-0023b — must remain Apache-2.0.
-BRAND_PROOF_APACHE_SOURCES: tuple[str, ...] = (
-    "wat/anchor/external_verifier",  # directory glob
-)
-
-
 def _read_head(path: Path, bytes_: int = 4096) -> str:
     with path.open("rb") as fh:
         return fh.read(bytes_).decode("utf-8", errors="replace")
@@ -208,27 +202,34 @@ def test_bsl_subject_test_carries_busl_header(rel: str) -> None:
     # REUSE-IgnoreEnd
 
 
-def test_brand_proof_verifier_remains_apache() -> None:
-    """Brand-Proof verifier surface must remain Apache-2.0 (ADR-0023b)."""
-    verifier_dir = REPO_ROOT / "wat" / "anchor" / "external_verifier"
-    if not verifier_dir.exists():
-        pytest.skip("Brand-Proof verifier directory not present in tree")
-    py_files = list(verifier_dir.rglob("*.py"))
-    assert py_files, (
-        f"No Python files found under {verifier_dir}. Brand-Proof verifier "
-        f"surface should not be empty — investigate."
+def test_merkle_read_half_remains_apache() -> None:
+    """The Merkle Read-Half carve-out must remain Apache-2.0 (ADR-0062 Cut-1).
+
+    Replaces ``test_brand_proof_verifier_remains_apache``, whose subject
+    (``wat/anchor/external_verifier/``) was removed under ADR-0074. That
+    test guarded the last remaining Apache-2.0 carve-out inside a BSL
+    sub-tree; the Read-Half is now the only one, and it was previously
+    unguarded.
+    """
+    read_half = (
+        REPO_ROOT / "wat" / "merkle" / "__init__.py",
+        REPO_ROOT / "wat" / "merkle" / "aggregator.py",
     )
-    for path in py_files:
+    for path in read_half:
+        assert path.exists(), (
+            f"{path.relative_to(REPO_ROOT)} is missing. LICENSING.md and "
+            f"wat/LICENSE-BSL.md both name it as an Apache-2.0 carve-out."
+        )
         head = _read_head(path)
         # REUSE-IgnoreStart
         assert "SPDX-License-Identifier: Apache-2.0" in head, (
-            f"{path.relative_to(REPO_ROOT)} should be Apache-2.0 per ADR-0023b "
-            f"(Brand-Proof-redistributable carve-out), but its SPDX header is "
-            f"different. Do not relicense the Brand-Proof verifier."
+            f"{path.relative_to(REPO_ROOT)} should be Apache-2.0 per "
+            f"ADR-0062 Cut-1 (Merkle Read-Half carve-out), but its SPDX "
+            f"header is different. Do not relicense the Read-Half."
         )
         assert "SPDX-License-Identifier: BUSL-1.1" not in head, (
             f"{path.relative_to(REPO_ROOT)} carries a BUSL-1.1 marker — the "
-            f"Brand-Proof verifier must stay Apache-2.0 (ADR-0023b)."
+            f"Merkle Read-Half must stay Apache-2.0 (ADR-0062 Cut-1)."
         )
         # REUSE-IgnoreEnd
 

@@ -63,13 +63,6 @@ precedence = "closest"
 SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
 SPDX-License-Identifier = "BUSL-1.1"
 
-# Apache-2.0 carve-out within wat/ (external_verifier — Brand-Beweis-Werkzeug)
-[[annotations]]
-path = "wat/anchor/external_verifier/**"
-precedence = "override"
-SPDX-FileCopyrightText = "2026 Callandor GmbH and contributors"
-SPDX-License-Identifier = "Apache-2.0"
-
 # ============================================================
 # Rust workspace (Apache-2.0 via `[workspace.package] license`).
 # The workspace and all crates beneath `wirelang-rust/crates/*` are

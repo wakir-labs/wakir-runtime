@@ -38,7 +38,6 @@ workspace `license = "Apache-2.0"` field).
 |---|---|
 | `wirelang/` except listed BSL modules | Apache-2.0 (mirrored from `wakir-labs/wakir-protocol`) |
 | `wat/` except listed Apache-2.0 carve-outs | BUSL-1.1, Change License Apache-2.0 |
-| `wat/anchor/external_verifier/` | Apache-2.0 (mirrored from `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
 | `wat/merkle/` Read-Half (`__init__.py`, `aggregator.py`) | Apache-2.0 (mirrored from `wakir-labs/wakir-verify` per ADR-0062 Cut-1) |
 | `wirelang/federation/` | BUSL-1.1 |
 | `wirelang/persona_engine/` | BUSL-1.1 |

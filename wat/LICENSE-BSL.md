@@ -8,9 +8,14 @@ Amtsgericht München HRB 270414), operating Wakir Labs.
 **Licensed Work:** Wakir Audit Trail (WAT) module — the contents of
 the `wat/` directory of this repository, including the hourly Merkle
 aggregator, OTS anchor pipeline, and verification CLI server-side
-components. The Brand-Proof external verifier
-(`wat/anchor/external_verifier/`) is carved out of the Licensed Work
-and remains Apache-2.0 (ADR-0023b).
+components. The Merkle Read-Half (`wat/merkle/__init__.py` and
+`wat/merkle/aggregator.py`) is carved out of the Licensed Work and
+remains Apache-2.0 (ADR-0062 Cut-1).
+
+The Brand-Proof external verifier that used to be carved out here
+(`wat/anchor/external_verifier/`) was removed from this repository
+under ADR-0074. It now lives solely as the Apache-2.0 package
+`wakir-labs/wakir-verify`; nothing in this tree carries that role.
 
 **Additional Use Grant:** Production use of the Licensed Work is
 permitted for self-hosting against an operator's own organisational

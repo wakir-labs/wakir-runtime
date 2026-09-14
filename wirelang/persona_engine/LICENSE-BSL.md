@@ -83,9 +83,12 @@ units activated under ADR-0059 on 2026-05-13.
 The Foundation-Layer of `wirelang/` (identity bearer, datalog
 evaluator core, capability primitives outside the persona-engine
 and federation subtrees) remains Apache-2.0. Only the modules
-listed under "Licensed Work" above carry the BSL header. The
-Brand-Proof verifier (`wat/anchor/external_verifier/`) remains
-Apache-2.0 as a brand-proof-redistributable surface (ADR-0023b).
+listed under "Licensed Work" above carry the BSL header. Within
+`wat/`, the Merkle Read-Half (`wat/merkle/__init__.py`,
+`wat/merkle/aggregator.py`) remains Apache-2.0 (ADR-0062 Cut-1). The
+offline Brand-Proof verifier is no longer part of this repository at
+all — see ADR-0074 and the Apache-2.0 package
+`wakir-labs/wakir-verify`.
 
 ## Repository licensing layout
 
