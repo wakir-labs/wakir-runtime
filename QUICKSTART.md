@@ -117,17 +117,22 @@ x86_64), from `git clone` to a report with five `ok` steps:
 
 | Step | Wall clock |
 |---|---|
-| `apt-get install git make` (image bootstrap, not part of the path) | 7 s |
-| `git clone --depth=1` | 2 s |
-| `make demo-proof`, nothing installed → 4 × `ok`, `external_verify: skipped` | < 1 s |
-| `pip install git+…/wakir-verify` | 2–4 min |
-| `make demo-proof` → 5 × `ok` | < 1 s |
+| `apt-get install git make` (image bootstrap, not part of the path) | 6.5 s |
+| `git clone --depth=1` | 2.1 s |
+| `make demo-proof`, nothing installed → 4 × `ok`, `external_verify: skipped` | 0.7 s |
+| `pip install git+…/wakir-verify` | 266.2 s |
+| `make demo-proof` → 5 × `ok` | 0.6 s |
+| **clone → verified report** | **269.7 s (4 min 30 s)** |
 
-**Total: well under ten minutes, and all but a few seconds of it is
-`pip` fetching the verifier over the network.** The evidence chain
-itself runs in under a second. The Merkle root is identical whether or
-not the runtime is pip-installed, so the shortcut above is not a
-lesser variant of the CI run — it is the same computation.
+**Four and a half minutes, and 99 % of it is `pip` fetching the
+verifier over the network.** That one step varied between 124 s and
+266 s across four runs on the same connection; it is the only part of
+the path that can push you towards the ten-minute mark, and it is not
+our code. The evidence chain itself runs in under a second.
+
+The Merkle root was byte-identical across all four runs, installed or
+not, so skipping the editable install is not a lesser variant of the CI
+run — it is the same computation.
 
 You do not need `pip install -e .` for the proof path; the driver puts
 the repository root on `sys.path` itself. Install the runtime the
