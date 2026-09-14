@@ -75,7 +75,7 @@ from wat.ingestion.spool_writer import (
     append_leaf_to_spool,
     hour_slot_for_time,
 )
-from wat.ingestion.wirelang_bridge import LeafRecord
+from wat.ingestion.wirelang_bridge import NO_CAPABILITY_SENTINEL, LeafRecord
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +205,7 @@ def _build_leaf_record(
     event_time: str,
     payload_hash: str,
     metadata: Mapping[str, Any],
+    capability_token_hash: str = NO_CAPABILITY_SENTINEL,
 ) -> LeafRecord:
     """Construct a LeafRecord for the WAT-side spool.
 
@@ -219,8 +220,17 @@ def _build_leaf_record(
       inputs, which makes idempotent retry safe.
     - ``time``: caller-provided RFC-3339 UTC.
     - ``payload_hash``: caller-provided hex string.
-    - ``capability_token_hash``: empty sentinel (pilot-phase events
-      are not yet capability-gated; Phase-2 will fill this).
+    - ``capability_token_hash``: the caller's value, verbatim, or the
+      no-capability sentinel (empty string) when the caller has none.
+      It used to be hardcoded to the sentinel, which meant the writer
+      dropped the capability binding of the very event it was
+      auditing; a caller that knows the token hash must be able to put
+      it in the leaf, because the leaf hash is what the inclusion
+      proof commits to. Note that the sentinel is spec-legal
+      (``wirelang/specs/wat-leaf-projection.md`` §3.4) but is
+      *rejected* by the wakir-protocol manifest schema, which requires
+      ``^[0-9a-f]{64}$`` — see the note in
+      ``docs/architecture/layers.md``.
     - ``source``: ``"wakir-bridge-audit-writer"`` literal.
     - ``actorrole``: ``persona_id`` echoed (one role per persona during
       pilot).
@@ -234,7 +244,7 @@ def _build_leaf_record(
         event_id=event_id,
         time=event_time,
         payload_hash=payload_hash,
-        capability_token_hash="",
+        capability_token_hash=capability_token_hash,
         source="wakir-bridge-audit-writer",
         actorrole=persona_id,
         agentid=persona_id,
@@ -289,6 +299,7 @@ def write_bridge_audit(
     spool_root: str | os.PathLike[str],
     activity_log_path: str | os.PathLike[str],
     event_time: Optional[str] = None,
+    capability_token_hash: str = NO_CAPABILITY_SENTINEL,
     _fail_wat: bool = False,
     _fail_pre_framework: bool = False,
 ) -> BridgeWriteResult:
@@ -321,6 +332,13 @@ def write_bridge_audit(
         RFC-3339 UTC timestamp the event was emitted at. If ``None``,
         the bridge stamps the current wall-clock UTC. Tests inject a
         fixed value for determinism.
+    capability_token_hash
+        Hex-lower digest of the capability token the action was taken
+        under, forwarded into the leaf tuple unchanged. Defaults to
+        the no-capability sentinel (empty string) so existing callers
+        are unaffected. Pass the real value when the caller has one —
+        the leaf hash, and therefore the inclusion proof, commits to
+        whatever lands here.
     _fail_wat
         Test hook: when true, the WAT-side write raises before any
         bytes are persisted. Production callers MUST NOT set this.
@@ -371,6 +389,7 @@ def write_bridge_audit(
         event_time=event_time,
         payload_hash=payload_hash,
         metadata=metadata,
+        capability_token_hash=capability_token_hash,
     )
 
     lock = _acquire_serial_lock(persona_id, hour_slot)

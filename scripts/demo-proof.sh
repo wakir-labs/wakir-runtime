@@ -205,12 +205,23 @@ step2_runtime_bridge() {
         return 10
     }
 
+    # Bind the event's declared capability digest into the spool leaf.
+    # Without it the writer stores its no-capability sentinel and the
+    # spool and the step-1 envelope disagree — which step 3 used to
+    # silently reconcile in the envelope's favour.
+    local capability_hash
+    capability_hash="$(helper json-get "${EVENT_ENVELOPE}" capability_token_hash)" || {
+        emit_step "${name}" "failed" 10 --kv "error=capability hash from step 1 missing"
+        return 10
+    }
+
     helper run-bridge \
         --payload "${EVENT_PAYLOAD}" \
         --payload-hash "${payload_hash}" \
         --spool-root "${SPOOL_ROOT}" \
         --activity-log "${ACTIVITY_LOG}" \
         --event-time "${DEMO_PROOF_HOUR}:00:00Z" \
+        --capability-hash "${capability_hash}" \
         --out "${BRIDGE_RESULT}" \
         2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then

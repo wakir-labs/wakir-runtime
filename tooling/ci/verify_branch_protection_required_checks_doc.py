@@ -34,9 +34,11 @@ REQUIRED_SECTIONS: tuple[str, ...] = (
     "§6 — Sandbox boundary",
 )
 
-#: 10 active contexts + `runtime acceptance gates` + `proof-path`
-#: (both pending operator activation, ADR-0072 Phase 4).
-EXPECTED_CHECK_COUNT = 12
+#: Live `required_status_checks.contexts` cardinality on
+#: `wakir-labs/wakir-runtime` `main`, read 2026-09-14: 13, all active.
+#: Was 12 while the three Phase-4 contexts were listed as pending and
+#: `secret-scan` was missing from the inventory entirely.
+EXPECTED_CHECK_COUNT = 13
 
 
 class Finding:

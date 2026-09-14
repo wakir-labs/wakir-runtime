@@ -224,11 +224,11 @@ the gate that would fail if it broke.
 |---|---|---|---|---|
 | 1 | protocol event | 1 | `wirelang/builder/frame_builder.py` + the layer-0/1/2 schemas; materialised in the demo by `build-event` in `scripts/demo_proof_helpers.py` | `proof-path.yml` step `protocol_event`; required contexts `wirelang suite with rfc8785 + jsonschema` and its dependency-free shadow; `wirelang-spec-freeze-seal-probe.yml` |
 | 2 | runtime bridge | 2 | `wat/anchor/bridge_audit_writer.py` via `run-bridge`; fans out to spool and activity log in one contract | `proof-path.yml` step `runtime_bridge`; byte parity pinned by `tests/fixtures/bridge-audit-writer-cross-lang/fixtures.json` |
-| 3 | WAT spool | 3 | `wat/ingestion/spool_writer.py`, format in `docs/wat-spool-spec.md` | the spool is the sole input of step 4, so `proof-path.yml` fails on any drift; `tests/wat/` (55 modules) |
+| 3 | WAT spool | 3 | `wat/ingestion/spool_writer.py`, format in `docs/wat-spool-spec.md` | the spool is the sole input of step 4: a spool record with a missing, non-string or empty B1 field fails `proof-path.yml` instead of being reconstructed from `event.envelope.json` (the exception is `capability_token_hash`, whose empty string is the no-capability sentinel of `wirelang/specs/wat-leaf-projection.md` §3.4 and passes through verbatim). Envelope projection is available only behind `--allow-envelope-projection`, which the proof path does not pass, and a run that used it is marked `envelope_projection_used: true` in the report and rejected by the report validator. Until 2026-09-14 this row overstated the guarantee: falsy fields were repaired from the envelope. `tests/wat/` (55 modules), `tests/scripts/test_demo_proof.py` |
 | 4 | Merkle manifest | 3 | `wat/merkle/aggregator.py`, `wat/cmd/aggregator_cli.py`; format `wirelang/schemas/wakir-wat-manifest-v1.json` | `proof-path.yml` step `merkle_manifest`; `tests/wat/test_hash_consistency.py`; recomputable against the real cohorts in `tests/fixtures/wat-tv2-real/`, `wat-tv3-real/` |
 | 5 | inclusion proof | 3 → 4 | `verify-proof` in `scripts/demo_proof_helpers.py`; format `wirelang/schemas/wakir-inclusion-proof-v1.json` (sibling hashes with side markers, plain SHA-256) | `proof-path.yml` step `inclusion_proof`; vectors in `tests/fixtures/proof-path-vectors/` |
-| 6 | external verification | 4 | `wakir_verify.manifest` and `wakir_verify.merkle_proof` from the sibling repository, called through `external-verify`; root re-derived by the verifier's own code, not ours | `proof-path.yml` step `external_verify`, validated with `--require-external-verify-ok`; verifier pinned by `WAKIR_VERIFY_PIN`; `cross-repo-compat.yml` watches the sibling's `main` |
-| 7 | machine-readable report | 4 | `scripts/demo-proof.sh` emits `demo-report.json`, schema `wakir-demo-proof/v1`, five steps in fixed order | `scripts/ci/validate_demo_proof_report.py`: schema, canonical step order, no `failed` or `not_run`, and `commits.wakir_runtime` must equal the commit under test |
+| 6 | external verification | 4 | `wakir_verify.manifest` and `wakir_verify.merkle_proof` from the sibling repository, called through `external-verify`; root re-derived by the verifier's own code, not ours | `proof-path.yml` step `external_verify`; the report validator's strict default requires status `ok` *and* `manifest_consistent` / `root_match` / `leaf_present` / `proof_verified` all true; verifier pinned by `WAKIR_VERIFY_PIN`; `cross-repo-compat.yml` watches the sibling's `main` |
+| 7 | machine-readable report | 4 | `scripts/demo-proof.sh` emits `demo-report.json`, schema `wakir-demo-proof/v1`, five steps in fixed order | `scripts/ci/validate_demo_proof_report.py`, strict by default: schema, canonical step order, every step status exactly `ok`, every `exit_code` exactly `0`, step details that do not contradict the status, and `commits.wakir_runtime` equal to the commit under test |
 
 Run the whole line locally:
 
@@ -236,15 +236,33 @@ Run the whole line locally:
 make demo-proof
 ```
 
-### Two honest notes on this line
+### Three honest notes on this line
 
 **The report cannot be quietly emptied.** Step 6 may report
 `skipped` when `wakir-verify` is not importable — that is a legitimate
 local state and the driver exits 0 for it. The gate does not: the
-validator requires `external_verify == ok`, so a skipped external
-check can never pass continuous integration. The step is also never
+validator is strict by default and accepts only `ok`, so a skipped
+external check can never pass continuous integration — the leniency is
+a named flag (`--allow-skipped-external-verify`) that CI does not
+pass. The step is also never
 silently dropped; all five demo steps appear in every report,
 including failed ones, with downstream steps marked `not_run`.
+
+**`capability_token_hash` has two contradictory definitions across
+the repositories.** `wirelang/specs/wat-leaf-projection.md` §3.4 and
+`wat.merkle.aggregator.compute_leaf_hash` define the empty string as
+the normative value for an event without `caprefs`. The wakir-protocol
+manifest schema constrains the same field to `^[0-9a-f]{64}$` and
+therefore rejects it. Until 2026-09-14 nobody noticed, because the
+bridge audit writer emitted the empty sentinel and step 3 silently
+replaced it with the demo envelope's placeholder before hashing — so
+the manifest satisfied the protocol schema while describing a tuple
+the spool never held. Both halves of that are gone: the bridge now
+carries the capability digest it audits, and step 3 hashes exactly
+what the spool holds. The consequence is that a genuine no-capability
+event now produces a manifest that `cross-repo-compat.yml` rejects.
+That is the correct signal, and the contradiction is an open item for
+wakir-protocol, not something this line should absorb.
 
 **Bitcoin time-binding sits one step beyond this line.** Anchoring an
 hourly root through OpenTimestamps (`wat/anchor/ots_anchor.py`) is
@@ -267,6 +285,5 @@ on operator-run evidence rather than on a standing gate.
 | 4 | `proof-path.yml` (external leg plus report validation), `cross-repo-compat.yml`, `external-verifier-drift.yml` |
 | 5 | `containerfile-digest-pin-gate.yml`, `cosign-verify-images.yml`, `cross-substrate-parity-gate.yml`, and daily supply-chain workflows. The live bring-up evidence (`live-vm-acceptance.yml`, the real leg of `e2e-vm-acceptance-gate.yml`) is dispatch-only and therefore point-in-time, not standing. |
 
-Current branch-protection state for these contexts, including which
-are still pending an operator step, is inventoried in
+Current branch-protection state for these contexts is inventoried in
 [`docs/ci/branch-protection-required-checks.md`](../ci/branch-protection-required-checks.md).

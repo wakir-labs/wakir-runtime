@@ -710,25 +710,68 @@ def test_step3_emptied_payload_hash_is_a_hard_error_not_a_projection(
         _build(demo_dir)
 
 
-def test_step3_empty_capability_token_hash_is_a_value_not_a_gap(
+def test_step2_binds_the_declared_capability_hash_into_the_spool(
     demo_dir: Path, event_artifacts: Dict[str, Any]
 ):
-    """``wirelang/specs/wat-leaf-projection.md`` §3.4 defines ``""`` as
-    the no-capability sentinel, and the bridge audit writer emits it.
-    It must pass through verbatim — this is what makes the manifest
-    describe the spool rather than the envelope."""
+    """regression: R5 — the bridge writer used to hardcode the
+    no-capability sentinel and drop the capability digest of the very
+    event it audited. Step 3 then reinstated it from the envelope, so
+    the manifest committed to a tuple the spool never held.
+    """
     spool = _write_bridged_spool(demo_dir, event_artifacts)
     record = json.loads(spool.read_text(encoding="utf-8").strip())
-    assert record["capability_token_hash"] == ""
+    assert record["capability_token_hash"] == (
+        event_artifacts["envelope"]["capability_token_hash"]
+    )
+    assert record["capability_token_hash"] != helpers.NO_CAPABILITY_SENTINEL
 
-    manifest = _build(demo_dir)
-    assert manifest["events"][0]["capability_token_hash"] == ""
 
+def test_step3_aggregator_input_is_byte_equal_to_the_spool_b1_tuple(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """The property the whole of R5 is about: what gets hashed is what
+    the spool holds, field for field."""
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    record = json.loads(spool.read_text(encoding="utf-8").strip())
+    _build(demo_dir)
     agg = json.loads(
         (demo_dir / "manifest-input.jsonl").read_text(encoding="utf-8").strip()
     )
+    assert set(agg) == set(helpers.B1_FIELDS)
     for field in helpers.B1_FIELDS:
         assert agg[field] == record[field], field
+
+
+def test_step3_empty_capability_token_hash_is_a_value_not_a_gap(demo_dir: Path):
+    """``wirelang/specs/wat-leaf-projection.md`` §3.4 defines ``""`` as
+    the no-capability sentinel. Where it does occur it must pass
+    through verbatim rather than be treated as a missing field —
+    otherwise step 3 would repair it and we would be back to a manifest
+    that disagrees with its own spool.
+
+    Note the cross-repo consequence, deliberately not hidden: the
+    wakir-protocol manifest schema constrains `capability_token_hash`
+    to `^[0-9a-f]{64}$`, so a manifest built over a genuine
+    no-capability event is rejected by `cross-repo-compat.yml`. That
+    contradiction between the runtime spec and the protocol schema is
+    a real open item, not something this projection should paper over.
+    """
+    spool = demo_dir / "spool" / helpers.DEFAULT_PERSONA / f"{HOUR}.jsonl"
+    spool.parent.mkdir(parents=True, exist_ok=True)
+    spool.write_text(
+        json.dumps(
+            {
+                "event_id": "a" * 32,
+                "time": f"{HOUR}:00:00Z",
+                "payload_hash": "b" * 64,
+                "capability_token_hash": helpers.NO_CAPABILITY_SENTINEL,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest = _build(demo_dir)
+    assert manifest["events"][0]["capability_token_hash"] == ""
 
 
 def test_step3_projection_is_opt_in_and_recorded(

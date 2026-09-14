@@ -118,8 +118,13 @@ DEFAULT_PERSONA = "demo"
 
 #: Demo capability-token hash. Pinned to the all-zero 32-byte SHA-256
 #: so the four-tuple has a stable canonical form; production frames
-#: would carry the real Macaroon token hash.
+#: would carry the real Macaroon token hash. It is forwarded into the
+#: spool leaf by step 2 — see ``do_run_bridge``.
 DEFAULT_CAPABILITY_HASH = "0" * 64
+
+#: Re-exported for tests: the leaf-projection spec's no-capability
+#: value (``wirelang/specs/wat-leaf-projection.md`` §3.4).
+NO_CAPABILITY_SENTINEL = ""
 
 
 # ---------------------------------------------------------------------------
@@ -237,8 +242,18 @@ def do_run_bridge(
     out: Path,
     persona_id: str = DEFAULT_PERSONA,
     action_type: str = "demo-proof",
+    capability_token_hash: str = DEFAULT_CAPABILITY_HASH,
 ) -> Dict[str, Any]:
     """Invoke the bridge-audit writer once.
+
+    ``capability_token_hash`` is the demo event's declared capability
+    digest and is forwarded into the spool leaf. Passing it matters:
+    the writer defaults to the empty no-capability sentinel, and an
+    empty value in the spool is (a) spec-legal per
+    ``wirelang/specs/wat-leaf-projection.md`` §3.4 but (b) rejected by
+    the wakir-protocol manifest schema (``^[0-9a-f]{64}$``). Step 3 is
+    no longer allowed to paper over the difference by reaching for the
+    envelope, so the bridge has to carry the value it audits.
 
     We import the writer lazily so test code can monkey-patch or stub
     it without paying the import cost on every call.
@@ -256,9 +271,11 @@ def do_run_bridge(
         spool_root=spool_root,
         activity_log_path=activity_log,
         event_time=event_time,
+        capability_token_hash=capability_token_hash,
     )
 
     result_dict = {
+        "capability_token_hash": capability_token_hash,
         "status": result.status,
         "persona_id": result.persona_id,
         "action_type": result.action_type,
@@ -937,6 +954,11 @@ def build_parser() -> argparse.ArgumentParser:
     p2.add_argument("--event-time", required=True)
     p2.add_argument("--out", required=True, type=Path)
     p2.add_argument("--persona", default=DEFAULT_PERSONA)
+    p2.add_argument(
+        "--capability-hash",
+        default=DEFAULT_CAPABILITY_HASH,
+        help="Capability-token digest to bind into the spool leaf.",
+    )
 
     p3 = sub.add_parser("build-manifest", help="Step 3: build hourly manifest.")
     p3.add_argument("--spool-root", required=True, type=Path)
@@ -1026,6 +1048,7 @@ def _dispatch(args: argparse.Namespace) -> int:
             event_time=args.event_time,
             out=args.out,
             persona_id=args.persona,
+            capability_token_hash=args.capability_hash,
         )
         return EXIT_OK if result["status"] == "ok" else EXIT_FAILED
     if args.cmd == "build-manifest":
@@ -1113,6 +1136,7 @@ __all__ = [
     "DEFAULT_CAPABILITY_HASH",
     "DEFAULT_EVENT_ID",
     "DEFAULT_PERSONA",
+    "NO_CAPABILITY_SENTINEL",
     "EXIT_FAILED",
     "EXIT_NOT_RUN",
     "EXIT_OK",

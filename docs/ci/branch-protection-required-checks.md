@@ -3,7 +3,7 @@ title: "Branch-Protection Required Status Checks (wakir-runtime)"
 status: "active"
 owner: "kai"
 audience: "operator,maintainers"
-updated: "2026-09-11"
+updated: "2026-09-14"
 related_adrs:
   - "ADR-0020"
   - "ADR-0068"
@@ -34,9 +34,16 @@ and `tests/ci/test_branch_protection_check_names_audit.py` (every
 
 ## §1 — Required-check inventory
 
-State as of 2026-09-11, read via
-`gh api repos/wakir-labs/wakir-runtime/branches/main/protection/required_status_checks`
-after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
+State as of **2026-09-14**, read via
+`gh api repos/wakir-labs/wakir-runtime/branches/main/protection`:
+**13 contexts, all ACTIVE**, `enforce_admins: false` (enforcement scope
+`non_admins`, so a repository admin can still merge past a red check).
+
+The 2026-09-11 revision of this table said 12 rows with three
+`PENDING-OPERATOR`. That was drift in two directions: the operator had
+already activated all three Phase-4 contexts (rows 5, 11, 12), and
+`secret-scan` (row 13) had been required for longer than this document
+has existed without ever being inventoried. Both corrected here.
 
 | # | Job display name (verbatim) | Workflow file | Trigger reach | Since | Status |
 |---|---|---|---|---|---|
@@ -44,14 +51,28 @@ after the Phase-4 W1 reduction from 16 to 10 contexts (ADR-0072).
 | 2 | `wirelang suite with rfc8785 + jsonschema` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
 | 3 | `wirelang suite without rfc8785 / jsonschema (shadow)` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
 | 4 | `production-vs-sandbox drift envelope` | `.github/workflows/tests.yml` | every PR + push to `main` (no path filter) | 2026-05 | ACTIVE |
-| 5 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | every PR + push to main (no path filter) | 2026-09 (W4, replaces the cross-repo drift context) | PENDING-OPERATOR (context swap at the W4 merge, see §2.3) |
+| 5 | `cross-repo compatibility (protocol ↔ runtime ↔ verify)` | `.github/workflows/cross-repo-compat.yml` | every PR + push to main (no path filter) | 2026-09 (W4, replaces the cross-repo drift context) | ACTIVE (context swap done, see §2.3) |
 | 6 | `verify-containerfile-base-image-digest-pins` | `.github/workflows/containerfile-digest-pin-gate.yml` | Containerfiles | 2026-05 | ACTIVE |
 | 7 | `cross-substrate parity (cosign ↔ quadlet ↔ backend-switch)` | `.github/workflows/cross-substrate-parity-gate.yml` | policies + quadlet + engine | 2026-05 | ACTIVE |
 | 8 | `wirelang spec v0.4.3 freeze-seal probe` | `.github/workflows/wirelang-spec-freeze-seal-probe.yml` | spec directory | 2026-05 | ACTIVE |
 | 9 | `cosign verify SPIRE images` | `.github/workflows/cosign-verify-images.yml` | image pins | 2026-05 | ACTIVE |
 | 10 | `Cosign-Keyless-OIDC-Drift-Probe (daily)` | `.github/workflows/cosign-keyless-oidc-drift-probe.yml` | schedule + trust-root | 2026-05 | ACTIVE |
-| 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | every PR + push to `main` (no path filter) | 2026-09 (renamed from the Phase-2 aggregator) | PENDING-OPERATOR (add after first green run on `main`) |
-| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | PENDING-OPERATOR (operator-hand: add after first green run on `main`) |
+| 11 | `runtime acceptance gates` | `.github/workflows/runtime-acceptance-gates.yml` | every PR + push to `main` (no path filter) | 2026-09 (renamed from the Phase-2 aggregator) | ACTIVE |
+| 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | ACTIVE |
+| 13 | `secret-scan` | `.github/workflows/secret-scan.yml` | every PR + push to `main` (no path filter) | pre-2026-09 (never inventoried until 2026-09-14) | ACTIVE |
+
+**Invariant: a required aggregator job carries `if: always()` and
+checks every `needs.<job>.result`.**
+A job that declares `needs:` without a job-level `if: always()` is
+*skipped* when a dependency fails, and GitHub does not block a merge on
+a skipped required check — the gate fails open exactly when it matters.
+`always()` alone is not enough: the job must also turn each
+`needs.<job>.result` into its own exit code, before it runs its own
+substance, or a green aggregate step reports the context green over a
+red dependency. Both halves are pinned by
+`tests/workflows/test_required_context_error_propagation.py`. Rows 11
+(`runtime acceptance gates`) and 3 (`production-vs-sandbox drift
+envelope`) were both in the fail-open shape until 2026-09-14.
 
 **Invariant: a required workflow carries no `paths:` filter.**
 A required status context that never reports leaves the pull request
@@ -76,15 +97,14 @@ see row 11), `pyramide layer-dependency DAG verify (6 layers, 16 edges)`,
 Row 12 (`proof-path`) is the Phase-4 proof-path gate (ADR-0072 4b): it
 runs `make demo-proof` on a clean runner with a pinned wakir-verify and
 hard-fails through `scripts/ci/validate_demo_proof_report.py` unless all
-five steps are `ok` and the report names the commit under test. The
-context is added to protection by the operator after the first green
-run on `main` (§3 item 4); until then the job runs on every PR without
-blocking.
+five steps are `ok` with exit code `0` and step details that agree with
+those statuses, and the report names the commit under test. Active
+since the operator step of §3 item 4.
 
 Row 5 is the W4 replacement of `cross-repo drift (wakir-runtime ↔ wakir-protocol)`
 (byte-level drift audit, removed together with
-`cross-repo-drift-allowlist-audit.yml`); the operator swaps the two
-contexts at the W4 merge (§2.3).
+`cross-repo-drift-allowlist-audit.yml`); the swap described in §2.3 has
+been carried out.
 
 Trigger discipline — **required contexts must never be path-filtered**:
 a required context is matched per PR head commit; if the workflow that
@@ -137,7 +157,8 @@ gh api -X PATCH repos/wakir-labs/wakir-runtime/branches/main/protection/required
     "cosign verify SPIRE images",
     "Cosign-Keyless-OIDC-Drift-Probe (daily)",
     "runtime acceptance gates",
-    "proof-path"
+    "proof-path",
+    "secret-scan"
   ]
 }
 JSON
@@ -157,7 +178,9 @@ source for everything that has to stay.
 status checks to pass before merging`. Search each display name
 verbatim, add it, save. Re-read the list via gh api afterwards (§3.2).
 
-### §2.3 — Context swap for the W4 merge (operator-hand)
+### §2.3 — Context swap for the W4 merge (operator-hand) — DONE 2026-09
+
+Historical record; the swap has been carried out and row 5 is ACTIVE.
 
 The W4 PR deletes `cross-repo-drift-audit.yml`, so the old context
 `cross-repo drift (wakir-runtime ↔ wakir-protocol)` never reports on that PR and

@@ -187,18 +187,18 @@ Env-var contract
 
 ``WAKIR_RECOVERY_BACKEND``:
 
-* ``"python"`` (default) — Python :class:`RecoveryWorkflow`.
-* ``"rust"`` — Rust-CLI subprocess-bridge. Falls back to ``"python"``
+* ``"python"`` — Python :class:`RecoveryWorkflow`.
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge. Falls back to ``"python"``
   with a structured-log warning when the binary is not callable.
 
 ``WAKIR_STATE_BACKING_BACKEND``:
 
-* ``"python"`` (default) — Python state-backing selection
+* ``"python"`` — Python state-backing selection
   (NATS-KV with fence to in-memory; the engine's existing
   ``_select_state_backing()`` logic).
 * ``"rust_inmemory"`` — Rust-CLI subprocess-bridge against an
   in-memory state-backing (hermetic, no NATS).
-* ``"rust_natskv"`` — Rust-CLI subprocess-bridge against a NATS-KV
+* ``"rust_natskv"`` (default) — Rust-CLI subprocess-bridge against a NATS-KV
   state-backing (production).
 
 Both rust-bound values fall back to ``"python"`` with a structured-
@@ -206,18 +206,18 @@ log warning when the binary is not callable.
 
 ``WAKIR_FSM_BACKEND``:
 
-* ``"python"`` (default) — Python :class:`LifecycleStateMachine`
+* ``"python"`` — Python :class:`LifecycleStateMachine`
   (six states, nine transitions per spec §3.3).
-* ``"rust"`` — Rust-CLI subprocess-bridge against the
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge against the
   ``persona-engine-fsm`` crate (PR #137, schema-byte-parity with
   the Python authority). Falls back to ``"python"`` with a
   structured-log warning when the binary is not callable.
 
 ``WAKIR_V907_VERIFY_BACKEND``:
 
-* ``"python"`` (default) — Python :func:`compute_v907_pin` /
+* ``"python"`` — Python :func:`compute_v907_pin` /
   :func:`verify_v907_pin` (spec §5 hash-determinism anchor).
-* ``"rust"`` — Rust-CLI subprocess-bridge against the
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge against the
   ``persona-engine-v907-verify`` crate (PR #136, byte-identical
   hash output verified against all pin-pack vectors). Falls back
   to ``"python"`` with a structured-log warning when the binary
@@ -238,10 +238,10 @@ log warning when the binary is not callable.
 
 ``WAKIR_SUBSCRIBE_LOOP_BACKEND``:
 
-* ``"python"`` (default) — Python
+* ``"python"`` — Python
   :mod:`wirelang.persona_engine.subscribe_ack` (PR #172,
   per-frame ack-record sibling of the Rust crate).
-* ``"rust"`` — Rust-CLI subprocess-bridge against the
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge against the
   ``persona-engine-subscribe-loop`` crate (PR #132, byte-identical
   ack-record JCS bytes AND byte-identical SHA-256 hex output
   verified against all five cross-lang ack-record fixtures).
@@ -263,10 +263,10 @@ log warning when the binary is not callable.
 
 ``WAKIR_SVID_WORKLOAD_IDENTITY_BACKEND``:
 
-* ``"python"`` (default) — Python SPIFFE Workload-API client
+* ``"python"`` — Python SPIFFE Workload-API client
   in :mod:`wirelang.persona_engine.svid_workload_identity`
   (OI-PEFR-2, grpcio-backed FetchX509SVID).
-* ``"rust"`` — Rust-CLI subprocess-bridge against the (future)
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge against the (future)
   ``persona-engine-svid-workload-identity`` crate (ADR-0065
   Welle-2 candidate; the binary is **opt-in only** during
   Phase-3b/3c — the resolver records ``binary_missing`` as the
@@ -287,6 +287,14 @@ log warning when the binary is not callable.
   ``tests/fixtures/federation-resolver-cross-lang/fixtures.json``).
   Falls back to ``"python"`` with a structured-log warning when the
   binary is not callable.
+
+``WAKIR_BRIDGE_AUDIT_WRITER_BACKEND``:
+
+* ``"python"`` — Python :mod:`wat.anchor.bridge_audit_writer`.
+* ``"rust"`` (default) — Rust-CLI subprocess-bridge against the
+  ``persona-engine-bridge-audit-writer`` crate. Falls back to
+  ``"python"`` with a structured-log warning when the binary is not
+  callable.
 
 ``WAKIR_RUST_RECOVERY_BIN``:
 
@@ -346,13 +354,23 @@ log warning when the binary is not callable.
 Unknown env-var values
 ----------------------
 
-Unknown values for either backend-switch env-var raise
+Unknown values for any backend-switch env-var raise
 :class:`BackendSwitchValidationError` at resolution time. This is
 strict on purpose: a typo in production-Quadlet env would otherwise
 silently fall back to ``python`` and operators would miss the Rust-
 default flip. Operators MUST opt out by writing ``python`` explicitly
-if they want the Python path; an unset env-var defaults to ``python``
-but a misspelled non-empty value is a hard error.
+if they want the Python path. An unset or empty env-var takes the
+per-variable default listed above — which after the ADR-0065 /
+ADR-0066 cutover waves of 2026-05-20 is the Rust backend for seven of
+the nine switches, not ``python``. A misspelled non-empty value stays
+a hard error.
+
+The per-variable defaults above are the ones
+``_validate_*_backend()`` returns for an unset value; they are the
+authority, not this prose. A Rust default is not the same as Rust in
+production: every Rust path still falls back to Python with a
+structured-log warning when the binary is not callable, and none of
+these switches has been operated under real load.
 
 Hermetic-test guarantee
 -----------------------
