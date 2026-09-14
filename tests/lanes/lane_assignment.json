@@ -18,11 +18,11 @@
   "method": "tooling/ci/lane_inventory.py (static targeting) cross-checked against a real pytest --collect-only run of every lane target",
   "python": "3.14.0 local; CI production lane pins 3.12",
   "test_modules": 414,
-  "required": 209,
+  "required": 292,
   "optional_ci": 20,
   "operator_hand": 2,
   "opt_in_marker": 20,
-  "unassigned": 163,
+  "unassigned": 80,
   "note": "Live counts. `tests/lanes/test_lane_assignment.py::test_measured_counts_are_current` re-derives these from the workflows on every run, so they cannot go stale in a report."
  },
  "required_contexts": [
@@ -102,34 +102,6 @@
     "read": "2026-09-14, GitHub Actions API"
    }
   },
-  "wat-core": {
-   "profile": "unassigned",
-   "reason": "The WAT/OTS suite — Merkle aggregator, manifest signing, anchor bridge, OTS verify, hash consistency. 46 of the 47 modules under tests/wat run in no workflow at all; the single exception, test_anchor_backend.py, is in a required lane. Measured at this baseline: `pytest tests/wat` = 535 passed, 32 skipped, 15s, no podman, no network, no cargo. There is no technical reason these do not run. Named invariants currently checked by no gate: Merkle-root construction and proof verification (test_merkle.py, 20 tests), manifest v1/v2 signature + schema admission (test_manifest_signing*.py, test_manifest_v2_*.py), the OTS full-verify path (test_ots_full_verify.py), cross-module anchor pin consistency (test_brand_demo_cross_module_anchor_pins.py), and the external-verifier parity check that survived ADR-0074 (test_external_verifier_parity.py). This is the proof path Phase 4 exists to seal.",
-   "owner": "tomas (wat/ots)",
-   "review_by": "2026-09-30",
-   "deliberate": false
-  },
-  "proof-path-driver": {
-   "profile": "unassigned",
-   "reason": "tests/scripts/test_demo_proof.py — 33 tests against scripts/demo-proof.sh and scripts/demo_proof_helpers.py, including fault injection via DEMO_PROOF_FAIL_STEP and the wakir_verify-absent path. The required `proof-path` context executes that driver end to end but runs none of its tests, so a driver refactor that breaks fault handling is caught only if it also breaks the happy path. Unchecked invariant: the driver reports a non-zero exit and a failed step for every injected fault.",
-   "owner": "tomas (wat/ots)",
-   "review_by": "2026-09-30",
-   "deliberate": false
-  },
-  "spec-freeze": {
-   "profile": "unassigned",
-   "reason": "Hermetic spec-freeze suites for wirelang-spec v0.4.1/v0.4.2/v0.4.3. The required `wirelang spec v0.4.3 freeze-seal probe` context verifies the seal envelope (tests/audit/test_wirelang_spec_freeze_seal_probe.py, via python -m unittest) but not the strict-superset property. Unchecked invariant: v0.4.3 is a strict superset freeze-marker over v0.4.2 with no substance diff (12 tests).",
-   "owner": "reza (wirelang/protocol)",
-   "review_by": "2026-09-30",
-   "deliberate": false
-  },
-  "cross-lang-parity": {
-   "profile": "unassigned",
-   "reason": "Python/Rust parity suites for persona-engine surfaces (bridge-forward, bridge-audit-writer, federation-resolver, SVID workload identity, federation frame parser, NATS subjects) that live under tests/ rather than wirelang/tests/ and therefore fall outside the one directory the required suite collects. Sibling parity suites inside wirelang/ are required; these are not. Unchecked invariant: the Rust and Python implementations of the same surface agree on the wire. 6 modules, 150 tests, hermetically green.",
-   "owner": "selin (persona-engine)",
-   "review_by": "2026-09-30",
-   "deliberate": false
-  },
   "spec-audit-evidence": {
    "profile": "unassigned",
    "reason": "Spec/ADR cross-audit and evidence-integrity suites (protocol mirror seed integrity, spec cross-validation, ADR errata cross-audit, v0.4.4 draft coverage). Three sibling modules in the same directory do run — via python -m unittest in the spec probes — which is why this directory looked covered from the workflow text. Unchecked invariant: the protocol mirror seeds and the ADR errata table stay consistent with the spec.",
@@ -151,13 +123,6 @@
    "review_by": "2026-10-31",
    "deliberate": false
   },
-  "observability-routing": {
-   "profile": "unassigned",
-   "reason": "Alert-routing, mira-notify emitter/receiver/DLQ and aggregator suites. Seven sibling modules in the same directory each have their own daily workflow; these 20 have none. Unchecked invariant: an alert rule that stops routing to its receiver — the Receiver-Catalog completeness class — is not caught by any gate.",
-   "owner": "noa (sre/monitoring)",
-   "review_by": "2026-10-31",
-   "deliberate": false
-  },
   "spire-federation-substrate": {
    "profile": "unassigned",
    "reason": "infra/spire/federation/tests/ — a third test root that is neither `tests/` nor `wirelang/` and is therefore invisible to both testpaths and every lane. 14 modules, 196 tests, hermetically green in 5s. Covers the federation bundle rotator, health endpoint status codes and the Prometheus metrics surface.",
@@ -168,13 +133,6 @@
   "script-driver": {
    "profile": "unassigned",
    "reason": "Hermetic tests for operational scripts (backend/routing decision observability, soak probes, the phase-3b live-VM driver, the legacy env-flag migration detector). The scripts are operator-hand; their tests are not, and run nowhere.",
-   "owner": "kai (container/infra)",
-   "review_by": "2026-10-31",
-   "deliberate": false
-  },
-  "integration-regression": {
-   "profile": "unassigned",
-   "reason": "tests/integration/test_bug_42_regression_suite.py — a named regression suite for a fixed bug, sitting next to the one integration module the required production lane does run. A regression suite that never runs cannot regress.",
    "owner": "kai (container/infra)",
    "review_by": "2026-10-31",
    "deliberate": false
@@ -395,8 +353,7 @@
    "profile": "required"
   },
   "tests/cli/test_bridge_forward_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/compat/test_check_compat.py": {
    "profile": "required"
@@ -414,16 +371,13 @@
    "profile": "required"
   },
   "tests/federation/test_federation_frame_parser.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/identity/test_federation_resolver_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/identity/test_svid_workload_identity_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/infra/test_acceptance_script_naming_convergence.py": {
    "profile": "unassigned",
@@ -600,8 +554,7 @@
    "profile": "required"
   },
   "tests/integration/test_bug_42_regression_suite.py": {
-   "profile": "unassigned",
-   "group": "integration-regression"
+   "profile": "required"
   },
   "tests/lanes/test_collect_gate.py": {
    "profile": "required"
@@ -617,24 +570,19 @@
    "group": "live-vm-operator"
   },
   "tests/observability/test_aggregator_failure_rate_tracker.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_alert_rule_to_mira_notify_bridge.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_bilanz_generator_validation_runs.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_branch_protection_required_checks_doc.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_cosign_g1_g2_operator_setup_guide.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_cosign_keyless_oidc_drift_probe.py": {
    "profile": "required"
@@ -649,68 +597,53 @@
    "profile": "optional-ci"
   },
   "tests/observability/test_lifecycle_state_machine_alert_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_marathon_closeout_alert_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_mira_notify_dlq.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_mira_notify_emitter.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_mira_notify_receiver.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_ots_probe_workflow_hygiene.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_phase_3_final_bilanz_generator.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_pre_cutover_daily_trend_analyzer.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_pre_cutover_probe_failure_rate_tracker.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_quadlet_15_binary_live_boot_test.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_recovery_workflow_alert_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_refresh_15_binary_sbom_baseline.py": {
    "profile": "operator-hand",
    "group": "sbom-baseline-operator"
   },
   "tests/observability/test_stability_window_doc_mirror_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_state_backing_alert_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_subscribe_loop_alert_routing.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_trinary_routing_verdict_tile.py": {
-   "profile": "unassigned",
-   "group": "observability-routing"
+   "profile": "required"
   },
   "tests/observability/test_verify_15_binary_build_reproducibility.py": {
    "profile": "optional-ci"
@@ -742,8 +675,7 @@
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_compose_spire_cosign_pin.py": {
-   "profile": "unassigned",
-   "group": "orchestrator-substrate"
+   "profile": "required"
   },
   "tests/orchestrator/test_init_nats_buckets.py": {
    "profile": "unassigned",
@@ -774,8 +706,7 @@
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_nats_py_pin.py": {
-   "profile": "unassigned",
-   "group": "orchestrator-substrate"
+   "profile": "required"
   },
   "tests/orchestrator/test_prometheus_textfile_adapter.py": {
    "profile": "unassigned",
@@ -798,8 +729,7 @@
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_resolve_image_pins.py": {
-   "profile": "unassigned",
-   "group": "orchestrator-substrate"
+   "profile": "required"
   },
   "tests/orchestrator/test_quadlet_nats.py": {
    "profile": "unassigned",
@@ -822,20 +752,16 @@
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_verify_image_digest.py": {
-   "profile": "unassigned",
-   "group": "orchestrator-substrate"
+   "profile": "required"
   },
   "tests/orchestrator/test_verify_image_digest_cosign_mock.py": {
-   "profile": "unassigned",
-   "group": "orchestrator-substrate"
+   "profile": "required"
   },
   "tests/persona_engine/test_bridge_audit_writer_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/persona_engine/test_nats_subjects.py": {
-   "profile": "unassigned",
-   "group": "cross-lang-parity"
+   "profile": "required"
   },
   "tests/scripts/test_backend_decision_observability.py": {
    "profile": "unassigned",
@@ -846,8 +772,7 @@
    "group": "script-driver"
   },
   "tests/scripts/test_demo_proof.py": {
-   "profile": "unassigned",
-   "group": "proof-path-driver"
+   "profile": "required"
   },
   "tests/scripts/test_legacy_env_flag_migration_detector.py": {
    "profile": "unassigned",
@@ -866,207 +791,157 @@
    "group": "script-driver"
   },
   "tests/specs/test_wirelang_spec_v0_4_1_drift_reconciliation.py": {
-   "profile": "unassigned",
-   "group": "spec-freeze"
+   "profile": "required"
   },
   "tests/specs/test_wirelang_spec_v0_4_1_federation_resolver_cross_lang_pin_refresh.py": {
-   "profile": "unassigned",
-   "group": "spec-freeze"
+   "profile": "required"
   },
   "tests/specs/test_wirelang_spec_v0_4_2_drift_s4_reconciliation.py": {
-   "profile": "unassigned",
-   "group": "spec-freeze"
+   "profile": "required"
   },
   "tests/specs/test_wirelang_spec_v0_4_3_pre_cutover_freeze.py": {
-   "profile": "unassigned",
-   "group": "spec-freeze"
+   "profile": "required"
   },
   "tests/wat/test_aggregator_prev_hour_root.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_aggregator_side_signing_e2e.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_aggregator_signing.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_aggregator_signing_pem.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor_backend.py": {
    "profile": "required"
   },
   "tests/wat/test_anchor_emitter_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor_kid_resolver.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor_latency_emission.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor_receipt_cli.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_anchor_submit_worker_cross_lang_parity.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_block_heights_collect_script.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_brand_demo_cross_module_anchor_pins.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_bridge.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_bridge_audit_wat_integration.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_bridge_audit_writer.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_bridge_audit_writer_consistency.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_e2e_aggregator_signed_tv2.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_e2e_pipeline.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_esplora_fallback.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_external_verifier_parity.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_external_verifier_real_tv2_sig.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_hash_consistency.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_signing.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_signing_schema.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_v1_schema_smoke.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_v2_audit_trail_kid_resolver.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_v2_schema_smoke.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_v2_verifier_sig_wireup.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_manifest_v2_verifier_stub.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_merkle.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_multi_calendar_failover_hardening.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_ots_full_verify.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_ots_full_verify_live_path_hermetic.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_ots_integration.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv1_one_hour_volume.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv2_chain_check_real.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv2_real_manifest_live_run.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv2_real_manifest_sig_verify.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv2_real_signed_fixture.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv2_run_persistent_script.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv3_backfill_leg.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv3_real_manifest_live_run.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv3_receipt_persistence_edges.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_tv3_run_persistent_script.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_verify.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/wat/test_verify_chain_check.py": {
-   "profile": "unassigned",
-   "group": "wat-core"
+   "profile": "required"
   },
   "tests/workflows/test_build_rust_cli_bridge_audit_writer.py": {
    "profile": "required"

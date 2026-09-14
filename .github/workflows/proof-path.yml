@@ -73,13 +73,39 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install -e .
+          python -m pip install -e . "pytest>=8.0"
 
       - name: Install wakir-verify (pinned commit)
         run: |
           set -euo pipefail
           python -m pip install "git+https://github.com/wakir-labs/wakir-verify@${WAKIR_VERIFY_PIN}"
           python -c 'import wakir_verify, wakir_verify.manifest, wakir_verify.merkle_proof; print("wakir_verify importable")'
+
+      # ------------------------------------------------------------------
+      # The driver's own tests (Welle-3 lane promotion, step 3).
+      # ------------------------------------------------------------------
+      #
+      # `tests/scripts/test_demo_proof.py` holds 38 tests against
+      # `scripts/demo-proof.sh` and `scripts/demo_proof_helpers.py`,
+      # including fault injection via `DEMO_PROOF_FAIL_STEP` and the
+      # wakir-verify-absent path. This context executes that driver end
+      # to end but ran none of its tests, so a refactor that breaks
+      # fault handling was caught only if it also broke the happy path —
+      # and a gate that only ever sees the happy path is not a gate.
+      #
+      # Placed in THIS context rather than in a generic hermetic lane,
+      # for a measured reason: two of its tests skip without
+      # `wakir_verify` importable, and this is the only job in the
+      # repository that installs it (pinned, step above). Elsewhere they
+      # would have been two more silent skips.
+      #
+      # Before the driver runs, so a broken driver fails as a test
+      # failure with a test name rather than as a report-validation
+      # error three steps later.
+      - name: Run the proof-path driver test suite
+        run: |
+          set -euo pipefail
+          python -m pytest tests/scripts/test_demo_proof.py -v --tb=short
 
       - name: Run the proof path (make demo-proof)
         id: demo
