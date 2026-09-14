@@ -98,6 +98,29 @@ jobs:
         # `-rs` so the skip reasons land in the log. The skip balance is
         # the main thing this lane is here to produce: a module that
         # skips in CI but runs locally is the finding, not the runtime.
+        #
+        # Directory targets minus an explicit ignore list, and the
+        # ignore list is the substance of this step. Every entry is a
+        # module that already has a lane of its own, and the first run
+        # of this workflow showed why re-running them here is not a
+        # harmless duplicate:
+        #
+        #   * `test_quadlet_lint.py` runs in `e2e-bringup-ci.yml` inside
+        #     a Fedora 40 container **on purpose**, because Ubuntu's
+        #     podman 4.9 rejects a Quadlet key the units use. On
+        #     `ubuntu-latest` it fails for a reason that says nothing
+        #     about the repository.
+        #   * `test_pilot_bringup_e2e_container.py` bind-mounts the
+        #     checkout into a container and overwrites two committed
+        #     SPIRE config files with stubs. In its own job nothing
+        #     reads them afterwards. Here it took 14 later tests with
+        #     it — a cascade with one cause and sixteen symptoms.
+        #
+        # `tooling/ci/lane_inventory.py` subtracts `--ignore` when it
+        # resolves lane targets, and
+        # `tests/lanes/test_lane_target_resolution.py` asserts that no
+        # module this lane targets has another lane, so the list cannot
+        # silently drift back.
         run: |
           set -o pipefail
           python -m pytest -v --tb=short -rs \
@@ -106,7 +129,68 @@ jobs:
             tests/orchestrator/ \
             tests/audit/ \
             tests/scripts/ \
-            infra/
+            infra/ \
+            --ignore=tests/audit/test_nats_jetstream_subjects_audit.py \
+            --ignore=tests/audit/test_res_d_items_ots_probe.py \
+            --ignore=tests/audit/test_wirelang_spec_freeze_seal_probe.py \
+            --ignore=tests/audit/test_wirelang_spec_ots_pre_anchor_probe.py \
+            --ignore=tests/infra/test_bootstrap_podman_volume_selinux_discipline.py \
+            --ignore=tests/infra/test_cross_substrate_parity_3way.py \
+            --ignore=tests/infra/test_hash_derivate_consistency.py \
+            --ignore=tests/infra/test_license_hygiene_consistency.py \
+            --ignore=tests/infra/test_licensing_md_state.py \
+            --ignore=tests/infra/test_phase_2_acceptance_gates.py \
+            --ignore=tests/infra/test_pilot_bringup_cleanup_bug_22_race.py \
+            --ignore=tests/infra/test_pilot_bringup_cleanup_bugs_16_to_18.py \
+            --ignore=tests/infra/test_pilot_bringup_cleanup_bugs_19_to_21.py \
+            --ignore=tests/infra/test_pilot_bringup_cleanup_bugs_1_to_15.py \
+            --ignore=tests/infra/test_pilot_bringup_e2e_container.py \
+            --ignore=tests/infra/test_pilot_bringup_single_org_config.py \
+            --ignore=tests/infra/test_pilot_bringup_substance.py \
+            --ignore=tests/infra/test_quadlet_lint.py \
+            --ignore=tests/infra/test_quadlet_selinux_relabel.py \
+            --ignore=tests/infra/test_spdx_header_consistency.py \
+            --ignore=tests/infra/test_vm_e2e_acceptance_gate.py \
+            --ignore=tests/orchestrator/test_compose_spire_cosign_pin.py \
+            --ignore=tests/orchestrator/test_nats_py_pin.py \
+            --ignore=tests/orchestrator/test_proxmox_resolve_image_pins.py \
+            --ignore=tests/orchestrator/test_verify_image_digest.py \
+            --ignore=tests/orchestrator/test_verify_image_digest_cosign_mock.py \
+            --ignore=tests/scripts/test_demo_proof.py
+
+      - name: Did the lane modify its own checkout?
+        # A test that writes into the working tree it runs from turns one
+        # defect into a cascade: every later test that reads the file sees
+        # stub content and fails for a reason that has nothing to do with
+        # it. That is exactly what the first run of this workflow did, and
+        # the sixteen symptoms were far more visible than the one cause.
+        #
+        # This step names the cause in one line. It is a diagnostic, not a
+        # gate — the lane is non-blocking, and a `git status` that is not
+        # clean is a finding to route to the module's owner rather than a
+        # verdict to issue here.
+        if: always()
+        run: |
+          set -uo pipefail
+          dirty="$(git status --porcelain)"
+          if [[ -n "${dirty}" ]]; then
+            echo "::warning::the observation lane modified its own checkout; \
+          the failures above may be downstream symptoms of that, not \
+          independent defects"
+            echo "${dirty}"
+            {
+              echo "### The lane modified its own checkout"
+              echo ""
+              echo "A test wrote into the working tree. Later tests that read"
+              echo "those files fail for a reason that is not about them."
+              echo ""
+              echo '```'
+              echo "${dirty}"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "working tree clean after the lane"
+          fi
 
       - name: Summary
         if: always()

@@ -17,8 +17,8 @@
   "date": "2026-09-15",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 415,
-  "required": 293,
+  "test_modules": 416,
+  "required": 294,
   "optional_ci": 100,
   "operator_hand": 2,
   "opt_in_marker": 20,
@@ -573,6 +573,9 @@
    "profile": "required"
   },
   "tests/lanes/test_lane_assignment.py": {
+   "profile": "required"
+  },
+  "tests/lanes/test_lane_target_resolution.py": {
    "profile": "required"
   },
   "tests/lanes/test_required_inheritance.py": {

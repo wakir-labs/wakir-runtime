@@ -90,6 +90,12 @@ class Lane:
     line: int
     runner: str  # "pytest" | "unittest"
     targets: tuple[str, ...]
+    #: Paths removed from the target set again via ``--ignore``. A lane
+    #: that points at a directory and ignores three files inside it
+    #: targets everything else in that directory and nothing more, and
+    #: the inventory has to say so — otherwise the assignment file
+    #: credits a lane with modules it never runs.
+    ignored: tuple[str, ...] = field(default=())
     unresolved: tuple[str, ...] = field(default=())
     events: tuple[str, ...] = field(default=())
     path_filtered: bool = False
@@ -219,17 +225,40 @@ def _split_runner_args(tokens: list[str]) -> tuple[str, list[str]] | None:
     return None
 
 
-def _targets_from_args(runner: str, args: list[str]) -> tuple[list[str], list[str]]:
-    """Return (resolved-target-strings, unresolved-tokens)."""
+#: Flags whose value is a path that pytest then does *not* run.
+_IGNORE_FLAGS = ("--ignore", "--ignore-glob", "--deselect")
+
+
+def _targets_from_args(
+    runner: str, args: list[str]
+) -> tuple[list[str], list[str], list[str]]:
+    """Return (resolved targets, unresolved tokens, ignored paths)."""
     targets: list[str] = []
     unresolved: list[str] = []
+    ignored: list[str] = []
     skip_next = False
+    expect_ignore = False
     for idx, token in enumerate(args):
         if skip_next:
             skip_next = False
             continue
+        if expect_ignore:
+            expect_ignore = False
+            ignored.append(token)
+            continue
         if token in {"-k", "-m", "--junitxml", "--junit-xml", "--override-ini"}:
             skip_next = True
+            continue
+        if token in _IGNORE_FLAGS:
+            expect_ignore = True
+            continue
+        matched = False
+        for flag in _IGNORE_FLAGS:
+            if token.startswith(f"{flag}="):
+                ignored.append(token.split("=", 1)[1])
+                matched = True
+                break
+        if matched:
             continue
         if token.startswith("-"):
             continue
@@ -242,7 +271,7 @@ def _targets_from_args(runner: str, args: list[str]) -> tuple[list[str], list[st
         else:
             targets.append(token)
         del idx
-    return targets, unresolved
+    return targets, unresolved, ignored
 
 
 #: What actually switches each skip-by-default marker on. Sources:
@@ -316,7 +345,7 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
                 split = _split_runner_args(tokens)
                 if split and "install" not in tokens:
                     runner, args = split
-                    targets, unresolved = _targets_from_args(runner, args)
+                    targets, unresolved, ignored = _targets_from_args(runner, args)
                     if targets or unresolved:
                         lanes.append(
                             Lane(
@@ -326,6 +355,7 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
                                 line=i + 1,
                                 runner=runner,
                                 targets=tuple(targets),
+                                ignored=tuple(ignored),
                                 unresolved=tuple(unresolved),
                                 events=events,
                                 path_filtered=path_filtered,
@@ -337,10 +367,9 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
     return lanes
 
 
-def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
-    """Test modules a lane points its runner at (targeting, not execution)."""
+def _expand(paths: tuple[str, ...], root: Path) -> set[str]:
     modules: set[str] = set()
-    for target in lane.targets:
+    for target in paths:
         path_part = target.split("::", 1)[0]
         candidate = root / path_part
         if candidate.is_dir():
@@ -349,6 +378,16 @@ def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
         elif candidate.is_file() and candidate.name.startswith("test_"):
             modules.add(candidate.relative_to(root).as_posix())
     return modules
+
+
+def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
+    """Test modules a lane points its runner at (targeting, not execution).
+
+    ``--ignore`` is subtracted. A directory target minus three files is
+    a lane over everything else in that directory; counting the three
+    would credit the lane with modules it demonstrably does not run.
+    """
+    return _expand(lane.targets, root) - _expand(lane.ignored, root)
 
 
 #: Markers that are skipped unless explicitly opted in (see
