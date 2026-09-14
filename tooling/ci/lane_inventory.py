@@ -341,23 +341,157 @@ def derive_profile(entry: dict) -> str:
     return "unassigned"
 
 
+#: Jobs that are not themselves a required context but whose result is
+#: turned into a required context's exit code. See
+#: ``inherited_required_jobs`` for why this is a profile-relevant fact
+#: and not a convenience.
+InheritedJob = tuple[str, str]  # (workflow file name, job id)
+
+
+def _yaml():
+    """PyYAML, imported late and loudly.
+
+    The inheritance derivation below decides whether a module is
+    ``required`` or merely ``optional-ci``. Degrading to "no inheritance"
+    when PyYAML happens to be absent would make the derived profile a
+    function of the local install set, and a lane assignment that changes
+    meaning with the environment is worse than none. So: hard error, with
+    the install hint in it.
+    """
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - environment guard
+        raise RuntimeError(
+            "lane_inventory needs PyYAML to resolve which jobs inherit a "
+            "required context's enforcement. Install it "
+            "(`pip install PyYAML`, or the `test` extra) — do not run this "
+            "tool without it, because the answer would silently change."
+        ) from exc
+    return yaml
+
+
+def _workflow_documents(workflow_dir: Path) -> dict[str, dict]:
+    yaml = _yaml()
+    out: dict[str, dict] = {}
+    for path in sorted(workflow_dir.glob("*.yml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            out[path.name] = data
+    return out
+
+
+def _needs_list(job: dict) -> list[str]:
+    needs = job.get("needs")
+    if isinstance(needs, str):
+        return [needs]
+    return [n for n in (needs or []) if isinstance(n, str)]
+
+
+def _dependencies_checked_first(job: dict) -> set[str]:
+    """Job ids whose ``.result`` the job's *first* step turns into an exit code.
+
+    Deliberately only the first step, and only an unconditional one. That
+    is the same contract
+    ``tests/workflows/test_required_context_error_propagation.py`` pins:
+    a later check can be papered over by an earlier green step, and a
+    conditional guard can be skipped and then fails open again.
+    """
+    yaml = _yaml()
+    steps = job.get("steps") or []
+    if not steps or not isinstance(steps[0], dict):
+        return set()
+    guard = steps[0]
+    if "if" in guard:
+        return set()
+    body = yaml.safe_dump(guard, allow_unicode=True)
+    return set(re.findall(r"needs\.([A-Za-z0-9_-]+)\.result", body))
+
+
+def inherited_required_jobs(
+    workflow_dir: Path = WORKFLOW_DIR,
+    required_contexts: frozenset[str] = frozenset(),
+) -> set[InheritedJob]:
+    """Jobs that carry a required context's enforcement without being one.
+
+    ADR-0075 §1 makes in-workflow aggregation the binding pattern: a
+    sammel-job with ``if: always()`` plus an explicit per-dependency
+    ``needs.<job>.result`` check, instead of a second required status
+    context per lane. A gate job under such an aggregator blocks merges
+    exactly as hard as the aggregator does — so for the purpose of "which
+    profile is this module in", it *is* a required lane.
+
+    The inheritance is granted only when the propagation is actually
+    intact:
+
+    * the aggregator declares the job in ``needs:``,
+    * it carries a job-level ``if:`` containing ``always()`` (otherwise a
+      red dependency skips it, and GitHub does not block a merge on a
+      skipped required check), and
+    * its first, unconditional step references ``needs.<job>.result``.
+
+    Miss any of the three and the job does not inherit. That is the
+    point: adding a job to ``needs:`` without adding it to the result
+    check is the fail-open defect of finding R6, and here it shows up a
+    second, independent time — as a module whose declared ``required``
+    profile no longer matches the derivation.
+
+    Resolved to a fixpoint, so a chain of aggregators propagates only as
+    far as the propagation is unbroken.
+    """
+    documents = _workflow_documents(workflow_dir)
+    inherited: set[InheritedJob] = set()
+    changed = True
+    while changed:
+        changed = False
+        for workflow, data in documents.items():
+            jobs = data.get("jobs") or {}
+            if not isinstance(jobs, dict):
+                continue
+            for job_id, job in jobs.items():
+                if not isinstance(job, dict):
+                    continue
+                enforcing = (
+                    job.get("name", job_id) in required_contexts
+                    or (workflow, job_id) in inherited
+                )
+                if not enforcing:
+                    continue
+                if "always()" not in str(job.get("if", "")):
+                    continue
+                checked = _dependencies_checked_first(job)
+                for dependency in _needs_list(job):
+                    if dependency not in checked:
+                        continue
+                    key = (workflow, dependency)
+                    if key not in inherited:
+                        inherited.add(key)
+                        changed = True
+    return inherited
+
+
 def build_inventory(
     root: Path = REPO_ROOT,
     required_contexts: frozenset[str] = frozenset(),
 ) -> dict[str, dict]:
     """Derived lane facts for every test module in the tree."""
-    lanes = parse_workflows(root / ".github" / "workflows")
+    workflow_dir = root / ".github" / "workflows"
+    lanes = parse_workflows(workflow_dir)
+    inherited = inherited_required_jobs(workflow_dir, required_contexts)
 
     def blank() -> dict:
         return {"lanes": [], "required_lanes": [], "reachability": []}
 
     inventory: dict[str, dict] = {module: blank() for module in discover_modules(root)}
     for lane in lanes:
+        enforced = (
+            lane.job_name in required_contexts
+            or (lane.workflow, lane.job_id) in inherited
+        )
         for module in sorted(resolve_lane_modules(lane, root)):
             entry = inventory.setdefault(module, blank())
             entry["lanes"].append(lane.lane_id)
             entry["reachability"].append(lane.reachability)
-            if lane.job_name in required_contexts:
+            if enforced:
                 entry["required_lanes"].append(lane.lane_id)
     for module, entry in inventory.items():
         entry["opt_in_markers"] = module_opt_in_markers(module, root)

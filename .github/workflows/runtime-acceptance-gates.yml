@@ -180,6 +180,64 @@ jobs:
             -k "test_gate_2_5_subscribe_loop_lag_mock" \
             -v --tb=short
 
+  lane-ci-meta:
+    name: Lane — CI meta (hermetic)
+    runs-on: ubuntu-latest
+    # Welle-3 lane promotion, step 2 (ADR-0075; CTO decision paper
+    # §1.3 table A, §1.7).
+    #
+    # `tests/ci/` holds the hermetic tests about the CI substrate
+    # itself: the branch-protection check-name audit that pins required
+    # status contexts against actual job display-names (the PR #102
+    # forever-pending class), and `test_validate_demo_proof_report.py`,
+    # the test module of the report validator that `STABILITY.md` cites
+    # as evidence. Neither ran in any workflow.
+    #
+    # Attached here rather than registered as its own required status
+    # context: a new context needs a branch-protection change plus an
+    # exact display name, and that is the failure class this lane is
+    # partly about. The aggregator below inherits the enforcement — as
+    # long as the job appears in BOTH `needs:` and the `GATE_RESULTS`
+    # block. Adding it to only one of the two is the R6 fail-open
+    # defect; `tests/lanes/test_required_inheritance.py` and
+    # `tests/workflows/test_required_context_error_propagation.py`
+    # catch that independently of each other.
+    #
+    # Whole directory, not a file list: a new module under `tests/ci/`
+    # should be in this lane by default, not by someone remembering.
+    # Two modules that were `optional-ci` (path-filtered probes for the
+    # live-VM rotation state machine and the OTS pre-anchor activation)
+    # are promoted along with them — both hermetic, both already on the
+    # PR surface, and a path filter is not enforcement.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install lane dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "PyYAML>=6.0" \
+            "jsonschema>=4.21" \
+            "rfc8785>=0.1.4" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0"
+      - name: Collect-gate (no module may vanish into an import guard)
+        # A module-level `pytest.importorskip` on something this lane is
+        # supposed to have installed yields zero node IDs and exit code
+        # 0 — green, and the module is simply gone. The lane asserts its
+        # own install set before it asserts anything about the code.
+        run: |
+          python tooling/ci/collect_gate.py --profile production --root tests/ci
+      - name: Run CI-meta suite
+        run: |
+          python -m pytest tests/ci/ -v --tb=short
+
   runtime-acceptance-gates:
     name: runtime acceptance gates
     runs-on: ubuntu-latest
@@ -204,6 +262,7 @@ jobs:
       - gate-2-3-v907-hash-stability-marker
       - gate-2-4-recovery-r1-r4-mock-drill
       - gate-2-5-subscribe-loop-lag-mock
+      - lane-ci-meta
     if: always()
     steps:
       - name: Require every gate job to have succeeded
@@ -219,6 +278,7 @@ jobs:
             gate-2-3-v907-hash-stability-marker=${{ needs.gate-2-3-v907-hash-stability-marker.result }}
             gate-2-4-recovery-r1-r4-mock-drill=${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }}
             gate-2-5-subscribe-loop-lag-mock=${{ needs.gate-2-5-subscribe-loop-lag-mock.result }}
+            lane-ci-meta=${{ needs.lane-ci-meta.result }}
         run: |
           set -euo pipefail
           bad=0
@@ -234,10 +294,10 @@ jobs:
             fi
           done <<< "${GATE_RESULTS}"
           if [ "${bad}" -ne 0 ]; then
-            echo "runtime acceptance gates: at least one gate job did not succeed" >&2
+            echo "runtime acceptance gates: at least one dependency job did not succeed" >&2
             exit 1
           fi
-          echo "runtime acceptance gates: all five gate jobs succeeded"
+          echo "runtime acceptance gates: every dependency job succeeded"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -271,6 +331,7 @@ jobs:
             echo "| Gate-2-3 V907-Hash-Stability-Marker         | ${{ needs.gate-2-3-v907-hash-stability-marker.result }} |"
             echo "| Gate-2-4 Recovery-R1..R4-Mock-Drill         | ${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }} |"
             echo "| Gate-2-5 Subscribe-Loop-Lag-Mock            | ${{ needs.gate-2-5-subscribe-loop-lag-mock.result }} |"
+            echo "| Lane — CI meta (hermetic)                   | ${{ needs.lane-ci-meta.result }} |"
             echo "| Aggregator (Cross-Gate Non-Interference)    | ${{ job.status }} |"
             echo ""
             echo "Anchors: ADR-0058, docs/quality-gates/phase-2-doppelbetrieb.md."

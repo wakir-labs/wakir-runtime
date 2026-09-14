@@ -17,12 +17,12 @@
   "date": "2026-09-14",
   "method": "tooling/ci/lane_inventory.py (static targeting) cross-checked against a real pytest --collect-only run of every lane target",
   "python": "3.14.0 local; CI production lane pins 3.12",
-  "test_modules": 413,
-  "required": 197,
-  "optional_ci": 22,
+  "test_modules": 414,
+  "required": 209,
+  "optional_ci": 20,
   "operator_hand": 2,
   "opt_in_marker": 20,
-  "unassigned": 172,
+  "unassigned": 163,
   "note": "Live counts. `tests/lanes/test_lane_assignment.py::test_measured_counts_are_current` re-derives these from the workflows on every run, so they cannot go stale in a report."
  },
  "required_contexts": [
@@ -128,13 +128,6 @@
    "reason": "Python/Rust parity suites for persona-engine surfaces (bridge-forward, bridge-audit-writer, federation-resolver, SVID workload identity, federation frame parser, NATS subjects) that live under tests/ rather than wirelang/tests/ and therefore fall outside the one directory the required suite collects. Sibling parity suites inside wirelang/ are required; these are not. Unchecked invariant: the Rust and Python implementations of the same surface agree on the wire. 6 modules, 150 tests, hermetically green.",
    "owner": "selin (persona-engine)",
    "review_by": "2026-09-30",
-   "deliberate": false
-  },
-  "ci-meta": {
-   "profile": "unassigned",
-   "reason": "Hermetic tests about the CI substrate itself. Includes test_branch_protection_check_names_audit.py, which pins required-status-check names against actual job display-names — the exact PR #102 forever-pending failure class — and test_validate_demo_proof_report.py, the report validator the required proof-path context invokes. Unchecked invariant: a workflow edit that renames a protected job display-name is caught hermetically instead of as a stuck pull request.",
-   "owner": "kai (container/infra)",
-   "review_by": "2026-10-31",
    "deliberate": false
   },
   "spec-audit-evidence": {
@@ -369,46 +362,37 @@
    "group": "spec-audit-evidence"
   },
   "tests/ci/test_adr_0068_migration_step_3.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_archaeology_lint.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_branch_protection_check_names_audit.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_build_wakir_provisioner_workflow.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_ci_aggregator_workflow.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_image_pin_idempotent_resolver.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_k1_k2_containerfile_ots.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_live_vm_rotation_state_machine.py": {
-   "profile": "optional-ci"
+   "profile": "required"
   },
   "tests/ci/test_ots_pre_anchor_activation_probe.py": {
-   "profile": "optional-ci"
+   "profile": "required"
   },
   "tests/ci/test_reuse_wrap_pre_merge_lint.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/ci/test_validate_demo_proof_report.py": {
-   "profile": "unassigned",
-   "group": "ci-meta"
+   "profile": "required"
   },
   "tests/cli/test_bridge_forward_cross_lang_parity.py": {
    "profile": "unassigned",
@@ -623,6 +607,9 @@
    "profile": "required"
   },
   "tests/lanes/test_lane_assignment.py": {
+   "profile": "required"
+  },
+  "tests/lanes/test_required_inheritance.py": {
    "profile": "required"
   },
   "tests/live_vm/test_phase_2_doppelbetrieb_live.py": {
