@@ -185,6 +185,40 @@ jobs:
         run: |
           python -m pytest tests/lanes/ -v --tb=short
 
+      # ------------------------------------------------------------------
+      # Workflow-shape suite (ADR-0075 / Welle-3 lane promotion, step 1).
+      # ------------------------------------------------------------------
+      #
+      # `tests/workflows/` holds the hermetic structure tests over
+      # `.github/workflows/*.yml`, and among them the one guard that every
+      # other gate in this repository depends on:
+      # `test_required_context_error_propagation.py` asserts that a
+      # required status context built on `needs:` cannot fail open — it
+      # must carry `if: always()` AND turn every `needs.<job>.result` into
+      # its own exit code before it runs anything else.
+      #
+      # It is attached HERE, to a job whose display name is already a
+      # branch-protection context, and deliberately NOT to a new gate job
+      # under `runtime-acceptance-gates.yml`. Two reasons, both load-
+      # bearing:
+      #
+      #   1. Ordering. The next step of the Welle-3 promotion extends the
+      #      acceptance-gate aggregator with new `needs:` entries. If the
+      #      guard only became live *through* that same change, the change
+      #      itself would be the first thing it never checked. Wiring the
+      #      guard into an independent, already-required lane first makes
+      #      the aggregator extension the first edit the guard covers.
+      #   2. Dependencies. This lane installs PyYAML. The guard module
+      #      opens with `pytest.importorskip("yaml")`, so in a fresh gate
+      #      job that installs only `-e . pytest` it would collect zero
+      #      tests and report green without checking anything — the exact
+      #      class of defect it exists to catch.
+      #
+      # Cost: 177 tests, under two seconds.
+      - name: Workflow-shape suite (fail-open guard over required contexts)
+        run: |
+          python -m pytest tests/workflows/ -v --tb=short
+
       - name: Run wirelang test suite (production lane)
         id: run
         # Expectation: full collected set passes; no importorskip-skips

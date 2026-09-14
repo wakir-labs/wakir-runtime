@@ -18,11 +18,11 @@
   "method": "tooling/ci/lane_inventory.py (static targeting) cross-checked against a real pytest --collect-only run of every lane target",
   "python": "3.14.0 local; CI production lane pins 3.12",
   "test_modules": 413,
-  "required": 192,
+  "required": 197,
   "optional_ci": 22,
   "operator_hand": 2,
   "opt_in_marker": 20,
-  "unassigned": 177,
+  "unassigned": 172,
   "note": "Live counts. `tests/lanes/test_lane_assignment.py::test_measured_counts_are_current` re-derives these from the workflows on every run, so they cannot go stale in a report."
  },
  "required_contexts": [
@@ -113,13 +113,6 @@
    "profile": "unassigned",
    "reason": "tests/scripts/test_demo_proof.py — 33 tests against scripts/demo-proof.sh and scripts/demo_proof_helpers.py, including fault injection via DEMO_PROOF_FAIL_STEP and the wakir_verify-absent path. The required `proof-path` context executes that driver end to end but runs none of its tests, so a driver refactor that breaks fault handling is caught only if it also breaks the happy path. Unchecked invariant: the driver reports a non-zero exit and a failed step for every injected fault.",
    "owner": "tomas (wat/ots)",
-   "review_by": "2026-09-30",
-   "deliberate": false
-  },
-  "workflow-shape": {
-   "profile": "unassigned",
-   "reason": "Hermetic structure tests over .github/workflows/*.yml. Contains the guard that matters most for every other gate in this repo: test_required_context_error_propagation.py asserts that a required context using `needs:` cannot fail open by being skipped (a skipped required check does not block a merge). That guard was added in this very baseline commit and runs nowhere. Unchecked invariant: no required status context can silently disappear when an upstream job fails.",
-   "owner": "kai (container/infra)",
    "review_by": "2026-09-30",
    "deliberate": false
   },
@@ -1089,24 +1082,19 @@
    "group": "wat-core"
   },
   "tests/workflows/test_build_rust_cli_bridge_audit_writer.py": {
-   "profile": "unassigned",
-   "group": "workflow-shape"
+   "profile": "required"
   },
   "tests/workflows/test_build_rust_cli_images.py": {
-   "profile": "unassigned",
-   "group": "workflow-shape"
+   "profile": "required"
   },
   "tests/workflows/test_build_rust_cli_svid_workload_identity.py": {
-   "profile": "unassigned",
-   "group": "workflow-shape"
+   "profile": "required"
   },
   "tests/workflows/test_build_rust_cli_v907_verify.py": {
-   "profile": "unassigned",
-   "group": "workflow-shape"
+   "profile": "required"
   },
   "tests/workflows/test_required_context_error_propagation.py": {
-   "profile": "unassigned",
-   "group": "workflow-shape"
+   "profile": "required"
   },
   "wirelang/persona_engine/tests/test_nats_jetstream_loss_recovery_a8.py": {
    "profile": "required"
