@@ -290,8 +290,8 @@ on operator-run evidence rather than on a standing gate.
 | 1 | `tests.yml` (two required contexts), `wirelang-spec-freeze-seal-probe.yml`, `hash-derivate-gate.yml` |
 | 2 | `proof-path.yml` (bridge leg), `runtime-acceptance-gates.yml`, `v907-persona-hash-pin-build-step.yml` |
 | 3 | `proof-path.yml` (spool, manifest, proof legs), `tests.yml` |
-| 4 | `proof-path.yml` (external leg plus report validation), `cross-repo-compat.yml`, `external-verifier-drift.yml` |
-| 5 | `containerfile-digest-pin-gate.yml`, `cosign-verify-images.yml`, `cross-substrate-parity-gate.yml`, and daily supply-chain workflows. The live bring-up evidence (`live-vm-acceptance.yml`, the real leg of `e2e-vm-acceptance-gate.yml`) is dispatch-only and therefore point-in-time, not standing. |
+| 4 | `proof-path.yml` (external leg plus report validation), `cross-repo-compat.yml` |
+| 5 | `containerfile-digest-pin-gate.yml`, `cosign-verify-images.yml`, `cross-substrate-parity-gate.yml`, and daily supply-chain workflows. The live bring-up lanes (`live-vm-acceptance.yml`, the real leg of `e2e-vm-acceptance-gate.yml`) are dispatch-only — and measured 2026-09-14, neither has ever been dispatched. Treat live bring-up as unexercised in CI, not as point-in-time evidence. |
 
 Current branch-protection state for these contexts is inventoried in
 [`docs/ci/branch-protection-required-checks.md`](../ci/branch-protection-required-checks.md).
