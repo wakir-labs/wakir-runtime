@@ -30,6 +30,23 @@ This is **targeting**, not execution:
 * Both ``pytest`` and ``python -m unittest`` invocations are parsed.
   Three workflows — one of them a *required* context — drive test modules
   through ``unittest``, so a pytest-only scan under-reports.
+* **Inherited enforcement is modelled** (Welle 3, ADR-0075 §1). A gate
+  job under an aggregator is not itself a branch-protection context, but
+  a red gate job turns the aggregator red and the aggregator blocks the
+  merge — so its modules are ``required``. The inheritance is granted
+  only while the propagation is intact: the job is in ``needs:``, the
+  aggregator carries ``if: always()``, and its first unconditional step
+  turns ``needs.<job>.result`` into an exit code. Miss one and the
+  modules fall back to ``optional-ci``, which is how the fail-open defect
+  of finding R6 becomes visible here as well as in
+  ``tests/workflows/test_required_context_error_propagation.py``.
+* **A skip-by-default marker outranks a lane that does not switch it
+  on.** Pointing a runner at a module guarded by ``phase_3c_*``,
+  ``phase_3_skeleton`` or ``live_vm`` collects its tests and skips every
+  one of them. Reporting that as a lane would be the exact claim this
+  inventory exists to prevent, so such a module stays
+  ``opt-in-marker`` — unless the workflow actually sets the documented
+  variable or flag (``MARKER_SWITCHES``), which the live-VM lane does.
 
 Usage::
 

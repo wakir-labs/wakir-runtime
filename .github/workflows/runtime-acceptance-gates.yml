@@ -59,6 +59,30 @@
 # --------------
 # Trigger form, Python setup, dependency pin and stage layout match
 # `license-gate.yml` and `hash-derivate-gate.yml`.
+#
+# The name no longer fits, on purpose (Welle 3, ADR-0075)
+# ------------------------------------------------------
+# Since the Welle-3 lane promotion this workflow also carries three jobs
+# that are not Phase-2 acceptance gates at all: `lane-ci-meta`,
+# `lane-wat-core` and `lane-hermetic-invariants`. They are here because
+# ADR-0075 §1 makes in-workflow aggregation the binding pattern and the
+# aggregator below is the only branch-protection context of this file —
+# so a lane attached to it inherits enforcement without a new required
+# context, without a branch-protection change, and without the exact-
+# display-name failure class that left PR #102 pending forever.
+#
+# The price is a workflow whose name describes part of its contents.
+# We carry that deliberately. **Renaming the aggregator job is
+# forbidden**: its display name IS the branch-protection context, and
+# renaming it would leave every pull request waiting for a check that
+# never reports, i.e. it would switch this lane off while looking like
+# tidying up.
+#
+# Every job in `needs:` must also appear in the `GATE_RESULTS` block of
+# the aggregator's first step. A job in one and not the other is a
+# fail-open gate (finding R6). Two independent tests catch it:
+# `tests/workflows/test_required_context_error_propagation.py` and
+# `tests/lanes/test_required_inheritance.py`.
 
 name: runtime-acceptance-gates
 

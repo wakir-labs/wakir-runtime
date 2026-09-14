@@ -215,7 +215,7 @@ def test_a_well_formed_renewal_passes() -> None:
             renewal_reason=(
                 "The SPIRE federation root has now run in CI four times "
                 "without a divergence from local behaviour; the promotion "
-                "waits on Kai's capacity, not on evidence."
+                "waits on maintainer capacity, not on evidence."
             ),
         ),
         TODAY,
@@ -312,7 +312,7 @@ def test_renewing_properly_is_accepted() -> None:
             "review_by": "2026-12-31",
             "renewed_on": "2026-09-15",
             "renewal_reason": (
-                "The manual opt-in run is scheduled for the week of the "
+                "The manual opt-in run is scheduled for the week of "
                 "2026-10-05 and needs an operator window that does not exist "
                 "before then."
             ),
