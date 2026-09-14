@@ -6,9 +6,27 @@
 This is the hard-fail half of ``.github/workflows/proof-path.yml``.
 ``scripts/demo-proof.sh`` deliberately exits 0 when a step is
 ``skipped`` (a fresh clone without wakir-verify must still produce a
-usable report). The CI gate is stricter: every step must have run and
-succeeded, and the report must describe the commit CI is actually
-checking.
+usable report). This validator does not: **the default profile is
+strict**, and strict means every step ran, succeeded, and carries
+step details that do not contradict that verdict.
+
+Profiles
+--------
+
+``strict`` (default, and the only profile CI runs)
+    Every one of the five steps has status exactly ``ok`` and an
+    ``exit_code`` that is exactly the integer ``0``. Missing,
+    ``unknown``, ``skipped``, ``failed``, ``not_run`` and any status
+    string the driver does not define are all rejected. The detail
+    flags the driver writes for a successful step must agree with the
+    status (see ``REQUIRED_TRUE_DETAILS`` below).
+
+``--allow-skipped-external-verify`` (developer convenience, never CI)
+    The one documented relaxation: ``external_verify`` may be
+    ``skipped`` with ``exit_code`` 20, for a local run in an
+    environment where ``wakir_verify`` is not importable. Every other
+    rule stays in force. The proof path does not pass this flag, and
+    ``tests/ci/test_validate_demo_proof_report.py`` pins that.
 
 Rules (each violation is reported, any violation exits non-zero):
 
@@ -17,15 +35,31 @@ Rules (each violation is reported, any violation exits non-zero):
 3. ``steps`` is a list of exactly five objects whose ``name`` values
    are, in order: ``protocol_event``, ``runtime_bridge``,
    ``merkle_manifest``, ``inclusion_proof``, ``external_verify``.
-4. Every step carries a ``status`` string and an integer ``exit_code``.
-5. No step has status ``failed`` or ``not_run``.
-6. With ``--require-external-verify-ok`` the ``external_verify`` step
-   must have status ``ok`` (a ``skipped`` step is a hard failure).
+4. Every step carries a ``status`` string from the allow-list of the
+   active profile — ``ok`` for every step in the strict profile.
+5. Every step's ``exit_code`` is the integer that the driver pairs
+   with that status (``ok`` -> 0, ``skipped`` -> 20). Booleans are not
+   integers here, and ``ok`` with a non-zero code is a contradiction,
+   not a rounding error.
+6. Step details do not contradict the step status: a successful
+   ``external_verify`` carries ``manifest_consistent``, ``root_match``,
+   ``leaf_present`` and ``proof_verified``, all boolean ``true``; a
+   successful ``inclusion_proof`` carries ``verified: true``; a
+   successful ``runtime_bridge`` carries ``bridge_status: "ok"``. No
+   successful step carries ``fault_injected``, and no successful
+   ``merkle_manifest`` carries ``envelope_projection_used: true``
+   (the spool, not the envelope, is the input of the manifest step —
+   see ``scripts/demo_proof_helpers.py``).
 7. ``commits.wakir_runtime`` equals the expected commit, taken from
    ``--expect-commit`` or, when that flag is absent, from the
    ``GITHUB_SHA`` environment variable. If neither is set the check
    is skipped with a note (local runs without CI context).
-8. Top-level ``exit_code`` is ``0``.
+8. Top-level ``exit_code`` is the integer ``0``.
+
+``--require-external-verify-ok`` is accepted for compatibility with
+callers written against the old permissive default. It is a no-op:
+the strict profile already requires it, and it additionally overrides
+``--allow-skipped-external-verify`` if both are passed.
 
 Exit codes: ``0`` valid, ``1`` validation failure, ``2`` usage or
 unreadable input. Stdlib only; no third-party imports.
@@ -38,7 +72,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 REPORT_SCHEMA = "wakir-demo-proof/v1"
 
@@ -50,20 +84,131 @@ STEP_NAMES = (
     "external_verify",
 )
 
-FORBIDDEN_STATUSES = ("failed", "not_run")
+#: Status -> the exit code ``scripts/demo_proof_helpers.py`` pairs with
+#: it. A report that disagrees with this map is self-contradictory,
+#: whatever the status string says.
+EXIT_CODE_BY_STATUS: Dict[str, int] = {
+    "ok": 0,
+    "skipped": 20,
+    "failed": 10,
+    "not_run": 30,
+}
+
+#: The allow-list. Not a deny-list: an unknown status string
+#: (``banana``, ``passed``, ``""``) must be rejected, not tolerated
+#: because nobody thought to forbid it.
+STRICT_ALLOWED_STATUSES: Tuple[str, ...] = ("ok",)
+
+#: Detail flags the driver writes for a *successful* step. They are
+#: the step's own verdict about its substance; a green status on top
+#: of a false flag is the contradiction this validator exists to
+#: catch. Keys must be present and boolean ``true``.
+#: Source of truth: ``scripts/demo-proof.sh`` step 4 / step 5 and
+#: ``do_external_verify`` in ``scripts/demo_proof_helpers.py``.
+REQUIRED_TRUE_DETAILS: Dict[str, Tuple[str, ...]] = {
+    "inclusion_proof": ("verified",),
+    "external_verify": (
+        "manifest_consistent",
+        "root_match",
+        "leaf_present",
+        "proof_verified",
+    ),
+}
+
+#: Detail fields that must carry an exact value on a successful step.
+REQUIRED_DETAIL_VALUES: Dict[str, Dict[str, Any]] = {
+    "runtime_bridge": {"bridge_status": "ok"},
+}
+
+#: Detail flags that must be absent or falsy on a successful step.
+#: ``fault_injected`` is the driver's test-mode marker; a fault-injected
+#: run is never a proof. ``envelope_projection_used`` marks a manifest
+#: built from repaired spool input (``--allow-envelope-projection``),
+#: which the strict profile does not accept as evidence.
+FORBIDDEN_TRUE_DETAILS: Dict[str, Tuple[str, ...]] = {
+    "protocol_event": ("fault_injected",),
+    "runtime_bridge": ("fault_injected",),
+    "merkle_manifest": ("fault_injected", "envelope_projection_used"),
+    "inclusion_proof": ("fault_injected",),
+    "external_verify": ("fault_injected",),
+}
 
 EXIT_VALID = 0
 EXIT_INVALID = 1
 EXIT_USAGE = 2
 
 
+def _is_true(value: Any) -> bool:
+    """``True`` only for the JSON boolean, and for the strings the
+    bash driver writes through ``--kv`` (which has no JSON types)."""
+    if isinstance(value, bool):
+        return value
+    return isinstance(value, str) and value.strip().lower() == "true"
+
+
+def _allowed_statuses(step_name: str, *, allow_skipped_external: bool) -> Tuple[str, ...]:
+    if allow_skipped_external and step_name == "external_verify":
+        return ("ok", "skipped")
+    return STRICT_ALLOWED_STATUSES
+
+
+def _check_details(step: Dict[str, Any], name: str, label: str) -> List[str]:
+    """Cross-check a *successful* step's details against its status."""
+    violations: List[str] = []
+    details = step.get("details")
+    if not isinstance(details, dict):
+        violations.append(f"{label}: details missing or not an object")
+        return violations
+
+    for key in REQUIRED_TRUE_DETAILS.get(name, ()):
+        if key not in details:
+            violations.append(
+                f"{label}: status 'ok' but details.{key} is missing; a successful "
+                "step must carry its own verdict"
+            )
+        elif not _is_true(details[key]):
+            violations.append(
+                f"{label}: status 'ok' contradicts details.{key}={details[key]!r}"
+            )
+
+    for key, expected in REQUIRED_DETAIL_VALUES.get(name, {}).items():
+        if key not in details:
+            violations.append(
+                f"{label}: status 'ok' but details.{key} is missing "
+                f"(expected {expected!r})"
+            )
+        elif details[key] != expected:
+            violations.append(
+                f"{label}: status 'ok' contradicts details.{key}={details[key]!r}, "
+                f"expected {expected!r}"
+            )
+
+    for key in FORBIDDEN_TRUE_DETAILS.get(name, ()):
+        if key in details and _is_true(details[key]):
+            violations.append(
+                f"{label}: status 'ok' contradicts details.{key}={details[key]!r}"
+            )
+
+    return violations
+
+
 def validate_report(
     report: Any,
     *,
-    require_external_verify_ok: bool,
-    expected_commit: Optional[str],
+    allow_skipped_external_verify: bool = False,
+    expected_commit: Optional[str] = None,
+    require_external_verify_ok: bool = False,
 ) -> List[str]:
-    """Return a list of human-readable violations. Empty list == valid."""
+    """Return a list of human-readable violations. Empty list == valid.
+
+    ``allow_skipped_external_verify`` is the only relaxation; the
+    default is the strict profile that ``proof-path.yml`` runs.
+    ``require_external_verify_ok`` is the compatibility flag: it
+    cancels the relaxation, so passing both is strict.
+    """
+    if require_external_verify_ok:
+        allow_skipped_external_verify = False
+
     violations: List[str] = []
 
     if not isinstance(report, dict):
@@ -105,40 +250,40 @@ def validate_report(
             continue
         name = step.get("name")
         label = f"{label} ({name})" if isinstance(name, str) else label
+
+        allowed = _allowed_statuses(
+            name if isinstance(name, str) else "",
+            allow_skipped_external=allow_skipped_external_verify,
+        )
         status = step.get("status")
+        status_ok = False
         if not isinstance(status, str) or not status:
             violations.append(f"{label}: status missing or not a string")
-        elif status in FORBIDDEN_STATUSES:
+        elif status not in allowed:
             reason = ""
             details = step.get("details")
             if isinstance(details, dict):
                 reason = details.get("error") or details.get("reason") or ""
             violations.append(
-                f"{label}: status {status!r} is not allowed in CI"
-                + (f" — {reason}" if reason else "")
+                f"{label}: status {status!r} is not accepted; allowed here: "
+                f"{list(allowed)}" + (f" — {reason}" if reason else "")
             )
+        else:
+            status_ok = True
+
         code = step.get("exit_code")
         if not isinstance(code, int) or isinstance(code, bool):
             violations.append(f"{label}: exit_code missing or not an integer")
+        elif status_ok:
+            expected_code = EXIT_CODE_BY_STATUS[status]
+            if code != expected_code:
+                violations.append(
+                    f"{label}: status {status!r} requires exit_code "
+                    f"{expected_code}, got {code!r}"
+                )
 
-    if require_external_verify_ok:
-        ev = next(
-            (
-                s
-                for s in steps
-                if isinstance(s, dict) and s.get("name") == "external_verify"
-            ),
-            None,
-        )
-        if ev is None:
-            violations.append("external_verify: step missing (required ok)")
-        elif ev.get("status") != "ok":
-            details = ev.get("details") if isinstance(ev.get("details"), dict) else {}
-            reason = details.get("reason") or details.get("error") or ""
-            violations.append(
-                f"external_verify: status {ev.get('status')!r}, required 'ok'"
-                + (f" — {reason}" if reason else "")
-            )
+        if status_ok and status == "ok" and isinstance(name, str):
+            violations.extend(_check_details(step, name, label))
 
     commits = report.get("commits")
     if not isinstance(commits, dict):
@@ -152,7 +297,7 @@ def validate_report(
             )
 
     top_code = report.get("exit_code")
-    if top_code != 0 or isinstance(top_code, bool):
+    if not isinstance(top_code, int) or isinstance(top_code, bool) or top_code != 0:
         violations.append(f"exit_code: expected 0, got {top_code!r}")
 
     return violations
@@ -166,13 +311,28 @@ def _load(path: Path) -> Any:
 def parse_args(argv: Iterable[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="validate_demo_proof_report",
-        description="Hard-fail validator for wakir-demo-proof/v1 reports (proof-path CI gate).",
+        description=(
+            "Hard-fail validator for wakir-demo-proof/v1 reports "
+            "(proof-path CI gate). Strict by default."
+        ),
     )
     parser.add_argument("report", type=Path, help="Path to demo-report.json")
     parser.add_argument(
+        "--allow-skipped-external-verify",
+        action="store_true",
+        help=(
+            "Developer convenience for a local run without wakir-verify: "
+            "accept external_verify with status 'skipped' / exit_code 20. "
+            "The CI proof path never sets this."
+        ),
+    )
+    parser.add_argument(
         "--require-external-verify-ok",
         action="store_true",
-        help="Fail unless the external_verify step has status 'ok'.",
+        help=(
+            "Compatibility no-op: the default profile already requires it. "
+            "Overrides --allow-skipped-external-verify when both are given."
+        ),
     )
     parser.add_argument(
         "--expect-commit",
@@ -201,8 +361,9 @@ def main(argv: Iterable[str]) -> int:
 
     violations = validate_report(
         report,
-        require_external_verify_ok=args.require_external_verify_ok,
+        allow_skipped_external_verify=args.allow_skipped_external_verify,
         expected_commit=expected_commit,
+        require_external_verify_ok=args.require_external_verify_ok,
     )
 
     if violations:
@@ -214,6 +375,11 @@ def main(argv: Iterable[str]) -> int:
             print(f"  - {v}", file=sys.stderr)
         return EXIT_INVALID
 
+    profile = (
+        "local (external_verify may be skipped)"
+        if args.allow_skipped_external_verify and not args.require_external_verify_ok
+        else "strict"
+    )
     statuses = [
         f"{s.get('name')}={s.get('status')}"
         for s in report.get("steps", [])
@@ -222,7 +388,9 @@ def main(argv: Iterable[str]) -> int:
     commit_note = (
         f"commit={expected_commit}" if expected_commit else "commit check skipped (no GITHUB_SHA)"
     )
-    print(f"validate-demo-proof: OK — {', '.join(statuses)}; {commit_note}")
+    print(
+        f"validate-demo-proof: OK [{profile}] — {', '.join(statuses)}; {commit_note}"
+    )
     return EXIT_VALID
 
 
