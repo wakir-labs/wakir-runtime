@@ -17,8 +17,8 @@
   "date": "2026-09-14",
   "method": "tooling/ci/lane_inventory.py (static targeting) cross-checked against a real pytest --collect-only run of every lane target",
   "python": "3.14.0 local; CI production lane pins 3.12",
-  "test_modules": 414,
-  "required": 292,
+  "test_modules": 415,
+  "required": 293,
   "optional_ci": 100,
   "operator_hand": 2,
   "opt_in_marker": 20,
@@ -567,6 +567,9 @@
    "profile": "required"
   },
   "tests/lanes/test_collect_gate.py": {
+   "profile": "required"
+  },
+  "tests/lanes/test_exemption_expiry.py": {
    "profile": "required"
   },
   "tests/lanes/test_lane_assignment.py": {

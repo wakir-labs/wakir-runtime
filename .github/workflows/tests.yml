@@ -186,6 +186,37 @@ jobs:
           python -m pytest tests/lanes/ -v --tb=short
 
       # ------------------------------------------------------------------
+      # Exemption expiry (ADR-0075 §3, approved 2026-09-15, hard variant).
+      # ------------------------------------------------------------------
+      #
+      # The pytest module above is the gate: an expired `review_by` in
+      # `tests/lanes/lane_assignment.json` fails this required context.
+      # The step below adds the half a hermetic test cannot do — it
+      # compares the file against the pull request's base commit and
+      # refuses a review date that moved without `renewed_on` and
+      # `renewal_reason`. Without it, the way out of a red lane is to
+      # edit one character on the morning it goes red.
+      #
+      # `--require-base` on purpose: if the base version cannot be read,
+      # the check must say so and fail rather than pass quietly. A check
+      # that silently becomes a no-op is the defect class this whole
+      # wave is about.
+      - name: Exemption renewal check (review dates may not move silently)
+        if: github.event_name == 'pull_request'
+        run: |
+          python tooling/ci/check_exemption_renewal.py \
+            --base-ref "${{ github.event.pull_request.base.sha }}" \
+            --require-base
+
+      - name: Exemption expiry — summary
+        # Always, including on a red run: the 14-day warning window is
+        # the damper ADR-0075 §3 asks for, and a damper nobody sees is
+        # not a damper. Never fails on its own.
+        if: always()
+        run: |
+          python tooling/ci/exemption_expiry.py --summary
+
+      # ------------------------------------------------------------------
       # Workflow-shape suite (ADR-0075 / Welle-3 lane promotion, step 1).
       # ------------------------------------------------------------------
       #
