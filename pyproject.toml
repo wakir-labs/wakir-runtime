@@ -406,7 +406,19 @@ wirelang = ["**/*.json"]
 # ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# Every directory that holds test modules, in the order a reader would
+# expect them. This is a statement about where the tests *are*, not about
+# what CI executes -- the two are different in this repository and the
+# difference is recorded per module in `tests/lanes/lane_assignment.json`.
+#
+# It used to read ["tests"], which was the single most misleading line in
+# the repository: the main CI lane runs `pytest wirelang/` and touches no
+# part of `tests/` wholesale, while `infra/spire/federation/tests/` was
+# invisible to both. A bare `pytest` therefore collected the one tree CI
+# does not run and skipped one it does.
+# `tests/lanes/test_lane_assignment.py::test_testpaths_covers_every_test_root`
+# keeps this list equal to `lane_inventory.TEST_ROOTS`.
+testpaths = ["tests", "wirelang", "infra"]
 addopts = "-q"
 filterwarnings = [
     "error::DeprecationWarning:wat.*",
