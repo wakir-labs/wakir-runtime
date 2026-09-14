@@ -139,6 +139,13 @@ jobs:
           python -m pytest tests/infra/test_phase_2_acceptance_gates.py \
             -k "test_gate_2_3_v907_hash_stability_marker" \
             -v --tb=short
+      - name: TEMPORARY R6 negative control — force this gate job red
+        # Reverted in the next commit. Proves that the required context
+        # `runtime acceptance gates` goes RED (not skipped, not green)
+        # when a single gate job fails.
+        run: |
+          echo "::error::R6 negative control: forcing gate-2-3 to fail"
+          exit 1
 
   gate-2-4-recovery-r1-r4-mock-drill:
     name: Gate-2-4 Recovery-R1..R4-Mock-Drill
