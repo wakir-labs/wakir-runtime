@@ -6,6 +6,11 @@ substrate, and Bitcoin-anchored audit trails so that what your
 agents did, and what they were allowed to do, remains verifiable to
 a third party years later.
 
+**New here?** [`QUICKSTART.md`](QUICKSTART.md) walks an outside
+reviewer from `git clone` to a verified, machine-readable proof
+report in three commands — measured at well under ten minutes on a
+bare container.
+
 ## How the three repositories fit together
 
 The Wakir stack ships as three coordinated repositories:
