@@ -46,11 +46,6 @@ entries:
       describes is the evidence.
     pinned_by: "tests/wat/test_tv3_run_persistent_script.py"
 
-  - path: "tests/wat/external_verifier/witness_captures/README.md"
-    reason: >-
-      Provenance note for captured external-verifier witnesses.
-    pinned_by: "tests/wat/test_aggregator_prev_hour_root.py"
-
   - path: "wirelang/tests/fixtures/tv-w-*/**"
     reason: >-
       WAT test-vector pin packs. The pack content is hashed by the

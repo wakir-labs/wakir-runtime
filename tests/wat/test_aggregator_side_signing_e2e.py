@@ -21,9 +21,9 @@ What this module adds
 ---------------------
 
 A single composed pipeline run that stitches the four stages together
-in one process, using the canonical block-948183 fixture from
-``tests/wat/external_verifier/fixtures.py`` as the Bitcoin-side
-attestation substrate:
+in one process, using the block-948183 receipt-shaped fixture bytes
+defined at the top of this module as the Bitcoin-side attestation
+substrate:
 
   1. Build a synthetic JSONL spool with 5 deterministic events.
   2. Run the production ``build_command`` (aggregator) with an
@@ -78,22 +78,24 @@ except ImportError:  # pragma: no cover
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# Block-948183 fixture import is conditional — the external_verifier
-# fixture module is the canonical source of the receipt-magic bytes.
-try:
-    from tests.wat.external_verifier.fixtures import (
-        BLOCK_HASH_948183,
-        RECEIPT_948183_BYTES,
-    )
-except ImportError:  # pragma: no cover — fixtures path drift guard
-    BLOCK_HASH_948183 = (
-        "0000000000000000000a1d2c3b4e5f60718293a4b5c6d7e8f90123456789abcd"
-    )
-    RECEIPT_948183_BYTES = (
-        b"\x00OpenTimestamps\x00\x00Proof\x00\xbf\x89\xe2\xe8\x84\xe8\x92\x94"
-        + b"BitcoinBlockHeaderAttestation(948183)\n"
-        + b"\x00" * 32
-    )
+# Block-948183 receipt-shaped fixture bytes, inlined.
+#
+# These used to be imported from ``tests/wat/external_verifier/fixtures.py``
+# behind a ``try/except ImportError`` fallback that held byte-identical
+# literals. ADR-0074 removed that module with the duplicated verifier, so
+# the import can only ever hit the fallback — an import guard that always
+# fires is worse than a literal. The bytes are unchanged; this module only
+# needs an OTS-magic-prefixed blob that ``anchor_root``'s mocked ``ots
+# stamp`` can write and ``verify_receipt``'s mocked ``ots verify`` can read
+# back, and it asserts the round-trip against this same constant.
+BLOCK_HASH_948183 = (
+    "0000000000000000000a1d2c3b4e5f60718293a4b5c6d7e8f90123456789abcd"
+)
+RECEIPT_948183_BYTES = (
+    b"\x00OpenTimestamps\x00\x00Proof\x00\xbf\x89\xe2\xe8\x84\xe8\x92\x94"
+    + b"BitcoinBlockHeaderAttestation(948183)\n"
+    + b"\x00" * 32
+)
 
 
 # ---------------------------------------------------------------------------

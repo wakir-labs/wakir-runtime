@@ -5,6 +5,18 @@
 **Autor:** Dev-Engineering
 **ADR-Anker:** ADR-0034 §3.1, ADR-0062 "Cut 1", ADR-0061 (License-Hygiene Phase-1)
 
+> **Status-Nachtrag (2026-09-14, ADR-0074):** Die unten als
+> Brand-Beweis-Werkzeug klassifizierte Kopie unter
+> `wat/anchor/external_verifier/` und ihre Tests unter
+> `tests/wat/external_verifier/` sind aus diesem Repository entfernt.
+> Die Migration nach `wakir-labs/wakir-verify` war seinerzeit als
+> Kopie ausgeführt worden, nicht als Verschiebung; nichts hielt die
+> beiden synchron, und die Kopie trug einen Defekt weiter, den das
+> Zielrepository behoben hatte. Das Dokument bleibt als Protokoll des
+> Cut-1-Stands stehen — die Inventar-Tabelle beschreibt den Stand vom
+> 2026-05-16, nicht den heutigen Baum. Für Dritte gilt
+> `docs/offline-verifier-for-third-parties.md`.
+
 ## Zweck
 
 Inventar der Verifier-Substanz in `wakir-labs/wakir-runtime` mit

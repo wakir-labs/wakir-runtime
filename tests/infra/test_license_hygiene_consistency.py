@@ -68,7 +68,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LICENSING_MD_EXPECTED_PATHS: tuple[str, ...] = (
     "wirelang/",
     "wat/",
-    "wat/anchor/external_verifier/",
     "wirelang/federation/",
     "wirelang/persona_engine/",
     "infra/spire/federation/",

@@ -98,11 +98,14 @@ units activated under ADR-0059 on 2026-05-13.
 
 ## Brand-Proof scope carve-out
 
-The Brand-Proof external verifier (`wat/anchor/external_verifier/`)
-remains Apache-2.0 as a brand-proof-redistributable surface
-(ADR-0023b). The `infra/spire/federation/` tree does not currently
-carry any Brand-Proof carve-out; the entire subtree (excluding the
-provisioner sibling unit) is BSL.
+The offline Brand-Proof external verifier is no longer part of this
+repository; it ships as the Apache-2.0 package
+`wakir-labs/wakir-verify` (ADR-0074). The remaining Apache-2.0
+carve-out inside a BSL sub-tree is the Merkle Read-Half
+(`wat/merkle/__init__.py`, `wat/merkle/aggregator.py`, ADR-0062
+Cut-1). The `infra/spire/federation/` tree does not carry any
+Apache-2.0 carve-out; the entire subtree (excluding the provisioner
+sibling unit) is BSL.
 
 ## Repository licensing layout
 

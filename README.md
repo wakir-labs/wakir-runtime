@@ -99,17 +99,29 @@ hosted-service substrate; it was renamed from `wakir-verify` to
 avoid a console-script-name collision with the standalone
 Apache-2.0 package.
 
-To install the offline brand-proof verifier alongside this runtime
-without manually depending on the upstream package, use the
-`[verify]` extra:
+What that verifier reports, and what it deliberately does not, is
+summarised in [`docs/offline-verifier-for-third-parties.md`](docs/offline-verifier-for-third-parties.md).
+An in-tree copy of it used to ship here as the console script
+`wat-verify`; ADR-0074 removed it, because it had drifted and returned
+positive verdicts on inputs it should have rejected.
+
+The `[verify]` extra declares the dependency:
 
 ```sh
 pip install 'wakir-runtime[verify]'
 ```
 
-That pulls in `wakir-verify>=0.1.0` from PyPI and exposes the
-standalone `wakir-verify` console script in the same environment
-as `wakir-wat-verify`.
+That resolves `wakir-verify>=0.1.0` from PyPI — **but the package is
+not published yet** (`https://pypi.org/pypi/wakir-verify/json` → 404,
+checked 2026-09-14; the initial publish is the ADR-0073 stage-E gate).
+Until then, install it from git alongside this runtime:
+
+```sh
+pip install 'git+https://github.com/wakir-labs/wakir-verify@main'
+```
+
+Either way the standalone `wakir-verify` console script lands in the
+same environment as `wakir-wat-verify`.
 
 ## Protocol-layer dependency
 
@@ -464,7 +476,6 @@ in lock-step.
 
 ```
 wat/             — Wakir Audit Trail module       (BUSL-1.1, see wat/LICENSE-BSL.md)
-                   ├── wat/anchor/external_verifier/  Apache-2.0 carve-out (ADR-0062 Cut-1 mirror)
                    └── wat/merkle/ Read-Half         Apache-2.0 carve-out (__init__.py, aggregator.py)
 wirelang/        — Wirelang Python package        (Apache-2.0 default, mirrored from wakir-protocol)
                    ├── wirelang/federation/          BUSL-1.1
