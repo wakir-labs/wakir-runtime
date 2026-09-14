@@ -122,26 +122,68 @@ jobs:
           print("production-ci invariant ok: rfc8785 and jsonschema are present")
           PY
 
-      - name: Collect test count (production lane)
+      - name: Collect-gate + test count (production lane)
         id: collect
-        # `pytest --collect-only` ends with a summary like
-        # "======================== 1258 tests collected in 0.44s ======="
-        # We pull the integer for the drift-detection job below. NB:
-        # we explicitly override the repository-default `addopts = "-q"`
-        # (pyproject.toml) because adding another `-q` on the command
-        # line escalates to `-qq`, which suppresses the summary line
-        # entirely. Two-stage grep: first isolate the summary fragment
-        # `<count> tests collected`, then pull the leading integer.
+        # Emits the same integer the drift-detection job below has always
+        # consumed (node-ID count == the `<N> tests collected` summary
+        # number; verified equal at 3307 for wirelang/ at the baseline
+        # commit), and additionally fails on the two things a count
+        # comparison cannot see:
+        #
+        #   * a collection error -- previously only caught as a side
+        #     effect of `bash -e`, and only as "the step exited 2", never
+        #     named;
+        #   * a module that collects zero node IDs because a module-level
+        #     `pytest.importorskip` fired on something this lane is
+        #     supposed to have installed. Exit code 0, smaller count,
+        #     nothing red. In THIS lane that is always a defect: the
+        #     "Verify rfc8785 + jsonschema are present" step above makes
+        #     "everything is installed" the lane's contract.
+        #
+        # The sandbox lane runs the same script with --profile sandbox,
+        # where skipping IS the contract, so only the collection-error
+        # half applies there. The deliberate production/sandbox split is
+        # untouched.
         run: |
-          python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
-          COUNT=$(grep -oE '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
-          if [ -z "$COUNT" ]; then
-            echo "production-ci: failed to parse collected-count" >&2
-            cat collected.txt >&2
-            exit 1
-          fi
-          echo "collected=${COUNT}" >> "$GITHUB_OUTPUT"
-          echo "production-lane collected: ${COUNT}"
+          python tooling/ci/collect_gate.py \
+            --profile production \
+            --root wirelang \
+            --github-output collected
+
+      # ------------------------------------------------------------------
+      # Whole-tree collection gate.
+      # ------------------------------------------------------------------
+      #
+      # Collection, not execution. 197 of this repository's 419 test
+      # modules are run by no workflow at all (see
+      # `tests/lanes/lane_assignment.json`), and adding them to a
+      # required lane is a separate, owned decision -- not something to
+      # smuggle in here. What this step does buy: those modules can no
+      # longer rot silently. An import that breaks, a module that starts
+      # reaching for an undeclared wheel, a file that stops being
+      # collectable at all -- all of that goes red at the cost of ~10
+      # seconds, without asserting a single thing about their contents.
+      - name: Collect-gate — whole tree (tests + wirelang + infra)
+        run: |
+          python tooling/ci/collect_gate.py \
+            --profile production \
+            --root tests \
+            --root wirelang \
+            --root infra
+
+      # ------------------------------------------------------------------
+      # Lane-assignment guard.
+      # ------------------------------------------------------------------
+      #
+      # Keeps `tests/lanes/lane_assignment.json` equal to what
+      # `.github/workflows/` actually does: a new test module without an
+      # entry is red, a module that loses its required lane is red, and a
+      # required status context whose name no longer matches a job
+      # display-name is red here instead of leaving pull requests pending
+      # forever. It does NOT require that everything runs.
+      - name: Lane-assignment + collect-gate self-test
+        run: |
+          python -m pytest tests/lanes/ -v --tb=short
 
       - name: Run wirelang test suite (production lane)
         id: run
@@ -277,23 +319,18 @@ jobs:
           print("sandbox-shadow invariant ok: rfc8785 and jsonschema are absent")
           PY
 
-      - name: Collect test count (sandbox shadow)
+      - name: Collect-gate + test count (sandbox shadow)
         id: collect
-        # See parallel comment in production-suite.collect: we override
-        # the pyproject `addopts = "-q"` to avoid escalating to `-qq`
-        # on the command line, which would suppress the summary. The
-        # two-stage grep isolates the summary fragment first because
-        # the pytest summary line is surrounded by `=` characters.
+        # Same script, sandbox profile: a collection error is still red,
+        # but a module that collects nothing is EXPECTED here -- that is
+        # what the "Verify rfc8785 + jsonschema are absent" step above
+        # establishes and what the drift envelope measures. The gate does
+        # not second-guess it.
         run: |
-          python -m pytest wirelang/ --collect-only --override-ini="addopts=" > collected.txt
-          COUNT=$(grep -oE '[0-9]+ tests? collected' collected.txt | tail -1 | grep -oE '^[0-9]+')
-          if [ -z "$COUNT" ]; then
-            echo "sandbox-shadow: failed to parse collected-count" >&2
-            cat collected.txt >&2
-            exit 1
-          fi
-          echo "collected=${COUNT}" >> "$GITHUB_OUTPUT"
-          echo "sandbox-shadow collected: ${COUNT}"
+          python tooling/ci/collect_gate.py \
+            --profile sandbox \
+            --root wirelang \
+            --github-output collected
 
       - name: Run wirelang test suite (sandbox shadow)
         # Co-located run so a sandbox-only failure is caught here too,
