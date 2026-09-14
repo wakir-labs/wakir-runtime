@@ -14,7 +14,8 @@ This page is the readable half; the two cannot drift, because
 
 ## The finding this exists because of
 
-Measured at commit `2193ed88`, 2026-09-14:
+Measured at commit `2193ed88`, 2026-09-14 (ADR-0074 removed 8 modules from one
+optional-ci directory shortly after; the unassigned count is unaffected):
 
 | | modules |
 |---|---:|
@@ -48,14 +49,42 @@ cargo. The 177 unrun modules are not unrunnable. Nobody wired them up.
 |---|---|---|
 | `required` | a required status context points a runner at it | no |
 | `optional-ci` | a non-required workflow runs it on PR/push/schedule | no |
-| `operator-hand` | reachable only via `workflow_dispatch` | yes — standing exception |
-| `opt-in-marker` | no lane; skip-by-default marker | yes — standing exception |
+| `operator-hand` | reachable only via `workflow_dispatch` | yes — plus execution evidence |
+| `opt-in-marker` | no lane; skip-by-default marker | yes — plus execution evidence |
 | `unassigned` | no lane, no marker: nothing runs it, ever | yes — **plus an owner and a review date** |
 
-The distinction that does the work: a standing exception (`deliberate:
-true`) is a decision and gets no review date, because a review date on a
-permanent decision is theatre. An `unassigned` module is the absence of a
-decision and gets one.
+## Why "runs by operator hand" is not a reason on its own
+
+The first draft of this page said a standing exception (`deliberate:
+true`) needs no review date, because a date on a permanent decision is
+theatre. That was wrong in a specific and checkable way, and the numbers
+say so:
+
+| standing exception | mechanism | enabled by | runs |
+|---|---|---|---:|
+| `live-vm-operator` | `workflow_dispatch` + `--run-live-vm` | `live-vm-acceptance.yml` | **0, ever** |
+| `sbom-baseline-operator` | `workflow_dispatch` | `sbom-baseline-refresh.yml` | **0, ever** |
+| `phase-3c-opt-in` | `WAKIR_PHASE_3C_*` / `--phase-3c-*` | **no workflow sets these** | **0, ever** |
+| `phase-3-skeleton-opt-in` | `WAKIR_PHASE_3_SKELETON=1` | **no workflow sets this** | **0, ever** |
+
+All 22 modules classified as deliberate standing exceptions have never
+executed. `live-vm-acceptance.yml` has not been dispatched once since it
+was added on 2026-05-16. No workflow in this repository sets any of the
+Phase-3c opt-in variables, so 207 tests documented as "skip-by-default,
+opt-in" are in practice skip-always — the acceptance criteria for a
+cutover, written down and unexecuted.
+
+So the rule is now: every standing exception states the mechanism that
+would run it, what enables that mechanism, and when it last actually ran
+(`execution_evidence`). And a standing exception whose evidence says
+`never` does not get to be standing: it carries a review date like any
+other accident. `test_standing_exceptions_must_have_actually_run`
+enforces exactly that.
+
+The evidence is a pinned reading (GitHub Actions API, 2026-09-14), not a
+live query — a hermetic test cannot call the API, and pretending
+otherwise would be the same class of unfalsifiable claim. What the test
+enforces is that the claim is stated, dated and sourced.
 
 ## Contracts currently checked by no gate
 
@@ -69,7 +98,7 @@ the specific things it costs:
   skipped required check. The guard for every other gate in this
   repository runs in no lane. It was added in the same commit this
   assignment was measured at.
-* **The WAT proof path.** 46 modules under `tests/wat` run nowhere:
+* **The WAT proof path.** 46 of the 47 modules under `tests/wat` run nowhere:
   Merkle-root construction and proof verification (`test_merkle.py`),
   manifest v1/v2 signature and schema admission, the OTS full-verify
   path, cross-module anchor pin consistency. Exactly one WAT module is
@@ -106,7 +135,7 @@ Reasons and owners live in `exemption_groups` in the JSON. Summary:
 | `infra-substrate` | 29 | unassigned | kai | 2026-10-31 |
 | `orchestrator-substrate` | 27 | unassigned | kai | 2026-10-31 |
 | `observability-routing` | 20 | unassigned | noa | 2026-10-31 |
-| `phase-3c-opt-in` | 19 | opt-in-marker | selin | standing |
+| `phase-3c-opt-in` | 19 | opt-in-marker | selin | 2026-09-30 |
 | `spire-federation-substrate` | 14 | unassigned | kai | 2026-10-31 |
 | `spec-audit-evidence` | 9 | unassigned | reza | 2026-10-31 |
 | `ci-meta` | 9 | unassigned | kai | 2026-10-31 |
@@ -116,9 +145,9 @@ Reasons and owners live in `exemption_groups` in the JSON. Summary:
 | `spec-freeze` | 4 | unassigned | reza | 2026-09-30 |
 | `integration-regression` | 1 | unassigned | kai | 2026-10-31 |
 | `proof-path-driver` | 1 | unassigned | tomas | 2026-09-30 |
-| `phase-3-skeleton-opt-in` | 1 | opt-in-marker | tomas | standing |
-| `live-vm-operator` | 1 | operator-hand | kai | standing |
-| `sbom-baseline-operator` | 1 | operator-hand | kai | standing |
+| `phase-3-skeleton-opt-in` | 1 | opt-in-marker | tomas | 2026-10-31 |
+| `live-vm-operator` | 1 | operator-hand | kai | 2026-09-30 |
+| `sbom-baseline-operator` | 1 | operator-hand | kai | 2026-10-31 |
 
 Owners are QA's proposal from component ownership, not an assignment.
 Confirming or moving them is the CTO's call; the file is the place to
@@ -149,6 +178,26 @@ them into an executed lane is a separate, owned decision.
 Each failure class has a negative control in
 `tests/lanes/test_collect_gate.py`, including the premise itself: that a
 module-level `importorskip` really does exit 0 and vanish.
+
+Both allow-lists are **empty** at this baseline, and staying empty is the
+goal. Every module-level guard in the tree now names something
+`pyproject.toml` declares or a package that lives here.
+`test_allow_lists_have_no_stale_entries` stops dead exceptions from
+accumulating — an allow-list entry whose subject was deleted still reads
+like a live one.
+
+### The same pattern in three repositories
+
+This is not a local quirk. In one week: `wakir-protocol` had 19 modules
+and 309 of 1132 node IDs (27 %) behind import-time guards on *declared*
+dependencies; `wakir-verify` ran its python-bitcoinlib drift matrix —
+the one check that compares against an independent third-party library,
+which is what the whole cross-library argument rests on — behind an
+`importorskip` that no lane ever satisfied; and here, 177 modules that
+no workflow runs at all. Three repositories, three shapes, one class: a
+test that is present, green-adjacent, and not executed. The gate above
+is the runtime-side answer; the assignment file is the bookkeeping-side
+one.
 
 ## Working with this file
 

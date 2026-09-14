@@ -154,7 +154,7 @@ jobs:
       # Whole-tree collection gate.
       # ------------------------------------------------------------------
       #
-      # Collection, not execution. 197 of this repository's 419 test
+      # Collection, not execution. 177 of this repository's 413 test
       # modules are run by no workflow at all (see
       # `tests/lanes/lane_assignment.json`), and adding them to a
       # required lane is a separate, owned decision -- not something to

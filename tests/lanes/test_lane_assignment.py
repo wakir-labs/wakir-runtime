@@ -164,13 +164,18 @@ def test_exemption_groups_carry_a_reason_and_an_owner(assignment: dict) -> None:
     assert not problems, "\n  ".join(["exemption groups:"] + problems)
 
 
-def test_unassigned_groups_carry_a_review_date(assignment: dict) -> None:
-    """`unassigned` means nobody runs it and nobody decided that — so it gets a date.
+def _bad_date(value: str) -> bool:
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
+        return True
+    try:
+        dt.date.fromisoformat(value)
+    except ValueError:
+        return True
+    return False
 
-    `opt-in-marker` and `operator-hand` do not: those are deliberate,
-    standing exceptions, and a review date on a standing exception is
-    theatre. They are marked ``deliberate: true`` instead.
-    """
+
+def test_unassigned_groups_carry_a_review_date(assignment: dict) -> None:
+    """`unassigned` means nobody runs it and nobody decided that — so it gets a date."""
     problems = []
     for name, group in sorted(assignment["exemption_groups"].items()):
         if group["profile"] != "unassigned":
@@ -179,15 +184,92 @@ def test_unassigned_groups_carry_a_review_date(assignment: dict) -> None:
             continue
         if group.get("deliberate") is not False:
             problems.append(f"{name}: unassigned group must be marked deliberate:false")
-        review_by = group.get("review_by", "")
-        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", review_by):
-            problems.append(f"{name}: review_by must be an ISO date, got {review_by!r}")
-            continue
-        try:
-            dt.date.fromisoformat(review_by)
-        except ValueError:
-            problems.append(f"{name}: review_by {review_by!r} is not a valid date")
+        if _bad_date(group.get("review_by", "")):
+            problems.append(f"{name}: review_by must be an ISO date, got {group.get('review_by')!r}")
     assert not problems, "\n  ".join(["unassigned groups:"] + problems)
+
+
+def test_standing_exceptions_state_how_they_would_run(assignment: dict) -> None:
+    """"Runs by operator hand" is a claim, so it has to name the mechanism.
+
+    Mechanism, what enables it, and when it last actually ran. Without
+    those three an exemption is unfalsifiable, which is the one thing an
+    exemption must not be.
+    """
+    problems = []
+    for name, group in sorted(assignment["exemption_groups"].items()):
+        if group["profile"] not in {"operator-hand", "opt-in-marker"}:
+            continue
+        evidence = group.get("execution_evidence")
+        if not isinstance(evidence, dict):
+            problems.append(f"{name}: standing exception without execution_evidence")
+            continue
+        for key in ("mechanism", "enabled_by", "last_actual_run", "read"):
+            if not evidence.get(key):
+                problems.append(f"{name}: execution_evidence missing {key!r}")
+        last = evidence.get("last_actual_run", "")
+        if last != "never" and _bad_date(last):
+            problems.append(
+                f"{name}: last_actual_run must be an ISO date or 'never', got {last!r}"
+            )
+    assert not problems, "\n  ".join(["standing exceptions:"] + problems)
+
+
+def test_standing_exceptions_must_have_actually_run(assignment: dict) -> None:
+    """A standing exception that has never run is not standing. It is off.
+
+    ``deliberate: true`` buys exemption from a review date on the
+    strength of "this is a decision, and the thing runs somewhere else".
+    When the evidence says it has never run anywhere, the second half is
+    missing and the entry is dated like any other accident.
+
+    Three groups fail that test at this baseline — the live-VM lane
+    (never dispatched since 2026-05-16), the SBOM baseline refresh (zero
+    runs), and the Phase-3c opt-in markers (no workflow sets the
+    variables that would enable them) — so all three carry a date.
+    """
+    problems = []
+    for name, group in sorted(assignment["exemption_groups"].items()):
+        evidence = group.get("execution_evidence")
+        if not isinstance(evidence, dict):
+            continue
+        if evidence.get("last_actual_run") != "never":
+            continue
+        if _bad_date(group.get("review_by", "")):
+            problems.append(
+                f"{name}: last_actual_run is 'never', so `deliberate: true` is not "
+                "enough — the group needs a review_by date"
+            )
+    assert not problems, "\n  ".join(["never-run standing exceptions:"] + problems)
+
+
+def test_allow_lists_have_no_stale_entries(assignment: dict) -> None:
+    """Both collect-gate allow-lists must reference something that exists.
+
+    They are empty at this baseline. Keeping them empty is the point: an
+    allow-list entry whose subject has been deleted is a dead exception
+    that still reads like a live one.
+    """
+    problems = []
+    for module in sorted(assignment["zero_collect_allowed"]):
+        if not (REPO_ROOT / module).is_file():
+            problems.append(f"zero_collect_allowed: {module} no longer exists")
+
+    guard_names = set(assignment["import_guard_allowed"])
+    if guard_names:
+        gate_spec = importlib.util.spec_from_file_location(
+            "wakir_collect_gate_for_lanes", REPO_ROOT / "tooling" / "ci" / "collect_gate.py"
+        )
+        assert gate_spec and gate_spec.loader
+        gate = importlib.util.module_from_spec(gate_spec)
+        sys.modules["wakir_collect_gate_for_lanes"] = gate
+        gate_spec.loader.exec_module(gate)
+        used: set[str] = set()
+        for module in lane_inventory.discover_modules(REPO_ROOT):
+            used.update(gate.module_level_import_guards(REPO_ROOT / module))
+        for name in sorted(guard_names - used):
+            problems.append(f"import_guard_allowed: nothing guards on {name!r} any more")
+    assert not problems, "\n  ".join(["stale allow-list entries:"] + problems)
 
 
 def test_no_unused_exemption_groups(assignment: dict) -> None:

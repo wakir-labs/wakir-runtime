@@ -268,8 +268,42 @@ def test_import_guard_detection_ignores_guards_inside_tests(tmp_path: Path) -> N
 
 
 def test_real_repository_guards_are_detected() -> None:
-    """Anchor the detector to a real module rather than only to fixtures."""
-    real = REPO_ROOT / "tests" / "wat" / "external_verifier" / "test_python_bitcoinlib_drift.py"
-    if not real.is_file():  # module is owned elsewhere and may move
-        pytest.skip(f"{real.relative_to(REPO_ROOT)} not present at this commit")
-    assert "bitcoin" in collect_gate.module_level_import_guards(real)
+    """Anchor the detector to real modules rather than only to fixtures.
+
+    Not pinned to one file: the previous anchor lived under
+    ``tests/wat/external_verifier/`` and was deleted by ADR-0074 two
+    hours after it was written, which is its own small lesson about
+    pinning a test to somebody else's file.
+    """
+    guarded = {
+        module: collect_gate.module_level_import_guards(REPO_ROOT / module)
+        for module in (
+            "tests/wat/test_manifest_v1_schema_smoke.py",
+            "tests/compat/test_compat_canonical.py",
+        )
+    }
+    assert guarded["tests/wat/test_manifest_v1_schema_smoke.py"] == ["jsonschema"]
+    assert guarded["tests/compat/test_compat_canonical.py"] == ["rfc8785"]
+
+
+def test_every_real_guard_name_is_declared_or_in_repo() -> None:
+    """The state the gate defends, asserted directly rather than via CI.
+
+    Every module-level import guard in the tree names something
+    ``pyproject.toml`` declares or a package that lives here. When that
+    stops being true, the allow-list grows an entry with a reason — which
+    is a decision somebody makes, not a default.
+    """
+    declared = collect_gate.declared_import_names(REPO_ROOT)
+    in_repo = collect_gate.in_repo_packages(REPO_ROOT)
+    allowed = collect_gate.load_allow_lists()[1]
+    offenders = []
+    for path in sorted(REPO_ROOT.glob("tests/**/test_*.py")) + sorted(
+        REPO_ROOT.glob("wirelang/**/test_*.py")
+    ):
+        for name in collect_gate.module_level_import_guards(path):
+            top = name.split(".", 1)[0]
+            if top in declared or top in in_repo or top in allowed or name in allowed:
+                continue
+            offenders.append(f"{path.relative_to(REPO_ROOT)}: {name}")
+    assert not offenders, "\n  ".join(["undeclared import guards:"] + offenders)

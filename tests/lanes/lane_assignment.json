@@ -1,6 +1,6 @@
 {
  "schema": "wakir-runtime/test-lane-assignment@1",
- "baseline_commit": "2193ed889e752580aeda5e19543dd0d3011ffe61",
+ "baseline_commit": "527508ee7eb8fa9ca267d5a66033bc2f03f19af2",
  "finding_at_baseline": {
   "commit": "2193ed889e752580aeda5e19543dd0d3011ffe61",
   "date": "2026-09-14",
@@ -10,16 +10,16 @@
   "operator_hand": 2,
   "opt_in_marker": 20,
   "unassigned": 177,
-  "note": "The state found before this change, kept as the record the reports quote. `measured` below is the live count and is re-checked on every run; the two differ by the modules this change itself adds.",
+  "note": "The state surveyed at commit 2193ed88, before ADR-0074 (#538) removed the duplicated four-pole verifier. That merge deleted 8 test modules, all from the one optional-ci directory tests/wat/external_verifier/, so the current tree is 413 modules with the unassigned count unchanged at 177. These numbers are kept because the reports quote them; `measured` below is the live count and is re-derived on every run.",
   "deviation_from_the_static_survey": "The 2026-09-14 survey at commit 9bb5ab1 reported 418 / 189 / 218-in-any-lane. Four of the five differences are method, one is the tree: (1) three modules run via `python -m unittest`, not pytest — one of them, tests/audit/test_wirelang_spec_freeze_seal_probe.py, in the REQUIRED 'wirelang spec v0.4.3 freeze-seal probe' context, so a pytest-only scan under-reports required coverage by one; (2) tests/live_vm/ is targeted through a bash array (PYTEST_ARGS) that a line scan does not expand; (3) the tree itself gained tests/workflows/test_required_context_error_propagation.py between 9bb5ab1 and this baseline. Direction of the correction: slightly better than reported, and not in a way that changes the conclusion."
  },
  "measured": {
   "date": "2026-09-14",
   "method": "tooling/ci/lane_inventory.py (static targeting) cross-checked against a real pytest --collect-only run of every lane target",
   "python": "3.14.0 local; CI production lane pins 3.12",
-  "test_modules": 421,
+  "test_modules": 413,
   "required": 192,
-  "optional_ci": 30,
+  "optional_ci": 22,
   "operator_hand": 2,
   "opt_in_marker": 20,
   "unassigned": 177,
@@ -41,45 +41,70 @@
   "wirelang suite without rfc8785 / jsonschema (shadow)"
  ],
  "required_contexts_source": "GET /repos/wakir-labs/wakir-runtime/branches/main/protection, read 2026-09-14. Branch protection is not readable from a workflow without a token, so the list is pinned here; test_lane_assignment.py asserts every entry still matches a job display-name in .github/workflows/.",
- "zero_collect_allowed": {
-  "tests/wat/external_verifier/test_property_hypothesis.py": "Property suite behind pytest.importorskip('hypothesis'); hypothesis is not a declared dependency and is installed by no lane. Collects zero outside a hypothesis-bearing environment. Owner: tomas.",
-  "tests/wat/external_verifier/test_python_bitcoinlib_drift.py": "Drift canary behind pytest.importorskip('bitcoin'); python-bitcoinlib is matrix-only (external-verifier-drift.yml installs one pinned version per matrix job). Collects zero everywhere else — by design. Owner: tomas."
- },
- "zero_collect_allowed_note": "Allow-list for the zero-collection half of the collect gate: a module that a lane targets but that yields no node IDs. Entries are tolerated when the file is absent (unlike `modules`), so a deletion in another PR does not turn this gate red.",
- "import_guard_allowed": {
-  "hypothesis": "Property-testing library; not a declared dependency and installed by no lane. The one guarded module is external-verifier-only.",
-  "bitcoin": "python-bitcoinlib, matrix-only: external-verifier-drift.yml installs one pinned version per matrix job and no other lane has it.",
-  "wakir_verify": "Sibling repository (wakir-labs/wakir-verify), installed from a pinned commit only in the proof-path lane."
- },
- "import_guard_allowed_note": "Names a module-level pytest.importorskip() may legitimately fail on in the production profile. Everything else must be importable there: in a lane whose contract is 'the full install set is present', an import guard that actually skips means a module disappeared without a red check.",
+ "zero_collect_allowed": {},
+ "zero_collect_allowed_note": "Allow-list for the zero-collection half of the collect gate: a module a lane targets but that yields no node IDs. EMPTY at this baseline, and that is the state to defend. It held two entries until ADR-0074 (#538) removed the duplicated four-pole verifier; both were matrix-only import guards. test_allow_lists_have_no_stale_entries keeps dead entries from accumulating.",
+ "import_guard_allowed": {},
+ "import_guard_allowed_note": "Names a module-level pytest.importorskip() may legitimately fail on in the production profile. EMPTY at this baseline: every module-level guard in the tree now names something pyproject.toml declares (rfc8785, jsonschema and hypothesis via the `test` extra, PyYAML via `persona`, cryptography) or an in-repo package (wat.*, wirelang.*). An entry here is a wheel the repository installs somewhere without declaring it — write the reason, or declare it.",
  "exemption_groups": {
   "phase-3c-opt-in": {
    "profile": "opt-in-marker",
-   "reason": "Phase-3c cutover acceptance + rollback drills. Skip-by-default by construction: every module carries phase_3c_acceptance / phase_3c_doppel_welle_acceptance / phase_3c_rollback_drill and only runs under WAKIR_PHASE_3C_* or the matching --phase-3c-* / --rollback-drill flag (conftest.py). Deliberate: these assert against a dual-run substrate that does not exist in a hermetic runner. 19 modules, 207 tests, all skipped in a default run.",
+   "reason": "Phase-3c cutover acceptance and rollback drills: 19 modules, 207 tests, every one carrying phase_3c_acceptance / phase_3c_doppel_welle_acceptance / phase_3c_rollback_drill. The markers are documented as opt-in via WAKIR_PHASE_3C_* or the matching --phase-3c-* / --rollback-drill flag. Measured: no workflow in this repository sets any of those variables or passes any of those flags. The opt-in has never been taken, so these 207 tests have never run in CI — the acceptance criteria for a cutover are written down and unexecuted. Skip-by-default is a legitimate design; skip-always is a different thing and needs a decision.",
    "owner": "selin (persona-engine)",
-   "deliberate": true
+   "deliberate": true,
+   "review_by": "2026-09-30",
+   "execution_evidence": {
+    "mechanism": "WAKIR_PHASE_3C_E2E / WAKIR_PHASE_3C_DOPPEL_E2E / WAKIR_PHASE_3C_ROLLBACK_DRILL, or --phase-3c-acceptance / --phase-3c-doppel-welle-acceptance / --rollback-drill",
+    "enabled_by": "no workflow enables this",
+    "runs_total": 0,
+    "last_actual_run": "never",
+    "read": "2026-09-14, grep over .github/workflows/ and Makefile"
+   }
   },
   "phase-3-skeleton-opt-in": {
    "profile": "opt-in-marker",
-   "reason": "Phase-3 acceptance-gate skeleton behind the phase_3_skeleton marker (opt-in via WAKIR_PHASE_3_SKELETON=1). Deliberate placeholder suite, not a contract in force.",
+   "reason": "Phase-3 acceptance-gate skeleton behind the phase_3_skeleton marker, opt-in via WAKIR_PHASE_3_SKELETON=1. No workflow sets that variable, so the skeleton has never been exercised. Named as a placeholder rather than a contract in force — which is defensible, and now written down instead of implied.",
    "owner": "tomas (wat/ots)",
-   "deliberate": true
+   "deliberate": true,
+   "review_by": "2026-10-31",
+   "execution_evidence": {
+    "mechanism": "WAKIR_PHASE_3_SKELETON=1",
+    "enabled_by": "no workflow enables this",
+    "runs_total": 0,
+    "last_actual_run": "never",
+    "read": "2026-09-14, grep over .github/workflows/ and Makefile"
+   }
   },
   "live-vm-operator": {
    "profile": "operator-hand",
-   "reason": "TV-LVD live-VM acceptance. Reachable only through workflow_dispatch in live-vm-acceptance.yml and additionally gated by --run-live-vm plus the live_vm marker. Deliberate: needs a real Proxmox VM, cannot run on a GitHub runner.",
+   "reason": "TV-LVD live-VM acceptance. Reachable only through workflow_dispatch in live-vm-acceptance.yml and additionally gated by the --run-live-vm flag plus WAKIR_LIVE_VM_ACCEPTANCE=1. The design reason is sound — it needs a real Proxmox VM and cannot run on a GitHub runner. The evidence is not: the workflow has never been dispatched since it was added on 2026-05-16, so the module has never executed anywhere this repository can observe. 'Runs by operator hand' is at this point an untested claim about the operator.",
    "owner": "kai (container/infra)",
-   "deliberate": true
+   "deliberate": true,
+   "review_by": "2026-09-30",
+   "execution_evidence": {
+    "mechanism": "workflow_dispatch + --run-live-vm + WAKIR_LIVE_VM_ACCEPTANCE=1",
+    "enabled_by": ".github/workflows/live-vm-acceptance.yml",
+    "runs_total": 0,
+    "last_actual_run": "never",
+    "read": "2026-09-14, GitHub Actions API"
+   }
   },
   "sbom-baseline-operator": {
    "profile": "operator-hand",
-   "reason": "SBOM baseline refresh is an operator-hand action (sbom-baseline-refresh.yml, workflow_dispatch only) because it rewrites a committed baseline. Deliberate: running it automatically would let the baseline chase the artefact instead of pinning it.",
+   "reason": "SBOM baseline refresh is an operator-hand action (sbom-baseline-refresh.yml, workflow_dispatch only) because it rewrites a committed baseline; running it automatically would let the baseline chase the artefact instead of pinning it. That reasoning stands. What does not stand is the implied 'and an operator does run it': the workflow has zero runs since it was added.",
    "owner": "kai (container/infra)",
-   "deliberate": true
+   "deliberate": true,
+   "review_by": "2026-10-31",
+   "execution_evidence": {
+    "mechanism": "workflow_dispatch",
+    "enabled_by": ".github/workflows/sbom-baseline-refresh.yml",
+    "runs_total": 0,
+    "last_actual_run": "never",
+    "read": "2026-09-14, GitHub Actions API"
+   }
   },
   "wat-core": {
    "profile": "unassigned",
-   "reason": "The WAT/OTS suite — Merkle aggregator, manifest signing, anchor bridge, OTS verify, hash consistency. 46 modules run in no workflow at all; exactly one WAT module (test_anchor_backend.py) is in a required lane and one more directory (external_verifier/) in an optional one. Measured at this baseline: `pytest tests/wat` = 591 passed, 34 skipped, 16s, no podman, no network, no cargo. There is no technical reason these do not run. Named invariants currently unchecked by any gate: Merkle-root construction and proof verification (test_merkle.py, 20 tests), manifest v1/v2 signature + schema admission (test_manifest_signing*.py, test_manifest_v2_*.py), OTS full-verify path (test_ots_full_verify.py), cross-module anchor pin consistency (test_brand_demo_cross_module_anchor_pins.py). This is the proof path Phase 4 is sealing.",
+   "reason": "The WAT/OTS suite — Merkle aggregator, manifest signing, anchor bridge, OTS verify, hash consistency. 46 of the 47 modules under tests/wat run in no workflow at all; the single exception, test_anchor_backend.py, is in a required lane. Measured at this baseline: `pytest tests/wat` = 535 passed, 32 skipped, 15s, no podman, no network, no cargo. There is no technical reason these do not run. Named invariants currently checked by no gate: Merkle-root construction and proof verification (test_merkle.py, 20 tests), manifest v1/v2 signature + schema admission (test_manifest_signing*.py, test_manifest_v2_*.py), the OTS full-verify path (test_ots_full_verify.py), cross-module anchor pin consistency (test_brand_demo_cross_module_anchor_pins.py), and the external-verifier parity check that survived ADR-0074 (test_external_verifier_parity.py). This is the proof path Phase 4 exists to seal.",
    "owner": "tomas (wat/ots)",
    "review_by": "2026-09-30",
    "deliberate": false
@@ -876,30 +901,6 @@
    "profile": "unassigned",
    "group": "spec-freeze"
   },
-  "tests/wat/external_verifier/test_aggregator.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_cli.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_cli_text_mode.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_multi_pol_determinismus.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_poles.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_property_hypothesis.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_python_bitcoinlib_drift.py": {
-   "profile": "optional-ci"
-  },
-  "tests/wat/external_verifier/test_witness_captures.py": {
-   "profile": "optional-ci"
-  },
   "tests/wat/test_aggregator_prev_hour_root.py": {
    "profile": "unassigned",
    "group": "wat-core"
@@ -1632,5 +1633,6 @@
   "wirelang/tests/test_wirelang_spec_v0_4_integrity.py": {
    "profile": "required"
   }
- }
+ },
+ "execution_evidence_note": "Read 2026-09-14 from GET /repos/wakir-labs/wakir-runtime/actions/workflows/{file}/runs. An exemption that says 'runs by operator hand' or 'opt-in' is a claim about something happening somewhere, and this week produced three counter-examples in three repositories. So every group states the mechanism that would run it, what enables that mechanism, and when it last actually ran. A group whose mechanism nothing enables does not get to be a standing exception: test_standing_exceptions_must_have_actually_run requires a review date for it, exactly like an accident."
 }
