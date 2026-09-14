@@ -22,7 +22,11 @@ failure, 20 for an explicit skip):
                        temp spool + activity log.
 - ``build-manifest``   Step 3: project the spool's leaf record into
                        the aggregator's input shape and drive
-                       ``wakir-merkle build``.
+                       ``wakir-merkle build``. The spool is the input:
+                       an incomplete spool record fails the step and is
+                       not reconstructed from the envelope unless
+                       ``--allow-envelope-projection`` is passed (never
+                       by the proof path).
 - ``verify-proof``     Step 4: build the ``wakir-inclusion-proof/v1``
                        artefact (with sibling hashes) and verify it
                        against the manifest root in-tree.
@@ -272,24 +276,65 @@ def do_run_bridge(
 # ---------------------------------------------------------------------------
 
 
+#: The four B1 hash-input fields of a spool record, spelled exactly
+#: as ``docs/wat-spool-spec.md`` §2 and ``wat.ingestion.wirelang_bridge
+#: .LeafRecord`` write them. The strict profile accepts these names and
+#: nothing else.
+B1_FIELDS: Tuple[str, ...] = (
+    "event_id",
+    "time",
+    "payload_hash",
+    "capability_token_hash",
+)
+
+#: Spelling variants seen in older spool writers. Tolerated only under
+#: envelope projection, never in the strict profile — a renamed field
+#: is drift, and drift is what step 3 is supposed to surface.
+B1_ALIASES: Dict[str, Tuple[str, ...]] = {
+    "time": ("event_time",),
+}
+
+#: ``capability_token_hash`` is the one B1 field whose empty string is
+#: a *value*, not an absence: ``wirelang/specs/wat-leaf-projection.md``
+#: §3.4 defines ``""`` as the sentinel for an event without ``caprefs``,
+#: and ``wat.merkle.aggregator.compute_leaf_hash`` hashes it as such.
+#: The bridge audit writer emits exactly that for the demo event, so
+#: passing it through unchanged is what makes the manifest describe the
+#: spool. Substituting the envelope's placeholder here — which is what
+#: this module used to do — produces a leaf, a root and an inclusion
+#: proof for a tuple that no spool line ever held.
+B1_EMPTY_IS_A_VALUE: Tuple[str, ...] = ("capability_token_hash",)
+
+
 def _spool_jsonl_to_aggregator_events(
     spool_file: Path,
     *,
     envelope_path: Optional[Path] = None,
-) -> List[Dict[str, Any]]:
+    allow_envelope_projection: bool = False,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Project bridge-writer spool records into aggregator input shape.
 
-    The bridge writer's spool record contains the four B1 fields as
+    The bridge writer's spool record carries the four B1 fields as
     top-level attributes (see ``wat.anchor.bridge_audit_writer``).
     The aggregator CLI's ``--input-events`` consumer expects exactly
-    these four keys per line. When the spool record carries extra
-    metadata we strip it.
+    these four keys per line; extra metadata is stripped.
 
-    When ``envelope_path`` is supplied we fall back to the envelope's
-    B1 tuple for any spool record missing a field. This handles the
-    case where the bridge writer's spool format evolves slightly
-    ahead of the demo: we still emit a valid aggregator-input
-    document instead of failing the whole pipeline.
+    **The spool is the input.** In the strict profile (the default,
+    and the only one the proof path runs) a spool record whose B1
+    field is missing, empty or spelled differently is a hard error.
+    Repairing it from ``event.envelope.json`` would hide exactly the
+    bridge-to-spool drift this step exists to detect: the envelope is
+    what we *meant* to write, the spool is what we *did* write, and a
+    proof about the second must not be assembled from the first.
+
+    ``allow_envelope_projection=True`` restores the old repair
+    behaviour for local development against a spool writer whose
+    format has moved. It is never silent: the returned projection
+    record names every field that was filled in, and the driver
+    carries that into the report so no reader mistakes a projected
+    run for a clean one.
+
+    Returns ``(events, projection)``.
     """
     if not spool_file.exists():
         raise FileNotFoundError(f"spool file not found: {spool_file}")
@@ -298,33 +343,87 @@ def _spool_jsonl_to_aggregator_events(
     if envelope_path is not None and envelope_path.exists():
         envelope = _read_json(envelope_path)
 
+    projected: List[Dict[str, str]] = []
     events: List[Dict[str, Any]] = []
     with spool_file.open("r", encoding="utf-8") as fh:
-        for raw in fh:
+        for lineno, raw in enumerate(fh, start=1):
             line = raw.strip()
             if not line:
                 continue
             record = json.loads(line)
-            tuple_obj = {
-                "event_id": record.get("event_id")
-                or (envelope or {}).get("event_id", ""),
-                "time": record.get("time")
-                or record.get("event_time")
-                or (envelope or {}).get("time", ""),
-                "payload_hash": record.get("payload_hash")
-                or (envelope or {}).get("payload_hash", ""),
-                "capability_token_hash": record.get("capability_token_hash")
-                or (envelope or {}).get("capability_token_hash", ""),
-            }
-            if not all(tuple_obj.values()):
-                # A malformed spool entry is a hard error, not a row to
-                # drop silently. ``capability_token_hash`` may be absent
-                # in some flows; the demo envelope always provides it.
+            if not isinstance(record, dict):
                 raise ValueError(
-                    f"spool record missing B1 field: {tuple_obj!r}"
+                    f"{spool_file}:{lineno}: spool record is not a JSON object"
                 )
+
+            tuple_obj: Dict[str, Any] = {}
+            for field in B1_FIELDS:
+                value = record.get(field)
+                if _is_usable_b1_value(field, value):
+                    tuple_obj[field] = value
+                    continue
+
+                if not allow_envelope_projection:
+                    raise ValueError(
+                        f"{spool_file}:{lineno}: spool record has no usable "
+                        f"{field!r} (got {value!r}). The spool is the input of "
+                        "the manifest step; it is not reconstructed from "
+                        "event.envelope.json. Re-run the bridge, or pass "
+                        "--allow-envelope-projection for a local run and "
+                        "accept that the report will be marked as projected."
+                    )
+
+                source, projected_value = _project_b1_field(field, record, envelope)
+                if not _is_usable_b1_value(field, projected_value):
+                    raise ValueError(
+                        f"{spool_file}:{lineno}: spool record missing B1 field "
+                        f"{field!r} and no projection source supplies it"
+                    )
+                tuple_obj[field] = projected_value
+                projected.append({"line": str(lineno), "field": field, "source": source})
+
             events.append(tuple_obj)
-    return events
+
+    projection = {
+        "envelope_projection_allowed": bool(allow_envelope_projection),
+        "envelope_projection_used": bool(projected),
+        "projected_fields": projected,
+        "spool_file": str(spool_file),
+        "event_count": len(events),
+    }
+    return events, projection
+
+
+def _is_usable_b1_value(field: str, value: Any) -> bool:
+    """Is ``value`` a usable spool value for B1 field ``field``?
+
+    Every B1 field must be a string. Only ``capability_token_hash``
+    may be the empty string — that is the leaf-projection spec's
+    no-capability sentinel, not a missing field. For the other three
+    an empty value means the spool line is incomplete.
+    """
+    if not isinstance(value, str):
+        return False
+    if field in B1_EMPTY_IS_A_VALUE:
+        return True
+    return value.strip() != ""
+
+
+def _project_b1_field(
+    field: str,
+    record: Dict[str, Any],
+    envelope: Optional[Dict[str, Any]],
+) -> Tuple[str, Any]:
+    """Find a replacement for one unusable B1 field. Lenient path only."""
+    for alias in B1_ALIASES.get(field, ()):  # same record, other spelling
+        value = record.get(alias)
+        if _is_usable_b1_value(field, value):
+            return f"spool-alias:{alias}", value
+    if envelope is not None:  # the intended event, not the written one
+        value = envelope.get(field)
+        if _is_usable_b1_value(field, value):
+            return "event.envelope.json", value
+    return "none", None
 
 
 def do_build_manifest(
@@ -334,8 +433,17 @@ def do_build_manifest(
     aggregator_input: Path,
     manifest_out: Path,
     persona_id: str = DEFAULT_PERSONA,
+    allow_envelope_projection: bool = False,
+    projection_out: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """Drive the aggregator end-to-end for a single hour.
+
+    Strict by default: a spool record that does not carry all four B1
+    fields fails the step instead of being repaired from the envelope
+    (see ``_spool_jsonl_to_aggregator_events``).
+    ``allow_envelope_projection`` opts into the repair for local runs;
+    ``projection_out`` records what happened either way so the report
+    can state it.
 
     Returns the manifest dict written to disk so test code can assert
     on the shape without re-reading the file.
@@ -344,9 +452,30 @@ def do_build_manifest(
 
     spool_file = spool_root / persona_id / f"{hour}.jsonl"
     envelope_path = aggregator_input.parent / "event.envelope.json"
-    events = _spool_jsonl_to_aggregator_events(
-        spool_file, envelope_path=envelope_path
-    )
+    try:
+        events, projection = _spool_jsonl_to_aggregator_events(
+            spool_file,
+            envelope_path=envelope_path,
+            allow_envelope_projection=allow_envelope_projection,
+        )
+    except Exception:
+        if projection_out is not None:
+            # A failed step still says whether projection was on the
+            # table, so a red report is not ambiguous about the profile.
+            _write_json(
+                projection_out,
+                {
+                    "envelope_projection_allowed": bool(allow_envelope_projection),
+                    "envelope_projection_used": False,
+                    "projected_fields": [],
+                    "spool_file": str(spool_file),
+                    "event_count": 0,
+                },
+            )
+        raise
+
+    if projection_out is not None:
+        _write_json(projection_out, projection)
 
     aggregator_input.parent.mkdir(parents=True, exist_ok=True)
     with aggregator_input.open("w", encoding="utf-8") as fh:
@@ -815,6 +944,21 @@ def build_parser() -> argparse.ArgumentParser:
     p3.add_argument("--aggregator-input", required=True, type=Path)
     p3.add_argument("--manifest-out", required=True, type=Path)
     p3.add_argument("--persona", default=DEFAULT_PERSONA)
+    p3.add_argument(
+        "--projection-out",
+        default=None,
+        type=Path,
+        help="Write the spool-projection record (what, if anything, was filled in).",
+    )
+    p3.add_argument(
+        "--allow-envelope-projection",
+        action="store_true",
+        help=(
+            "Local-development escape hatch: fill unusable B1 spool fields "
+            "from event.envelope.json instead of failing. The proof path "
+            "never sets this; runs that use it are marked in the report."
+        ),
+    )
 
     p4 = sub.add_parser("verify-proof", help="Step 4: build + verify inclusion proof.")
     p4.add_argument("--manifest", required=True, type=Path)
@@ -891,6 +1035,8 @@ def _dispatch(args: argparse.Namespace) -> int:
             aggregator_input=args.aggregator_input,
             manifest_out=args.manifest_out,
             persona_id=args.persona,
+            allow_envelope_projection=args.allow_envelope_projection,
+            projection_out=args.projection_out,
         )
         return EXIT_OK
     if args.cmd == "verify-proof":
@@ -961,6 +1107,9 @@ if __name__ == "__main__":  # pragma: no cover
 
 
 __all__ = [
+    "B1_ALIASES",
+    "B1_EMPTY_IS_A_VALUE",
+    "B1_FIELDS",
     "DEFAULT_CAPABILITY_HASH",
     "DEFAULT_EVENT_ID",
     "DEFAULT_PERSONA",

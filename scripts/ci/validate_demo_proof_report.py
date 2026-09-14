@@ -46,8 +46,8 @@ Rules (each violation is reported, any violation exits non-zero):
    ``leaf_present`` and ``proof_verified``, all boolean ``true``; a
    successful ``inclusion_proof`` carries ``verified: true``; a
    successful ``runtime_bridge`` carries ``bridge_status: "ok"``. No
-   successful step carries ``fault_injected``, and no successful
-   ``merkle_manifest`` carries ``envelope_projection_used: true``
+   successful step carries ``fault_injected``, and a successful
+   ``merkle_manifest`` states ``envelope_projection_used: false``
    (the spool, not the envelope, is the input of the manifest step —
    see ``scripts/demo_proof_helpers.py``).
 7. ``commits.wakir_runtime`` equals the expected commit, taken from
@@ -120,15 +120,23 @@ REQUIRED_DETAIL_VALUES: Dict[str, Dict[str, Any]] = {
     "runtime_bridge": {"bridge_status": "ok"},
 }
 
+#: Detail flags that must be **present and false** on a successful
+#: step. ``envelope_projection_used`` says whether step 3 built the
+#: manifest from the spool alone or filled fields in from
+#: ``event.envelope.json``. A projected run is a developer artefact,
+#: not a proof, so the strict profile insists the report answers the
+#: question rather than leaving it out.
+REQUIRED_FALSE_DETAILS: Dict[str, Tuple[str, ...]] = {
+    "merkle_manifest": ("envelope_projection_used",),
+}
+
 #: Detail flags that must be absent or falsy on a successful step.
 #: ``fault_injected`` is the driver's test-mode marker; a fault-injected
-#: run is never a proof. ``envelope_projection_used`` marks a manifest
-#: built from repaired spool input (``--allow-envelope-projection``),
-#: which the strict profile does not accept as evidence.
+#: run is never a proof.
 FORBIDDEN_TRUE_DETAILS: Dict[str, Tuple[str, ...]] = {
     "protocol_event": ("fault_injected",),
     "runtime_bridge": ("fault_injected",),
-    "merkle_manifest": ("fault_injected", "envelope_projection_used"),
+    "merkle_manifest": ("fault_injected",),
     "inclusion_proof": ("fault_injected",),
     "external_verify": ("fault_injected",),
 }
@@ -181,6 +189,17 @@ def _check_details(step: Dict[str, Any], name: str, label: str) -> List[str]:
             violations.append(
                 f"{label}: status 'ok' contradicts details.{key}={details[key]!r}, "
                 f"expected {expected!r}"
+            )
+
+    for key in REQUIRED_FALSE_DETAILS.get(name, ()):
+        if key not in details:
+            violations.append(
+                f"{label}: status 'ok' but details.{key} is missing; the report "
+                "must state whether the step used repaired input"
+            )
+        elif _is_true(details[key]):
+            violations.append(
+                f"{label}: status 'ok' contradicts details.{key}={details[key]!r}"
             )
 
     for key in FORBIDDEN_TRUE_DETAILS.get(name, ()):

@@ -56,6 +56,16 @@ HELPERS="${SCRIPT_DIR}/demo_proof_helpers.py"
 : "${DEMO_PROOF_OTS_PROOF:=}"
 : "${DEMO_PROOF_VERIFY_CMD:=wakir-verify}"
 
+# Spool-projection escape hatch. Default "0": step 3 reads the spool
+# and nothing else, so a spool record that lost a B1 field fails the
+# step instead of being silently reconstructed from
+# event.envelope.json. Set to "1" for local work against a spool
+# writer whose format has moved; the report then carries
+# `envelope_projection_used=true` and the strict CI validator rejects
+# it. Honoured in every mode — this is a deliberate operator choice,
+# not a test hook.
+: "${DEMO_PROOF_ALLOW_ENVELOPE_PROJECTION:=0}"
+
 # Cross-repo commit-hash pins. Optional; recorded verbatim in the report.
 : "${DEMO_PROOF_PROTOCOL_COMMIT:=}"
 : "${DEMO_PROOF_VERIFY_COMMIT:=}"
@@ -83,6 +93,7 @@ SPOOL_ROOT="${DEMO_PROOF_WORKDIR}/spool"
 ACTIVITY_LOG="${DEMO_PROOF_WORKDIR}/activity-log.md"
 MANIFEST_INPUT="${DEMO_PROOF_WORKDIR}/manifest-input.jsonl"
 MANIFEST_OUT="${DEMO_PROOF_WORKDIR}/${DEMO_PROOF_HOUR}/manifest.json"
+PROJECTION_OUT="${DEMO_PROOF_WORKDIR}/manifest-projection.json"
 PROOF_OUT="${DEMO_PROOF_WORKDIR}/proof.json"
 VERIFY_RESULT="${DEMO_PROOF_WORKDIR}/verify-result.json"
 VERIFY_CLI_RESULT="${DEMO_PROOF_WORKDIR}/verify-cli-result.json"
@@ -225,20 +236,38 @@ step3_merkle_manifest() {
     local name="merkle_manifest" err="${DEMO_PROOF_WORKDIR}/step3.err" rc=0
     inject_fault "${name}" "${FUNCNAME[0]}" || return $?
 
+    # The spool is the input of this step. Filling an incomplete spool
+    # record from event.envelope.json repairs exactly the drift the
+    # step is meant to expose, so it is off unless the operator asks
+    # for it — and then the report says so.
+    local -a projection_opt=()
+    if [[ "${DEMO_PROOF_ALLOW_ENVELOPE_PROJECTION}" == "1" ]]; then
+        projection_opt=(--allow-envelope-projection)
+    fi
+
     helper build-manifest \
         --spool-root "${SPOOL_ROOT}" \
         --hour "${DEMO_PROOF_HOUR}" \
         --aggregator-input "${MANIFEST_INPUT}" \
         --manifest-out "${MANIFEST_OUT}" \
+        --projection-out "${PROJECTION_OUT}" \
+        "${projection_opt[@]}" \
         2>"${err}" || rc=$?
     if [[ "${rc}" -ne 0 ]]; then
         fail_step "${name}" "${err}"
         return 10
     fi
 
+    local projection_used="unknown"
+    if [[ -f "${PROJECTION_OUT}" ]]; then
+        projection_used="$(helper json-get "${PROJECTION_OUT}" envelope_projection_used)" \
+            || projection_used="unknown"
+    fi
+
     emit_step "${name}" "ok" 0 \
         --result-file "${MANIFEST_OUT}" --pick "merkle_root,event_count" \
-        --kv "manifest_path=${MANIFEST_OUT}"
+        --kv "manifest_path=${MANIFEST_OUT}" \
+        --kv "envelope_projection_used=${projection_used}"
 }
 
 # ---------------------------------------------------------------------------
