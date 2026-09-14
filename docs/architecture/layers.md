@@ -271,8 +271,12 @@ leaf-hash primitive stays permissive on purpose.
 **Bitcoin time-binding sits one step beyond this line.** Anchoring an
 hourly root through OpenTimestamps (`wat/anchor/ots_anchor.py`) is
 what converts "this record is internally consistent" into "this
-record existed before block *N*". Real receipts exist in the tree
-(`tests/fixtures/wat-tv*-real/*/root.bin.ots`), but the anchor leg is
+record existed before block *N*". Bitcoin-attested receipts exist in
+the tree — the eight under `tests/fixtures/wat-tv2-real/` and
+`tests/fixtures/wat-tv2-real-signed/`. The other two `.ots` fixtures
+(`wat-tv3-real/`, `wat-real-manifest/`) carry pending calendar
+attestations only and are not evidence of a Bitcoin binding; see the
+OpenTimestamps row in `STABILITY.md`. Either way the anchor leg is
 not part of the gated seven steps: the demo only exercises it in an
 optional online mode, and production anchoring is still behind an
 operator activation gate. Treat the gated line as proof of
