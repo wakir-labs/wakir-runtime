@@ -104,11 +104,22 @@ the same validator the CI gate uses:
 
 ```sh
 python scripts/ci/validate_demo_proof_report.py \
-  /tmp/wakir-demo/demo-report.json --require-external-verify-ok
+  /tmp/wakir-demo/demo-report.json
 ```
 
 It exits `0` only when the schema matches, all five steps are present
-in order, none failed, and `external_verify` is `ok`.
+in order, every one of them has status `ok` with exit code `0`, and
+the step details agree with those statuses — an `external_verify: ok`
+carrying `proof_verified: false` is a failure, not a pass. That is the
+default profile and the one CI runs.
+
+If you have not installed the verifier and only want to check steps
+1–4, say so explicitly:
+
+```sh
+python scripts/ci/validate_demo_proof_report.py \
+  /tmp/wakir-demo/demo-report.json --allow-skipped-external-verify
+```
 
 ## Measured on a bare container
 

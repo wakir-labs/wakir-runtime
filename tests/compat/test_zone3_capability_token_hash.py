@@ -12,14 +12,30 @@ schema-invalid today.
 
 Decision (ADR-0072 W4, runtime side): **the schema is right.** A hash
 field inside an anchored manifest is a fixed-width digest; the
-pilot-phase empty string becomes the all-zero digest (``"0" * 64``,
-which ``scripts/demo-proof.sh`` already emits). The leaf primitive
-stays permissive (it hashes whatever JCS tuple it is given; the empty
-string remains covered by ``tests/fixtures/jcs-leaf-vectors``). The
-producer change (``bridge_audit_writer`` sentinel, cross-lang fixtures,
-Rust twin) alters pilot leaf hashes and is a tracked follow-up of
-PR #526 — until it lands, this module pins the *current* state so that
-whichever side moves first has to update the pin consciously.
+pilot-phase empty string becomes the all-zero digest (``"0" * 64``).
+The leaf primitive stays permissive (it hashes whatever JCS tuple it
+is given; the empty string remains covered by
+``tests/fixtures/jcs-leaf-vectors``).
+
+**The follow-up has landed** (2026-09-14, finding R5 of the external
+re-review). Both halves moved in one change:
+
+- Producer: ``wat.anchor.bridge_audit_writer`` no longer hardcodes the
+  empty string. It takes a ``capability_token_hash`` argument and
+  defaults to :data:`~wat.anchor.bridge_audit_writer.NO_CAPABILITY_DIGEST`
+  (``"0" * 64``).
+- Consumer: ``wat.cmd.aggregator_cli._validate_events`` enforces the
+  schema's ``^[0-9a-f]{64}$`` on the digest fields, so a manifest that
+  could not be published can no longer be built.
+
+What made this visible: the demo used to hide the mismatch. The writer
+emitted ``""`` into the spool, and step 3 of ``scripts/demo-proof.sh``
+replaced it with the envelope's ``"0" * 64`` before hashing — the
+manifest satisfied the schema while describing a tuple the spool never
+held. With that repair removed, ``cross-repo-compat.yml`` went red and
+named this exact pin.
+
+This module now pins the *post*-follow-up state.
 """
 
 from __future__ import annotations
@@ -82,23 +98,59 @@ def test_leaf_primitive_still_accepts_empty_string():
     assert digest != agg.compute_leaf_hash(event_id="e", time="2026-05-17T12:00:00Z", payload_hash="1" * 64, capability_token_hash=ZERO_SENTINEL)
 
 
-def test_aggregator_shape_check_still_accepts_empty_string_today():
-    """Producer side of the pin: once bridge_audit_writer emits the zero
-    sentinel, tighten ``_validate_events`` to the schema pattern and flip
-    this assertion to ``pytest.raises(agg_cli.ValidationError)``."""
-    assert agg_cli._validate_events([_event("")]) == [_event("")]
+def test_aggregator_shape_check_rejects_the_empty_string():
+    """Consumer half of the follow-up: the aggregator refuses to build a
+    manifest the schema would reject, and says so with the event index."""
+    with pytest.raises(agg_cli.ValidationError) as excinfo:
+        agg_cli._validate_events([_event("")])
+    assert "capability_token_hash" in str(excinfo.value)
+    assert "^[0-9a-f]{64}$" in str(excinfo.value)
 
 
-def test_bridge_audit_writer_still_emits_empty_sentinel_today():
-    """Documents the producer that has to change (follow-up of PR #526)."""
+def test_aggregator_shape_check_accepts_the_zero_digest():
+    """Positive control for the tightened check."""
+    assert agg_cli._validate_events([_event(ZERO_SENTINEL)]) == [_event(ZERO_SENTINEL)]
+
+
+@pytest.mark.parametrize("bad", ["0" * 63, "0" * 65, "G" * 64, "0" * 63 + "A", ""])
+def test_aggregator_shape_check_rejects_non_hex64_capability(bad: str):
+    with pytest.raises(agg_cli.ValidationError):
+        agg_cli._validate_events([_event(bad)])
+
+
+def test_bridge_audit_writer_defaults_to_the_zero_digest():
+    """Producer half of the follow-up.
+
+    Asserted against the module's behaviour, not against a source-code
+    substring, so a refactor that keeps the contract does not fail
+    here.
+    """
     writer = pytest.importorskip("wat.anchor.bridge_audit_writer")
-    record = writer._leaf_record if hasattr(writer, "_leaf_record") else None
-    src = (REPO_ROOT / "wat" / "anchor" / "bridge_audit_writer.py").read_text(encoding="utf-8")
-    assert 'capability_token_hash="",' in src, (
-        "bridge_audit_writer no longer emits the empty sentinel — good: now tighten "
-        "aggregator_cli._validate_events and update this Zone-3 pin module"
+    assert writer.NO_CAPABILITY_DIGEST == ZERO_SENTINEL
+    leaf = writer._build_leaf_record(
+        persona_id="demo",
+        action_type="demo-proof",
+        event_time="2026-05-17T12:00:00Z",
+        payload_hash="1" * 64,
+        metadata={},
     )
-    del record
+    assert leaf.capability_token_hash == ZERO_SENTINEL
+    assert _errors(_manifest(leaf.capability_token_hash)) == []
+
+
+def test_bridge_audit_writer_forwards_a_real_capability_digest():
+    """The other half of the producer defect: the writer used to have no
+    way to record the capability it was auditing at all."""
+    writer = pytest.importorskip("wat.anchor.bridge_audit_writer")
+    leaf = writer._build_leaf_record(
+        persona_id="demo",
+        action_type="demo-proof",
+        event_time="2026-05-17T12:00:00Z",
+        payload_hash="1" * 64,
+        metadata={},
+        capability_token_hash="a" * 64,
+    )
+    assert leaf.capability_token_hash == "a" * 64
 
 
 def test_proof_path_vectors_use_only_64_hex():

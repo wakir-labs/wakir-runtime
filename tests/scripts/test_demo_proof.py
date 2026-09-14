@@ -631,3 +631,225 @@ def test_report_validates_with_stdlib_json(tmp_path: Path):  # regression: F3, F
     assert workdir.parent == tmp_path
     assert workdir.name.startswith("wakir-demo-proof.")
     assert (workdir / "demo-report.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Spool authority (finding R5, external re-review 2026-09-14)
+# ---------------------------------------------------------------------------
+#
+# `docs/architecture/layers.md` claims the spool is the sole input of
+# the manifest step. It was not: `_spool_jsonl_to_aggregator_events`
+# filled missing *and falsy* B1 fields from `event.envelope.json`, so
+# bridge-to-spool drift was repaired instead of reported. These tests
+# pin the corrected contract.
+
+
+def _spool_file(demo_dir: Path) -> Path:
+    return demo_dir / "spool" / helpers.DEFAULT_PERSONA / f"{HOUR}.jsonl"
+
+
+def _write_bridged_spool(demo_dir: Path, event_artifacts: Dict[str, Any]) -> Path:
+    helpers.do_run_bridge(
+        payload=event_artifacts["out"],
+        payload_hash=event_artifacts["payload_hash"],
+        spool_root=demo_dir / "spool",
+        activity_log=demo_dir / "activity-log.md",
+        event_time=f"{HOUR}:00:00Z",
+        out=demo_dir / "bridge-result.json",
+    )
+    # The demo envelope lives next to the aggregator input; that is the
+    # file the old projection path reached for.
+    (demo_dir / "event.envelope.json").write_text(
+        json.dumps(event_artifacts["envelope"]), encoding="utf-8"
+    )
+    return _spool_file(demo_dir)
+
+
+def _mutate_spool(spool: Path, field: str, value: Any) -> None:
+    record = json.loads(spool.read_text(encoding="utf-8").strip())
+    if value is None:
+        record.pop(field, None)
+    else:
+        record[field] = value
+    spool.write_text(json.dumps(record) + "\n", encoding="utf-8")
+
+
+def _build(demo_dir: Path, **kwargs: Any) -> Dict[str, Any]:
+    return helpers.do_build_manifest(
+        spool_root=demo_dir / "spool",
+        hour=HOUR,
+        aggregator_input=demo_dir / "manifest-input.jsonl",
+        manifest_out=demo_dir / HOUR / "manifest.json",
+        **kwargs,
+    )
+
+
+@pytest.mark.parametrize("field", ["event_id", "time", "payload_hash"])
+@pytest.mark.parametrize("bad_value", ["", None])
+def test_step3_rejects_drifted_spool_instead_of_repairing_it(
+    demo_dir: Path, event_artifacts: Dict[str, Any], field: str, bad_value: Any
+):
+    """regression: R5 — an emptied or missing B1 field fails step 3."""
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    _mutate_spool(spool, field, bad_value)
+    with pytest.raises(ValueError) as excinfo:
+        _build(demo_dir)
+    assert field in str(excinfo.value)
+    assert "spool is the input" in str(excinfo.value)
+
+
+def test_step3_emptied_payload_hash_is_a_hard_error_not_a_projection(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """The exact case named in the finding: `payload_hash` is the field
+    step 4 matches the demo event on, so repairing it from the envelope
+    guaranteed a green proof for an event the spool never held."""
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    _mutate_spool(spool, "payload_hash", "")
+    with pytest.raises(ValueError):
+        _build(demo_dir)
+
+
+def test_step2_binds_the_declared_capability_hash_into_the_spool(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """regression: R5 — the bridge writer used to hardcode the
+    no-capability sentinel and drop the capability digest of the very
+    event it audited. Step 3 then reinstated it from the envelope, so
+    the manifest committed to a tuple the spool never held.
+    """
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    record = json.loads(spool.read_text(encoding="utf-8").strip())
+    assert record["capability_token_hash"] == (
+        event_artifacts["envelope"]["capability_token_hash"]
+    )
+    assert record["capability_token_hash"] != helpers.NO_CAPABILITY_SENTINEL
+
+
+def test_step3_aggregator_input_is_byte_equal_to_the_spool_b1_tuple(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """The property the whole of R5 is about: what gets hashed is what
+    the spool holds, field for field."""
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    record = json.loads(spool.read_text(encoding="utf-8").strip())
+    _build(demo_dir)
+    agg = json.loads(
+        (demo_dir / "manifest-input.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert set(agg) == set(helpers.B1_FIELDS)
+    for field in helpers.B1_FIELDS:
+        assert agg[field] == record[field], field
+
+
+def test_step3_passes_an_empty_capability_through_to_the_aggregator(demo_dir: Path):
+    """An empty ``capability_token_hash`` in the spool must reach the
+    aggregator unchanged and be rejected *there*, on the manifest
+    schema's terms — not be quietly replaced by step 3.
+
+    Where it is rejected matters. The projection's job is to be
+    faithful; deciding that a manifest digest is 64 hex characters is
+    the aggregator's job, per the Cross-Review-Zone-3 pin in
+    ``tests/compat/test_zone3_capability_token_hash.py``. The old
+    behaviour collapsed the two: step 3 substituted the envelope's
+    placeholder, and nobody found out that the spool and the manifest
+    disagreed.
+    """
+    spool = demo_dir / "spool" / helpers.DEFAULT_PERSONA / f"{HOUR}.jsonl"
+    spool.parent.mkdir(parents=True, exist_ok=True)
+    spool.write_text(
+        json.dumps(
+            {
+                "event_id": "a" * 32,
+                "time": f"{HOUR}:00:00Z",
+                "payload_hash": "b" * 64,
+                "capability_token_hash": helpers.NO_CAPABILITY_SENTINEL,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    projection_out = demo_dir / "manifest-projection.json"
+    from wat.cmd.aggregator_cli import ValidationError
+
+    with pytest.raises(ValidationError) as excinfo:
+        _build(demo_dir, projection_out=projection_out)
+    assert "capability_token_hash" in str(excinfo.value)
+
+    # The projection ran and repaired nothing on the way.
+    projection = json.loads(projection_out.read_text(encoding="utf-8"))
+    assert projection["envelope_projection_used"] is False
+    agg = json.loads(
+        (demo_dir / "manifest-input.jsonl").read_text(encoding="utf-8").strip()
+    )
+    assert agg["capability_token_hash"] == ""
+
+
+def test_step3_projection_is_opt_in_and_recorded(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """regression: R5 — the escape hatch exists, is off by default, and
+    never repairs silently."""
+    spool = _write_bridged_spool(demo_dir, event_artifacts)
+    _mutate_spool(spool, "payload_hash", "")
+    projection_out = demo_dir / "manifest-projection.json"
+
+    _build(
+        demo_dir,
+        allow_envelope_projection=True,
+        projection_out=projection_out,
+    )
+    projection = json.loads(projection_out.read_text(encoding="utf-8"))
+    assert projection["envelope_projection_allowed"] is True
+    assert projection["envelope_projection_used"] is True
+    assert [p["field"] for p in projection["projected_fields"]] == ["payload_hash"]
+    assert projection["projected_fields"][0]["source"] == "event.envelope.json"
+
+
+def test_step3_clean_spool_reports_no_projection(
+    demo_dir: Path, event_artifacts: Dict[str, Any]
+):
+    """Positive control: the honest path says so explicitly, which is
+    what the strict report validator requires."""
+    _write_bridged_spool(demo_dir, event_artifacts)
+    projection_out = demo_dir / "manifest-projection.json"
+    _build(demo_dir, projection_out=projection_out)
+    projection = json.loads(projection_out.read_text(encoding="utf-8"))
+    assert projection["envelope_projection_used"] is False
+    assert projection["projected_fields"] == []
+    assert projection["event_count"] == 1
+
+
+def test_driver_turns_spool_drift_into_a_red_step_3(tmp_path: Path):
+    """End-to-end: a clean driver run reports
+    ``envelope_projection_used=false``, and the same spool with an
+    emptied ``payload_hash`` fails step 3 instead of being repaired.
+
+    The second half rebuilds step 3 over the mutated spool through the
+    helper layer rather than re-running the driver, because the bridge
+    writer appends to the spool and would overwrite the mutation.
+    """
+    workdir = tmp_path / "work"
+    env = _driver_env(workdir)
+    first = _run_driver(env)
+    assert first.returncode == 0, first.stdout + first.stderr
+    report = _report(first)
+    by_name = {s["name"]: s for s in report["steps"]}
+    assert by_name["merkle_manifest"]["status"] == "ok"
+    assert by_name["merkle_manifest"]["details"]["envelope_projection_used"] == "false"
+
+    projection = json.loads(
+        (workdir / "manifest-projection.json").read_text(encoding="utf-8")
+    )
+    assert projection["envelope_projection_used"] is False
+
+    # Now corrupt the spool the first run produced and rebuild step 3.
+    spool = workdir / "spool" / helpers.DEFAULT_PERSONA / f"{HOUR}.jsonl"
+    _mutate_spool(spool, "payload_hash", "")
+    with pytest.raises(ValueError):
+        helpers.do_build_manifest(
+            spool_root=workdir / "spool",
+            hour=HOUR,
+            aggregator_input=workdir / "manifest-input.jsonl",
+            manifest_out=workdir / HOUR / "manifest.json",
+        )

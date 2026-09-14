@@ -7,6 +7,18 @@ These tests pin its rules without running ``scripts/demo-proof.sh``:
 each case builds a ``wakir-demo-proof/v1`` report in memory, mutates
 one property, and asserts on the violation list plus the CLI exit
 code. No network, no subprocess beyond ``python`` itself.
+
+Profile note (2026-09-14, finding R1)
+-------------------------------------
+
+The validator used to be permissive by default and strict only with
+``--require-external-verify-ok``; a deny-list of two statuses let
+``skipped``, unknown statuses, mismatched exit codes and
+self-contradicting detail flags through. It is now strict by default,
+with a single named relaxation (``--allow-skipped-external-verify``)
+that CI does not pass. The cases under "Negative matrix (finding R1)"
+are the reproduction from the external re-review, turned into
+regression tests.
 """
 
 from __future__ import annotations
@@ -38,8 +50,27 @@ def _load_module():
 validator = _load_module()
 
 
+#: What the driver writes into ``details`` for a *successful* step.
+#: Mirrors ``scripts/demo-proof.sh`` (steps 2/3/4/5) and
+#: ``do_external_verify`` in ``scripts/demo_proof_helpers.py``.
+OK_DETAILS: Dict[str, Dict[str, Any]] = {
+    "protocol_event": {},
+    "runtime_bridge": {"bridge_status": "ok"},
+    "merkle_manifest": {"envelope_projection_used": "false"},
+    "inclusion_proof": {"verified": True},
+    "external_verify": {
+        "manifest_consistent": True,
+        "root_match": True,
+        "leaf_present": True,
+        "proof_verified": True,
+    },
+}
+
+
 def _step(name: str, status: str = "ok", code: int = 0, **details: Any) -> Dict[str, Any]:
-    return {"name": name, "status": status, "exit_code": code, "details": dict(details)}
+    body = dict(OK_DETAILS.get(name, {})) if status == "ok" else {}
+    body.update(details)
+    return {"name": name, "status": status, "exit_code": code, "details": body}
 
 
 def _valid_report(commit: str = COMMIT) -> Dict[str, Any]:
@@ -58,9 +89,17 @@ def _valid_report(commit: str = COMMIT) -> Dict[str, Any]:
     }
 
 
-def _validate(report: Dict[str, Any], *, require_ok: bool = True, commit: str | None = COMMIT) -> List[str]:
+def _validate(
+    report: Dict[str, Any],
+    *,
+    allow_skipped_ev: bool = False,
+    commit: str | None = COMMIT,
+) -> List[str]:
+    """Strict profile by default — the profile ``proof-path.yml`` runs."""
     return validator.validate_report(
-        report, require_external_verify_ok=require_ok, expected_commit=commit
+        report,
+        allow_skipped_external_verify=allow_skipped_ev,
+        expected_commit=commit,
     )
 
 
@@ -122,22 +161,44 @@ def test_extra_step_is_a_violation():
     assert any("unexpected=['bonus_step']" in v for v in violations)
 
 
-def test_skipped_external_verify_fails_when_required():
+def test_skipped_external_verify_fails_in_the_strict_default():
+    """Was: only rejected with --require-external-verify-ok. The strict
+    profile is now the default, so no flag is needed to reject it."""
     report = _valid_report()
     report["steps"][4] = _step(
         "external_verify", "skipped", 20, mode="library", reason="wakir_verify not importable"
     )
-    violations = _validate(report, require_ok=True)
+    violations = _validate(report)
     assert any(
-        "external_verify: status 'skipped', required 'ok'" in v and "not importable" in v
+        "status 'skipped' is not accepted" in v and "not importable" in v
         for v in violations
     )
 
 
-def test_skipped_external_verify_passes_without_require_flag():
+def test_skipped_external_verify_passes_only_with_the_named_relaxation():
     report = _valid_report()
     report["steps"][4] = _step("external_verify", "skipped", 20, reason="offline")
-    assert _validate(report, require_ok=False) == []
+    assert _validate(report, allow_skipped_ev=True) == []
+
+
+def test_the_relaxation_covers_external_verify_and_nothing_else():
+    for idx, name in enumerate(validator.STEP_NAMES[:-1]):
+        report = _valid_report()
+        report["steps"][idx] = _step(name, "skipped", 20, reason="offline")
+        violations = _validate(report, allow_skipped_ev=True)
+        assert any("status 'skipped' is not accepted" in v for v in violations), name
+
+
+def test_require_flag_cancels_the_relaxation():
+    report = _valid_report()
+    report["steps"][4] = _step("external_verify", "skipped", 20, reason="offline")
+    violations = validator.validate_report(
+        report,
+        allow_skipped_external_verify=True,
+        require_external_verify_ok=True,
+        expected_commit=COMMIT,
+    )
+    assert any("status 'skipped' is not accepted" in v for v in violations)
 
 
 def test_failed_step_is_a_violation_regardless_of_flag():
@@ -146,8 +207,8 @@ def test_failed_step_is_a_violation_regardless_of_flag():
         "merkle_manifest", "failed", 10, error="fault injected via DEMO_PROOF_FAIL_STEP"
     )
     report["exit_code"] = 10
-    violations = _validate(report, require_ok=False)
-    assert any("status 'failed' is not allowed" in v and "fault injected" in v for v in violations)
+    violations = _validate(report, allow_skipped_ev=True)
+    assert any("status 'failed' is not accepted" in v and "fault injected" in v for v in violations)
     assert any("exit_code: expected 0, got 10" in v for v in violations)
 
 
@@ -156,8 +217,8 @@ def test_not_run_step_is_a_violation():
     report["steps"][3] = _step(
         "inclusion_proof", "not_run", 30, reason="short-circuited after step3_merkle_manifest failed"
     )
-    violations = _validate(report, require_ok=False)
-    assert any("status 'not_run' is not allowed" in v for v in violations)
+    violations = _validate(report, allow_skipped_ev=True)
+    assert any("status 'not_run' is not accepted" in v for v in violations)
 
 
 def test_wrong_commit_is_a_violation():
@@ -224,9 +285,9 @@ def test_cli_expect_commit_flag_overrides_env(tmp_path: Path):
 def test_cli_skipped_external_verify_exits_one_when_required(tmp_path: Path):
     report = _valid_report()
     report["steps"][4] = _step("external_verify", "skipped", 20, reason="offline")
-    proc = _run_cli(tmp_path, report, "--require-external-verify-ok", env_sha=COMMIT)
+    proc = _run_cli(tmp_path, report, env_sha=COMMIT)
     assert proc.returncode == 1
-    assert "external_verify: status 'skipped', required 'ok'" in proc.stderr
+    assert "status 'skipped' is not accepted" in proc.stderr
 
 
 def test_cli_fault_injected_report_exits_one(tmp_path: Path):
@@ -238,7 +299,6 @@ def test_cli_fault_injected_report_exits_one(tmp_path: Path):
     report["exit_code"] = 10
     proc = _run_cli(tmp_path, report, "--require-external-verify-ok", env_sha=COMMIT)
     assert proc.returncode == 1
-    assert "5 violation(s)" in proc.stderr
     assert "merkle_manifest): status 'failed'" in proc.stderr
 
 
@@ -278,3 +338,138 @@ def test_validator_is_stdlib_only():
         elif stripped.startswith("from ") and " import " in stripped:
             imported.add(stripped.split()[1].split(".")[0])
     assert imported <= allowed, imported - allowed
+
+
+# ---------------------------------------------------------------------------
+# Negative matrix (finding R1, external re-review 2026-09-14)
+# ---------------------------------------------------------------------------
+#
+# Every row below returned rc=0 from the CLI invocation that
+# `proof-path.yml` runs, against the pre-fix validator. They are the
+# regression net for the deny-list-instead-of-allow-list defect.
+
+
+def test_r1_skipped_first_step_with_nonzero_exit_code_is_rejected():
+    report = _valid_report()
+    report["steps"][0] = _step("protocol_event", "skipped", 20)
+    violations = _validate(report)
+    assert any("status 'skipped' is not accepted" in v for v in violations)
+
+
+def test_r1_unknown_status_string_is_rejected():
+    """The old deny-list forbade two statuses and waved through every
+    string nobody had thought of."""
+    for bogus in ("banana", "passed", "OK", "ok "):
+        report = _valid_report()
+        report["steps"][0]["status"] = bogus
+        violations = _validate(report)
+        assert any("is not accepted" in v for v in violations), bogus
+
+
+def test_r1_status_ok_with_nonzero_exit_code_is_rejected():
+    report = _valid_report()
+    report["steps"][2]["exit_code"] = 999
+    violations = _validate(report)
+    assert any(
+        "status 'ok' requires exit_code 0, got 999" in v for v in violations
+    )
+
+
+def test_r1_boolean_exit_code_is_not_an_integer():
+    """``isinstance(True, int)`` is True in Python; the report is JSON,
+    where ``true`` is not 0."""
+    report = _valid_report()
+    report["steps"][0]["exit_code"] = False
+    assert any("not an integer" in v for v in _validate(report))
+    report = _valid_report()
+    report["exit_code"] = False
+    assert any("exit_code: expected 0" in v for v in _validate(report))
+
+
+def test_r1_external_verify_ok_with_false_proof_verified_is_rejected():
+    report = _valid_report()
+    report["steps"][4]["details"]["proof_verified"] = False
+    violations = _validate(report)
+    assert any("contradicts details.proof_verified=False" in v for v in violations)
+
+
+@pytest.mark.parametrize(
+    "flag",
+    ["manifest_consistent", "root_match", "leaf_present", "proof_verified"],
+)
+def test_r1_every_external_verify_flag_must_agree_with_the_status(flag: str):
+    report = _valid_report()
+    report["steps"][4]["details"][flag] = False
+    assert any(f"contradicts details.{flag}=False" in v for v in _validate(report))
+
+    report = _valid_report()
+    del report["steps"][4]["details"][flag]
+    assert any(f"details.{flag} is missing" in v for v in _validate(report))
+
+
+def test_r1_inclusion_proof_ok_with_verified_false_is_rejected():
+    report = _valid_report()
+    report["steps"][3]["details"]["verified"] = False
+    assert any("contradicts details.verified=False" in v for v in _validate(report))
+
+
+def test_r1_runtime_bridge_ok_with_failed_bridge_status_is_rejected():
+    report = _valid_report()
+    report["steps"][1]["details"]["bridge_status"] = "wat-failed"
+    violations = _validate(report)
+    assert any("contradicts details.bridge_status='wat-failed'" in v for v in violations)
+
+
+def test_r1_fault_injected_step_cannot_be_ok():
+    report = _valid_report()
+    report["steps"][0]["details"]["fault_injected"] = "true"
+    assert any("contradicts details.fault_injected" in v for v in _validate(report))
+
+
+def test_r5_projected_manifest_is_not_a_proof():
+    """Finding R5: a manifest built from envelope-repaired spool input
+    must not pass the strict gate, and the report must say which it
+    was."""
+    report = _valid_report()
+    report["steps"][2]["details"]["envelope_projection_used"] = "true"
+    assert any(
+        "contradicts details.envelope_projection_used='true'" in v
+        for v in _validate(report)
+    )
+
+    report = _valid_report()
+    del report["steps"][2]["details"]["envelope_projection_used"]
+    assert any(
+        "details.envelope_projection_used is missing" in v for v in _validate(report)
+    )
+
+
+def test_r1_control_clean_report_still_passes():
+    """Positive control: the fix must not make the honest report red."""
+    assert _validate(_valid_report()) == []
+
+
+def test_r1_cli_matrix_exit_codes(tmp_path: Path):
+    """The matrix through the CLI, with the flags proof-path.yml uses."""
+    cases = {
+        "skipped_step": lambda r: r["steps"][0].update(status="skipped", exit_code=20),
+        "unknown_status": lambda r: r["steps"][0].update(status="banana"),
+        "ok_with_999": lambda r: r["steps"][2].update(exit_code=999),
+        "contradicting_detail": lambda r: r["steps"][4]["details"].update(
+            proof_verified=False
+        ),
+        "failed_step": lambda r: r["steps"][1].update(status="failed", exit_code=10),
+    }
+    for label, mutate in cases.items():
+        report = _valid_report()
+        mutate(report)
+        proc = _run_cli(
+            tmp_path, report, "--require-external-verify-ok", env_sha=COMMIT
+        )
+        assert proc.returncode == 1, f"{label} was accepted: {proc.stdout}"
+
+    proc = _run_cli(
+        tmp_path, _valid_report(), "--require-external-verify-ok", env_sha=COMMIT
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "OK [strict]" in proc.stdout
