@@ -47,6 +47,14 @@
 # without updating `docs/ci/branch-protection-required-checks.md` and
 # `scripts/ci/ci_aggregator.py` in the same PR.
 #
+# Error propagation
+# -----------------
+# The aggregator carries `if: always()` and re-checks every
+# `needs.<job>.result` before it runs anything else. A required context
+# that *skips* when its dependency fails does not block a merge, so a
+# `needs`-only aggregator would be a fail-open gate. Both halves are
+# pinned by `tests/workflows/test_required_context_error_propagation.py`.
+#
 # Pattern parity
 # --------------
 # Trigger form, Python setup, dependency pin and stage layout match
@@ -178,14 +186,59 @@ jobs:
     # Aggregator depends on all five single-gate jobs so the green-light
     # signal at the bottom of the PR-Check-Run-Tab only fires once each
     # individual Gate plus the cross-gate-non-interference invariant
-    # have passed. If any single-gate job is RED, the aggregator skips.
+    # have passed.
+    #
+    # `if: always()` is load-bearing, not cosmetic. This job's display
+    # name is the only branch-protection context of this lane (the five
+    # gate jobs are not required contexts). Without `always()`, a red
+    # gate job makes this job *skipped*, and GitHub does not block a
+    # merge on a skipped required check — the lane would fail open. See
+    # https://docs.github.com/en/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks
+    # `always()` alone is not enough either: it only guarantees the job
+    # runs. The first step below turns each `needs.*.result` into this
+    # job's own exit code, so a green aggregator test can never paper
+    # over a red gate job.
     needs:
       - gate-2-1-bridge-forward-symmetry
       - gate-2-2-konsistenz-score-threshold
       - gate-2-3-v907-hash-stability-marker
       - gate-2-4-recovery-r1-r4-mock-drill
       - gate-2-5-subscribe-loop-lag-mock
+    if: always()
     steps:
+      - name: Require every gate job to have succeeded
+        # Runs before anything else so an upstream failure cannot be
+        # masked by a later green step. Any result other than `success`
+        # (failure, cancelled, skipped, or an empty string when the job
+        # never materialised) fails this job, and with it the required
+        # context.
+        env:
+          GATE_RESULTS: |
+            gate-2-1-bridge-forward-symmetry=${{ needs.gate-2-1-bridge-forward-symmetry.result }}
+            gate-2-2-konsistenz-score-threshold=${{ needs.gate-2-2-konsistenz-score-threshold.result }}
+            gate-2-3-v907-hash-stability-marker=${{ needs.gate-2-3-v907-hash-stability-marker.result }}
+            gate-2-4-recovery-r1-r4-mock-drill=${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }}
+            gate-2-5-subscribe-loop-lag-mock=${{ needs.gate-2-5-subscribe-loop-lag-mock.result }}
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            job="${line%%=*}"
+            result="${line#*=}"
+            if [ "${result}" != "success" ]; then
+              echo "::error::gate job ${job} result=${result:-<none>} (expected success)"
+              bad=1
+            else
+              echo "gate job ${job}: success"
+            fi
+          done <<< "${GATE_RESULTS}"
+          if [ "${bad}" -ne 0 ]; then
+            echo "runtime acceptance gates: at least one gate job did not succeed" >&2
+            exit 1
+          fi
+          echo "runtime acceptance gates: all five gate jobs succeeded"
+
       - name: Checkout
         uses: actions/checkout@v4
       - name: Set up Python 3.13

@@ -304,9 +304,39 @@ jobs:
   drift-detection:
     name: production-vs-sandbox drift envelope
     needs: [production-suite, sandbox-suite-shadow]
+    # Same fail-open class as the runtime-acceptance-gates aggregator:
+    # this job's display name is a branch-protection context, and a
+    # required context that *skips* because a dependency failed does not
+    # block a merge. `always()` keeps it reporting; the result check
+    # below keeps it honest.
+    if: always()
     runs-on: ubuntu-latest
 
     steps:
+      - name: Require both suite jobs to have succeeded
+        env:
+          SUITE_RESULTS: |
+            production-suite=${{ needs.production-suite.result }}
+            sandbox-suite-shadow=${{ needs.sandbox-suite-shadow.result }}
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            job="${line%%=*}"
+            result="${line#*=}"
+            if [ "${result}" != "success" ]; then
+              echo "::error::suite job ${job} result=${result:-<none>} (expected success)"
+              bad=1
+            else
+              echo "suite job ${job}: success"
+            fi
+          done <<< "${SUITE_RESULTS}"
+          if [ "${bad}" -ne 0 ]; then
+            echo "drift envelope: an upstream suite job did not succeed" >&2
+            exit 1
+          fi
+
       - name: Compare collected-counts
         # Baseline lineage:
         # -: production 435, sandbox 291, delta 144.

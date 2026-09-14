@@ -60,7 +60,12 @@ BRANCH_PROTECTION_MIGRATED: bool = False
 #: Canonical inventory: ``docs/ci/branch-protection-required-checks.md``.
 #: Re-captured from
 #: ``gh api repos/wakir-labs/wakir-runtime/branches/main/protection``
-#: at 2026-09-11 (post V2 reduction 16 -> 10).
+#: at 2026-09-14: 13 contexts, ``enforce_admins: false`` (so the
+#: enforcement scope is ``non_admins``). The 2026-09-11 capture below
+#: held only 10 because the three Phase-4 contexts
+#: (``cross-repo compatibility``, ``runtime acceptance gates``,
+#: ``proof-path``) were still pending the operator step, and
+#: ``secret-scan`` had never been inventoried at all.
 #:
 #: Order matches the live ``required_status_checks.contexts``
 #: array on ``main`` and is preserved for round-trip backup /
@@ -69,7 +74,6 @@ BRANCH_PROTECTION_MIGRATED: bool = False
 REQUIRED_NAMES_RUNTIME_PRE_MIGRATION: tuple[str, ...] = (
     "License-Hygiene Gate (ADR-0061)",
     "wirelang suite with rfc8785 + jsonschema",
-    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
     "production-vs-sandbox drift envelope",
     "wirelang suite without rfc8785 / jsonschema (shadow)",
     "verify-containerfile-base-image-digest-pins",
@@ -77,6 +81,10 @@ REQUIRED_NAMES_RUNTIME_PRE_MIGRATION: tuple[str, ...] = (
     "wirelang spec v0.4.3 freeze-seal probe",
     "cosign verify SPIRE images",
     "Cosign-Keyless-OIDC-Drift-Probe (daily)",
+    "runtime acceptance gates",
+    "proof-path",
+    "secret-scan",
+    "cross-repo compatibility (protocol ↔ runtime ↔ verify)",
 )
 
 
@@ -149,8 +157,11 @@ def test_required_names_constant_matches_audit_doc_count() -> None:
     cardinality for the current migration phase.
 
     Pre-migration (``BRANCH_PROTECTION_MIGRATED == False``):
-    cardinality is 10, matching the live branch-protection set after
-    the Phase-4 W1 cleanup (``docs/ci/branch-protection-required-checks.md``).
+    cardinality is 13, matching the live branch-protection set read on
+    2026-09-14 (``docs/ci/branch-protection-required-checks.md`` §1).
+    It was 10 until the operator activated the three Phase-4 contexts;
+    ``secret-scan`` had been required all along without appearing in
+    the inventory.
 
     Post-migration (``BRANCH_PROTECTION_MIGRATED == True``):
     cardinality is 1, matching ADR-0068 Migration-Step-3
@@ -160,7 +171,7 @@ def test_required_names_constant_matches_audit_doc_count() -> None:
     ``docs/ci/branch-protection-required-checks.md`` in the same PR.
     This test pins that disciplinary coupling.
     """
-    expected = 1 if BRANCH_PROTECTION_MIGRATED else 10
+    expected = 1 if BRANCH_PROTECTION_MIGRATED else 13
     assert len(REQUIRED_NAMES_RUNTIME) == expected, (
         f"REQUIRED_NAMES_RUNTIME cardinality is "
         f"{len(REQUIRED_NAMES_RUNTIME)}, expected {expected} for "
