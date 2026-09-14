@@ -129,14 +129,37 @@ def test_profiles_are_from_the_closed_vocabulary(assignment: dict) -> None:
 
 NEEDS_GROUP = {"operator-hand", "opt-in-marker", "unassigned"}
 
+#: The non-blocking lane introduced in Welle 3. Modules whose only lane
+#: is this one are running but not enforced, which is an exception with
+#: an end date rather than a resting state — see
+#: ``test_observation_lane_modules_name_a_group``.
+OBSERVATION_WORKFLOW = "test-observation-lane.yml"
+
+#: Profiles an exemption group may describe. ``optional-ci`` was added in
+#: Welle 3 for the observation lane: a module that runs but blocks
+#: nothing is still an exception to "this invariant is enforced", and
+#: ADR-0075 §3 gives every exception a date.
+GROUPABLE = NEEDS_GROUP | {"optional-ci"}
+
 
 def test_every_exempt_module_names_a_group(assignment: dict) -> None:
     groups = assignment["exemption_groups"]
     problems = []
     for module, entry in sorted(assignment["modules"].items()):
         if entry["profile"] not in NEEDS_GROUP:
-            if "group" in entry:
-                problems.append(f"{module}: profile {entry['profile']} must not carry a group")
+            # A group is not required here, but if one is claimed it has
+            # to be a group for this profile. Welle 3 added groups for
+            # `optional-ci` modules that sit in the observation lane;
+            # what must not happen is a module keeping a justification
+            # written for a profile it no longer has.
+            group = entry.get("group")
+            if group and group not in groups:
+                problems.append(f"{module}: unknown exemption group {group!r}")
+            elif group and groups[group]["profile"] != entry["profile"]:
+                problems.append(
+                    f"{module}: group {group!r} is for profile "
+                    f"{groups[group]['profile']!r}, module is {entry['profile']!r}"
+                )
             continue
         group = entry.get("group")
         if not group:
@@ -151,6 +174,39 @@ def test_every_exempt_module_names_a_group(assignment: dict) -> None:
     assert not problems, "\n  ".join(["exemption bookkeeping:"] + problems)
 
 
+def test_observation_lane_modules_name_a_group(assignment: dict, derived: dict) -> None:
+    """The observation lane is a holding pen, and a pen needs a door.
+
+    A module whose only lane is the non-blocking observation lane runs
+    on every pull request and blocks nothing. That is a deliberate
+    intermediate state with a promotion date, not a place for modules to
+    arrive at by accident: without this assertion a new test module
+    dropped into `tests/infra/` would silently join the pen, because
+    `optional-ci` on its own asks no questions.
+
+    So it asks one: name the group, and the group carries the date.
+    """
+    groups = assignment["exemption_groups"]
+    problems = []
+    for module, entry in sorted(assignment["modules"].items()):
+        if module not in derived:
+            continue
+        lanes = derived[module]["lanes"]
+        if not lanes or not all(l.startswith(OBSERVATION_WORKFLOW) for l in lanes):
+            continue
+        if derived[module]["profile"] != "optional-ci":
+            continue
+        group = entry.get("group")
+        if not group:
+            problems.append(
+                f"{module}: only lane is the observation lane, so it needs a "
+                "group in exemption_groups with an owner and a promotion date"
+            )
+        elif groups.get(group, {}).get("profile") != "optional-ci":
+            problems.append(f"{module}: group {group!r} is not an observation group")
+    assert not problems, "\n  ".join(["observation lane bookkeeping:"] + problems)
+
+
 def test_exemption_groups_carry_a_reason_and_an_owner(assignment: dict) -> None:
     problems = []
     for name, group in sorted(assignment["exemption_groups"].items()):
@@ -159,7 +215,7 @@ def test_exemption_groups_carry_a_reason_and_an_owner(assignment: dict) -> None:
             problems.append(f"{name}: reason too thin to be a reason ({len(reason)} chars)")
         if not group.get("owner"):
             problems.append(f"{name}: no owner")
-        if group["profile"] not in NEEDS_GROUP:
+        if group["profile"] not in GROUPABLE:
             problems.append(f"{name}: profile {group['profile']!r} needs no exemption")
     assert not problems, "\n  ".join(["exemption groups:"] + problems)
 

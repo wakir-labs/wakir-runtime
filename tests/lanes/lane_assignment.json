@@ -19,10 +19,10 @@
   "python": "3.14.0 local; CI production lane pins 3.12",
   "test_modules": 414,
   "required": 292,
-  "optional_ci": 20,
+  "optional_ci": 100,
   "operator_hand": 2,
   "opt_in_marker": 20,
-  "unassigned": 80,
+  "unassigned": 0,
   "note": "Live counts. `tests/lanes/test_lane_assignment.py::test_measured_counts_are_current` re-derives these from the workflows on every run, so they cannot go stale in a report."
  },
  "required_contexts": [
@@ -103,96 +103,106 @@
    }
   },
   "spec-audit-evidence": {
-   "profile": "unassigned",
-   "reason": "Spec/ADR cross-audit and evidence-integrity suites (protocol mirror seed integrity, spec cross-validation, ADR errata cross-audit, v0.4.4 draft coverage). Three sibling modules in the same directory do run — via python -m unittest in the spec probes — which is why this directory looked covered from the workflow text. Unchecked invariant: the protocol mirror seeds and the ADR errata table stay consistent with the spec.",
+   "profile": "optional-ci",
+   "reason": "Spec/ADR cross-audit and evidence-integrity suites. The group deliberately still mixes two kinds: durable domain invariants (protocol mirror seed integrity, spec cross-validation) and historical state audits (ADR errata cross-audit, final-wave sealing audit). Splitting them is Reza's task before the promotion date — the durable half belongs in a required lane, the historical half belongs on a weekly cadence rather than a per-pull-request one, and promoting the group wholesale would fix the wrong thing in place.",
    "owner": "reza (wirelang/protocol)",
    "review_by": "2026-10-31",
-   "deliberate": false
+   "deliberate": true,
+   "lane": "test-observation-lane.yml (non-blocking)",
+   "on_review_date": "promote to a required lane, or renew the exception with renewed_on + renewal_reason. An expired date fails the lane-assignment suite in the required production context."
   },
   "orchestrator-substrate": {
-   "profile": "unassigned",
-   "reason": "Hermetic shape tests for compose files, Quadlet units, NATS KV provisioning and the Proxmox bring-up scripts. Despite the podman/NATS subject matter these are static-file and mocked-subprocess tests: `pytest tests/orchestrator` = 361 passed, 9 skipped, 2s, no daemon required. Contains the hermetic counterparts of two required contexts — cosign digest pins (test_compose_spire_cosign_pin.py, test_verify_image_digest*.py) — whose gates today run shell-only.",
+   "profile": "optional-ci",
+   "reason": "Hermetic shape tests for compose files, Quadlet units, NATS KV provisioning and the Proxmox bring-up scripts — the remainder after the five trust-bearing modules (the hermetic counterparts of the required digest-pin context) were promoted to a required lane in Welle 3. Same reasoning as infra-substrate: the subject matter touches podman and SSH, so CI behaviour gets measured before it gets a veto.",
    "owner": "kai (container/infra)",
    "review_by": "2026-10-31",
-   "deliberate": false
+   "deliberate": true,
+   "lane": "test-observation-lane.yml (non-blocking)",
+   "on_review_date": "promote to a required lane, or renew the exception with renewed_on + renewal_reason. An expired date fails the lane-assignment suite in the required production context."
   },
   "infra-substrate": {
-   "profile": "unassigned",
-   "reason": "Bootstrap, Quadlet, cosign-policy and acceptance-gate consistency tests. Sibling modules in the same directory are required (license hygiene, cross-substrate parity, phase-2 acceptance gates); these 29 are not, with no visible rule separating them. Mostly hermetic (mocked subprocess); the pilot-bootstrap modules shell out but skip cleanly when podman is absent.",
+   "profile": "optional-ci",
+   "reason": "Bootstrap, Quadlet, cosign-policy and acceptance-gate consistency tests. 22 of the 29 modules speak to podman, SSH or Proxmox; locally they skip cleanly, on a GitHub runner their behaviour was unmeasured when this group was written. That is the reason they are in the observation lane and not in a required one: making them blocking first and finding out afterwards produces pressure to get tests green rather than pressure to get the system right.",
    "owner": "kai (container/infra)",
    "review_by": "2026-10-31",
-   "deliberate": false
+   "deliberate": true,
+   "lane": "test-observation-lane.yml (non-blocking)",
+   "on_review_date": "promote to a required lane, or renew the exception with renewed_on + renewal_reason. An expired date fails the lane-assignment suite in the required production context."
   },
   "spire-federation-substrate": {
-   "profile": "unassigned",
-   "reason": "infra/spire/federation/tests/ — a third test root that is neither `tests/` nor `wirelang/` and is therefore invisible to both testpaths and every lane. 14 modules, 196 tests, hermetically green in 5s. Covers the federation bundle rotator, health endpoint status codes and the Prometheus metrics surface.",
+   "profile": "optional-ci",
+   "reason": "infra/spire/**/tests/ — a third test root that is neither tests/ nor wirelang/ and was invisible to testpaths and to every lane until the lane inventory made it visible. 14 modules, 196 tests, hermetically green in 5 s locally. Covers the federation bundle rotator, health endpoint status codes and the Prometheus metrics surface. Observation first because this root has never run in CI at all, not once, and a root's first CI run should not also be its first veto.",
    "owner": "kai (container/infra)",
    "review_by": "2026-10-31",
-   "deliberate": false
+   "deliberate": true,
+   "lane": "test-observation-lane.yml (non-blocking)",
+   "on_review_date": "promote to a required lane, or renew the exception with renewed_on + renewal_reason. An expired date fails the lane-assignment suite in the required production context."
   },
   "script-driver": {
-   "profile": "unassigned",
-   "reason": "Hermetic tests for operational scripts (backend/routing decision observability, soak probes, the phase-3b live-VM driver, the legacy env-flag migration detector). The scripts are operator-hand; their tests are not, and run nowhere.",
+   "profile": "optional-ci",
+   "reason": "Hermetic tests for operational scripts (backend/routing decision observability, soak probes, the phase-3b live-VM driver, the legacy env-flag migration detector). The scripts are operator-hand; their tests are not, and ran nowhere. Lowest trust-bearing content of the Welle-3 inventory, which is why they are the clearest observation-lane candidates rather than an argument for delay.",
    "owner": "kai (container/infra)",
    "review_by": "2026-10-31",
-   "deliberate": false
+   "deliberate": true,
+   "lane": "test-observation-lane.yml (non-blocking)",
+   "on_review_date": "promote to a required lane, or renew the exception with renewed_on + renewal_reason. An expired date fails the lane-assignment suite in the required production context."
   }
  },
  "modules": {
   "infra/spire/agent/tests/test_compose_spire_agent_federation.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/agent/tests/test_quadlet_spire_agent_federation.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/agent/tests/test_spire_agent_fed_attest_cli.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/agent/tests/test_spire_agent_fed_reload.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/agent/tests/test_spire_agent_federation_config.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/provisioner/tests/test_containerfile.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/provisioner/tests/test_requirements_hash_form.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_federation_compose.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_federation_quadlet.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_image_pin_digest_form.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_spire_fed_bundle_cli.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_spire_fed_bundle_rotator.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_spire_fed_health.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "infra/spire/federation/tests/test_spire_fed_metrics.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spire-federation-substrate"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_anchor_emitter.py": {
@@ -272,37 +282,37 @@
    "group": "phase-3c-opt-in"
   },
   "tests/audit/test_adr_errata_spec_cross_audit.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_capability_token_layer_verify.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_cross_substrate_parity_spec.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_final_wave_sealing_audit.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_nats_jetstream_subjects_audit.py": {
    "profile": "optional-ci"
   },
   "tests/audit/test_phase_3a_15_crate_consistency.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_protocol_mirror_seed_integrity.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_res_d_items_ots_probe.py": {
    "profile": "optional-ci"
   },
   "tests/audit/test_spec_cross_validation.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_wirelang_spec_freeze_seal_probe.py": {
@@ -312,11 +322,11 @@
    "profile": "optional-ci"
   },
   "tests/audit/test_wirelang_spec_v0_4_4_coverage.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/audit/test_wirelang_spec_v0_4_4_draft.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "spec-audit-evidence"
   },
   "tests/ci/test_adr_0068_migration_step_3.py": {
@@ -380,49 +390,49 @@
    "profile": "required"
   },
   "tests/infra/test_acceptance_script_naming_convergence.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_bootstrap_podman_volume_selinux_discipline.py": {
    "profile": "optional-ci"
   },
   "tests/infra/test_branch_protection_consistency_audit.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_cache_hit_rate_aggregator.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_ci_live_vm_acceptance_wrapper.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_ci_live_vm_wrapper_coverage_audit.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_cosign_drift_coverage_a6.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_cosign_policy_phase_3b.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_cross_substrate_parity_3way.py": {
    "profile": "required"
   },
   "tests/infra/test_doppelbetrieb_bridge_smoke.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_e2e_vm_workflow_yaml_validation.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_federation_config_hcl_shape.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_hash_derivate_consistency.py": {
@@ -435,22 +445,22 @@
    "profile": "required"
   },
   "tests/infra/test_live_vm_acceptance_phase_3b.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_per_model_cost_aggregator.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_persona_tomas_quadlet_validate.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_phase_2_acceptance_gates.py": {
    "profile": "required"
   },
   "tests/infra/test_phase_2_gate_consistency_audit.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_phase_3_acceptance_gates.py": {
@@ -458,34 +468,34 @@
    "group": "phase-3-skeleton-opt-in"
   },
   "tests/infra/test_pilot_bootstrap.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bootstrap_bug_36_37_fixes.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bootstrap_bug_38_fixes.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bootstrap_bug_39_bilateral.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bootstrap_federation_variant.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bootstrap_side_aware.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bringup_cleanup_bug_22_race.py": {
    "profile": "optional-ci"
   },
   "tests/infra/test_pilot_bringup_cleanup_bug_25_boot_wait.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pilot_bringup_cleanup_bugs_16_to_18.py": {
@@ -507,19 +517,19 @@
    "profile": "optional-ci"
   },
   "tests/infra/test_pilot_phase_e2e_smoke.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_pre_commit_reuse_lint.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_python_image_pin_form.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_quadlet_cosign_15_binary_substrate.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_quadlet_lint.py": {
@@ -529,11 +539,11 @@
    "profile": "optional-ci"
   },
   "tests/infra/test_quadlets_phase_3b.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_resolver_trust_mode_selector.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_spdx_header_consistency.py": {
@@ -543,11 +553,11 @@
    "profile": "optional-ci"
   },
   "tests/infra/test_wakir_provisioner_image_pin_form.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/infra/test_wat_anchor_pipeline_observability.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "infra-substrate"
   },
   "tests/integration/test_bridge_audit_roundtrip_e2e.py": {
@@ -655,100 +665,100 @@
    "profile": "optional-ci"
   },
   "tests/orchestrator/test_check_federation_evaluator_health.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_check_nats_kv_health.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_compose_nats.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_compose_spire.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_compose_spire_agent.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_compose_spire_cosign_pin.py": {
    "profile": "required"
   },
   "tests/orchestrator/test_init_nats_buckets.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_live_nats_cross_validation.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_marker_stack_emit_cli.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_multi_org_onboarding_recipe.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_nats_kv_bucket_provision.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_nats_kv_bucket_provision_multi_family.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_nats_kv_bucket_provision_persona_state.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_nats_py_pin.py": {
    "profile": "required"
   },
   "tests/orchestrator/test_prometheus_textfile_adapter.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_bringup_smoke.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_bringup_smoke_parser_hardening.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_bringup_smoke_retry.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_bringup_smoke_side_aware.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_proxmox_resolve_image_pins.py": {
    "profile": "required"
   },
   "tests/orchestrator/test_quadlet_nats.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_quadlet_persona_tomas.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_quadlet_recovery_drill_anchor.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_quadlet_spire.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_recovery_drill_anchor.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "orchestrator-substrate"
   },
   "tests/orchestrator/test_verify_image_digest.py": {
@@ -764,30 +774,30 @@
    "profile": "required"
   },
   "tests/scripts/test_backend_decision_observability.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/scripts/test_ci_live_vm_phase_3b_driver.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/scripts/test_demo_proof.py": {
    "profile": "required"
   },
   "tests/scripts/test_legacy_env_flag_migration_detector.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/scripts/test_routing_decision_observability.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/scripts/test_soak_probe_5_day.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/scripts/test_soak_probe_trend_analyzer.py": {
-   "profile": "unassigned",
+   "profile": "optional-ci",
    "group": "script-driver"
   },
   "tests/specs/test_wirelang_spec_v0_4_1_drift_reconciliation.py": {

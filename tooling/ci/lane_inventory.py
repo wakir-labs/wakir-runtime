@@ -76,6 +76,11 @@ class Lane:
     unresolved: tuple[str, ...] = field(default=())
     events: tuple[str, ...] = field(default=())
     path_filtered: bool = False
+    #: Skip-by-default markers this lane's workflow actually switches on
+    #: (via the documented environment variable or CLI flag). A lane that
+    #: points a runner at a marker-guarded module without switching the
+    #: marker on collects the tests and skips every one of them.
+    enabled_markers: tuple[str, ...] = field(default=())
 
     @property
     def lane_id(self) -> str:
@@ -223,13 +228,48 @@ def _targets_from_args(runner: str, args: list[str]) -> tuple[list[str], list[st
     return targets, unresolved
 
 
+#: What actually switches each skip-by-default marker on. Sources:
+#: ``[tool.pytest.ini_options] markers`` in ``pyproject.toml`` and the
+#: opt-in flags in ``conftest.py``.
+MARKER_SWITCHES: dict[str, tuple[str, ...]] = {
+    "phase_3_skeleton": ("WAKIR_PHASE_3_SKELETON",),
+    "phase_3c_acceptance": ("WAKIR_PHASE_3C_E2E", "--phase-3c-acceptance"),
+    "phase_3c_doppel_welle_acceptance": (
+        "WAKIR_PHASE_3C_DOPPEL_E2E",
+        "--phase-3c-doppel-welle-acceptance",
+    ),
+    "phase_3c_rollback_drill": ("WAKIR_PHASE_3C_ROLLBACK_DRILL", "--rollback-drill"),
+    "live_vm": ("WAKIR_LIVE_VM_ACCEPTANCE", "--run-live-vm"),
+}
+
+
+def workflow_enabled_markers(text: str) -> tuple[str, ...]:
+    """Markers a workflow file switches on somewhere in its body.
+
+    File-level, not step-level, and deliberately generous: if the
+    enabling token appears anywhere in the workflow, the lanes in it are
+    credited with switching the marker on. Being generous here is the
+    safe direction only because the *consequence* of not being credited
+    is the stricter classification (``opt-in-marker``, i.e. "nothing
+    runs this"), and an over-strict classification is visible and
+    arguable, while an over-generous one reads as coverage.
+    """
+    return tuple(
+        marker
+        for marker, tokens in sorted(MARKER_SWITCHES.items())
+        if any(token in text for token in tokens)
+    )
+
+
 def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
     """Every pytest/unittest invocation in every workflow, with its job."""
     lanes: list[Lane] = []
     for workflow in sorted(workflow_dir.glob("*.yml")):
-        lines = workflow.read_text(encoding="utf-8").splitlines()
+        text = workflow.read_text(encoding="utf-8")
+        lines = text.splitlines()
         arrays = _bash_arrays(lines)
         events, path_filtered = parse_triggers(workflow)
+        enabled_markers = workflow_enabled_markers(text)
         job_id = job_name = "<unknown>"
         in_jobs = False
         i = 0
@@ -272,6 +312,7 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
                                 unresolved=tuple(unresolved),
                                 events=events,
                                 path_filtered=path_filtered,
+                                enabled_markers=enabled_markers,
                             )
                         )
                 i = end
@@ -330,6 +371,14 @@ def derive_profile(entry: dict) -> str:
     against. Nothing here reads the declaration, so a declaration cannot
     talk the derivation into agreeing with it.
     """
+    unswitched = entry["opt_in_markers"] and not entry.get("marker_enabling_lanes")
+    if unswitched:
+        # A lane that targets a skip-by-default module without switching
+        # the marker on collects its tests and skips every one of them.
+        # Reporting that as `required` or `optional-ci` would be the
+        # exact claim this file exists to prevent: a module counted as
+        # covered by a lane that does not execute it.
+        return "opt-in-marker"
     if entry["required_lanes"]:
         return "required"
     if entry["lanes"]:
@@ -479,7 +528,12 @@ def build_inventory(
     inherited = inherited_required_jobs(workflow_dir, required_contexts)
 
     def blank() -> dict:
-        return {"lanes": [], "required_lanes": [], "reachability": []}
+        return {
+            "lanes": [],
+            "required_lanes": [],
+            "reachability": [],
+            "marker_enabling_lanes": [],
+        }
 
     inventory: dict[str, dict] = {module: blank() for module in discover_modules(root)}
     for lane in lanes:
@@ -493,8 +547,16 @@ def build_inventory(
             entry["reachability"].append(lane.reachability)
             if enforced:
                 entry["required_lanes"].append(lane.lane_id)
+            if lane.enabled_markers:
+                entry.setdefault("_lane_markers", {})[lane.lane_id] = lane.enabled_markers
     for module, entry in inventory.items():
         entry["opt_in_markers"] = module_opt_in_markers(module, root)
+        lane_markers = entry.pop("_lane_markers", {})
+        entry["marker_enabling_lanes"] = [
+            lane_id
+            for lane_id, markers in sorted(lane_markers.items())
+            if set(markers) & set(entry["opt_in_markers"])
+        ]
         entry["profile"] = derive_profile(entry)
     return inventory
 

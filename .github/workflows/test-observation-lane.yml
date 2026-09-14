@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Callandor GmbH and contributors
+#
+# Test observation lane — runs on every pull request, blocks nothing
+# ------------------------------------------------------------------
+#
+# Welle-3 lane promotion, step 4 (ADR-0075; CTO decision paper §1.4
+# table B). The holding pen between "runs nowhere" and "blocks merges".
+#
+# What is in it and why it is not required yet
+# --------------------------------------------
+#
+# Eighty modules whose subject matter touches podman, SSH, Proxmox or a
+# third test root that only became visible in the lane inventory:
+#
+#   * `tests/infra/`        infra substrate, 29 modules
+#   * `tests/orchestrator/` compose/Quadlet/NATS-KV shape, 22 modules
+#   * `infra/spire/**/tests/` SPIRE federation substrate, 14 modules
+#   * `tests/audit/`        spec/ADR cross-audit and evidence, 9 modules
+#   * `tests/scripts/`      operator-script drivers, 6 modules
+#
+# All of them are green on a developer machine. Whether they behave the
+# same on a GitHub runner is, at the time this lane was written,
+# **unmeasured** — and "unmeasured" is the precise reason they are not
+# in a required lane. Making them blocking first and finding out
+# afterwards is how a lane starts producing pressure to get tests green
+# rather than pressure to get the system right.
+#
+# So: run them on every pull request, report the result in the job
+# summary, and let two months of real runs decide. Promotion date
+# **2026-10-31**, recorded per group in
+# `tests/lanes/lane_assignment.json` and enforced against the calendar
+# by `tests/lanes/test_exemption_expiry.py` — an observation lane
+# without an end date is just a quieter way of not deciding.
+#
+# Deliberately NOT a required status context
+# ------------------------------------------
+# No branch-protection entry, and not a dependency of the acceptance-gate
+# aggregator. A red run here is visible on the pull request and does not
+# block it. That is the whole design: this lane produces evidence, not
+# verdicts.
+#
+# The job is also not `continue-on-error`. A failure should look like a
+# failure; it just should not have a veto.
+
+name: test-observation-lane
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  observation-lane:
+    name: test observation lane (non-blocking, promotion 2026-10-31)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install lane dependencies
+        # Same set as the production lane in `tests.yml`. The point of
+        # this lane is to measure CI behaviour against a realistic
+        # install set; a thinner one would measure the install set.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "PyYAML>=6.0" \
+            "jsonschema>=4.21" \
+            "rfc8785>=0.1.4" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0"
+
+      - name: Collect-gate (observation roots)
+        run: |
+          python tooling/ci/collect_gate.py --profile production \
+            --root tests/infra \
+            --root tests/orchestrator \
+            --root tests/audit \
+            --root tests/scripts \
+            --root infra
+
+      - name: Run the observation lane
+        id: run
+        # `-rs` so the skip reasons land in the log. The skip balance is
+        # the main thing this lane is here to produce: a module that
+        # skips in CI but runs locally is the finding, not the runtime.
+        run: |
+          set -o pipefail
+          python -m pytest -v --tb=short -rs \
+            --junitxml=observation-junit.xml \
+            tests/infra/ \
+            tests/orchestrator/ \
+            tests/audit/ \
+            tests/scripts/ \
+            infra/
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Test observation lane"
+            echo ""
+            echo "Non-blocking. Eighty modules that ran in no workflow"
+            echo "before Welle 3; promotion decision due **2026-10-31**"
+            echo "(\`tests/lanes/lane_assignment.json\`, enforced by"
+            echo "\`tests/lanes/test_exemption_expiry.py\`)."
+            echo ""
+            echo "- result: \`${{ steps.run.outcome }}\`"
+            echo ""
+            if [[ -f observation-junit.xml ]]; then
+              python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from collections import Counter
+
+          root = ET.parse("observation-junit.xml").getroot()
+          suites = root.findall("testsuite") or [root]
+          totals = Counter()
+          for suite in suites:
+              for key in ("tests", "failures", "errors", "skipped"):
+                  totals[key] += int(suite.get(key, "0"))
+          passed = totals["tests"] - totals["failures"] - totals["errors"] - totals["skipped"]
+          print(f"| collected | passed | failed | errors | skipped |")
+          print(f"|---:|---:|---:|---:|---:|")
+          print(
+              f"| {totals['tests']} | {passed} | {totals['failures']} "
+              f"| {totals['errors']} | {totals['skipped']} |"
+          )
+          print("")
+          reasons = Counter()
+          for case in root.iter("testcase"):
+              for skipped in case.findall("skipped"):
+                  reasons[(skipped.get("message") or "").split("\n")[0][:120]] += 1
+          if reasons:
+              print("**Skip reasons**")
+              print("")
+              print("| n | reason |")
+              print("|---:|---|")
+              for reason, count in reasons.most_common():
+                  print(f"| {count} | {reason} |")
+          PY
+            else
+              echo "_no junit report produced_"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload junit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: observation-lane-junit
+          path: observation-junit.xml
+          retention-days: 30
+          if-no-files-found: warn
