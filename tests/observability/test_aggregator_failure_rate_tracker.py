@@ -376,39 +376,42 @@ def test_json_rollup_schema_versioned():
 
 
 # ---------------------------------------------------------------------------
-# Test 12: legacy required names match the aggregator inventory.
+# Test 12: the legacy required names are still live required contexts.
 # ---------------------------------------------------------------------------
 
 
-def test_legacy_required_names_match_aggregator_inventory():
-    """The six legacy names in this tracker must match ci_aggregator.SUB_WORKFLOWS.
+def test_legacy_required_names_are_still_live_required_contexts():
+    """The six names this tracker union-checks must still be real required contexts.
 
-    Drift between this tracker's name list and the aggregator's
-    inventory creates a class of false-drift events. The hermetic test
-    pins the relationship.
+    This test used to cross-check ``tracker.LEGACY_REQUIRED_NAMES``
+    against ``scripts/ci/ci_aggregator.py::SUB_WORKFLOWS``, guarded by
+    an ``if not path.exists(): pytest.skip(...)``. ADR-0075 §1 retired
+    that script, so the guard would have fired from the very commit
+    that deleted it — and a test that goes quiet at the moment its
+    subject disappears reports green for the wrong reason. That is the
+    exact defect class ADR-0075 is about, so the check was re-pointed
+    rather than allowed to lapse.
+
+    The surviving question is the one that was always the point: are
+    the six names this tracker treats as the legacy union real, live,
+    required contexts? The canonical list is
+    ``tests/lanes/lane_assignment.json::required_contexts``, which
+    ``tests/lanes/test_lane_assignment.py::test_required_contexts_match_a_job_display_name``
+    keeps honest against the workflow files. No skip path: if the
+    lane file is unreadable, that is a failure, not an excuse.
     """
-    # Lazy-import ci_aggregator so this test does not run if the
-    # aggregator script is missing (defensive against incomplete
-    # checkouts).
-    ci_agg_path = _REPO_ROOT / "scripts" / "ci" / "ci_aggregator.py"
-    if not ci_agg_path.exists():
-        pytest.skip("ci_aggregator.py not present in checkout")
-    spec = importlib.util.spec_from_file_location(
-        "ci_aggregator_module", str(ci_agg_path)
+    lane_file = _REPO_ROOT / "tests" / "lanes" / "lane_assignment.json"
+    assert lane_file.is_file(), (
+        "tests/lanes/lane_assignment.json is the source of truth for the "
+        "required-context list; it must be present"
     )
-    assert spec is not None
-    assert spec.loader is not None
-    ci_agg = importlib.util.module_from_spec(spec)
-    # See note above re. Python 3.14 dataclass sys.modules requirement.
-    sys.modules["ci_aggregator_module"] = ci_agg
-    spec.loader.exec_module(ci_agg)
-
-    inventory_names = {sw.check_name for sw in ci_agg.SUB_WORKFLOWS}
+    required_contexts = set(
+        json.loads(lane_file.read_text(encoding="utf-8"))["required_contexts"]
+    )
     tracker_names = set(tracker.LEGACY_REQUIRED_NAMES)
-    assert tracker_names == inventory_names, (
-        f"Tracker legacy names diverge from aggregator inventory.\n"
-        f" tracker - aggregator: {tracker_names - inventory_names}\n"
-        f" aggregator - tracker: {inventory_names - tracker_names}"
+    assert tracker_names <= required_contexts, (
+        "Tracker legacy names are no longer all required contexts.\n"
+        f" tracker - required_contexts: {sorted(tracker_names - required_contexts)}"
     )
 
 

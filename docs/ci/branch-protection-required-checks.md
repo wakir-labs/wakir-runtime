@@ -3,13 +3,14 @@ title: "Branch-Protection Required Status Checks (wakir-runtime)"
 status: "active"
 owner: "kai"
 audience: "operator,maintainers"
-updated: "2026-09-14"
+updated: "2026-09-15"
 related_adrs:
   - "ADR-0020"
   - "ADR-0068"
   - "ADR-0072"
+  - "ADR-0075"
 related_docs:
-  - "docs/ci/aggregator-workflow.md"
+  - "docs/ci/retired-workflows.md"
   - "docs/operations/branch-protection-required-status-checks.md"
 ---
 
@@ -95,11 +96,13 @@ pending forever, so every workflow feeding a required context fires on
 every pull request and every push to `main`. Since ADR-0072 W5 this
 holds for `license-gate.yml`, `tests.yml` and
 `runtime-acceptance-gates.yml` (the filters were removed there), and it
-already held for `cross-repo-compat.yml` and `proof-path.yml`. The
-mirror of this invariant on the aggregator side is the `("**",)`
-path-glob of every required row in `scripts/ci/ci_aggregator.py`
-(`SUB_WORKFLOWS`); adding a `paths:` filter to a required workflow
-without changing both places re-opens the forever-pending class.
+already held for `cross-repo-compat.yml` and `proof-path.yml`. Until
+2026-09-15 this invariant had a second half on the cross-workflow
+aggregator, whose required rows all carried a `("**",)` path-glob. That
+aggregator is retired (ADR-0075 §1, `docs/ci/retired-workflows.md`), so
+there is now exactly one place to keep right: a `paths:` filter on a
+workflow that feeds a required context re-opens the forever-pending
+class, and nothing else compensates for it.
 
 Removed in Phase 4 W1 (workflows deleted, contexts removed from
 protection by the operator on 2026-09-11):
@@ -246,9 +249,12 @@ Run before adding a context:
    '.check_runs[].name'` lists the name for the latest `main` commit.
 3. **Trigger reach.** The workflow fires on `pull_request` for the PRs
    that should be blocked. A narrow `paths:` filter combined with a
-   required context produces forever-pending PRs on non-matching diffs;
-   the aggregator pattern in `docs/ci/aggregator-workflow.md` exists
-   for that reason.
+   required context produces forever-pending PRs on non-matching diffs.
+   The answer to that is a filter-free trigger on the workflow itself,
+   not a collecting context in front of it: the cross-workflow
+   aggregator that was meant to solve it structurally never became
+   required and was retired under ADR-0075 §1
+   (`docs/ci/retired-workflows.md`).
 4. **Green on main.** At least one completed green run on `main` before
    the context becomes required.
 5. **Open PRs.** `gh pr list --state open` and check that no open PR

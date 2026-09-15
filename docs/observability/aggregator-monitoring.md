@@ -2,6 +2,17 @@
 
 # Aggregator Monitoring — Operator Documentation
 
+> **Superseded, 2026-09-15 (ADR-0075 §1).** The migration window this
+> document triages never opened. `ci-aggregator` ran 865 times, was
+> never a required status check, polled 6 of the 13 required contexts,
+> and has been retired instead of completed —
+> `.github/workflows/ci-aggregator.yml` and
+> `scripts/ci/ci_aggregator.py` are deleted
+> (`docs/ci/retired-workflows.md`). Nothing below describes the current
+> tree. It is kept as the record of an intended cutover, and because the
+> tracker script it documents is still present with its tests; both are
+> reported as follow-ups rather than removed in the same change.
+
 **Audience:** SRE / Operator-Hand operators triaging the ADR-0068
 `ci-aggregator` migration window (land → ~1-week
 observation → Operator-Hand-cutover).

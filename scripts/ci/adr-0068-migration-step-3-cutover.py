@@ -3,6 +3,26 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """ADR-0068 Migration-Step-3 cutover-Script.
 
+DO NOT RUN THIS (ADR-0075 §1, 2026-09-15)
+-----------------------------------------
+
+``--apply`` PATCHes ``wakir-runtime/main`` branch protection down to a
+single required context named ``ci-aggregator``. That workflow was
+deleted on 2026-09-15 (``docs/ci/retired-workflows.md``), so applying
+this script today would replace thirteen live enforcement points with
+one context that can never report — every pull request would be
+forever-pending, which is the exact failure mode ADR-0068 set out to
+eliminate.
+
+ADR-0075 §1 superseded ADR-0068 instead of executing it. The script is
+still here, unchanged and still tested, because the PR that retired the
+aggregator removed exactly one test module — the one whose subject it
+deleted — and reported the rest. Removing this script means deleting
+``tests/ci/test_adr_0068_migration_step_3.py`` with it, and that is a
+separate decision with a separate owner. Until then this banner is the
+safety catch: the gates below still work, they just gate a cutover
+nobody is allowed to perform.
+
 Context
 -------
 

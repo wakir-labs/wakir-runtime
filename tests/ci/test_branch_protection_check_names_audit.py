@@ -18,23 +18,27 @@ is encoded as a constant below and must be kept in sync with the
 audit doc by hand. Whenever the required set changes, this test's
 ``REQUIRED_NAMES`` constant must be updated in the same PR.
 
-ADR-0068 Migration-Step-3
-----------------------------------
+ADR-0068 Migration-Step-3 — superseded, flag frozen at ``False``
+----------------------------------------------------------------
 
-ADR-0068 (approved 2026-05-18) replaces the multi-name required-set
-with a single ``ci-aggregator`` Required-Status-Check. The cutover
-script ``scripts/ci/adr-0068-migration-step-3-cutover.py`` performs
-the actual branch-protection PATCH. Until that script has run
-against ``main`` (operator-confirmed), this test continues to pin
-the pre-cutover three-name set. After the cutover, the
-``BRANCH_PROTECTION_MIGRATED`` flag below flips to ``True`` and
-the test pins the single-name post-cutover set instead.
+ADR-0068 (approved 2026-05-18) would have replaced the multi-name
+required-set with a single ``ci-aggregator`` Required-Status-Check,
+flipped by ``scripts/ci/adr-0068-migration-step-3-cutover.py`` and
+confirmed by setting ``BRANCH_PROTECTION_MIGRATED`` to ``True`` here.
 
-The flag flip is the canonical operator-hand touch that confirms the
-migration is live: the cutover script writes the PATCH, the operator
-flips this flag in a follow-up PR, and from then on any drift in
-either direction (e.g. someone re-adding a legacy name without
-re-flipping the flag) is caught by this audit-test.
+**That will not happen.** ADR-0075 §1 (approved 2026-09-15) supersedes
+ADR-0068: aggregation moves inside a single workflow via
+``needs.*.result``, cross-workflow aggregation over the Actions API is
+not introduced, and ``.github/workflows/ci-aggregator.yml`` was deleted
+(``docs/ci/retired-workflows.md``). ``REQUIRED_NAMES_RUNTIME_POST_MIGRATION``
+below therefore names a job display-name that no longer exists anywhere
+in ``.github/workflows/``.
+
+Nothing was deleted here, because deleting it would mean rewriting an
+expectation. What changed is the reading: the flag is not "not yet",
+it is "not ever". ``test_migration_flag_pins_ci_aggregator_when_done``
+stays as the trap it always was — flipping the flag now makes the
+audit look for a display-name that cannot be found, and it should.
 """
 
 from __future__ import annotations
