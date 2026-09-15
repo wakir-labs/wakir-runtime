@@ -3,6 +3,22 @@
 # Copyright (c) 2026 Callandor GmbH and contributors
 """Aggregator-Failure-Rate-Tracker (ADR-0068 Observability).
 
+RETIRED SUBJECT (ADR-0075 §1, 2026-09-15)
+-----------------------------------------
+
+The workflow this tracker observes no longer exists. ``ci-aggregator``
+was retired rather than completed: it ran 865 times, was never a
+required status check, and polled 6 of the 13 required contexts. See
+``docs/ci/retired-workflows.md``.
+
+This module and its tests were left in the tree deliberately. The PR
+that retired the aggregator removed exactly one test module — the one
+whose subject it deleted — and reported the rest instead of widening
+its own blast radius. Nothing calls this script: no workflow invokes
+it, and the observation window it was written for (ADR-0068
+Migration-Step-3) closed unexecuted. Treat the text below as a record
+of what was intended in May 2026, not as a description of the tree.
+
 Context
 -------
 

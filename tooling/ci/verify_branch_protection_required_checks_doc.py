@@ -38,6 +38,28 @@ REQUIRED_SECTIONS: tuple[str, ...] = (
 #: `wakir-labs/wakir-runtime` `main`, read 2026-09-14: 13, all active.
 #: Was 12 while the three Phase-4 contexts were listed as pending and
 #: `secret-scan` was missing from the inventory entirely.
+#:
+#: READ THIS BEFORE TRUSTING THE NUMBER (ADR-0075 Context).
+#: This constant measures the **status quo**, not a decision. It was
+#: copied from a live branch-protection read, and its only job is to
+#: keep the inventory document and the live rule from drifting apart.
+#: It is not evidence that the live rule is the one somebody decided.
+#:
+#: That distinction is not academic here. ADR-0068 (approved
+#: 2026-05-18) required exactly **one** context named `ci-aggregator`.
+#: The live rule had thirteen, and `ci-aggregator` was not among them,
+#: for four months. This verifier was green the whole time — because
+#: it compares the document against reality, and both sides of that
+#: comparison had left the decision behind together. A tool that reads
+#: its constant from the status quo cannot detect a violation of the
+#: status quo; it can only detect drift away from it.
+#:
+#: ADR-0075 §1 resolved that specific case by superseding ADR-0068
+#: rather than executing it, so today there is no ADR that names a
+#: different number. If a future ADR does name one, the check that
+#: matters is not this one. Priya's generalisable probe, from the same
+#: ADR: *where a decision names a number, check whether the constant in
+#: the measuring tool comes from the decision or from the status quo.*
 EXPECTED_CHECK_COUNT = 13
 
 

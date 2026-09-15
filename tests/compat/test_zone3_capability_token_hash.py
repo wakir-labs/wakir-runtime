@@ -162,3 +162,139 @@ def test_proof_path_vectors_use_only_64_hex():
         for leaf in vec["leaves"]:
             assert len(leaf["capability_token_hash"]) == 64, f"{path.name}: {leaf['event_id']}"
             assert len(leaf["payload_hash"]) == 64
+
+
+# ---------------------------------------------------------------------------
+# The third half: the normative specification.
+# ---------------------------------------------------------------------------
+#
+# Producer and consumer were closed on 2026-09-14. The specification was
+# not, and nothing compared the two: until 2026-09-15,
+# `wirelang/specs/wat-leaf-projection.md` §3.4 / §4.2 still specified
+# the empty string for a frame without `caprefs`, which
+# `_validate_events` had begun to reject outright. Anyone implementing
+# the spec faithfully would have produced spool records our own
+# pipeline refuses.
+#
+# The cheapest possible guard over that boundary is to stop reading the
+# spec and start executing it: parse the values out of the spec's own
+# tables and send them through the real consumer. A future edit that
+# puts `""` back into §4.2 or §5 fails here rather than four months
+# later.
+
+SPEC_PATH = REPO_ROOT / "wirelang" / "specs" / "wat-leaf-projection.md"
+
+
+def _spec_text() -> str:
+    assert SPEC_PATH.is_file(), f"{SPEC_PATH} is the normative projection spec"
+    return SPEC_PATH.read_text(encoding="utf-8")
+
+
+def _markdown_table_value(text: str, heading: str, field: str) -> str:
+    """Return the value cell for ``field`` in the table under ``heading``.
+
+    Deliberately literal: it reads the rendered table, the same thing a
+    human implementer reads, rather than a machine-readable side file
+    that could drift from the prose it is supposed to represent.
+    """
+    assert heading in text, f"spec section {heading!r} not found"
+    section = text.split(heading, 1)[1]
+    for line in section.splitlines():
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 2 and cells[0].strip("`") == field:
+            return cells[1].strip().strip("`")
+    raise AssertionError(f"no row for {field!r} under {heading!r}")
+
+
+def test_spec_example_4_2_survives_the_real_consumer():
+    """§4.2's no-capability example must build, not raise.
+
+    This is the assertion that was missing. It does not restate the
+    rule — it takes whatever the spec currently prints and hands it to
+    ``_validate_events``.
+    """
+    value = _markdown_table_value(
+        _spec_text(),
+        "### 4.2 Announcement frame — no capability token",
+        "capability_token_hash",
+    )
+    assert agg_cli._validate_events([_event(value)]) == [_event(value)]
+    assert _errors(_manifest(value)) == []
+
+
+def test_spec_example_4_2_is_the_zero_digest():
+    value = _markdown_table_value(
+        _spec_text(),
+        "### 4.2 Announcement frame — no capability token",
+        "capability_token_hash",
+    )
+    assert value == ZERO_SENTINEL, (
+        "spec §4.2 no longer prints the all-zero digest; Zone 3 decided "
+        "against the empty string and the consumer enforces it"
+    )
+
+
+def test_spec_example_4_1_survives_the_real_consumer():
+    """Positive control on the with-capability example in the same file."""
+    value = _markdown_table_value(
+        _spec_text(),
+        "### 4.1 Minimal frame — capability action",
+        "capability_token_hash",
+    )
+    assert agg_cli._validate_events([_event(value)]) == [_event(value)]
+
+
+def test_the_spec_no_longer_specifies_the_empty_string_as_an_output():
+    """§3.4 and the §5 edge-case table are the two normative statements.
+
+    Both said ``""`` until 2026-09-15. The check is narrow on purpose:
+    the spec must still be allowed to *discuss* the empty string, and
+    §3.4.0 does so at length — the previous rule, the anchored vectors,
+    and why ``compute_leaf_hash`` stays permissive are all part of the
+    record. What must not come back is a rule that tells a producer to
+    emit it.
+    """
+    text = _spec_text()
+    row = _markdown_table_value(
+        text, "## 5. Edge cases", "caprefs` absent or empty array"
+    )
+    assert '""' not in row, f"§5 still specifies the empty string: {row!r}"
+    section_3_4 = text.split("### 3.4 `capability_token_hash`", 1)[1].split(
+        "#### 3.4.0", 1
+    )[0]
+    assert '""' not in section_3_4, (
+        "§3.4's rule list specifies the empty string again; the discussion "
+        "of it belongs in §3.4.0, the rule does not"
+    )
+
+
+def test_the_spec_still_records_why_the_primitive_stays_permissive():
+    """Guard against an over-correction.
+
+    The opposite mistake is as costly as the original one: tightening
+    ``compute_leaf_hash`` to match the manifest domain would invalidate
+    every leaf anchored under the earlier rule. The spec has to keep
+    saying so, and the vector has to keep its recorded hash.
+    """
+    text = _spec_text()
+    assert "#### 3.4.0" in text
+    assert "vector-3-no-capability-token.json" in text
+    vector = json.loads(
+        (
+            REPO_ROOT
+            / "tests"
+            / "fixtures"
+            / "jcs-leaf-vectors"
+            / "vector-3-no-capability-token.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert vector["input"]["capability_token_hash"] == ""
+    recomputed = agg.compute_leaf_hash(
+        event_id=vector["input"]["event_id"],
+        time=vector["input"]["time"],
+        payload_hash=vector["input"]["payload_hash"],
+        capability_token_hash=vector["input"]["capability_token_hash"],
+    )
+    assert recomputed.hex() == vector["expected_leaf_hash"]

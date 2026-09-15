@@ -44,7 +44,7 @@ OpenTimestamps `918a79b`):
 | `event_id`              | string | `id`                                 |
 | `time`                  | string | `time`                               |
 | `payload_hash`          | string | `SHA-256(JCS(data))`, hex-lower      |
-| `capability_token_hash` | string | `caprefs[0]` payload, or empty string |
+| `capability_token_hash` | string | `caprefs[0]` payload, or the all-zero digest (§3.4) |
 
 The tuple is then JCS-canonicalised (RFC 8785) and SHA-256-hashed by
 `compute_leaf_hash` to yield the 32-byte leaf digest. The hash is the
@@ -113,15 +113,54 @@ upstream and never reaches the projection.
 
 Defined as:
 
-- if `caprefs` is absent or empty: empty string `""`.
+- if `caprefs` is absent or empty: the **all-zero digest**, 64 `0`
+  characters (`"0" * 64`).
 - if `caprefs` has one entry: that entry's hash payload, hex-lower.
 - if `caprefs` has multiple entries: the **first** entry, hex-lower.
 
 The `caprefs` schema (Layer-1) constrains entries to the form
 `sha256:<64-char-hex>`. The projection strips the `sha256:` prefix
-and forwards the 64-char hex tail. The empty-string sentinel for
-absent `caprefs` is the same value `compute_leaf_hash` accepts as a
-non-capability event (`wat/merkle/aggregator.py` docstring).
+and forwards the 64-char hex tail. The value is always 64 lower-case
+hex characters, in every case, including the absent-capability one —
+which is the point of the paragraph below.
+
+#### 3.4.0 The no-capability sentinel: `"0" * 64`, not `""`
+
+**Normative correction, 2026-09-15.** Until this revision, §3.4, §4.2
+and the §5 table specified the empty string `""` for a frame without
+`caprefs`, and this document was the only place that still did.
+
+The conflict is with the canonical manifest schema
+(`wirelang/schemas/wakir-wat-manifest-v1.json`), which constrains the
+same field to `^[0-9a-f]{64}$` for every `events[]` and `leaves[]`
+entry. Cross-Review Zone 3 decided in favour of the schema (ADR-0072
+W4): inside an anchored manifest the field is a fixed-width digest, and
+"no capability" is the all-zero one. Both code halves were closed on
+2026-09-14 (finding R5 of the external re-review):
+
+- Producer — `wat.anchor.bridge_audit_writer` defaults to
+  `NO_CAPABILITY_DIGEST` (`"0" * 64`).
+- Consumer — `wat.cmd.aggregator_cli._validate_events` enforces
+  `^[0-9a-f]{64}$` and rejects `""` outright, so a manifest that could
+  not be published can no longer be built.
+
+Leaving `""` standing here would have meant that anyone implementing
+this specification faithfully produced spool records our own pipeline
+rejects. The specification was the third half of that change and is
+hereby brought in line with it; the pin is
+`tests/compat/test_zone3_capability_token_hash.py`, which reads the
+tables in §4.2 and §5 out of this file and sends their values through
+the real consumer.
+
+**What did *not* change, and must not.** `compute_leaf_hash` stays
+permissive. It hashes whatever four-tuple it is handed, including the
+empty string, because leaf hashes that were computed under the earlier
+rule are anchored and must remain verifiable forever —
+`tests/fixtures/jcs-leaf-vectors/vector-3-no-capability-token.json`
+pins exactly that and keeps its recorded hash. The rule lives in the
+projection and in the manifest domain, not in the hash primitive. Read
+the distinction as: the empty string is a value the primitive still
+*accepts*, and no longer a value a conformant producer *emits*.
 
 #### 3.4.1 Multi-capability frames — which capability comes first?
 
@@ -187,11 +226,13 @@ v2 `aip_document_hash` derivation: if `aip_refs[]` has multiple
 entries, the v2 projection MUST commit to `aip_refs[0]` for
 compatibility with the v1 capability-token-hash precedent.
 
-Empty-sentinel treatment (wirelang-eng 2.E-Ack 2026-05-06): a frame
-whose capability-token has empty `aip_refs[]` projects
-`aip_document_hash` to the empty string `""` under v2, mirroring the
-§3.4 empty-`caprefs` treatment. This keeps the v1 → v2 migration byte-stable for frames
-without AIP-Document binding.
+No-binding sentinel treatment (wirelang-eng 2.E-Ack 2026-05-06,
+re-stated 2026-09-15): a frame whose capability-token has empty
+`aip_refs[]` projects `aip_document_hash` to the all-zero digest under
+v2, mirroring the §3.4 absent-`caprefs` treatment. The 2026-05-06 text
+said "the empty string" because §3.4 did; §3.4.0 changed that, and the
+mirror follows it rather than re-introducing a fixed-width field with a
+zero-width value.
 
 ## 4. Examples
 
@@ -235,23 +276,29 @@ This is `vector-2-typical-frame.json` in `tests/fixtures/jcs-leaf-vectors/`.
 ### 4.2 Announcement frame — no capability token
 
 A frame that carries no capability (e.g. an unauthenticated public
-announcement) sets `capability_token_hash` to the empty string:
+announcement) sets `capability_token_hash` to the all-zero digest
+(§3.4.0):
 
 | field                   | value                                                              |
 | ----------------------- | ------------------------------------------------------------------ |
 | `event_id`              | `01HK4P8X3W2N5Q9V0R6T7S8YZ3`                                       |
 | `time`                  | `2026-05-06T12:02:15Z`                                             |
 | `payload_hash`          | `f5cc2bd8539bab52b640f67993975645010dea80c7092bab400cd442c4664247` |
-| `capability_token_hash` | `""` (empty string)                                                |
+| `capability_token_hash` | `0000000000000000000000000000000000000000000000000000000000000000` |
 
-This is `vector-3-no-capability-token.json`.
+The corresponding vector, `vector-3-no-capability-token.json`, keeps
+the empty string and its recorded `expected_leaf_hash`. That is not an
+inconsistency: the vector pins `compute_leaf_hash`, which is permissive
+by design and must stay byte-stable for receipts anchored under the
+earlier rule (§3.4.0). The table above is what a conformant producer
+emits today; the vector is what the primitive must still accept.
 
 ## 5. Edge cases — summary
 
 | case                              | rule                                       |
 | --------------------------------- | ------------------------------------------ |
 | `data` absent or `{}`             | `payload_hash` = SHA-256 of `JCS({})`      |
-| `caprefs` absent or empty array   | `capability_token_hash` = `""`             |
+| `caprefs` absent or empty array   | `capability_token_hash` = 64 × `0` (§3.4.0) |
 | `caprefs` with one entry          | strip `sha256:` prefix, take the hex tail  |
 | `caprefs` with N>1 entries        | first entry only (v1)                      |
 | non-RFC-3339 `time`               | accepted verbatim — projection is byte-faithful |

@@ -341,7 +341,7 @@
   "tests/ci/test_build_wakir_provisioner_workflow.py": {
    "profile": "required"
   },
-  "tests/ci/test_ci_aggregator_workflow.py": {
+  "tests/ci/test_evidence_citations.py": {
    "profile": "required"
   },
   "tests/ci/test_image_pin_idempotent_resolver.py": {
