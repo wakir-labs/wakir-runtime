@@ -126,9 +126,20 @@ def compute_leaf_hash(
         Hex-encoded digest of the event payload.
     capability_token_hash:
         Hex-encoded digest of the capability token used for the
-        action; empty string is permitted for non-capability events
-        but must still be passed explicitly to keep the leaf shape
-        stable.
+        action. For an event with no capability, a conformant producer
+        writes the all-zero digest — ``"0" * 64``, see
+        ``wirelang/specs/wat-leaf-projection.md`` §3.4.0 and
+        ``wat.anchor.bridge_audit_writer.NO_CAPABILITY_DIGEST``.
+
+        This function nonetheless accepts the empty string, and that is
+        deliberate rather than leftover: it is a hash primitive, it
+        hashes the tuple it is handed, and leaves computed under the
+        earlier empty-string rule are anchored and must stay verifiable
+        forever (``tests/fixtures/jcs-leaf-vectors/vector-3-no-capability-token.json``).
+        The rule against the empty string lives one layer up, in
+        ``wat.cmd.aggregator_cli._validate_events``, which refuses to
+        build a manifest the canonical schema would reject. Permissive
+        here, strict there — not an oversight.
 
     Returns
     -------

@@ -68,8 +68,16 @@ fields plus the recomputable leaf hash:
 | `event_id`              | string | yes      | stable identifier from Wirelang|
 | `time`                  | string | yes      | RFC 3339 timestamp             |
 | `payload_hash`          | string | yes      | 64-char lowercase hex          |
-| `capability_token_hash` | string | yes      | 64-char lowercase hex; empty string allowed for non-capability events |
+| `capability_token_hash` | string | yes      | 64-char lowercase hex; 64 × `0` for non-capability events |
 | `leaf_hash`             | string | yes      | 64-char lowercase hex; SHA-256 of JCS-canonicalised four-tuple |
+
+Corrected 2026-09-15: the `capability_token_hash` row said "empty
+string allowed", which the canonical schema
+`wirelang/schemas/wakir-wat-manifest-v1.json` has never allowed —
+`^[0-9a-f]{64}$`, no exception. Cross-Review Zone 3 settled the
+conflict in favour of the schema, and since 2026-09-14
+`wat.cmd.aggregator_cli._validate_events` refuses to build a manifest
+that would fail it. See `wirelang/specs/wat-leaf-projection.md` §3.4.0.
 
 The four B1 fields are the input to the leaf-hash function; storing
 the resulting `leaf_hash` in the manifest is redundant by design.

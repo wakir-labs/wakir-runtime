@@ -44,7 +44,7 @@ Each line is a JSON object with the following shape:
   "event_id":              "01HK4P8X3W2N5Q9V0R6T7S8YZ2",
   "time":                  "2026-05-06T12:01:30Z",
   "payload_hash":          "<64-char hex>",
-  "capability_token_hash": "<64-char hex or empty>",
+  "capability_token_hash": "<64-char hex; 64 x 0 when the frame has no capability>",
   "source":                "did:web:wakir.dev:treasury-agent",
   "actorrole":             "treasury-operator",
   "agentid":               "treasury-agent-001",
@@ -58,12 +58,19 @@ Each line is a JSON object with the following shape:
 These four fields are the input to `wat.merkle.aggregator.compute_leaf_hash`
 per the leaf-projection spec (`wirelang/specs/wat-leaf-projection.md`):
 
+Corrected 2026-09-15 together with that spec's §3.4.0: both documents
+said "or empty" for `capability_token_hash` while
+`wat.cmd.aggregator_cli._validate_events` has rejected the empty string
+since 2026-09-14. A spool written to the old wording does not aggregate.
+`compute_leaf_hash` itself stays permissive, so leaves anchored under
+the earlier rule remain verifiable.
+
 | field                   | type   | notes                                       |
 | ----------------------- | ------ | ------------------------------------------- |
 | `event_id`              | string | from Layer-1 `id`                           |
 | `time`                  | string | from Layer-1 `time`, RFC 3339, UTC          |
 | `payload_hash`          | string | `SHA-256(JCS(frame.data))`, hex-lower       |
-| `capability_token_hash` | string | first `caprefs` entry stripped, or empty   |
+| `capability_token_hash` | string | first `caprefs` entry stripped, or 64 × `0` |
 
 ### 2.2 Audit-metadata fields (5)
 
