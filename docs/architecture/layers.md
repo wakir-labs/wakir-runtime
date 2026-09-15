@@ -110,7 +110,8 @@ manifests, anchoring, proof artefacts.
 - `wat/ingestion/spool_writer.py`, `wirelang_bridge.py` — append-only
   hourly spool (`docs/wat-spool-spec.md`)
 - `wat/merkle/aggregator.py` — leaf projection and Merkle
-  construction (`docs/wat-leaf-projection.md`, `docs/wat-hash-spec.md`)
+  construction (`wirelang/specs/wat-leaf-projection.md`,
+  `docs/wat-hash-spec.md`)
 - `wirelang/schemas/wakir-wat-manifest-v1.json`,
   `wirelang/schemas/wakir-inclusion-proof-v1.json` — the two published
   formats a verifier needs
