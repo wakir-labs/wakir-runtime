@@ -59,6 +59,35 @@
 # --------------
 # Trigger form, Python setup, dependency pin and stage layout match
 # `license-gate.yml` and `hash-derivate-gate.yml`.
+#
+# The name no longer fits, on purpose (Welle 3, ADR-0075)
+# ------------------------------------------------------
+# Since the Welle-3 lane promotion this workflow also carries three jobs
+# that are not Phase-2 acceptance gates at all: `lane-ci-meta`,
+# `lane-wat-core` and `lane-hermetic-invariants`. They are here because
+# ADR-0075 §1 makes in-workflow aggregation the binding pattern and the
+# aggregator below is the only branch-protection context of this file —
+# so a lane attached to it inherits enforcement without a new required
+# context, without a branch-protection change, and without the exact-
+# display-name failure class that left PR #102 pending forever.
+#
+# The price is a workflow whose name describes part of its contents.
+# We carry that deliberately. **Renaming the aggregator job is
+# forbidden**: its display name IS the branch-protection context, and
+# renaming it would leave every pull request waiting for a check that
+# never reports, i.e. it would switch this lane off while looking like
+# tidying up.
+#
+# Every lane job runs pytest with `-rs`, so the skip reasons are in the
+# log. A lane's skip balance is the difference between "these invariants
+# are checked" and "these invariants are collected"; it has to be
+# readable without re-running anything.
+#
+# Every job in `needs:` must also appear in the `GATE_RESULTS` block of
+# the aggregator's first step. A job in one and not the other is a
+# fail-open gate (finding R6). Two independent tests catch it:
+# `tests/workflows/test_required_context_error_propagation.py` and
+# `tests/lanes/test_required_inheritance.py`.
 
 name: runtime-acceptance-gates
 
@@ -180,6 +209,260 @@ jobs:
             -k "test_gate_2_5_subscribe_loop_lag_mock" \
             -v --tb=short
 
+  lane-ci-meta:
+    name: Lane — CI meta (hermetic)
+    runs-on: ubuntu-latest
+    # Welle-3 lane promotion, step 2 (ADR-0075; CTO decision paper
+    # §1.3 table A, §1.7).
+    #
+    # `tests/ci/` holds the hermetic tests about the CI substrate
+    # itself: the branch-protection check-name audit that pins required
+    # status contexts against actual job display-names (the PR #102
+    # forever-pending class), and `test_validate_demo_proof_report.py`,
+    # the test module of the report validator that `STABILITY.md` cites
+    # as evidence. Neither ran in any workflow.
+    #
+    # Attached here rather than registered as its own required status
+    # context: a new context needs a branch-protection change plus an
+    # exact display name, and that is the failure class this lane is
+    # partly about. The aggregator below inherits the enforcement — as
+    # long as the job appears in BOTH `needs:` and the `GATE_RESULTS`
+    # block. Adding it to only one of the two is the R6 fail-open
+    # defect; `tests/lanes/test_required_inheritance.py` and
+    # `tests/workflows/test_required_context_error_propagation.py`
+    # catch that independently of each other.
+    #
+    # Whole directory, not a file list: a new module under `tests/ci/`
+    # should be in this lane by default, not by someone remembering.
+    # Two modules that were `optional-ci` (path-filtered probes for the
+    # live-VM rotation state machine and the OTS pre-anchor activation)
+    # are promoted along with them — both hermetic, both already on the
+    # PR surface, and a path filter is not enforcement.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install lane dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "PyYAML>=6.0" \
+            "jsonschema>=4.21" \
+            "rfc8785>=0.1.4" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0"
+      - name: Collect-gate (no module may vanish into an import guard)
+        # A module-level `pytest.importorskip` on something this lane is
+        # supposed to have installed yields zero node IDs and exit code
+        # 0 — green, and the module is simply gone. The lane asserts its
+        # own install set before it asserts anything about the code.
+        run: |
+          python tooling/ci/collect_gate.py --profile production --root tests/ci
+      - name: Run CI-meta suite
+        run: |
+          python -m pytest tests/ci/ -v --tb=short -rs
+
+  lane-wat-core:
+    name: Lane — WAT core (hermetic, four-validator parity)
+    runs-on: ubuntu-latest
+    # Welle-3 lane promotion, step 3 (ADR-0075; CTO decision paper
+    # §1.3 table A, §3/L2).
+    #
+    # `tests/wat/` is the proof path Phase 4 exists to seal: Merkle-root
+    # construction and proof verification, manifest v1/v2 signature and
+    # schema admission, the OTS full-verify path, cross-module anchor
+    # pin consistency. 46 of its 47 modules ran in no workflow at all.
+    # Own job because of runtime (~20 s of tests plus the Node install),
+    # not because of subject matter.
+    #
+    # Node, and why it is here
+    # ------------------------
+    # `STABILITY.md` carries this repository's furthest-reaching
+    # conformance claim: *two independent JSON-Schema implementations
+    # validate our published schemas*, with
+    # `tests/wat/test_external_verifier_parity.py` named as the guard.
+    # Measured 2026-09-14: no workflow ran that module, and no workflow
+    # in this repository installed Node at all — so the claim had been
+    # executed zero times in CI. Putting the module in a lane without
+    # Node would not have changed that; the Node half would keep
+    # skipping and the lane would be green without checking.
+    #
+    # So the lane installs Node and both validator trees, and the step
+    # below hard-fails if either is missing. Skipping is a legitimate
+    # design for a developer machine; in the lane that makes the claim,
+    # it is not.
+    #
+    # Determinism: `package-lock.json` is committed for both trees and
+    # `npm ci` installs exactly the locked tree. A floating `^8.17.1`
+    # resolved at job time would put an unreviewed upstream release on
+    # the merge path.
+    #
+    # `fastjsonschema` is the third validator pole and is installed here
+    # explicitly because `pyproject.toml` does not declare it anywhere —
+    # same shape as the PyYAML line in `tests.yml`, and the same
+    # follow-up: the declaration belongs in `pyproject.toml`. Until it
+    # lands there, this line is what makes the four-pole parity test
+    # actually run instead of skip.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install lane dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "PyYAML>=6.0" \
+            "jsonschema>=4.21" \
+            "rfc8785>=0.1.4" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0" \
+            "fastjsonschema>=2.19"
+      - name: Install the external verifier harnesses (npm ci, locked)
+        run: |
+          set -euo pipefail
+          ( cd tooling/external-verifier-ajv && npm ci )
+          ( cd tooling/external-verifier-hyperjump && npm ci )
+      - name: Verify every validator pole is present
+        # The parity module skips its Node halves when `node` is absent
+        # or `node_modules` is missing, and its fastjsonschema halves
+        # when that wheel is absent. Those skips are what made the
+        # STABILITY.md claim unexecuted for four months. In this lane a
+        # missing pole is a lane defect, not a skip.
+        run: |
+          set -euo pipefail
+          node --version
+          test -d tooling/external-verifier-ajv/node_modules
+          test -d tooling/external-verifier-hyperjump/node_modules
+          python - <<'PY'
+          import importlib.util, sys
+          missing = [m for m in ("jsonschema", "fastjsonschema") if importlib.util.find_spec(m) is None]
+          if missing:
+              print(f"validator poles missing: {missing}", file=sys.stderr)
+              sys.exit(1)
+          print("validator poles present: python-jsonschema, fastjsonschema, ajv, hyperjump")
+          PY
+      - name: Collect-gate (no module may vanish into an import guard)
+        run: |
+          python tooling/ci/collect_gate.py --profile production --root tests/wat
+      - name: Run WAT core suite
+        run: |
+          python -m pytest tests/wat/ -v --tb=short -rs
+
+  lane-hermetic-invariants:
+    name: Lane — hermetic invariants (spec freeze, parity, routing)
+    runs-on: ubuntu-latest
+    # Welle-3 lane promotion, step 3 (ADR-0075; CTO decision paper
+    # §1.3 table A). Four groups that are cheap, hermetic and carry a
+    # named unchecked invariant each:
+    #
+    #   * `tests/specs/` (spec freeze) — the required v0.4.3 freeze-seal
+    #     probe verifies the seal envelope, not the strict-superset
+    #     property over v0.4.2.
+    #   * cross-language parity — the Python/Rust wire agreement for
+    #     bridge-forward, bridge-audit-writer, federation resolver, SVID
+    #     workload identity, the federation frame parser and NATS
+    #     subjects. The sibling suites inside `wirelang/` are required;
+    #     these six sit under `tests/` and were not.
+    #   * observability routing — an alert rule that stops routing to
+    #     its receiver. This is criterion (b), an outage we actually had
+    #     (27 silent hourly slots), not a hypothetical.
+    #   * `test_bug_42_regression_suite.py` — a regression suite that
+    #     never runs cannot regress.
+    #   * the five hermetic counterparts of the required
+    #     `verify-containerfile-base-image-digest-pins` context, which
+    #     runs shell only.
+    #
+    # Explicit module list, not directory targets: three of these
+    # directories are mixed, and pointing the runner at the whole
+    # directory would pull in modules whose lane is a separate decision
+    # — including one that is operator-hand on purpose. A new module in
+    # these directories therefore lands `unassigned` and turns
+    # `tests/lanes/test_lane_assignment.py` red until someone answers
+    # "which gate runs this?". That is the intended cost.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install lane dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . \
+            "pytest>=8.0" \
+            "pytest-subtests>=0.11" \
+            "PyYAML>=6.0" \
+            "jsonschema>=4.21" \
+            "rfc8785>=0.1.4" \
+            "cryptography>=42" \
+            "shamir-mnemonic>=0.3.0"
+      - name: Collect-gate (superset of the lane's own modules)
+        # Deliberately wider than the module list below: collection is
+        # cheap, and a module in one of these directories that stops
+        # being collectable is worth knowing about even when this lane
+        # does not execute it.
+        run: |
+          python tooling/ci/collect_gate.py --profile production \
+            --root tests/specs \
+            --root tests/cli \
+            --root tests/federation \
+            --root tests/identity \
+            --root tests/persona_engine \
+            --root tests/observability \
+            --root tests/orchestrator \
+            --root tests/integration
+      - name: Run hermetic invariant suites
+        run: |
+          python -m pytest -v --tb=short -rs \
+            tests/specs/ \
+            tests/cli/test_bridge_forward_cross_lang_parity.py \
+            tests/federation/test_federation_frame_parser.py \
+            tests/identity/test_federation_resolver_cross_lang_parity.py \
+            tests/identity/test_svid_workload_identity_cross_lang_parity.py \
+            tests/persona_engine/test_bridge_audit_writer_cross_lang_parity.py \
+            tests/persona_engine/test_nats_subjects.py \
+            tests/integration/test_bug_42_regression_suite.py \
+            tests/orchestrator/test_compose_spire_cosign_pin.py \
+            tests/orchestrator/test_nats_py_pin.py \
+            tests/orchestrator/test_proxmox_resolve_image_pins.py \
+            tests/orchestrator/test_verify_image_digest.py \
+            tests/orchestrator/test_verify_image_digest_cosign_mock.py \
+            tests/observability/test_aggregator_failure_rate_tracker.py \
+            tests/observability/test_alert_rule_to_mira_notify_bridge.py \
+            tests/observability/test_bilanz_generator_validation_runs.py \
+            tests/observability/test_branch_protection_required_checks_doc.py \
+            tests/observability/test_cosign_g1_g2_operator_setup_guide.py \
+            tests/observability/test_lifecycle_state_machine_alert_routing.py \
+            tests/observability/test_marathon_closeout_alert_routing.py \
+            tests/observability/test_mira_notify_dlq.py \
+            tests/observability/test_mira_notify_emitter.py \
+            tests/observability/test_mira_notify_receiver.py \
+            tests/observability/test_ots_probe_workflow_hygiene.py \
+            tests/observability/test_phase_3_final_bilanz_generator.py \
+            tests/observability/test_pre_cutover_daily_trend_analyzer.py \
+            tests/observability/test_pre_cutover_probe_failure_rate_tracker.py \
+            tests/observability/test_quadlet_15_binary_live_boot_test.py \
+            tests/observability/test_recovery_workflow_alert_routing.py \
+            tests/observability/test_stability_window_doc_mirror_routing.py \
+            tests/observability/test_state_backing_alert_routing.py \
+            tests/observability/test_subscribe_loop_alert_routing.py \
+            tests/observability/test_trinary_routing_verdict_tile.py
+
   runtime-acceptance-gates:
     name: runtime acceptance gates
     runs-on: ubuntu-latest
@@ -204,6 +487,9 @@ jobs:
       - gate-2-3-v907-hash-stability-marker
       - gate-2-4-recovery-r1-r4-mock-drill
       - gate-2-5-subscribe-loop-lag-mock
+      - lane-ci-meta
+      - lane-wat-core
+      - lane-hermetic-invariants
     if: always()
     steps:
       - name: Require every gate job to have succeeded
@@ -219,6 +505,9 @@ jobs:
             gate-2-3-v907-hash-stability-marker=${{ needs.gate-2-3-v907-hash-stability-marker.result }}
             gate-2-4-recovery-r1-r4-mock-drill=${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }}
             gate-2-5-subscribe-loop-lag-mock=${{ needs.gate-2-5-subscribe-loop-lag-mock.result }}
+            lane-ci-meta=${{ needs.lane-ci-meta.result }}
+            lane-wat-core=${{ needs.lane-wat-core.result }}
+            lane-hermetic-invariants=${{ needs.lane-hermetic-invariants.result }}
         run: |
           set -euo pipefail
           bad=0
@@ -234,10 +523,10 @@ jobs:
             fi
           done <<< "${GATE_RESULTS}"
           if [ "${bad}" -ne 0 ]; then
-            echo "runtime acceptance gates: at least one gate job did not succeed" >&2
+            echo "runtime acceptance gates: at least one dependency job did not succeed" >&2
             exit 1
           fi
-          echo "runtime acceptance gates: all five gate jobs succeeded"
+          echo "runtime acceptance gates: every dependency job succeeded"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -271,6 +560,9 @@ jobs:
             echo "| Gate-2-3 V907-Hash-Stability-Marker         | ${{ needs.gate-2-3-v907-hash-stability-marker.result }} |"
             echo "| Gate-2-4 Recovery-R1..R4-Mock-Drill         | ${{ needs.gate-2-4-recovery-r1-r4-mock-drill.result }} |"
             echo "| Gate-2-5 Subscribe-Loop-Lag-Mock            | ${{ needs.gate-2-5-subscribe-loop-lag-mock.result }} |"
+            echo "| Lane — CI meta (hermetic)                   | ${{ needs.lane-ci-meta.result }} |"
+            echo "| Lane — WAT core                             | ${{ needs.lane-wat-core.result }} |"
+            echo "| Lane — hermetic invariants                  | ${{ needs.lane-hermetic-invariants.result }} |"
             echo "| Aggregator (Cross-Gate Non-Interference)    | ${{ job.status }} |"
             echo ""
             echo "Anchors: ADR-0058, docs/quality-gates/phase-2-doppelbetrieb.md."

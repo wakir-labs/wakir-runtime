@@ -154,12 +154,16 @@ jobs:
       # Whole-tree collection gate.
       # ------------------------------------------------------------------
       #
-      # Collection, not execution. 177 of this repository's 413 test
-      # modules are run by no workflow at all (see
-      # `tests/lanes/lane_assignment.json`), and adding them to a
-      # required lane is a separate, owned decision -- not something to
-      # smuggle in here. What this step does buy: those modules can no
-      # longer rot silently. An import that breaks, a module that starts
+      # Collection, not execution. When this step was written, 177 of
+      # this repository's 413 test modules were run by no workflow at
+      # all; the Welle-3 lane promotion (ADR-0075) took that to zero, 97
+      # into required lanes and 80 into the non-blocking observation
+      # lane. The step keeps its job either way: collection is the
+      # cheapest possible statement about a module, it covers the
+      # observation lane and the required ones alike, and which lane a
+      # module belongs in stays an owned decision recorded in
+      # `tests/lanes/lane_assignment.json` rather than something this
+      # step smuggles in. What it buys: no module can rot silently. An import that breaks, a module that starts
       # reaching for an undeclared wheel, a file that stops being
       # collectable at all -- all of that goes red at the cost of ~10
       # seconds, without asserting a single thing about their contents.
@@ -184,6 +188,71 @@ jobs:
       - name: Lane-assignment + collect-gate self-test
         run: |
           python -m pytest tests/lanes/ -v --tb=short
+
+      # ------------------------------------------------------------------
+      # Exemption expiry (ADR-0075 §3, approved 2026-09-15, hard variant).
+      # ------------------------------------------------------------------
+      #
+      # The pytest module above is the gate: an expired `review_by` in
+      # `tests/lanes/lane_assignment.json` fails this required context.
+      # The step below adds the half a hermetic test cannot do — it
+      # compares the file against the pull request's base commit and
+      # refuses a review date that moved without `renewed_on` and
+      # `renewal_reason`. Without it, the way out of a red lane is to
+      # edit one character on the morning it goes red.
+      #
+      # `--require-base` on purpose: if the base version cannot be read,
+      # the check must say so and fail rather than pass quietly. A check
+      # that silently becomes a no-op is the defect class this whole
+      # wave is about.
+      - name: Exemption renewal check (review dates may not move silently)
+        if: github.event_name == 'pull_request'
+        run: |
+          python tooling/ci/check_exemption_renewal.py \
+            --base-ref "${{ github.event.pull_request.base.sha }}" \
+            --require-base
+
+      - name: Exemption expiry — summary
+        # Always, including on a red run: the 14-day warning window is
+        # the damper ADR-0075 §3 asks for, and a damper nobody sees is
+        # not a damper. Never fails on its own.
+        if: always()
+        run: |
+          python tooling/ci/exemption_expiry.py --summary
+
+      # ------------------------------------------------------------------
+      # Workflow-shape suite (ADR-0075 / Welle-3 lane promotion, step 1).
+      # ------------------------------------------------------------------
+      #
+      # `tests/workflows/` holds the hermetic structure tests over
+      # `.github/workflows/*.yml`, and among them the one guard that every
+      # other gate in this repository depends on:
+      # `test_required_context_error_propagation.py` asserts that a
+      # required status context built on `needs:` cannot fail open — it
+      # must carry `if: always()` AND turn every `needs.<job>.result` into
+      # its own exit code before it runs anything else.
+      #
+      # It is attached HERE, to a job whose display name is already a
+      # branch-protection context, and deliberately NOT to a new gate job
+      # under `runtime-acceptance-gates.yml`. Two reasons, both load-
+      # bearing:
+      #
+      #   1. Ordering. The next step of the Welle-3 promotion extends the
+      #      acceptance-gate aggregator with new `needs:` entries. If the
+      #      guard only became live *through* that same change, the change
+      #      itself would be the first thing it never checked. Wiring the
+      #      guard into an independent, already-required lane first makes
+      #      the aggregator extension the first edit the guard covers.
+      #   2. Dependencies. This lane installs PyYAML. The guard module
+      #      opens with `pytest.importorskip("yaml")`, so in a fresh gate
+      #      job that installs only `-e . pytest` it would collect zero
+      #      tests and report green without checking anything — the exact
+      #      class of defect it exists to catch.
+      #
+      # Cost: 177 tests, under two seconds.
+      - name: Workflow-shape suite (fail-open guard over required contexts)
+        run: |
+          python -m pytest tests/workflows/ -v --tb=short -rs
 
       - name: Run wirelang test suite (production lane)
         id: run

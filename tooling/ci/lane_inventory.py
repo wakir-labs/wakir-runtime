@@ -30,6 +30,23 @@ This is **targeting**, not execution:
 * Both ``pytest`` and ``python -m unittest`` invocations are parsed.
   Three workflows — one of them a *required* context — drive test modules
   through ``unittest``, so a pytest-only scan under-reports.
+* **Inherited enforcement is modelled** (Welle 3, ADR-0075 §1). A gate
+  job under an aggregator is not itself a branch-protection context, but
+  a red gate job turns the aggregator red and the aggregator blocks the
+  merge — so its modules are ``required``. The inheritance is granted
+  only while the propagation is intact: the job is in ``needs:``, the
+  aggregator carries ``if: always()``, and its first unconditional step
+  turns ``needs.<job>.result`` into an exit code. Miss one and the
+  modules fall back to ``optional-ci``, which is how the fail-open defect
+  of finding R6 becomes visible here as well as in
+  ``tests/workflows/test_required_context_error_propagation.py``.
+* **A skip-by-default marker outranks a lane that does not switch it
+  on.** Pointing a runner at a module guarded by ``phase_3c_*``,
+  ``phase_3_skeleton`` or ``live_vm`` collects its tests and skips every
+  one of them. Reporting that as a lane would be the exact claim this
+  inventory exists to prevent, so such a module stays
+  ``opt-in-marker`` — unless the workflow actually sets the documented
+  variable or flag (``MARKER_SWITCHES``), which the live-VM lane does.
 
 Usage::
 
@@ -73,9 +90,20 @@ class Lane:
     line: int
     runner: str  # "pytest" | "unittest"
     targets: tuple[str, ...]
+    #: Paths removed from the target set again via ``--ignore``. A lane
+    #: that points at a directory and ignores three files inside it
+    #: targets everything else in that directory and nothing more, and
+    #: the inventory has to say so — otherwise the assignment file
+    #: credits a lane with modules it never runs.
+    ignored: tuple[str, ...] = field(default=())
     unresolved: tuple[str, ...] = field(default=())
     events: tuple[str, ...] = field(default=())
     path_filtered: bool = False
+    #: Skip-by-default markers this lane's workflow actually switches on
+    #: (via the documented environment variable or CLI flag). A lane that
+    #: points a runner at a marker-guarded module without switching the
+    #: marker on collects the tests and skips every one of them.
+    enabled_markers: tuple[str, ...] = field(default=())
 
     @property
     def lane_id(self) -> str:
@@ -197,17 +225,40 @@ def _split_runner_args(tokens: list[str]) -> tuple[str, list[str]] | None:
     return None
 
 
-def _targets_from_args(runner: str, args: list[str]) -> tuple[list[str], list[str]]:
-    """Return (resolved-target-strings, unresolved-tokens)."""
+#: Flags whose value is a path that pytest then does *not* run.
+_IGNORE_FLAGS = ("--ignore", "--ignore-glob", "--deselect")
+
+
+def _targets_from_args(
+    runner: str, args: list[str]
+) -> tuple[list[str], list[str], list[str]]:
+    """Return (resolved targets, unresolved tokens, ignored paths)."""
     targets: list[str] = []
     unresolved: list[str] = []
+    ignored: list[str] = []
     skip_next = False
+    expect_ignore = False
     for idx, token in enumerate(args):
         if skip_next:
             skip_next = False
             continue
+        if expect_ignore:
+            expect_ignore = False
+            ignored.append(token)
+            continue
         if token in {"-k", "-m", "--junitxml", "--junit-xml", "--override-ini"}:
             skip_next = True
+            continue
+        if token in _IGNORE_FLAGS:
+            expect_ignore = True
+            continue
+        matched = False
+        for flag in _IGNORE_FLAGS:
+            if token.startswith(f"{flag}="):
+                ignored.append(token.split("=", 1)[1])
+                matched = True
+                break
+        if matched:
             continue
         if token.startswith("-"):
             continue
@@ -220,16 +271,51 @@ def _targets_from_args(runner: str, args: list[str]) -> tuple[list[str], list[st
         else:
             targets.append(token)
         del idx
-    return targets, unresolved
+    return targets, unresolved, ignored
+
+
+#: What actually switches each skip-by-default marker on. Sources:
+#: ``[tool.pytest.ini_options] markers`` in ``pyproject.toml`` and the
+#: opt-in flags in ``conftest.py``.
+MARKER_SWITCHES: dict[str, tuple[str, ...]] = {
+    "phase_3_skeleton": ("WAKIR_PHASE_3_SKELETON",),
+    "phase_3c_acceptance": ("WAKIR_PHASE_3C_E2E", "--phase-3c-acceptance"),
+    "phase_3c_doppel_welle_acceptance": (
+        "WAKIR_PHASE_3C_DOPPEL_E2E",
+        "--phase-3c-doppel-welle-acceptance",
+    ),
+    "phase_3c_rollback_drill": ("WAKIR_PHASE_3C_ROLLBACK_DRILL", "--rollback-drill"),
+    "live_vm": ("WAKIR_LIVE_VM_ACCEPTANCE", "--run-live-vm"),
+}
+
+
+def workflow_enabled_markers(text: str) -> tuple[str, ...]:
+    """Markers a workflow file switches on somewhere in its body.
+
+    File-level, not step-level, and deliberately generous: if the
+    enabling token appears anywhere in the workflow, the lanes in it are
+    credited with switching the marker on. Being generous here is the
+    safe direction only because the *consequence* of not being credited
+    is the stricter classification (``opt-in-marker``, i.e. "nothing
+    runs this"), and an over-strict classification is visible and
+    arguable, while an over-generous one reads as coverage.
+    """
+    return tuple(
+        marker
+        for marker, tokens in sorted(MARKER_SWITCHES.items())
+        if any(token in text for token in tokens)
+    )
 
 
 def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
     """Every pytest/unittest invocation in every workflow, with its job."""
     lanes: list[Lane] = []
     for workflow in sorted(workflow_dir.glob("*.yml")):
-        lines = workflow.read_text(encoding="utf-8").splitlines()
+        text = workflow.read_text(encoding="utf-8")
+        lines = text.splitlines()
         arrays = _bash_arrays(lines)
         events, path_filtered = parse_triggers(workflow)
+        enabled_markers = workflow_enabled_markers(text)
         job_id = job_name = "<unknown>"
         in_jobs = False
         i = 0
@@ -259,7 +345,7 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
                 split = _split_runner_args(tokens)
                 if split and "install" not in tokens:
                     runner, args = split
-                    targets, unresolved = _targets_from_args(runner, args)
+                    targets, unresolved, ignored = _targets_from_args(runner, args)
                     if targets or unresolved:
                         lanes.append(
                             Lane(
@@ -269,9 +355,11 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
                                 line=i + 1,
                                 runner=runner,
                                 targets=tuple(targets),
+                                ignored=tuple(ignored),
                                 unresolved=tuple(unresolved),
                                 events=events,
                                 path_filtered=path_filtered,
+                                enabled_markers=enabled_markers,
                             )
                         )
                 i = end
@@ -279,10 +367,9 @@ def parse_workflows(workflow_dir: Path = WORKFLOW_DIR) -> list[Lane]:
     return lanes
 
 
-def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
-    """Test modules a lane points its runner at (targeting, not execution)."""
+def _expand(paths: tuple[str, ...], root: Path) -> set[str]:
     modules: set[str] = set()
-    for target in lane.targets:
+    for target in paths:
         path_part = target.split("::", 1)[0]
         candidate = root / path_part
         if candidate.is_dir():
@@ -291,6 +378,16 @@ def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
         elif candidate.is_file() and candidate.name.startswith("test_"):
             modules.add(candidate.relative_to(root).as_posix())
     return modules
+
+
+def resolve_lane_modules(lane: Lane, root: Path = REPO_ROOT) -> set[str]:
+    """Test modules a lane points its runner at (targeting, not execution).
+
+    ``--ignore`` is subtracted. A directory target minus three files is
+    a lane over everything else in that directory; counting the three
+    would credit the lane with modules it demonstrably does not run.
+    """
+    return _expand(lane.targets, root) - _expand(lane.ignored, root)
 
 
 #: Markers that are skipped unless explicitly opted in (see
@@ -330,6 +427,14 @@ def derive_profile(entry: dict) -> str:
     against. Nothing here reads the declaration, so a declaration cannot
     talk the derivation into agreeing with it.
     """
+    unswitched = entry["opt_in_markers"] and not entry.get("marker_enabling_lanes")
+    if unswitched:
+        # A lane that targets a skip-by-default module without switching
+        # the marker on collects its tests and skips every one of them.
+        # Reporting that as `required` or `optional-ci` would be the
+        # exact claim this file exists to prevent: a module counted as
+        # covered by a lane that does not execute it.
+        return "opt-in-marker"
     if entry["required_lanes"]:
         return "required"
     if entry["lanes"]:
@@ -341,26 +446,173 @@ def derive_profile(entry: dict) -> str:
     return "unassigned"
 
 
+#: Jobs that are not themselves a required context but whose result is
+#: turned into a required context's exit code. See
+#: ``inherited_required_jobs`` for why this is a profile-relevant fact
+#: and not a convenience.
+InheritedJob = tuple[str, str]  # (workflow file name, job id)
+
+
+def _yaml():
+    """PyYAML, imported late and loudly.
+
+    The inheritance derivation below decides whether a module is
+    ``required`` or merely ``optional-ci``. Degrading to "no inheritance"
+    when PyYAML happens to be absent would make the derived profile a
+    function of the local install set, and a lane assignment that changes
+    meaning with the environment is worse than none. So: hard error, with
+    the install hint in it.
+    """
+    try:
+        import yaml  # noqa: PLC0415
+    except ImportError as exc:  # pragma: no cover - environment guard
+        raise RuntimeError(
+            "lane_inventory needs PyYAML to resolve which jobs inherit a "
+            "required context's enforcement. Install it "
+            "(`pip install PyYAML`, or the `test` extra) — do not run this "
+            "tool without it, because the answer would silently change."
+        ) from exc
+    return yaml
+
+
+def _workflow_documents(workflow_dir: Path) -> dict[str, dict]:
+    yaml = _yaml()
+    out: dict[str, dict] = {}
+    for path in sorted(workflow_dir.glob("*.yml")):
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            out[path.name] = data
+    return out
+
+
+def _needs_list(job: dict) -> list[str]:
+    needs = job.get("needs")
+    if isinstance(needs, str):
+        return [needs]
+    return [n for n in (needs or []) if isinstance(n, str)]
+
+
+def _dependencies_checked_first(job: dict) -> set[str]:
+    """Job ids whose ``.result`` the job's *first* step turns into an exit code.
+
+    Deliberately only the first step, and only an unconditional one. That
+    is the same contract
+    ``tests/workflows/test_required_context_error_propagation.py`` pins:
+    a later check can be papered over by an earlier green step, and a
+    conditional guard can be skipped and then fails open again.
+    """
+    yaml = _yaml()
+    steps = job.get("steps") or []
+    if not steps or not isinstance(steps[0], dict):
+        return set()
+    guard = steps[0]
+    if "if" in guard:
+        return set()
+    body = yaml.safe_dump(guard, allow_unicode=True)
+    return set(re.findall(r"needs\.([A-Za-z0-9_-]+)\.result", body))
+
+
+def inherited_required_jobs(
+    workflow_dir: Path = WORKFLOW_DIR,
+    required_contexts: frozenset[str] = frozenset(),
+) -> set[InheritedJob]:
+    """Jobs that carry a required context's enforcement without being one.
+
+    ADR-0075 §1 makes in-workflow aggregation the binding pattern: a
+    sammel-job with ``if: always()`` plus an explicit per-dependency
+    ``needs.<job>.result`` check, instead of a second required status
+    context per lane. A gate job under such an aggregator blocks merges
+    exactly as hard as the aggregator does — so for the purpose of "which
+    profile is this module in", it *is* a required lane.
+
+    The inheritance is granted only when the propagation is actually
+    intact:
+
+    * the aggregator declares the job in ``needs:``,
+    * it carries a job-level ``if:`` containing ``always()`` (otherwise a
+      red dependency skips it, and GitHub does not block a merge on a
+      skipped required check), and
+    * its first, unconditional step references ``needs.<job>.result``.
+
+    Miss any of the three and the job does not inherit. That is the
+    point: adding a job to ``needs:`` without adding it to the result
+    check is the fail-open defect of finding R6, and here it shows up a
+    second, independent time — as a module whose declared ``required``
+    profile no longer matches the derivation.
+
+    Resolved to a fixpoint, so a chain of aggregators propagates only as
+    far as the propagation is unbroken.
+    """
+    documents = _workflow_documents(workflow_dir)
+    inherited: set[InheritedJob] = set()
+    changed = True
+    while changed:
+        changed = False
+        for workflow, data in documents.items():
+            jobs = data.get("jobs") or {}
+            if not isinstance(jobs, dict):
+                continue
+            for job_id, job in jobs.items():
+                if not isinstance(job, dict):
+                    continue
+                enforcing = (
+                    job.get("name", job_id) in required_contexts
+                    or (workflow, job_id) in inherited
+                )
+                if not enforcing:
+                    continue
+                if "always()" not in str(job.get("if", "")):
+                    continue
+                checked = _dependencies_checked_first(job)
+                for dependency in _needs_list(job):
+                    if dependency not in checked:
+                        continue
+                    key = (workflow, dependency)
+                    if key not in inherited:
+                        inherited.add(key)
+                        changed = True
+    return inherited
+
+
 def build_inventory(
     root: Path = REPO_ROOT,
     required_contexts: frozenset[str] = frozenset(),
 ) -> dict[str, dict]:
     """Derived lane facts for every test module in the tree."""
-    lanes = parse_workflows(root / ".github" / "workflows")
+    workflow_dir = root / ".github" / "workflows"
+    lanes = parse_workflows(workflow_dir)
+    inherited = inherited_required_jobs(workflow_dir, required_contexts)
 
     def blank() -> dict:
-        return {"lanes": [], "required_lanes": [], "reachability": []}
+        return {
+            "lanes": [],
+            "required_lanes": [],
+            "reachability": [],
+            "marker_enabling_lanes": [],
+        }
 
     inventory: dict[str, dict] = {module: blank() for module in discover_modules(root)}
     for lane in lanes:
+        enforced = (
+            lane.job_name in required_contexts
+            or (lane.workflow, lane.job_id) in inherited
+        )
         for module in sorted(resolve_lane_modules(lane, root)):
             entry = inventory.setdefault(module, blank())
             entry["lanes"].append(lane.lane_id)
             entry["reachability"].append(lane.reachability)
-            if lane.job_name in required_contexts:
+            if enforced:
                 entry["required_lanes"].append(lane.lane_id)
+            if lane.enabled_markers:
+                entry.setdefault("_lane_markers", {})[lane.lane_id] = lane.enabled_markers
     for module, entry in inventory.items():
         entry["opt_in_markers"] = module_opt_in_markers(module, root)
+        lane_markers = entry.pop("_lane_markers", {})
+        entry["marker_enabling_lanes"] = [
+            lane_id
+            for lane_id, markers in sorted(lane_markers.items())
+            if set(markers) & set(entry["opt_in_markers"])
+        ]
         entry["profile"] = derive_profile(entry)
     return inventory
 
