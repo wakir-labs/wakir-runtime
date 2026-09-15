@@ -44,8 +44,10 @@
 # The aggregator job's display name `runtime acceptance gates` is the
 # branch-protection context. Branch protection matches the job display
 # name (`jobs.<id>.name`), not the workflow name. Do not rename the job
-# without updating `docs/ci/branch-protection-required-checks.md` and
-# `scripts/ci/ci_aggregator.py` in the same PR.
+# without updating `docs/ci/branch-protection-required-checks.md` in the
+# same PR. The second place this note used to name,
+# `scripts/ci/ci_aggregator.py`, was deleted under ADR-0075 §1
+# (`docs/ci/retired-workflows.md`).
 #
 # Error propagation
 # -----------------
