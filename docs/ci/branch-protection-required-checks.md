@@ -61,6 +61,21 @@ has existed without ever being inventoried. Both corrected here.
 | 12 | `proof-path` | `.github/workflows/proof-path.yml` | every PR + push to `main` (no path filter) | 2026-09 (ADR-0072 Phase 4 W3) | ACTIVE |
 | 13 | `secret-scan` | `.github/workflows/secret-scan.yml` | every PR + push to `main` (no path filter) | pre-2026-09 (never inventoried until 2026-09-14) | ACTIVE |
 
+**Attached lanes, not new contexts (ADR-0075 §1, Welle 3).**
+Row 11 aggregates more than the Phase-2 acceptance gates. Since the
+Welle-3 lane promotion `runtime-acceptance-gates.yml` also carries
+`lane-ci-meta`, `lane-wat-core` and `lane-hermetic-invariants`, and
+row 1's job runs `tests/workflows/` and the exemption-expiry gate. None
+of them is a required status context of its own: a new context means a
+branch-protection change plus an exact display name, and that is the
+PR #102 forever-pending failure class. A job attached to an aggregator
+inherits the enforcement instead — which is why the invariant below is
+now load-bearing for three further jobs beyond the five it was written
+for, each carrying dozens of modules. `tooling/ci/lane_inventory.py` grants a module
+the `required` profile through such a job only while the propagation
+holds, so a broken aggregator also shows up as a mismatch in
+`tests/lanes/lane_assignment.json`.
+
 **Invariant: a required aggregator job carries `if: always()` and
 checks every `needs.<job>.result`.**
 A job that declares `needs:` without a job-level `if: always()` is
