@@ -105,7 +105,7 @@ jobs:
       - name: Run the proof-path driver test suite
         run: |
           set -euo pipefail
-          python -m pytest tests/scripts/test_demo_proof.py -v --tb=short
+          python -m pytest tests/scripts/test_demo_proof.py -v --tb=short -rs
 
       - name: Run the proof path (make demo-proof)
         id: demo

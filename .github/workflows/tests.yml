@@ -252,7 +252,7 @@ jobs:
       # Cost: 177 tests, under two seconds.
       - name: Workflow-shape suite (fail-open guard over required contexts)
         run: |
-          python -m pytest tests/workflows/ -v --tb=short
+          python -m pytest tests/workflows/ -v --tb=short -rs
 
       - name: Run wirelang test suite (production lane)
         id: run

@@ -78,6 +78,11 @@
 # never reports, i.e. it would switch this lane off while looking like
 # tidying up.
 #
+# Every lane job runs pytest with `-rs`, so the skip reasons are in the
+# log. A lane's skip balance is the difference between "these invariants
+# are checked" and "these invariants are collected"; it has to be
+# readable without re-running anything.
+#
 # Every job in `needs:` must also appear in the `GATE_RESULTS` block of
 # the aggregator's first step. A job in one and not the other is a
 # fail-open gate (finding R6). Two independent tests catch it:
@@ -260,7 +265,7 @@ jobs:
           python tooling/ci/collect_gate.py --profile production --root tests/ci
       - name: Run CI-meta suite
         run: |
-          python -m pytest tests/ci/ -v --tb=short
+          python -m pytest tests/ci/ -v --tb=short -rs
 
   lane-wat-core:
     name: Lane — WAT core (hermetic, four-validator parity)
@@ -355,7 +360,7 @@ jobs:
           python tooling/ci/collect_gate.py --profile production --root tests/wat
       - name: Run WAT core suite
         run: |
-          python -m pytest tests/wat/ -v --tb=short
+          python -m pytest tests/wat/ -v --tb=short -rs
 
   lane-hermetic-invariants:
     name: Lane — hermetic invariants (spec freeze, parity, routing)
@@ -423,7 +428,7 @@ jobs:
             --root tests/integration
       - name: Run hermetic invariant suites
         run: |
-          python -m pytest -v --tb=short \
+          python -m pytest -v --tb=short -rs \
             tests/specs/ \
             tests/cli/test_bridge_forward_cross_lang_parity.py \
             tests/federation/test_federation_frame_parser.py \
