@@ -70,10 +70,23 @@ jobs:
           python-version: "3.13"
 
       - name: Install wakir-runtime (editable)
+        # `jsonschema` is deliberate, and was a measured gap: the driver
+        # suite's two F7 regression tests validate the emitted
+        # `proof.json` against `wakir-inclusion-proof/v1` and skipped in
+        # this job because `jsonschema` sits behind the `test` extra
+        # rather than in `dependencies`. A required context whose schema
+        # check silently skips is the shape of the whole Welle-3 finding
+        # list, so the lane installs it.
+        #
+        # It also makes this job's environment closer to a consumer's
+        # than a bare `-e .` does. If a future change to `make
+        # demo-proof` behaves differently with `jsonschema` importable,
+        # that difference is worth failing on here rather than
+        # discovering downstream.
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          python -m pip install -e . "pytest>=8.0"
+          python -m pip install -e . "pytest>=8.0" "jsonschema>=4.21"
 
       - name: Install wakir-verify (pinned commit)
         run: |
