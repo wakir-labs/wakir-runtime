@@ -390,22 +390,33 @@ def test_skopeo_crane_cross_check_in_rust_resolver(
     )
 
 
-def test_placeholder_substitution_step_refuses_residue(
+def test_committed_base_layer_pin_verification_fails_on_drift(
     build_steps: list[dict],
 ) -> None:
-    # The "Materialise pinned base-layer digests" step must refuse
-    # to proceed if any DIGEST_PENDING_KAI_REVIEW placeholder is
-    # left after substitution (substrate-fence parity with
-    # build-wakir-persona-engine.yml's grep guard).
-    idx = _step_index(
-        build_steps, "Materialise pinned base-layer digests in Containerfile"
-    )
+    # 2026-09-21: the "Materialise pinned base-layer digests" step is
+    # gone. It substituted a ``DIGEST_PENDING_KAI_REVIEW`` placeholder
+    # with a freshly resolved digest, which meant the repository pinned
+    # nothing — every build adopted whatever the registry served.
+    # Its replacement compares the COMMITTED pin against the live
+    # digest and fails the build on drift (fail-closed), and refuses
+    # any residual ``DIGEST_PENDING_*`` token.
+    idx = _step_index(build_steps, "Verify committed base-layer pins are current")
     run = build_steps[idx].get("run", "")
-    assert "DIGEST_PENDING_KAI_REVIEW" in run, (
-        "substitution step must reference the placeholder sentinel"
+    assert "sed -i" not in run, (
+        "the pin-verification step must not rewrite the Containerfile"
+    )
+    assert "DIGEST_PENDING_" in run, (
+        "the step must still reject a residual DIGEST_PENDING_* placeholder"
+    )
+    assert "steps.rust_base.outputs.digest" in run, (
+        "the step must compare the committed rust pin against the live digest"
+    )
+    assert "steps.distroless_base.outputs.digest" in run, (
+        "the step must compare the committed distroless pin against the "
+        "live digest"
     )
     assert "exit 1" in run, (
-        "substitution step must exit 1 if any placeholder remains"
+        "the step must exit 1 on drift or on a residual placeholder"
     )
 
 

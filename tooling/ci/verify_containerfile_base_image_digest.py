@@ -81,10 +81,20 @@ from typing import Iterable
 
 # Allowed placeholder tokens — wave-rotation pattern keeps these around
 # until ``resolve-image-pins-ci`` replaces them with live digests.
+#
+# This list is an allow-list from a check, which ADR-0075 §3 names
+# explicitly. It is therefore kept as short as the tree allows: a token
+# that no file uses any more is removed rather than left standing,
+# because an unused allow-list entry is an exemption nobody is
+# accountable for. ``DIGEST_PENDING_KAI_REVIEW`` was removed on
+# 2026-09-21 when the 14 Rust-CLI base-image pins it covered were
+# resolved to committed digests (see the seven
+# ``infra/*-rust-cli/Containerfile`` FROM lines and the
+# ``Verify committed base-layer pins are current`` step in the seven
+# ``build-rust-cli-*.yml`` workflows).
 ALLOWED_PLACEHOLDERS: frozenset[str] = frozenset(
     {
         "DIGEST_PENDING_TOMAS_REVIEW",
-        "DIGEST_PENDING_KAI_REVIEW",
         "DIGEST_PENDING_SELIN_REVIEW",
         "DIGEST_PENDING_NOA_REVIEW",
         "DIGEST_PENDING_REZA_REVIEW",

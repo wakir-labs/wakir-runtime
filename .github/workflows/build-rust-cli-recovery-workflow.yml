@@ -30,9 +30,10 @@
 #   2. Resolves the ``rust:1.85-slim-bookworm`` and
 #      ``gcr.io/distroless/cc-debian12:nonroot`` base-layer digests
 #      via skopeo + crane cross-check (refuses if the two disagree).
-#   3. Materialises the pinned digests in
-#      ``infra/recovery-workflow-rust-cli/Containerfile`` (in-runner sed,
-#      NOT committed back to the repo).
+#   3. Verifies the COMMITTED base-layer pins in
+#      ``infra/recovery-workflow-rust-cli/Containerfile`` against those
+#      live digests and fails the build on drift. Nothing is
+#      substituted in-runner.
 #   4. Runs ``cargo build --release -p persona-engine-recovery
 #      --bin wakir-persona-engine-recovery`` as a substrate-CI
 #      smoke.
@@ -170,30 +171,47 @@ jobs:
           fi
           echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Materialise pinned base-layer digests in Containerfile
+      - name: Verify committed base-layer pins are current
         run: |
           set -euo pipefail
+          # The Containerfile carries COMMITTED digest pins. Nothing is
+          # substituted here. This step compares each committed pin
+          # against the digest its tag resolves to right now and fails
+          # the build on drift.
+          #
+          # Until 2026-09-21 this step ran an in-runner ``sed`` that
+          # replaced a ``DIGEST_PENDING_KAI_REVIEW`` placeholder with
+          # the freshly resolved digest. That meant the repository
+          # pinned nothing: every build silently adopted whatever the
+          # registry served at build time, while the required gate
+          # ``verify-containerfile-base-image-digest-pins`` reported
+          # PASS on the ``@sha256:`` shape. Refresh recipe:
+          # ``infra/spire/federation/IMAGE_PINS.md`` §2.4.
           CONTAINERFILE_PATH="infra/recovery-workflow-rust-cli/Containerfile"
           if [[ ! -f "${CONTAINERFILE_PATH}" ]]; then
             echo "::error::Containerfile not found: ${CONTAINERFILE_PATH}"
             exit 1
           fi
-          sed -i \
-            "s|rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW|rust:1.85-slim-bookworm@${{ steps.rust_base.outputs.digest }}|" \
-            "${CONTAINERFILE_PATH}"
-          sed -i \
-            "s|cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW|cc-debian12:nonroot@${{ steps.distroless_base.outputs.digest }}|" \
-            "${CONTAINERFILE_PATH}"
-          grep -q "rust:1.85-slim-bookworm@${{ steps.rust_base.outputs.digest }}" \
-            "${CONTAINERFILE_PATH}" \
-            || { echo "::error::rust base-layer substitution did not stick"; exit 1; }
-          grep -q "cc-debian12:nonroot@${{ steps.distroless_base.outputs.digest }}" \
-            "${CONTAINERFILE_PATH}" \
-            || { echo "::error::distroless base-layer substitution did not stick"; exit 1; }
-          if grep -q "DIGEST_PENDING_KAI_REVIEW" "${CONTAINERFILE_PATH}"; then
-            echo "::error::placeholder DIGEST_PENDING_KAI_REVIEW left in Containerfile after substitution"
+          if grep -qE 'DIGEST_PENDING_[A-Z0-9_]+' "${CONTAINERFILE_PATH}"; then
+            echo "::error::${CONTAINERFILE_PATH} carries a DIGEST_PENDING_* placeholder — base-image pins are committed, not materialised at build time"
             exit 1
           fi
+          DRIFT=0
+          if ! grep -q "rust:1.85-slim-bookworm@${{ steps.rust_base.outputs.digest }}" "${CONTAINERFILE_PATH}"; then
+            echo "::error::rust base-layer pin drift — committed pin does not match the live digest ${{ steps.rust_base.outputs.digest }}"
+            grep -n 'rust:1.85-slim-bookworm@sha256:' "${CONTAINERFILE_PATH}" || true
+            DRIFT=1
+          fi
+          if ! grep -q "cc-debian12:nonroot@${{ steps.distroless_base.outputs.digest }}" "${CONTAINERFILE_PATH}"; then
+            echo "::error::distroless base-layer pin drift — committed pin does not match the live digest ${{ steps.distroless_base.outputs.digest }}"
+            grep -n 'cc-debian12:nonroot@sha256:' "${CONTAINERFILE_PATH}" || true
+            DRIFT=1
+          fi
+          if [[ "${DRIFT}" -ne 0 ]]; then
+            echo "::error::refusing to build against a stale base-image pin — refresh the committed pins (infra/spire/federation/IMAGE_PINS.md §2.4) and re-run"
+            exit 1
+          fi
+          echo "OK: committed base-layer pins match the live registry digests"
 
       - name: Build image with buildah
         id: buildah

@@ -51,6 +51,7 @@ Scope of invariants (per workflow + cross-workflow)
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -312,7 +313,7 @@ class TestWelle4to7Workflow:
             "Install cosign (Sigstore-keyless)",
             "Resolve rust:1.85-slim-bookworm base-layer digest",
             "Resolve distroless/cc-debian12:nonroot base-layer digest",
-            "Materialise pinned base-layer digests in Containerfile",
+            "Verify committed base-layer pins are current",
             "Build image with buildah",
             "Login to GHCR",
             "Push to GHCR",
@@ -556,12 +557,20 @@ class TestWelle4to7Containerfile:
     ) -> None:
         path = REPO_ROOT / "infra" / containerfile_dir / "Containerfile"
         text = path.read_text(encoding="utf-8")
-        assert (
-            "rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW"
-            in text
+        # 2026-09-21: the placeholder is gone. The digest is
+        # COMMITTED, and the build workflow verifies it against the
+        # live registry instead of substituting it in-runner. A
+        # placeholder here would mean the repository pins nothing.
+        assert re.search(
+            r"FROM docker\.io/library/rust:1\.85-slim-bookworm"
+            r"@sha256:[0-9a-f]{64} AS builder",
+            text,
         ), (
-            f"{path} must FROM rust:1.85-slim-bookworm with the "
-            f"DIGEST_PENDING_KAI_REVIEW placeholder"
+            f"{path} must FROM rust:1.85-slim-bookworm with a committed "
+            f"64-hex sha256 digest (no DIGEST_PENDING_* placeholder)"
+        )
+        assert "DIGEST_PENDING_" not in text, (
+            f"{path} must not carry any DIGEST_PENDING_* placeholder"
         )
 
     def test_containerfile_uses_distroless_cc_nonroot(
@@ -574,13 +583,14 @@ class TestWelle4to7Containerfile:
     ) -> None:
         path = REPO_ROOT / "infra" / containerfile_dir / "Containerfile"
         text = path.read_text(encoding="utf-8")
-        assert (
-            "distroless/cc-debian12:nonroot@sha256:"
-            "DIGEST_PENDING_KAI_REVIEW"
-            in text
+        assert re.search(
+            r"FROM gcr\.io/distroless/cc-debian12:nonroot"
+            r"@sha256:[0-9a-f]{64}\s*$",
+            text,
+            re.MULTILINE,
         ), (
-            f"{path} must FROM distroless/cc-debian12:nonroot with the "
-            f"DIGEST_PENDING_KAI_REVIEW placeholder"
+            f"{path} must FROM distroless/cc-debian12:nonroot with a "
+            f"committed 64-hex sha256 digest (no placeholder)"
         )
 
     def test_containerfile_user_nonroot(

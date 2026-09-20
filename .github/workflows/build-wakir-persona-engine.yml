@@ -25,10 +25,9 @@
 #   1. Checks out the repo at the requested ref.
 #   2. Resolves the python:3.13-slim base-layer digest via skopeo +
 #      crane cross-check (refuses if the two disagree).
-#   3. Materialises the pinned digest in
-#      ``infra/persona-engine/Containerfile`` (in-runner sed, NOT
-#      committed back to the repo — that is a follow-up PR from
-#      the operator).
+#   3. Verifies the COMMITTED base-layer pin in
+#      ``infra/persona-engine/Containerfile`` against that live digest
+#      and fails the build on drift. Nothing is substituted in-runner.
 #   4. Builds the image with buildah.
 #   5. Sigstore-keyless signs the published digest against the
 #      GitHub-Actions OIDC identity of this workflow.
@@ -147,7 +146,7 @@ jobs:
           fi
           echo "digest=${SKOPEO_DIGEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Materialise pinned base-layer digest in Containerfile
+      - name: Verify the committed base-layer pin is current
         run: |
           set -euo pipefail
           CONTAINERFILE_NAME="${{ github.event.inputs.containerfile }}"
@@ -156,12 +155,28 @@ jobs:
             echo "::error::Containerfile not found: ${CONTAINERFILE_PATH}"
             exit 1
           fi
-          sed -i \
-            "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${{ steps.base.outputs.digest }}|" \
-            "${CONTAINERFILE_PATH}"
-          grep -q "python:3.13-slim@${{ steps.base.outputs.digest }}" \
-            "${CONTAINERFILE_PATH}" \
-            || { echo "::error::Containerfile substitution did not stick"; exit 1; }
+          # The Containerfile carries a COMMITTED python base-layer pin.
+          # Nothing is substituted here.
+          #
+          # Until 2026-09-21 this step ran an in-runner ``sed`` against
+          # the token ``DIGEST_PENDING_TOMAS_REVIEW``. That token has not
+          # been in the file since PR #503 resolved it, so the ``sed``
+          # was a dead no-op and the ``grep`` below was already the only
+          # thing doing work — while its error message said the
+          # substitution "did not stick". A build that fails with a
+          # message about a substitution that cannot happen sends the
+          # operator to the wrong place.
+          if grep -qE 'DIGEST_PENDING_[A-Z0-9_]+' "${CONTAINERFILE_PATH}"; then
+            echo "::error::${CONTAINERFILE_PATH} carries a DIGEST_PENDING_* placeholder — the base-image pin is committed, not materialised at build time"
+            exit 1
+          fi
+          if ! grep -q "python:3.13-slim@${{ steps.base.outputs.digest }}" "${CONTAINERFILE_PATH}"; then
+            echo "::error::python base-layer pin drift — the committed pin does not match the live digest ${{ steps.base.outputs.digest }}"
+            grep -n 'python:3.13-slim@sha256:' "${CONTAINERFILE_PATH}" || true
+            echo "::error::refusing to build against a stale base-image pin — refresh the committed pins (infra/spire/federation/IMAGE_PINS.md §2.4, all three python pin sites) and re-run"
+            exit 1
+          fi
+          echo "OK: the committed python base-layer pin matches the live registry digest"
 
       - name: Verify persona-engine entrypoint binary is present + executable
         run: |

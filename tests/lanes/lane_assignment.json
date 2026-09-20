@@ -14,11 +14,11 @@
   "deviation_from_the_static_survey": "The 2026-09-14 survey at commit 9bb5ab1 reported 418 / 189 / 218-in-any-lane. Four of the five differences are method, one is the tree: (1) three modules run via `python -m unittest`, not pytest — one of them, tests/audit/test_wirelang_spec_freeze_seal_probe.py, in the REQUIRED 'wirelang spec v0.4.3 freeze-seal probe' context, so a pytest-only scan under-reports required coverage by one; (2) tests/live_vm/ is targeted through a bash array (PYTEST_ARGS) that a line scan does not expand; (3) the tree itself gained tests/workflows/test_required_context_error_propagation.py between 9bb5ab1 and this baseline. Direction of the correction: slightly better than reported, and not in a way that changes the conclusion."
  },
  "measured": {
-  "date": "2026-09-15",
+  "date": "2026-09-21",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 418,
-  "required": 315,
+  "test_modules": 419,
+  "required": 316,
   "optional_ci": 100,
   "operator_hand": 2,
   "opt_in_marker": 1,
@@ -312,6 +312,9 @@
    "profile": "required"
   },
   "tests/ci/test_fstring_name_lint.py": {
+   "profile": "required"
+  },
+  "tests/ci/test_image_pin_consistency.py": {
    "profile": "required"
   },
   "tests/ci/test_image_pin_idempotent_resolver.py": {

@@ -17,8 +17,19 @@ all occurrences of the placeholder token across the listed files.
 |---|---|---|---|
 | `ghcr.io/spiffe/spire-server` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-federation.yaml` (×2), `quadlet/wakir-spire-server-federation.container` |
 | `ghcr.io/spiffe/spire-agent` | `1.14.6` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `compose/spire-agent-federation.yaml` (×2), `quadlet/wakir-spire-agent-federation.container` |
-| `docker.io/library/python` | `3.13-slim` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `infra/spire/federation/provisioner/Containerfile` (base layer for `wakir-provisioner`) |
+| `docker.io/library/python` | `3.13-slim` | (resolved) | `infra/spire/federation/provisioner/Containerfile`, `infra/persona-engine/Containerfile`, `infra/persona-engine/Containerfile.real` — **all three in lockstep** |
+| `docker.io/library/rust` | `1.85-slim-bookworm` | (resolved 2026-09-21) | the seven `infra/*-rust-cli/Containerfile` builder stages — **all seven in lockstep** |
+| `gcr.io/distroless/cc-debian12` | `nonroot` | (resolved 2026-09-21) | the seven `infra/*-rust-cli/Containerfile` runtime stages — **all seven in lockstep** |
 | `ghcr.io/wakir-labs/wakir-provisioner` | `0.1.2` | `sha256:DIGEST_PENDING_TOMAS_REVIEW` | `quadlet/wakir-nats-kv-bucket-init.container` |
+
+**Lockstep is enforced, not merely documented.** Every file that pins
+the same `<image>:<tag>` must pin the same digest;
+`tooling/ci/verify_image_pin_consistency.py` checks this hermetically
+under the required context
+`verify-containerfile-base-image-digest-pins`. Until 2026-09-21 the
+python row of this table named one of the three files that carry the
+pin, and the `digest-verify python:3.13-slim` job read that one file —
+so refreshing it alone produced a green verdict over two stale files.
 
 SPIRE-Server and SPIRE-Agent MUST stay version-parity: SPIRE upstream
 releases the server and agent as a paired binary set, and version-skew
@@ -182,12 +193,28 @@ echo "${PYTHON_DIGEST}"   # sha256:<64-hex>
 crane digest python:3.13-slim
 # must equal ${PYTHON_DIGEST}.
 
-# Step 3: substitute the placeholder in the referencing Containerfile.
-sed -i "s|python:3.13-slim@sha256:DIGEST_PENDING_TOMAS_REVIEW|python:3.13-slim@${PYTHON_DIGEST}|g" \
-    infra/spire/federation/provisioner/Containerfile
+# Step 3: substitute the OLD digest in ALL THREE referencing files.
+# Refreshing one of them is the coverage defect of 2026-09-20, so the
+# substitution is written over the whole site list, not over one path.
+OLD_DIGEST=sha256:<the digest currently committed>
+for f in infra/spire/federation/provisioner/Containerfile \
+         infra/persona-engine/Containerfile \
+         infra/persona-engine/Containerfile.real; do
+  sed -i "s|python:3.13-slim@${OLD_DIGEST}|python:3.13-slim@${PYTHON_DIGEST}|g" "$f"
+done
 
-# Step 4: re-run the hermetic test surface (python-pin tests).
-pytest infra/spire/federation/provisioner/tests/test_containerfile.py
+# Step 4: prove the tree does not contradict itself, then re-run the
+# hermetic test surface.
+python3 tooling/ci/verify_image_pin_consistency.py --repo-root .
+pytest infra/spire/federation/provisioner/tests/test_containerfile.py \
+       tests/infra/test_python_image_pin_form.py \
+       tests/ci/test_image_pin_consistency.py
+```
+
+Or, mechanically, via the resolver that owns the site list:
+
+```sh
+bash scripts/image-pin-idempotent-resolver.sh --root . --digest-source crane
 ```
 
 Cross-arch note: `python:3.13-slim` is a manifest-list (multi-arch).
@@ -204,6 +231,48 @@ a community-relevant supply-chain event; if `skopeo inspect` returns
 a digest that does NOT match a previously-pinned value, halt the
 rollout and Zone-C cross-review the upstream announcement (Docker
 Library GitHub release notes + Python release notes).
+
+### 2.6 Rust-CLI base layers — `rust:1.85-slim-bookworm` + distroless
+
+The seven Rust-CLI images (`v907-verify`, `svid-workload-identity`,
+`subscribe-loop`, `recovery-workflow`, `lifecycle-state-machine`,
+`bridge-audit-writer`, `state-backing`) share two base layers:
+`docker.io/library/rust:1.85-slim-bookworm` (builder stage) and
+`gcr.io/distroless/cc-debian12:nonroot` (runtime stage). That is 14
+`FROM` lines across seven files.
+
+Until 2026-09-21 all 14 carried the placeholder
+`sha256:DIGEST_PENDING_KAI_REVIEW`, and each `build-rust-cli-*.yml`
+workflow substituted it in-runner with a freshly resolved digest. The
+shape passed the required digest-pin gate — `verdict=PASS`, 14
+placeholders — but the repository pinned nothing: every build adopted
+whatever the registry served at build time, and an upstream re-push
+would have been consumed silently. The digests are now **committed**,
+and the build workflows verify them against the live registry instead
+of rewriting them (`Verify committed base-layer pins are current`,
+fail-closed on drift).
+
+The cost of that posture is explicit: when DockerHub rebuilds the
+`rust:1.85-slim-bookworm` tag — which it does on its own schedule — the
+seven build workflows go red until the pin is refreshed. That is the
+intended behaviour. A build that quietly accepts a new base image is
+not cheaper, it is only quieter.
+
+```sh
+RUST_DIGEST=$(skopeo inspect docker://rust:1.85-slim-bookworm | jq -r '.Digest')
+crane digest rust:1.85-slim-bookworm          # must equal ${RUST_DIGEST}
+
+DISTROLESS_DIGEST=$(skopeo inspect docker://gcr.io/distroless/cc-debian12:nonroot | jq -r '.Digest')
+crane digest gcr.io/distroless/cc-debian12:nonroot   # must equal ${DISTROLESS_DIGEST}
+
+# Substitute across all seven files, then prove lockstep:
+bash scripts/image-pin-idempotent-resolver.sh --root . --digest-source crane
+python3 tooling/ci/verify_image_pin_consistency.py --repo-root .
+```
+
+Neither base image is Sigstore-signed by its publisher, so there is no
+`cosign verify` leg here; the two-resolver cross-check (skopeo vs
+crane) is the whole verification, exactly as in §2.4.
 
 ### 2.5 wakir-provisioner — GHCR Sigstore-keyless resolution
 

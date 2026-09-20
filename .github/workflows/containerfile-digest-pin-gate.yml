@@ -13,6 +13,27 @@
 # (``DIGEST_PENDING_*_REVIEW``) because the per-wave image-pin-rotation
 # pattern relies on them as resolve-image-pins-ci substrate. Any FROM
 # line with ``:tag`` only (no digest suffix) breaks the gate.
+#
+# Second check in the same job (2026-09-21):
+# ``tooling/ci/verify_image_pin_consistency.py`` — every file that pins
+# the same ``<image>:<tag>`` must pin the same digest, tree-wide across
+# ``infra/``, ``quadlet/`` and ``compose/``.
+#
+# Why it belongs here and not in a new workflow: it answers the same
+# kind of question as the digest-pin gate — structural, hermetic,
+# decidable from disk, and always satisfiable by the pull request that
+# breaks it — so it belongs on the pull-request surface, under the
+# required context that already exists. A second job would need a
+# second branch-protection context name, and a required context that
+# branch protection does not know about is the forever-pending failure
+# mode recorded in ``feedback_branch_protection_check_names.md``.
+#
+# What it exists for: ``digest-verify python:3.13-slim`` extracted the
+# python pin from one of the three files that carry it, and of that file
+# the first match. One file refreshed and two left behind produced a
+# GREEN verdict about pins the check never read. The negative control
+# for that defect is
+# ``tests/ci/test_image_pin_consistency.py::test_negative_control_one_of_three_files_updated``.
 
 name: containerfile-digest-pin-gate
 
@@ -45,10 +66,18 @@ jobs:
             --repo-root "$GITHUB_WORKSPACE" \
             --report containerfile-digest-pin-report.json
 
+      - name: Verify image-pin consistency across all pin sites
+        run: |
+          python tooling/ci/verify_image_pin_consistency.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --report image-pin-consistency-report.json
+
       - name: Upload report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: containerfile-digest-pin-report
-          path: containerfile-digest-pin-report.json
+          path: |
+            containerfile-digest-pin-report.json
+            image-pin-consistency-report.json
           retention-days: 30

@@ -155,13 +155,28 @@ fi
 # the resolver recognises any uppercase ``DIGEST_PENDING_*`` token
 # as a placeholder — see ``extract_current_digest`` regex.
 #
-# The python row carries TWO files now — the federation-provisioner
-# Containerfile AND the persona-engine Containerfile share the same
-# python:3.13-slim base-layer pin and resolve in lockstep.
+# The python row carries THREE files: the federation-provisioner
+# Containerfile and BOTH persona-engine Containerfiles
+# (``Containerfile`` and ``Containerfile.real``) share the same
+# python:3.13-slim base-layer pin and resolve in lockstep. The row
+# listed only two of them until 2026-09-21, which is the same coverage
+# gap that ``digest-verify python:3.13-slim`` had on the workflow side:
+# a resolver that refreshes two of three sites leaves the tree
+# self-contradictory, and ``tooling/ci/verify_image_pin_consistency.py``
+# is what now refuses that state.
+#
+# The rust_builder and distroless_runtime rows (2026-09-21) cover the
+# seven Rust-CLI Containerfiles. Their base-image digests used to be
+# resolved in-runner by the seven ``build-rust-cli-*.yml`` workflows
+# from a ``DIGEST_PENDING_KAI_REVIEW`` placeholder, which meant nothing
+# was pinned at all; the digests are now committed, and refreshing them
+# is this resolver's job.
 PINS=(
   "spire_server|ghcr.io/spiffe/spire-server:1.14.6|infra/spire/federation/quadlet/wakir-spire-server-federation.container;quadlet/wakir-spire-server.container"
   "spire_agent|ghcr.io/spiffe/spire-agent:1.14.6|infra/spire/agent/quadlet/wakir-spire-agent-federation.container;quadlet/wakir-spire-agent.container"
-  "python|docker.io/library/python:3.13-slim|infra/spire/federation/provisioner/Containerfile;infra/persona-engine/Containerfile"
+  "python|docker.io/library/python:3.13-slim|infra/spire/federation/provisioner/Containerfile;infra/persona-engine/Containerfile;infra/persona-engine/Containerfile.real"
+  "rust_builder|docker.io/library/rust:1.85-slim-bookworm|infra/bridge-audit-writer-rust-cli/Containerfile;infra/lifecycle-state-machine-rust-cli/Containerfile;infra/recovery-workflow-rust-cli/Containerfile;infra/state-backing-rust-cli/Containerfile;infra/subscribe-loop-rust-cli/Containerfile;infra/svid-workload-identity-rust-cli/Containerfile;infra/v907-verify-rust-cli/Containerfile"
+  "distroless_runtime|gcr.io/distroless/cc-debian12:nonroot|infra/bridge-audit-writer-rust-cli/Containerfile;infra/lifecycle-state-machine-rust-cli/Containerfile;infra/recovery-workflow-rust-cli/Containerfile;infra/state-backing-rust-cli/Containerfile;infra/subscribe-loop-rust-cli/Containerfile;infra/svid-workload-identity-rust-cli/Containerfile;infra/v907-verify-rust-cli/Containerfile"
   "wakir_provisioner|ghcr.io/wakir-labs/wakir-provisioner|quadlet/wakir-nats-kv-bucket-init.container"
   "wakir_persona_engine|ghcr.io/wakir-labs/wakir-persona-engine|quadlet/wakir-persona-tomas.container"
 )

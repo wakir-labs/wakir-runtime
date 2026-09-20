@@ -100,20 +100,61 @@ Step 3 below.
 The flip applies three substrate changes in lock-step. None of them
 land before the readiness-check reports GREEN.
 
-### S1. `cosign-verify-images.yml` — promote to PR-gate
+### S1. `cosign-verify-images.yml` — already on the PR surface
 
-* Add `pull_request:` and `push: branches: [main]` triggers with a
-  path filter on:
-  * `policies/cosign-policy-phase-3b.yaml`
-  * `infra/persona-engine/Containerfile.real`
-  * `quadlet/wakir-rust-cli.container`
-  * `infra/spire/federation/compose/spire-federation.yaml`
-  * `infra/spire/agent/compose/spire-agent-federation.yaml`
-  * `infra/spire/federation/provisioner/Containerfile`
-* Keep `workflow_dispatch` as the manual fallback path.
-* The three jobs (`cosign-verify-spire`, `digest-verify-python`,
-  `cosign-verify-wakir-provisioner`) now run on every PR that
-  touches the listed paths.
+**This step is done, and it did not land as written here.** The
+paragraph below described a path-filtered promotion that never
+existed; PR #503 added `pull_request:` and `push: branches: [main]`
+**without** a path filter, deliberately and with the reason recorded
+in the workflow file: `cosign verify SPIRE images` is a required
+status context, and a required context that does not report on every
+pull request leaves the PR forever-pending
+(`feedback_branch_protection_check_names.md`). The stale description
+stood here from 2026-05-19 until 2026-09-21.
+
+Current state, measured against `.github/workflows/cosign-verify-images.yml`
+on 2026-09-21:
+
+| Trigger | Present | Path filter |
+|---|---|---|
+| `workflow_dispatch` | yes | — |
+| `push: branches: [main]` | yes | none |
+| `pull_request` | yes | none |
+
+All three jobs run on every pull request:
+
+| Job display name | Required context | Asks |
+|---|---|---|
+| `cosign verify SPIRE images` | **yes** | live — Sigstore signature + registry digest |
+| `digest-verify python:3.13-slim` | no | live — registry digest of the committed pin |
+| `cosign verify wakir-provisioner` | no | live — Sigstore signature of the committed pin |
+
+**Open, pending Zone-C cross-review — the trigger cut.** Only the
+first job is required; the other two rode onto the PR surface with
+PR #503 without a decision of their own. They ask a *liveness*
+question — "is this pin still real?" — whose answer depends on a
+third party's release calendar and on network egress, so a pull
+request that touches nothing related can be red'd by it and cannot
+fix it. That trains the organisation to read red as normal, which is
+worse than either alternative.
+
+The proposed cut follows the question *"can a pull request influence
+this?"*:
+
+* structural and hermetic checks stay on the PR surface — that is
+  where `verify-containerfile-base-image-digest-pins` lives, and
+  since 2026-09-21 it also carries the tree-wide pin-consistency
+  check;
+* the two non-required liveness jobs move to `schedule` +
+  `workflow_dispatch` as a loudly failing drift probe, modelled on
+  `Cosign-Keyless-OIDC-Drift-Probe (daily)`;
+* `cosign verify SPIRE images` **stays** on the PR trigger under its
+  exact display name, because it is a required context and moving it
+  would need an Operator-Hand branch-protection change first.
+
+Not implemented: the cut touches the Container-Image-Pipeline ×
+OTS-Anchoring cross-review zone (ADR-0020 Zone C) and has no
+sign-off yet.
 
 ### S2. `cosign-keyless-oidc-drift-probe.yml` — strict on PR
 
