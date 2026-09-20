@@ -526,9 +526,22 @@ jobs:
         # All three opt-ins passed as CLI flags rather than env-vars: a
         # flag that no conftest registers is an immediate pytest error,
         # while a misspelt env-var is silently false. The failure mode
-        # this lane is meant to end is the silent one.
+        # this lane is meant to end is the silent one. (The first run of
+        # this job proved the point on itself: `--rollback-drill` came
+        # back "unrecognized arguments" in 0.2 s rather than skipping 36
+        # tests quietly.)
+        #
+        # `rollback_drill/` is named separately even though the parent
+        # directory contains it. `pytest` only loads the conftests on the
+        # paths given on the command line *before* parsing arguments, and
+        # `--rollback-drill` is registered by the sub-directory conftest,
+        # not the parent one. Naming the parent alone therefore cannot
+        # accept the flag. Node IDs are de-duplicated, so the selection is
+        # still 207.
         run: |
-          python -m pytest tests/acceptance/phase_3c/ \
+          python -m pytest \
+            tests/acceptance/phase_3c/rollback_drill/ \
+            tests/acceptance/phase_3c/ \
             --phase-3c-acceptance \
             --phase-3c-doppel-welle-acceptance \
             --rollback-drill \
