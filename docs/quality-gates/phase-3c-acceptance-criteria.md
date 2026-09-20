@@ -115,13 +115,27 @@ replaces the mock substrate (`mocked_bridge_audit_writer`,
 `mocked_cross_review`) with the real engine + bridge + Quadlet
 wiring.
 
-Until then, the suite is **skip-by-default**:
+The markers stay skip-by-default, and CI takes the opt-in:
 
-* **Default CI:** All `phase_3c_acceptance`-marked tests skip via
-  the `conftest.py` `pytest_collection_modifyitems` hook.
-* **Opt-in for the trigger sprint:** Either `WAKIR_PHASE_3C_E2E=1`
-  env-var or `pytest --phase-3c-acceptance` CLI flag enables the
-  skeleton.
+* **The marker:** `phase_3c_acceptance` skips via the `conftest.py`
+  `pytest_collection_modifyitems` hook unless `WAKIR_PHASE_3C_E2E=1`
+  is set or `pytest --phase-3c-acceptance` is passed. Same for
+  `phase_3c_doppel_welle_acceptance` and `phase_3c_rollback_drill`
+  with their own switches. A developer running `pytest` locally still
+  gets 207 skips, which is the point of the marker.
+* **In CI, since 2026-09-20:** the
+  `runtime-acceptance-gates.yml:lane-phase-3c-acceptance` job passes all
+  three flags and is a dependency of the `runtime acceptance gates`
+  aggregator, so this suite blocks merges exactly as hard as that
+  context does. `tooling/ci/skip_gate.py` runs after it and fails the
+  job if any test was skipped for the opt-in reason — a lane over a
+  skip-by-default marker is green and empty otherwise.
+
+Before that date no workflow set any of the three, so the suite had
+never executed: the acceptance criteria for a cutover that happened on
+2026-05-20, written down and unrun. The first run found a real defect
+(see `docs/quality-gates/test-lane-assignment.md` §"The first date that
+bit"), which is the argument for the lane in one sentence.
 
 This mirrors `tests/infra/test_phase_3_acceptance_gates.py` (Phase-3-
 Validation skeleton, PR #80) — *same skip-by-default pattern*, scoped
