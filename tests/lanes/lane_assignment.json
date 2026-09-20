@@ -17,11 +17,11 @@
   "date": "2026-09-15",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 416,
-  "required": 294,
+  "test_modules": 418,
+  "required": 315,
   "optional_ci": 100,
   "operator_hand": 2,
-  "opt_in_marker": 20,
+  "opt_in_marker": 1,
   "unassigned": 0,
   "note": "Live counts. tests/lanes/test_lane_assignment.py::test_measured_counts_are_current re-derives these from the workflows on every run, so they cannot go stale in a report. After the Welle-3 lane promotion (ADR-0075) `unassigned` is 0: 97 modules went into required lanes, 80 into the non-blocking observation lane with a promotion date of 2026-10-31, and the standing exceptions keep their dates — which are now compared against the calendar by tooling/ci/exemption_expiry.py instead of merely being well-formed."
  },
@@ -46,20 +46,6 @@
  "import_guard_allowed": {},
  "import_guard_allowed_note": "Names a module-level pytest.importorskip() may legitimately fail on in the production profile. EMPTY at this baseline: every module-level guard in the tree now names something pyproject.toml declares (rfc8785, jsonschema and hypothesis via the `test` extra, PyYAML via `persona`, cryptography) or an in-repo package (wat.*, wirelang.*). An entry here is a wheel the repository installs somewhere without declaring it — write the reason, or declare it.",
  "exemption_groups": {
-  "phase-3c-opt-in": {
-   "profile": "opt-in-marker",
-   "reason": "Phase-3c cutover acceptance and rollback drills: 19 modules, 207 tests, every one carrying phase_3c_acceptance / phase_3c_doppel_welle_acceptance / phase_3c_rollback_drill. The markers are documented as opt-in via WAKIR_PHASE_3C_* or the matching --phase-3c-* / --rollback-drill flag. Measured: no workflow in this repository sets any of those variables or passes any of those flags. The opt-in has never been taken, so these 207 tests have never run in CI — the acceptance criteria for a cutover are written down and unexecuted. Skip-by-default is a legitimate design; skip-always is a different thing and needs a decision.",
-   "owner": "selin (persona-engine)",
-   "deliberate": true,
-   "review_by": "2026-09-30",
-   "execution_evidence": {
-    "mechanism": "WAKIR_PHASE_3C_E2E / WAKIR_PHASE_3C_DOPPEL_E2E / WAKIR_PHASE_3C_ROLLBACK_DRILL, or --phase-3c-acceptance / --phase-3c-doppel-welle-acceptance / --rollback-drill",
-    "enabled_by": "no workflow enables this",
-    "runs_total": 0,
-    "last_actual_run": "never",
-    "read": "2026-09-14, grep over .github/workflows/ and Makefile"
-   }
-  },
   "phase-3-skeleton-opt-in": {
    "profile": "opt-in-marker",
    "reason": "Phase-3 acceptance-gate skeleton behind the phase_3_skeleton marker, opt-in via WAKIR_PHASE_3_SKELETON=1. No workflow sets that variable, so the skeleton has never been exercised. Named as a placeholder rather than a contract in force — which is defensible, and now written down instead of implied.",
@@ -206,80 +192,61 @@
    "group": "spire-federation-substrate"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_anchor_emitter.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_bridge_audit_writer.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_federation_resolver.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_lifecycle_state_machine.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_recovery_workflow.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_state_backing.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_subscribe_loop.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_svid_workload_identity.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/rollback_drill/test_rollback_drill_v907_verify.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_bridge_audit_writer_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_dual_run_state_backing_lifecycle_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_dual_run_subscribe_recovery_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_dual_run_v907_svid_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_lifecycle_state_machine_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_recovery_workflow_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_state_backing_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_subscribe_loop_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_svid_workload_identity_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/acceptance/phase_3c/test_v907_verify_e2e.py": {
-   "profile": "opt-in-marker",
-   "group": "phase-3c-opt-in"
+   "profile": "required"
   },
   "tests/audit/test_adr_errata_spec_cross_audit.py": {
    "profile": "optional-ci",
@@ -344,6 +311,9 @@
   "tests/ci/test_evidence_citations.py": {
    "profile": "required"
   },
+  "tests/ci/test_fstring_name_lint.py": {
+   "profile": "required"
+  },
   "tests/ci/test_image_pin_idempotent_resolver.py": {
    "profile": "required"
   },
@@ -357,6 +327,9 @@
    "profile": "required"
   },
   "tests/ci/test_reuse_wrap_pre_merge_lint.py": {
+   "profile": "required"
+  },
+  "tests/ci/test_skip_gate.py": {
    "profile": "required"
   },
   "tests/ci/test_validate_demo_proof_report.py": {
@@ -1519,5 +1492,27 @@
    "test-observation-lane.yml:observation-lane": "the 80 table-B modules; runs on every pull request, blocks nothing, promotion decision due 2026-10-31."
   },
   "enforcement_note": "The three lane-* jobs are not branch-protection contexts. They are dependencies of the `runtime acceptance gates` aggregator, which carries `if: always()` and turns each `needs.<job>.result` into its own exit code before doing anything else — so they block merges exactly as hard as it does. tooling/ci/lane_inventory.py grants that inherited `required` profile only while all three halves of the propagation hold; drop one and the modules fall back to `optional-ci` and this file stops matching the tree."
+ },
+ "phase_3c_lane_promotion": {
+  "adr": "ADR-0075 §3 (expiry mechanics); ADR-0065 / ADR-0066 (the criteria themselves)",
+  "date": "2026-09-20",
+  "base_commit": "979f3f98b121376b59d39b76d1c8fac137bed39e",
+  "what_changed": "The `phase-3c-opt-in` exemption group is removed. Its 19 modules move from `opt-in-marker` to `required` via the new `runtime-acceptance-gates.yml:lane-phase-3c-acceptance` job, which passes all three opt-in flags and is a dependency of the `runtime acceptance gates` aggregator.",
+  "why": "The group's stated reason was that the opt-in had never been taken and the 207 tests had therefore never run. That reason is now spent: they ran. Keeping the exemption would have required a new and honest ground, and the run did not supply one — it supplied the opposite. The earlier objection was drill character, i.e. cost and infrastructure. Measured: 207 tests, 0.6 s wall clock, no podman, no NATS, no SSH, no network; the fixtures import hashlib, os, pytest, dataclasses and typing and nothing else. There is no cost argument for leaving them dark, and the first run found a regression that had merged green six days earlier precisely because they were dark.",
+  "first_execution": {
+   "date": "2026-09-20",
+   "commit": "979f3f98b121376b59d39b76d1c8fac137bed39e",
+   "command": "WAKIR_PHASE_3C_E2E=1 WAKIR_PHASE_3C_DOPPEL_E2E=1 WAKIR_PHASE_3C_ROLLBACK_DRILL=1 python -m pytest tests/acceptance/phase_3c/",
+   "result": "175 passed, 15 failed, 17 skipped",
+   "after_fix": "190 passed, 0 failed, 17 skipped",
+   "environment": "hermetic; no container runtime, no network, no operator hand"
+  },
+  "what_the_run_found": "All 15 failures had one cause. PR #533 (archaeology rename, 2026-09-14) replaced 'Welle' with 'wave' in 21 f-string placeholders in tests/acceptance/phase_3c/_ac_assertions.py while the parameter stayed `welle`. Every one sits in an assertion's failure message, so the suite's negative controls — the tests that feed a violating record and expect AssertionError — got NameError instead. The failure half of the cutover acceptance criteria was inoperative for six days and no lane could say so. Verified green at be93a51 (2026-05-18) and at c26fd25^ (2026-09-14) in a worktree: nothing else in four months touched this suite.",
+  "what_green_here_does_not_mean": "It does not mean the cutover of 2026-05-20 met AC-1..AC-5. The fixtures are hermetic placeholder oracles with hard-coded numbers (e.g. 'python_baseline_p95_ms = 3.5  # placeholder'); the suite verifies the shape of the acceptance assertions, not the behaviour of the shipped system. Claiming otherwise from this lane would be the same error the lane was built to end.",
+  "residual_inner_skips": {
+   "count": 17,
+   "shape": "`@pytest.mark.skip(reason='pending welle-cutover — ...')` inside the modules, a second skip layer the opt-in does not lift. They need real perf gauges, a real SPIRE agent, operator-hand rollback runbooks and two regression corpora that do not exist in the repo.",
+   "status": "Carry no expiry date. Reported to the CTO as a named follow-up rather than dated unilaterally — the owner of the substance is selin (persona-engine), not QA. Listed on every run by the skip-gate step so the number cannot grow quietly."
+  }
  }
 }

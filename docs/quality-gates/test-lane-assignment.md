@@ -64,7 +64,7 @@ say so:
 |---|---|---|---:|
 | `live-vm-operator` | `workflow_dispatch` + `--run-live-vm` | `live-vm-acceptance.yml` | **0, ever** |
 | `sbom-baseline-operator` | `workflow_dispatch` | `sbom-baseline-refresh.yml` | **0, ever** |
-| `phase-3c-opt-in` | `WAKIR_PHASE_3C_*` / `--phase-3c-*` | **no workflow sets these** | **0, ever** |
+| `phase-3c-opt-in` | `WAKIR_PHASE_3C_*` / `--phase-3c-*` | **no workflow sets these** | **0, ever** → 1, on 2026-09-20 ([below](#the-first-date-that-bit)) |
 | `phase-3-skeleton-opt-in` | `WAKIR_PHASE_3_SKELETON=1` | **no workflow sets this** | **0, ever** |
 
 All 22 modules classified as deliberate standing exceptions have never
@@ -135,7 +135,7 @@ Reasons and owners live in `exemption_groups` in the JSON. Summary:
 | `infra-substrate` | 29 | unassigned | kai | 2026-10-31 |
 | `orchestrator-substrate` | 27 | unassigned | kai | 2026-10-31 |
 | `observability-routing` | 20 | unassigned | noa | 2026-10-31 |
-| `phase-3c-opt-in` | 19 | opt-in-marker | selin | 2026-09-30 |
+| ~~`phase-3c-opt-in`~~ | 19 | *retired 2026-09-20* | selin | — |
 | `spire-federation-substrate` | 14 | unassigned | kai | 2026-10-31 |
 | `spec-audit-evidence` | 9 | unassigned | reza | 2026-10-31 |
 | `ci-meta` | 9 | unassigned | kai | 2026-10-31 |
@@ -198,6 +198,53 @@ no workflow runs at all. Three repositories, three shapes, one class: a
 test that is present, green-adjacent, and not executed. The gate above
 is the runtime-side answer; the assignment file is the bookkeeping-side
 one.
+
+## The first date that bit
+
+`phase-3c-opt-in` is the first exemption to reach its review date with
+the ADR-0075 §3 mechanism live, and the point of the mechanism is what
+happened next rather than that a date passed.
+
+The group's reason was that the opt-in had never been taken: 19 modules,
+207 tests, the written acceptance criteria for the Phase-3c cutover of
+**2026-05-20**, behind `WAKIR_PHASE_3C_E2E` / `WAKIR_PHASE_3C_DOPPEL_E2E`
+/ `WAKIR_PHASE_3C_ROLLBACK_DRILL`, and no workflow setting any of them.
+On **2026-09-20**, at commit `979f3f98`, they were run:
+
+```
+175 passed, 15 failed, 17 skipped      0.6 s, no podman, no NATS, no network
+```
+
+All 15 failures were one defect. The archaeology rename of 2026-09-14
+(PR #533) replaced `Welle` with `wave` inside 21 f-string *placeholders*
+in `tests/acceptance/phase_3c/_ac_assertions.py` while the surrounding
+parameter stayed `welle`. Every one sits in an assertion's failure
+message, so the happy path stayed silent and the failure path raised
+`NameError` instead of `AssertionError`. The 15 tests that broke are the
+negative controls — the half of the acceptance criteria that asserts a
+violation is *caught*. That half was inoperative for six days, and it
+merged green because this group ran nowhere. After the fix: **190 passed,
+0 failed, 17 skipped**.
+
+Two things follow, and both are now in place:
+
+* The group is retired. The 19 modules are `required` through
+  `runtime-acceptance-gates.yml:lane-phase-3c-acceptance`. The earlier
+  objection was drill character; the measurement was 0.6 s and no
+  infrastructure, so there was no cost to weigh against the six days.
+* A lane over a skip-by-default marker can be green and empty, because
+  `pytest` exits 0 when everything skips. `tooling/ci/skip_gate.py` reads
+  the JUnit report and refuses a run in which any test was skipped for
+  the opt-in reason. It is the skip-side counterpart of the collect-gate
+  above, and it exists because renaming a flag in a `conftest.py` would
+  otherwise turn this lane back into decoration without turning it red.
+
+What the lane does **not** establish: that the cutover met its criteria.
+The fixtures are hermetic placeholder oracles with hard-coded numbers,
+and 17 of the 207 carry a second, inner skip pending real perf gauges, a
+real SPIRE agent and operator-hand runbooks. Green here means the
+acceptance assertions hold their shape, including their failure paths.
+Reading more into it would repeat the error this page is about.
 
 ## Working with this file
 
