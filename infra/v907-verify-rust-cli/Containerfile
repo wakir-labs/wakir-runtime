@@ -92,14 +92,16 @@
 # Stage 1 — Rust release builder
 # ----------------------------------------------------------------------
 #
-# The exact `@sha256:` digest of the rust:1.85-slim-bookworm base
-# layer is materialised by the build workflow's `Resolve rust base-
-# layer digest` step (skopeo + crane cross-check, mirror of the
-# `build-wakir-persona-engine.yml` pattern for `python:3.13-slim`).
-# The placeholder below is replaced in-runner; refusing to build
-# without the substitution prevents accidental floating-tag drift.
+# The `@sha256:` digest on the FROM line below is the COMMITTED pin
+# for rust:1.85-slim-bookworm. It is not substituted at build time.
+# The build workflow's `Verify committed rust base-layer pin` step
+# re-resolves the tag (skopeo + crane cross-check) and fails the
+# build if upstream has re-pushed it — fail-closed, because a digest
+# that is resolved in-runner is not a pin: it silently adopts
+# whatever the registry serves at build time. Refresh recipe:
+# `infra/spire/federation/IMAGE_PINS.md` §2.4.
 
-FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:9f841bbe9e7d8e37ceb96ed907265a3a0df7f44e3737d0b100e7907a679acb36 AS builder
 
 WORKDIR /build
 
@@ -132,7 +134,7 @@ RUN apt-get update -qq \
 # distroless-cc glibc+ca-bundle inheritance. No shell, no apt, no
 # Python. The `nonroot` tag locks the default uid to 65532.
 
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
 
 LABEL org.opencontainers.image.title="wakir-v907-verify"
 LABEL org.opencontainers.image.description="Rust-CLI for V-907 engine-side pin-compute + verify. ADR-0065 wave-1 pre-cutover image."

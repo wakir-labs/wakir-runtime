@@ -419,19 +419,53 @@ def test_pins_inventory_carries_wakir_persona_engine_row() -> None:
     assert "quadlet/wakir-persona-tomas.container" in text
 
 
-def test_pins_inventory_python_row_covers_both_containerfiles() -> None:
+def test_pins_inventory_python_row_covers_all_three_containerfiles() -> None:
     """The python:3.13-slim base is shared between the federation-
-    provisioner Containerfile and the persona-engine Containerfile;
-    the PINS python row MUST resolve both in lockstep so a base-layer
-    rotation never leaves them out of sync."""
+    provisioner Containerfile and BOTH persona-engine Containerfiles;
+    the PINS python row MUST resolve all three in lockstep so a
+    base-layer rotation never leaves them out of sync.
+
+    2026-09-21: the row listed two of the three. A resolver that
+    refreshes two of three sites produces exactly the divergent state
+    that ``tooling/ci/verify_image_pin_consistency.py`` now refuses.
+    """
     text = RESOLVER.read_text(encoding="utf-8")
     assert (
         "infra/spire/federation/provisioner/Containerfile;"
-        "infra/persona-engine/Containerfile" in text
+        "infra/persona-engine/Containerfile;"
+        "infra/persona-engine/Containerfile.real" in text
     ), (
-        "PINS python row must carry both Containerfiles "
-        "(provisioner + persona-engine) joined by ';'"
+        "PINS python row must carry all three Containerfiles "
+        "(provisioner + persona-engine + persona-engine .real) "
+        "joined by ';'"
     )
+
+
+def test_pins_inventory_covers_the_rust_cli_base_layers() -> None:
+    """The seven Rust-CLI Containerfiles pin two shared base images.
+
+    Their digests were resolved in-runner from a placeholder until
+    2026-09-21, so no resolver row existed. Now that the digests are
+    committed, the refresh path has to be mechanical — otherwise the
+    next upstream rebuild of ``rust:1.85-slim-bookworm`` turns into
+    seven hand edits, and hand edits are how three of the seven end up
+    on a different digest.
+    """
+    text = RESOLVER.read_text(encoding="utf-8")
+    assert "rust_builder|docker.io/library/rust:1.85-slim-bookworm|" in text
+    assert "distroless_runtime|gcr.io/distroless/cc-debian12:nonroot|" in text
+    for directory in (
+        "bridge-audit-writer-rust-cli",
+        "lifecycle-state-machine-rust-cli",
+        "recovery-workflow-rust-cli",
+        "state-backing-rust-cli",
+        "subscribe-loop-rust-cli",
+        "svid-workload-identity-rust-cli",
+        "v907-verify-rust-cli",
+    ):
+        assert f"infra/{directory}/Containerfile" in text, (
+            f"PINS rust/distroless rows must cover infra/{directory}"
+        )
 
 
 def test_resolver_substitutes_kai_cross_review_placeholder(

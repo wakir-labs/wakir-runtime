@@ -3,14 +3,23 @@
 # Cosign + digest-resolver pre-build verification of the SPIRE-Federation
 # image pins.
 #
-# Posture:
-#   workflow_dispatch ONLY for the pilot phase. The job pulls from
-#   GHCR / DockerHub on every run, which is a supply-chain network
-#   egress that needs Zone-C cross-review before we wire it onto the
-#   PR-trigger surface. Activating push / pull_request triggers is a
-#   follow-up ADR (image-pipeline review) — until then the workflow is
-#   Operator-Hand: an authorised operator clicks "Run workflow" in
-#   the GitHub UI when they want to recheck the pins.
+# Posture (corrected 2026-09-21 — the paragraph this replaces
+# described a workflow_dispatch-only posture that PR #503 ended):
+#   All three jobs run on `workflow_dispatch`, on `push` to main and
+#   on every `pull_request`, with no path filter. The no-path-filter
+#   part is deliberate and load-bearing: `cosign verify SPIRE images`
+#   is a required status context, and a required context that does
+#   not report on every pull request leaves the PR forever-pending
+#   (feedback_branch_protection_check_names.md).
+#
+#   Only that first job is required. `digest-verify python:3.13-slim`
+#   and `cosign verify wakir-provisioner` rode onto the PR surface
+#   with #503 without a decision of their own, and both ask a
+#   liveness question that an unrelated pull request can neither
+#   cause nor fix. Moving those two to `schedule` +
+#   `workflow_dispatch` is proposed in
+#   docs/operations/cosign-strict-mode-activation.md §S1 and is
+#   pending Zone-C cross-review; it is NOT implemented here.
 #
 # Why a workflow at all if it's manual-only:
 #   * Reproducibility — the resolution recipe in
@@ -44,6 +53,8 @@ on:
   # No path filter: the job `cosign verify SPIRE images` is a required
   # status context and must report on every pull request
   # (docs/ci/branch-protection-required-checks.md, trigger discipline).
+  # The other two jobs inherit this trigger surface without a decision
+  # of their own — see the Posture note above.
   push:
     branches:
       - main
@@ -178,31 +189,67 @@ jobs:
           sudo apt-get install -y --no-install-recommends skopeo jq
           skopeo --version
 
-      - name: Extract pinned tag + digest from Containerfile
+      - name: Extract pinned tag + digest from every python pin site
         id: pin
         run: |
           set -euo pipefail
-          #: the python pin moved from the Quadlet to
-          # the wakir-provisioner Containerfile's FROM line.
-          PIN=$(grep -oE 'docker\.io/library/python:[^@ "]+@sha256:[^ "]+' \
-              infra/spire/federation/provisioner/Containerfile | head -n1)
-          if [[ -z "$PIN" ]]; then
-            echo "::error::failed to extract python image pin from Containerfile"
-            exit 1
-          fi
-          TAG=$(echo "$PIN" | sed -E 's|.*python:([^@]+)@.*|\1|')
-          DIGEST=$(echo "$PIN" | sed -E 's|.*@(sha256:[a-f0-9]+).*|\1|')
-          echo "tag=${TAG}"       >> "$GITHUB_OUTPUT"
-          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "Pinned: docker.io/library/python:${TAG}@${DIGEST}"
+          # Until 2026-09-21 this step read ONE file and, of that file,
+          # the first match:
+          #
+          #   grep -oE '...' infra/spire/federation/provisioner/Containerfile \
+          #     | head -n1
+          #
+          # The python base layer is pinned in THREE files. A change that
+          # refreshed the provisioner Containerfile alone turned this job
+          # GREEN while two files stayed on the old digest — a green
+          # verdict about pins the job never read.
+          #
+          # The site list now comes from
+          # tooling/ci/verify_image_pin_consistency.py, the same module
+          # the required hermetic gate uses, so the live check and the
+          # structural check cannot disagree about WHERE the pins are.
+          python3 tooling/ci/verify_image_pin_consistency.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --report pin-consistency.json
+          python3 - <<'EOF' | tee -a "$GITHUB_OUTPUT"
+          import json, os, sys
 
-      - name: Halt if placeholder digest is still present
+          report = json.load(open("pin-consistency.json"))
+          groups = [
+              g for g in report["groups"]
+              if g["image"] == "python" and g["tag"] == "3.13-slim"
+          ]
+          if not groups:
+              print("::error::no python:3.13-slim pin found anywhere in the tree", file=sys.stderr)
+              raise SystemExit(1)
+          group = groups[0]
+          for site in group["sites"]:
+              print(f"site {site['path']}:{site['line_no']} -> sha256:{site['digest']}", file=sys.stderr)
+          if group["placeholder_tokens"]:
+              print(f"::error::python pin still carries placeholder(s): {group['placeholder_tokens']}", file=sys.stderr)
+              raise SystemExit(1)
+          if len(group["digests"]) != 1:
+              print(f"::error::python pin sites disagree with each other: {group['digests']}", file=sys.stderr)
+              raise SystemExit(1)
+          print(f"site_count={len(group['sites'])}")
+          print("tag=3.13-slim")
+          print(f"digest={group['digests'][0]}")
+          EOF
+          echo "Pinned python:3.13-slim across all sites (see step log)"
+
+      - name: Halt if fewer pin sites than expected were read
         run: |
           set -euo pipefail
-          if [[ "${{ steps.pin.outputs.digest }}" == "sha256:DIGEST_PENDING_TOMAS_REVIEW" ]]; then
-            echo "::error::python pin still carries DIGEST_PENDING_TOMAS_REVIEW placeholder"
+          # A coverage regression is silent by nature: narrowing the scan
+          # back to one file would make this job green again. The count is
+          # asserted so the narrowing has to be stated.
+          # Placeholder rejection and cross-site agreement are enforced in
+          # the extraction step above.
+          if [[ "${{ steps.pin.outputs.site_count }}" -lt 3 ]]; then
+            echo "::error::expected at least 3 python:3.13-slim pin sites, read ${{ steps.pin.outputs.site_count }}"
             exit 1
           fi
+          echo "OK: ${{ steps.pin.outputs.site_count }} pin site(s) read, all in agreement"
 
       - name: skopeo inspect (manifest-list)
         id: skopeo
@@ -284,6 +331,37 @@ jobs:
             exit 1
           fi
 
+      - name: Refuse a dangling pin (the manifest must exist)
+        run: |
+          set -euo pipefail
+          # Measured 2026-09-21: the pinned digest
+          # sha256:9af7ee68... returned MANIFEST_UNKNOWN from ghcr.io
+          # (anonymous AND authenticated), while the tag 0.1.2 resolved
+          # to a different, unsigned manifest. The tag had been
+          # re-pushed; the old manifest was gone and only its orphaned
+          # `sha256-...sig` tag remained.
+          #
+          # `cosign verify` was GREEN across all of that, because it
+          # checks the signature stored under the `.sig` tag derived
+          # from the digest — it does not need the image manifest to
+          # exist. A signature over an image that is no longer in the
+          # registry is not a supply-chain guarantee; it is a receipt
+          # for something that has been thrown away, and the Quadlet
+          # that carries this pin cannot pull.
+          #
+          # So existence is checked separately, and it is fatal. Unlike
+          # a base-image tag rebuild, this is not a third party's
+          # release calendar: the remedy is entirely ours (rebuild and
+          # re-sign the tag, or re-pin to a signed digest that exists).
+          REF="ghcr.io/wakir-labs/wakir-provisioner@${{ steps.pin.outputs.digest }}"
+          if ! crane manifest "${REF}" > /dev/null 2>&1; then
+            echo "::error::dangling image pin — ${REF} does not resolve in the registry"
+            echo "::error::the tag ${{ steps.pin.outputs.tag }} currently resolves to $(crane digest ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }} 2>/dev/null || echo '<unresolvable>')"
+            echo "::error::remedy: re-run build-wakir-provisioner.yml with push=true (rebuild + Sigstore-sign), then refresh the pin; or re-pin to an existing signed digest"
+            exit 2
+          fi
+          echo "OK: pinned manifest exists in the registry"
+
       - name: Cosign-verify (Sigstore keyless OIDC)
         run: |
           set -euo pipefail
@@ -295,18 +373,28 @@ jobs:
       - name: Cross-check digest (advisory — Cosign-Verify is the gate)
         run: |
           set -euo pipefail
-          # Note: ghcr.io applies a Sigstore-signature-manifest
-          # wrapper around the cosign-signed image, producing two distinct
-          # registry-side digests:
-          #   - cosign-signed payload-digest (what we pin)
-          #   - registry-side wrapper-digest (what `crane digest TAG` returns)
-          # `crane digest --platform linux/amd64` returns the wrapper, not
-          # the inner payload, because the wrapper is the index entry-point.
-          # Cosign-Verify above ALREADY validated that the pinned digest
-          # has a valid Sigstore signature against the GitHub-Actions OIDC
-          # identity — that IS the drift-detection signal (a republish
-          # without re-sign would fail Cosign-Verify, not Cross-Check).
-          # We keep this step as advisory-only logging.
+          # Corrected 2026-09-21. This comment used to claim that a
+          # mismatch between the pinned digest and `crane digest TAG`
+          # was expected, because ghcr.io supposedly wraps the signed
+          # image in a signature manifest with its own digest. That
+          # explanation is wrong: cosign stores the signature under a
+          # separate `sha256-<digest>.sig` TAG and does not change the
+          # digest the image tag resolves to.
+          #
+          # The wrong explanation was load-bearing. It turned the one
+          # step that noticed the mismatch into a `::notice::`, and the
+          # mismatch it explained away was real: the tag had been
+          # re-pushed and the pinned manifest was gone. An explanation
+          # that makes a true signal look expected is more expensive
+          # than no check at all.
+          #
+          # Existence is now enforced in the step above. What is left
+          # here is genuinely advisory: the pin may legitimately name a
+          # digest that the tag no longer points at, because the pin is
+          # the contract and the tag is mutable. A mismatch means the
+          # tag moved — worth seeing, not worth failing a build over,
+          # since the pinned manifest has already been proven to exist
+          # and to be signed.
           CRANE_INDEX=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }})
           CRANE_PLATFORM=$(crane digest --platform linux/amd64 \
               ghcr.io/wakir-labs/wakir-provisioner:${{ steps.pin.outputs.tag }})

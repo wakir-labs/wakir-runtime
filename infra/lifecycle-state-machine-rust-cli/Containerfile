@@ -79,7 +79,7 @@
 # Stage 1 — Rust release builder
 # ----------------------------------------------------------------------
 
-FROM docker.io/library/rust:1.85-slim-bookworm@sha256:DIGEST_PENDING_KAI_REVIEW AS builder
+FROM docker.io/library/rust:1.85-slim-bookworm@sha256:9f841bbe9e7d8e37ceb96ed907265a3a0df7f44e3737d0b100e7907a679acb36 AS builder
 
 WORKDIR /build
 
@@ -102,7 +102,7 @@ RUN apt-get update -qq \
 # Stage 2 — distroless runtime
 # ----------------------------------------------------------------------
 
-FROM gcr.io/distroless/cc-debian12:nonroot@sha256:DIGEST_PENDING_KAI_REVIEW
+FROM gcr.io/distroless/cc-debian12:nonroot@sha256:9dac0a79194e45a7da0158a9c6da57b217585af0786db3845d1f0ec1a0dd182f
 
 LABEL org.opencontainers.image.title="wakir-persona-engine-fsm"
 LABEL org.opencontainers.image.description="Rust-CLI for the persona-engine lifecycle state-machine operator surface (six states, nine transitions, spec §3.3). ADR-0066 wave-5 pre-cutover image."

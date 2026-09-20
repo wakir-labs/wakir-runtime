@@ -175,7 +175,7 @@ When publishing a new wakir-provisioner version:
    - Install skopeo + jq
    - Install cosign
    - Resolve python:3.13-slim digest
-   - Materialise pinned digest in Containerfile
+   - Verify the committed base-layer pin is current
    - Refuse build if requirements.txt is half-resolved
    - Build image with buildah
    - Login to GHCR (buildah)
