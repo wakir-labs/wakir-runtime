@@ -530,6 +530,15 @@ def _run_bootstrap_in_container(
         "WAKIR_TRUST_DOMAIN": "wakir.test",
         "WAKIR_SKIP_COSIGN_VERIFY": "1",
         "WAKIR_SKIP_PROMPTS": "1",
+        # The skopeo stub above answers with one well-formed but
+        # fictional digest for every image. Since 2026-09-21 the
+        # resolver checks a concrete committed pin against the digest
+        # it was handed, and a fictional digest disagrees with every
+        # real pin by construction. This lane does not assert digest
+        # truth -- ``cosign-verify-images`` and ``resolve-image-pins-ci``
+        # do -- so it declares the digests synthetic and the resolver
+        # logs, per file, that it is not checking.
+        "WAKIR_SYNTHETIC_DIGESTS": "1",
         "WAKIR_REPO_ROOT": "/opt/wakir-runtime",
         "WAKIR_REPO_URL": "stub://no-clone-needed",
         "WAKIR_BOOTSTRAP_SYSTEMCTL": "/work/stubs/systemctl",

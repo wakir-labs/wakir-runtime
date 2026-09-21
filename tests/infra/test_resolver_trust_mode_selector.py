@@ -278,7 +278,7 @@ def test_skopeo_only_branch_still_resolves_all_four(bootstrap_source: str) -> No
         "ghcr.io/spiffe/spire-server:1.14.6",
         "ghcr.io/spiffe/spire-agent:1.14.6",
         "docker.io/library/python:3.13-slim",
-        "ghcr.io/wakir-labs/wakir-provisioner:0.1.2",
+        "ghcr.io/wakir-labs/wakir-provisioner:0.1.4",
     ):
         assert image in branch, (
             f"Bug-36 invariant: skip-cosign branch must still enumerate {image}"

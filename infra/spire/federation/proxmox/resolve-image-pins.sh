@@ -97,6 +97,12 @@ WAKIR_PROVISIONER_VERSION=""
 PROVISIONER_ONLY=0
 ROOT="/opt/wakir-runtime"
 APPLY=0
+# Hermetic-harness escape hatch. Set ONLY by a caller that feeds
+# digests which did not come from a registry (the e2e-container lane
+# stubs skopeo). It disables the concrete-pin check, and says so
+# loudly on every file, because a silent skip is the defect this
+# check exists to catch.
+SYNTHETIC_DIGESTS=0
 
 usage() {
   cat <<'EOF'
@@ -108,6 +114,7 @@ Usage: resolve-image-pins.sh
        [--wakir-provisioner-version <tag>]
        [--root /opt/wakir-runtime]
        [--apply]
+       [--synthetic-digests]
 
        OR (Bug-33 substance-fix path):
 
@@ -182,6 +189,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --apply)
       APPLY=1
+      shift
+      ;;
+    --synthetic-digests)
+      SYNTHETIC_DIGESTS=1
       shift
       ;;
     -h|--help)
@@ -288,6 +299,12 @@ declare -a WAKIR_PROVISIONER_FILES=(
 # pin is the source of truth. It only refuses to pretend it looked.
 check_concrete_pin() {
   local label="$1" file="$2" image_re="$3" digest="$4"
+  if [[ "$SYNTHETIC_DIGESTS" -eq 1 ]]; then
+    echo "[$PROG] WARN: --synthetic-digests: NOT checking the concrete $label pin in $file."
+    echo "[$PROG] WARN: the supplied digest did not come from a registry, so comparing"
+    echo "[$PROG] WARN: against it would prove nothing. Real bring-up never sets this."
+    return 0
+  fi
   local committed
   committed=$(grep -oE "${image_re}@sha256:[0-9a-f]{64}" "$file" 2>/dev/null \
                 | head -n1 | sed 's|.*@||')

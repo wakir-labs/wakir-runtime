@@ -230,7 +230,7 @@ def test_tv_s9t7_16_resolver_substitutes_without_perl_on_path(
     root = tmp_path / "root"
     _build_resolver_skeleton(
         root,
-        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.2"
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.4"
         "@sha256:DIGEST_PENDING_TOMAS_REVIEW",
     )
     stripped_path = _build_perl_stripped_path(tmp_path)
@@ -283,7 +283,7 @@ def test_tv_s9t7_16_resolver_substitutes_without_perl_on_path(
         f"placeholder not substituted: {quadlet_after!r}"
     )
     assert (
-        f"ghcr.io/wakir-labs/wakir-provisioner:0.1.2@{SHA256_D}"
+        f"ghcr.io/wakir-labs/wakir-provisioner:0.1.4@{SHA256_D}"
         in quadlet_after
     ), quadlet_after
     # Anti-regression assertion: stderr must NOT carry the

@@ -292,9 +292,9 @@ def test_tv_s9t6_04_skip_cosign_still_passes_provisioner_digest() -> None:
         "(Bug 4 + Bug-36)."
     )
     # And reference the wakir-provisioner image.
-    assert "wakir-provisioner:0.1.2" in branch_body, (
+    assert "wakir-provisioner:0.1.4" in branch_body, (
         "bootstrap.sh SKIP-COSIGN branch MUST reference "
-        "wakir-provisioner:0.1.2 (Bug 4)."
+        "wakir-provisioner:0.1.4 (Bug 4)."
     )
 
 

@@ -867,7 +867,7 @@ step_5_image_pins() {
         ghcr.io/spiffe/spire-server:1.14.6 \
         ghcr.io/spiffe/spire-agent:1.14.6 \
         docker.io/library/python:3.13-slim \
-        ghcr.io/wakir-labs/wakir-provisioner:0.1.2
+        ghcr.io/wakir-labs/wakir-provisioner:0.1.4
     do
       log_note "skopeo-only resolve: ${image}"
       local d=""
@@ -894,12 +894,15 @@ step_5_image_pins() {
       --root                "$WAKIR_REPO_ROOT"
       --apply
     )
-    if [[ -n "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]:-}" ]]; then
+    if [[ -n "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.4"]:-}" ]]; then
       skip_args+=(
-        --wakir-provisioner-digest "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]}"
+        --wakir-provisioner-digest "${skip_digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.4"]}"
       )
     fi
 
+    if [[ "${WAKIR_SYNTHETIC_DIGESTS:-0}" == "1" ]]; then
+      skip_args+=(--synthetic-digests)
+    fi
     "$resolver" "${skip_args[@]}" \
       || { log_err "resolve-image-pins.sh --apply (skopeo-only) failed"; return 2; }
     log_ok "image-pin resolve applied (skopeo-only, skip-cosign-verify)"
@@ -949,13 +952,13 @@ step_5_image_pins() {
   # 2026-05-13). 0.1.0 carried four wheels (nats-py + cryptography +
   # rfc8785 + jsonschema); 0.1.2 carries nats-py only post-PR #33
   # Wirelang-Import-Disentanglement. The bucket-init Quadlet (Image=
-  # ghcr.io/wakir-labs/wakir-provisioner:0.1.2@sha256:DIGEST_...) is
+  # ghcr.io/wakir-labs/wakir-provisioner:0.1.4@sha256:DIGEST_...) is
   # the single consumer of this digest.
   for image in \
       ghcr.io/spiffe/spire-server:1.14.6 \
       ghcr.io/spiffe/spire-agent:1.14.6 \
       docker.io/library/python:3.13-slim \
-      ghcr.io/wakir-labs/wakir-provisioner:0.1.2
+      ghcr.io/wakir-labs/wakir-provisioner:0.1.4
   do
     log_note "cosign + skopeo cross-check: ${image}"
 
@@ -1039,14 +1042,17 @@ step_5_image_pins() {
     --root                "$WAKIR_REPO_ROOT"
     --apply
   )
-  if [[ -n "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]:-}" ]]; then
+  if [[ -n "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.4"]:-}" ]]; then
     resolver_args+=(
-      --wakir-provisioner-digest "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.2"]}"
+      --wakir-provisioner-digest "${digests["ghcr.io/wakir-labs/wakir-provisioner:0.1.4"]}"
     )
   else
     log_note "skipping wakir-provisioner pin (image not yet resolvable; bucket-init service will not start until Operator-Hand re-runs the resolver)"
   fi
 
+  if [[ "${WAKIR_SYNTHETIC_DIGESTS:-0}" == "1" ]]; then
+    resolver_args+=(--synthetic-digests)
+  fi
   "$resolver" "${resolver_args[@]}" \
     || { log_err "resolve-image-pins.sh --apply failed"; return 2; }
 

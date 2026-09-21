@@ -190,3 +190,43 @@ def test_quadlet_active_image_is_wakir_provisioner() -> None:
             f"active Image= directive does not reference "
             f"{EXPECTED_IMAGE_PATH}: {line}"
         )
+
+
+# ----------------------------------------------------------------------
+# The bootstrap resolves a tag; the Quadlet pins a tag. If they drift
+# apart, the resolver looks up the digest of one image and compares it
+# against the pin of another -- and every answer it gets is wrong.
+#
+# Added 2026-09-21. Three test modules and seven bootstrap lines carried
+# the tag as a literal, so moving the pin from 0.1.2 to 0.1.4 broke them
+# one at a time, each failure naming only itself. This asserts the
+# relationship instead of the value, so the next rotation is one edit.
+# ----------------------------------------------------------------------
+
+_BOOTSTRAP = REPO_ROOT / "infra/spire/federation/wakir-pilot-bootstrap.sh"
+
+
+def test_bootstrap_resolves_the_tag_the_quadlet_actually_pins() -> None:
+    quadlet_tags = set(
+        re.findall(
+            r"ghcr\.io/wakir-labs/wakir-provisioner:([^@\s\"']+)@sha256:",
+            QUADLET_FILE.read_text(encoding="utf-8"),
+        )
+    )
+    bootstrap_tags = set(
+        re.findall(
+            # A tag starts with a digit. The bash glob
+            # ``wakir-provisioner:*`` in the trust-mode branches
+            # is not a tag and must not be read as one.
+            r"ghcr\.io/wakir-labs/wakir-provisioner:([0-9][^@\s\"'\]]*)",
+            _BOOTSTRAP.read_text(encoding="utf-8"),
+        )
+    )
+    assert quadlet_tags, "no provisioner pin found in the Quadlet"
+    assert bootstrap_tags, "bootstrap no longer enumerates the provisioner"
+    assert bootstrap_tags == quadlet_tags, (
+        "the bootstrap resolves "
+        f"{sorted(bootstrap_tags)} while the Quadlet pins "
+        f"{sorted(quadlet_tags)}. The resolver would look up one image "
+        "and check the pin of another."
+    )
