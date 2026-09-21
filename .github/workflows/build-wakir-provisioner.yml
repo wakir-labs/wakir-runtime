@@ -207,12 +207,34 @@ jobs:
           set -euo pipefail
           IMAGE="${{ steps.buildah.outputs.image }}"
           TAG="${{ steps.buildah.outputs.tag }}"
-          buildah push "${IMAGE}:${TAG}"
           # Resolve the pushed digest for the sign step + the
           # workflow output.
-          DIGEST=$(buildah images --format '{{ .Digest }}' "${IMAGE}:${TAG}" | head -n1)
-          if [[ -z "$DIGEST" ]]; then
+          #
+          # Until 2026-09-21 this read ``buildah images --format
+          # '{{ .Digest }}'``, which reports the digest of the manifest
+          # as it sits in the LOCAL build store. The registry stores a
+          # manifest of its own and addresses the image under THAT
+          # digest; the two differ whenever the push converts media
+          # types. The 0.1.2 build (2026-05-20) emitted the local
+          # digest, the Quadlet pin taken from it never resolved
+          # ("manifest unknown"), cosign signed the phantom digest so
+          # ``cosign verify`` stayed green against an image that does
+          # not exist, and the live bring-up died at step 7 four months
+          # later. Resolve from the registry instead, and cross-check
+          # with the same skopeo+crane pair the base-layer step uses.
+          buildah push --digestfile /tmp/pushed.digest "${IMAGE}:${TAG}"
+          DIGEST="$(cat /tmp/pushed.digest)"
+          CRANE_DIGEST="$(crane digest "${IMAGE}:${TAG}")"
+          SKOPEO_DIGEST="$(skopeo inspect "docker://${IMAGE}:${TAG}" | jq -r '.Digest')"
+          echo "digestfile: $DIGEST"
+          echo "crane:      $CRANE_DIGEST"
+          echo "skopeo:     $SKOPEO_DIGEST"
+          if [[ -z "$DIGEST" || "$DIGEST" == "null" ]]; then
             echo "::error::failed to resolve pushed image digest"
+            exit 1
+          fi
+          if [[ "$DIGEST" != "$CRANE_DIGEST" || "$DIGEST" != "$SKOPEO_DIGEST" ]]; then
+            echo "::error::the pushed digest is not what the registry serves for ${IMAGE}:${TAG} — refusing to emit a pin that will not resolve"
             exit 1
           fi
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
