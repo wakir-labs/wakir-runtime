@@ -133,7 +133,20 @@ changes:
 5. Delete the temporary workflow, and link the run URLs in the PR
    body.
 
-The evidence for the introducing PR is recorded there.
+### Evidence for the introducing PR (#547), 2026-09-21
+
+Run on a temporary workflow `zz-receiver-negative-control.yml`, deleted
+in the same PR after the runs:
+
+| Leg | Run | Control job | Receiver effect |
+|---|---|---|---|
+| 1 | [35636970612](https://github.com/wakir-labs/wakir-runtime/actions/runs/35636970612) | failure (deliberate) | issue **#548 created**, label `scheduled-failure` auto-created |
+| 2 | [35637433487](https://github.com/wakir-labs/wakir-runtime/actions/runs/35637433487) | failure (deliberate) | **no second issue** — comment appended to #548 (open issues: 1) |
+| 3 | [35637525484](https://github.com/wakir-labs/wakir-runtime/actions/runs/35637525484) | success | #548 **closed** with a recovery comment |
+
+Issue [#548](https://github.com/wakir-labs/wakir-runtime/issues/548) is
+the artefact of the proof and is deliberately left in the repository's
+issue history rather than deleted.
 
 ## 6. Limits, stated rather than discovered later
 
