@@ -8,17 +8,38 @@ Context
 
 (Quadlet+Cosign 15-Binary substrate refresh) and
 (Cosign-Keyless-OIDC-Drift-Probe) ship the cosign
-substrate that gates the Phase-3b carrier-image trust-chain. Both
-substrates today run in **audit-only** posture:
+substrate that gates the Phase-3b carrier-image trust-chain.
 
-  * ``cosign-keyless-oidc-drift-probe.yml`` is scheduled daily but
-    is NOT a required-status-check; verdict surfaces only via
-    Job-Summary + artefact + notify-event on non-GREEN.
-  * ``cosign-verify-images.yml`` is ``workflow_dispatch`` only —
-    Operator-Hand-Hand recipe per pin refresh; not blocking any PR.
-  * The 15-binary inventory ``expected_image_digest`` slot still
-    carries the ``DIGEST_PENDING_KAI_CROSS_REVIEW`` placeholder for
-    several entries (Operator-Hand resolution pending).
+Posture — corrected 2026-09-21, and the correction is the point
+------------------------------------------------------------
+
+The three bullets that stood here described an audit-only posture
+and were **all three false at the time of writing this line**. They
+were copied from the state of a past day and never re-measured, in
+a script whose whole job is to decide when a substrate is ready to
+flip. Measured against ``main`` @ ``67a62fc`` on 2026-09-21:
+
+  * ``cosign-keyless-oidc-drift-probe.yml`` **IS** a required-status-
+    check. ``Cosign-Keyless-OIDC-Drift-Probe (daily)`` is one of the
+    13 contexts in ``main``-branch-protection (live-read 2026-09-21,
+    matching the on-disk snapshot in
+    ``tests/lanes/lane_assignment.json``). It runs on ``schedule`` +
+    ``workflow_dispatch`` + ``push`` + ``pull_request``, and on
+    ``pull_request`` it passes ``--exit-non-zero-on-drift``, i.e. it
+    reds the PR on drift. The old bullet said the opposite.
+  * ``cosign-verify-images.yml`` is **not** ``workflow_dispatch``-
+    only. PR #503 added ``push`` + ``pull_request`` without a path
+    filter. The old bullet had been false since #503.
+  * The 15-binary inventory carries **no** placeholder digests any
+    more; G1 measures that on every run and reports GREEN.
+
+Consequence for the reader: S1..S3 below are the *recipe as it was
+written*, not a to-do list. G6 now **measures** which of them is
+already applied instead of restating a remembered state — see the
+gate description. Do not re-introduce a prose claim here about the
+trigger surface or the required-context set; both are readable from
+disk, and a claim that is not measured is the defect this paragraph
+replaces (ADR-0075, ``EXPECTED_CHECK_COUNT`` class).
 
 Flipping cosign into **strict mode** means three substrate changes
 applied in lock-step:
@@ -77,15 +98,30 @@ The six gates the script evaluates:
       substrate is out of sync — flipping strict would red PRs that
       legitimately update one side first.
       Threshold: ``== 0`` parity diffs.
-  G6. ``required_status_check_displaynames_known`` — the script
-      knows the exact GitHub-Actions job display-names for the two
-      workflows that must become required-status-checks. Per
-      ``feedback_branch_protection_check_names.md`` the names must
-      match exactly; this gate is a self-check that the readiness-
-      check script holds the canonical names so the strict-flip PR
-      doesn't drift the required-status-check rule (gate names ->
-      job display names).
-      Threshold: both names present and non-empty.
+  G6. ``required_status_check_displaynames_resolve`` — the two
+      display-names in ``STRICT_MODE_REQUIRED_CHECKS`` are checked
+      **against the tree**, not against themselves. Per
+      ``feedback_branch_protection_check_names.md`` a required
+      context must match a job display-name character for
+      character, so the gate resolves each name in two directions:
+
+        a) it must appear as the ``jobs.<id>.name`` of exactly one
+           job across ``.github/workflows/`` — a name that resolves
+           to zero jobs is a forever-pending required context
+           (PR #102), a name that resolves to two is ambiguous;
+        b) it must appear in the on-disk required-context snapshot
+           ``tests/lanes/lane_assignment.json`` → ``required_contexts``
+           — which is what makes S3 measurable instead of assumed.
+
+      Until 2026-09-21 this gate only asserted that a hardcoded
+      tuple was non-empty, i.e. it could not fail for any state of
+      the repository. That is the same defect class the gate is
+      supposed to guard against, in miniature: a check whose
+      premise is its own constant.
+      Threshold: every name resolves to exactly one job display-name
+      AND is present in the required-context snapshot.
+      NOT-CHECKED (blocks) if the workflow dir or the snapshot is
+      unreadable — an unmeasurable gate must not report GREEN.
 
 A run that meets all six gates is **strict-flip-ready**. A run
 that misses any gate blocks the flip and surfaces which gate failed.
@@ -95,7 +131,12 @@ Sandbox boundary
 
 Per ``feedback_sandbox_host_trennung.md`` + ADR-0051 this script
 NEVER calls cosign / crane / skopeo / podman / network egress. It
-reads four file-sets from disk only:
+reads six file-sets from disk only (the last two are the G6
+measurement added 2026-09-21 — still disk-only, still hermetic;
+branch-protection is not readable from a workflow without a token,
+so the pinned snapshot in ``tests/lanes/lane_assignment.json`` is
+the on-disk source of record, and ``test_lane_assignment.py``
+keeps it honest against the live rule):
 
   * ``policies/cosign-policy-phase-3b.yaml``
   * ``tooling/baselines/cosign-drift/pinned-trust-root.json``
@@ -107,6 +148,10 @@ reads four file-sets from disk only:
     ``wakir-rust-cli-welle7.container``) landed in lock-step and
     are picked up by the glob alongside the carrier-image installer
     ``wakir-rust-cli.container``.
+  * ``.github/workflows/*.yml`` (for G6 job-display-name
+    resolution).
+  * ``tests/lanes/lane_assignment.json`` (for G6 required-context
+    resolution).
 
 The strict-flip itself is **Operator-Hand** — this script only
 reports readiness. The Operator-Hand recipe lives in
@@ -253,6 +298,29 @@ class QuadletInstallerView:
     """Names extracted from the installer; tuple order matches first-
     occurrence order in the file. The G5 check is set-equality with
     TAG45_CANONICAL_INVENTORY."""
+
+
+@dataclass(frozen=True)
+class RequiredCheckSurfaceView:
+    """Measured surface that gate G6 resolves the canonical names against.
+
+    Built by the I/O wrappers ``load_workflow_job_display_names`` and
+    ``load_required_context_snapshot``; the gate itself stays pure.
+
+    ``job_display_names`` maps a job display-name to the list of
+    workflow-file names that declare it. A name declared twice is as
+    much a finding as a name declared nowhere, so the multiplicity is
+    carried rather than collapsed.
+    """
+
+    job_display_names: Mapping[str, Tuple[str, ...]]
+    required_contexts: Tuple[str, ...]
+    workflow_files_scanned: int
+    snapshot_source: str
+    """Free-text provenance of the required-context snapshot (the
+    ``required_contexts_source`` field of lane_assignment.json), so the
+    envelope records WHEN the pinned list was last read from the live
+    branch-protection rule."""
 
 
 @dataclass(frozen=True)
@@ -582,11 +650,23 @@ def evaluate_gate_g5_cross_substrate_parity(
     )
 
 
-def evaluate_gate_g6_required_check_names_known() -> GateResult:
-    """G6: this script holds the canonical required-status-check display names.
+def evaluate_gate_g6_required_check_names_resolve(
+    surface: Optional[RequiredCheckSurfaceView],
+) -> GateResult:
+    """G6: resolve the canonical display names against the measured tree.
 
-    Self-check that the strict-flip recipe references the exact GitHub-
-    Actions job display names (per feedback_branch_protection_check_names.md).
+    Two directions per name, both read from disk (see the module
+    docstring, gate G6):
+
+      a) the name is the display-name of exactly one job in
+         ``.github/workflows/``;
+      b) the name is present in the on-disk required-context snapshot.
+
+    ``surface is None`` means the measurement could not be taken at all
+    (workflow dir or snapshot unreadable). That is NOT-CHECKED, which
+    blocks the aggregate — a gate that cannot measure must not report
+    GREEN. Before 2026-09-21 this gate asserted only that a hardcoded
+    tuple was non-empty and therefore could not fail.
     """
     if not STRICT_MODE_REQUIRED_CHECKS:
         return GateResult(
@@ -604,14 +684,82 @@ def evaluate_gate_g6_required_check_names_known() -> GateResult:
                     f"display name: {name!r}"
                 ),
             )
+
+    if surface is None:
+        return GateResult(
+            gate_id="G6",
+            verdict="NOT-CHECKED",
+            summary=(
+                "G6 NOT-CHECKED — could not read .github/workflows/ and/or "
+                "the required-context snapshot; names not resolved against "
+                "the tree"
+            ),
+            detail=(
+                "unresolved names: " + ", ".join(STRICT_MODE_REQUIRED_CHECKS)
+            ),
+        )
+
+    unresolved: List[str] = []
+    ambiguous: List[str] = []
+    not_required: List[str] = []
+    detail_lines: List[str] = []
+
+    for name in STRICT_MODE_REQUIRED_CHECKS:
+        homes = tuple(surface.job_display_names.get(name, ()))
+        is_required = name in surface.required_contexts
+        if len(homes) == 0:
+            unresolved.append(name)
+        elif len(homes) > 1:
+            ambiguous.append(name)
+        if not is_required:
+            not_required.append(name)
+        detail_lines.append(
+            f"{name!r}: jobs={list(homes)} required_context={is_required}"
+        )
+
+    detail_lines.append(
+        f"workflow files scanned: {surface.workflow_files_scanned}; "
+        f"required contexts in snapshot: {len(surface.required_contexts)}"
+    )
+    if surface.snapshot_source:
+        detail_lines.append(f"snapshot provenance: {surface.snapshot_source}")
+    detail = "\n".join(detail_lines)
+
+    problems: List[str] = []
+    if unresolved:
+        problems.append(
+            "no job display-name in .github/workflows/ for "
+            + ", ".join(repr(n) for n in unresolved)
+        )
+    if ambiguous:
+        problems.append(
+            "display-name declared by more than one job: "
+            + ", ".join(repr(n) for n in ambiguous)
+        )
+    if not_required:
+        problems.append(
+            "not listed in the required-context snapshot (S3 outstanding): "
+            + ", ".join(repr(n) for n in not_required)
+        )
+
+    if problems:
+        return GateResult(
+            gate_id="G6",
+            verdict="BLOCKED",
+            summary="G6 BLOCKED — " + "; ".join(problems),
+            detail=detail,
+        )
+
     return GateResult(
         gate_id="G6",
         verdict="GREEN",
         summary=(
-            f"G6 GREEN — readiness-check holds {len(STRICT_MODE_REQUIRED_CHECKS)} "
-            f"canonical required-status-check display names"
+            f"G6 GREEN — all {len(STRICT_MODE_REQUIRED_CHECKS)} canonical names "
+            f"resolve to exactly one job display-name each and are present in "
+            f"the required-context snapshot "
+            f"({surface.workflow_files_scanned} workflow files measured)"
         ),
-        detail="known names: " + ", ".join(STRICT_MODE_REQUIRED_CHECKS),
+        detail=detail,
     )
 
 
@@ -722,6 +870,71 @@ def load_probe_envelope(path: Path) -> Optional[ProbeEnvelopeView]:
     if not isinstance(raw, Mapping):
         return None
     return probe_envelope_view_from_raw(raw)
+
+
+def load_required_check_surface(
+    repo_root: Path,
+    workflow_dir: str = ".github/workflows",
+    lane_assignment: str = "tests/lanes/lane_assignment.json",
+) -> Optional[RequiredCheckSurfaceView]:
+    """Measure the surface gate G6 resolves the canonical names against.
+
+    Reads every ``*.yml`` / ``*.yaml`` under ``workflow_dir`` and
+    collects ``jobs.<id>.name`` (falling back to the job id when a job
+    declares no display-name, which is what GitHub shows as the context
+    in that case), plus the pinned required-context list.
+
+    Returns ``None`` when either side is unreadable — the gate then
+    reports NOT-CHECKED rather than inventing a verdict. Disk-only, no
+    network: branch-protection is not readable from a workflow without a
+    token, which is exactly why the snapshot is pinned on disk.
+    """
+    import yaml  # local import — keeps the pure section stdlib-only
+
+    wf_dir = repo_root / workflow_dir
+    lane_path = repo_root / lane_assignment
+    if not wf_dir.is_dir() or not lane_path.exists():
+        return None
+
+    display_names: Dict[str, List[str]] = {}
+    scanned = 0
+    paths = sorted(
+        [p for p in wf_dir.iterdir() if p.suffix in (".yml", ".yaml")]
+    )
+    for path in paths:
+        try:
+            raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 — an unparseable workflow is data, not a crash
+            continue
+        scanned += 1
+        if not isinstance(raw, Mapping):
+            continue
+        jobs = raw.get("jobs")
+        if not isinstance(jobs, Mapping):
+            continue
+        for job_id, job in jobs.items():
+            if not isinstance(job, Mapping):
+                continue
+            name = job.get("name")
+            display = str(name) if name else str(job_id)
+            display_names.setdefault(display, []).append(path.name)
+
+    try:
+        lane_raw = json.loads(lane_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    if not isinstance(lane_raw, Mapping):
+        return None
+    contexts = lane_raw.get("required_contexts")
+    if not isinstance(contexts, (list, tuple)):
+        return None
+
+    return RequiredCheckSurfaceView(
+        job_display_names={k: tuple(v) for k, v in display_names.items()},
+        required_contexts=tuple(str(c) for c in contexts),
+        workflow_files_scanned=scanned,
+        snapshot_source=str(lane_raw.get("required_contexts_source", "")),
+    )
 
 
 def load_quadlet_installer(path: Path) -> Optional[QuadletInstallerView]:
@@ -840,7 +1053,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--repo-root",
         type=Path,
         default=Path("."),
-        help="Repo root for resolving --quadlet-glob.",
+        help="Repo root for resolving --quadlet-glob, --workflow-dir and --lane-assignment.",
+    )
+    parser.add_argument(
+        "--workflow-dir",
+        default=".github/workflows",
+        help=(
+            "Directory (relative to --repo-root) scanned for job display-names "
+            "in gate G6."
+        ),
+    )
+    parser.add_argument(
+        "--lane-assignment",
+        default="tests/lanes/lane_assignment.json",
+        help=(
+            "On-disk required-status-check snapshot (relative to --repo-root) "
+            "gate G6 resolves the canonical names against."
+        ),
     )
     parser.add_argument(
         "--out-json",
@@ -875,6 +1104,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         quadlet = load_quadlet_installer_glob(
             args.repo_root, args.quadlet_glob
         )
+    check_surface = load_required_check_surface(
+        args.repo_root,
+        workflow_dir=args.workflow_dir,
+        lane_assignment=args.lane_assignment,
+    )
 
     gate_results: Tuple[GateResult, ...] = (
         evaluate_gate_g1_placeholder_digests(policy, raw_binaries),
@@ -882,7 +1116,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         evaluate_gate_g3_last_probe_verdict(envelope),
         evaluate_gate_g4_inventory_size(policy),
         evaluate_gate_g5_cross_substrate_parity(policy, quadlet),
-        evaluate_gate_g6_required_check_names_known(),
+        evaluate_gate_g6_required_check_names_resolve(check_surface),
     )
 
     aggregate = aggregate_run_verdict(gate_results)

@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Receiver for workflows that run off the pull-request surface.
+# ------------------------------------------------------------
+#
+# Why this exists
+# ---------------
+#
+# Measured on main @ 67a62fc, 2026-09-21: 40 workflow files, and not
+# one executable notification step among them — no `gh issue create`,
+# no `actions/github-script`, no `if: failure()` handler. The only
+# `ntfy` occurrences in the tree are two *comment lines* in
+# `sbom-verification-daily.yml` that describe an intention.
+#
+# Six workflows carry a `schedule:` trigger and have fired reliably
+# (73-74 runs each, last one the day this action was written). The
+# last 30 scheduled runs of all six are green. That is not reassuring,
+# it is the problem: nothing has ever failed there, so there is zero
+# evidence that a failure would be noticed by anybody. "Laut
+# fehlschlagend" was, until this action, a contradiction in terms in
+# this repository.
+#
+# A pull-request failure has a receiver by construction — the PR.
+# A scheduled failure had none. This action is that receiver.
+#
+# Contract
+# --------
+#
+#   mode: fail     -> ensure exactly ONE open issue exists for this
+#                     workflow, under a FIXED title. First failure
+#                     creates it; every later failure appends a
+#                     comment to the same issue. A daily probe must
+#                     not be able to open 74 issues.
+#   mode: resolve  -> if that issue is open, comment + close it. The
+#                     receiver clears itself when the lane recovers,
+#                     so an open issue always means "currently red".
+#
+# The fixed title IS the dedupe key. Do not template a run-id, a date
+# or a SHA into it.
+#
+# Why `gh` and not `actions/github-script`
+# ----------------------------------------
+#
+# `gh` is preinstalled on GitHub-hosted runners and needs no network
+# fetch of a third-party action, so the receiver has no dependency
+# that can itself be the outage. It only ever talks to the GitHub API
+# of this repository.
+#
+# Permissions
+# -----------
+#
+# Needs `issues: write`. Grant it on the REPORTING JOB ONLY, never at
+# workflow level — the job under test keeps `contents: read`.
+#
+# Race note (known, accepted): two concurrent runs of the SAME
+# workflow failing at the same second could both find no open issue
+# and both create one. All six consumers declare a `concurrency:`
+# group, so this is not reachable for them; a future consumer without
+# one should add it.
+
+name: "Report scheduled-workflow failure"
+description: >-
+  Open (or update) a single de-duplicated GitHub issue when a workflow
+  that runs off the pull-request surface fails, and close it when the
+  workflow recovers.
+
+inputs:
+  mode:
+    description: "fail (open/update the receiver issue) or resolve (close it on recovery)."
+    required: false
+    default: "fail"
+  title:
+    description: >-
+      Fixed issue title. This is the dedupe key — it MUST NOT contain a
+      run id, date or SHA. Defaults to the workflow name.
+    required: false
+    default: ""
+  label:
+    description: "Label applied to the receiver issue; created if absent."
+    required: false
+    default: "scheduled-failure"
+  github-token:
+    description: "Token with issues:write on this repository."
+    required: true
+
+outputs:
+  issue-number:
+    description: "The receiver issue number, empty when nothing was touched."
+    value: ${{ steps.receiver.outputs.issue-number }}
+  outcome:
+    description: "created | commented | closed | noop"
+    value: ${{ steps.receiver.outputs.outcome }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: receiver
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        MODE: ${{ inputs.mode }}
+        RAW_TITLE: ${{ inputs.title }}
+        LABEL: ${{ inputs.label }}
+        WORKFLOW: ${{ github.workflow }}
+        REPO: ${{ github.repository }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        EVENT: ${{ github.event_name }}
+        REF: ${{ github.ref }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+
+        title="${RAW_TITLE}"
+        if [ -z "${title}" ]; then
+          title="[scheduled-failure] ${WORKFLOW}"
+        fi
+
+        echo "receiver mode=${MODE} title=${title}"
+
+        # Exact-title match. `--search in:title` is a fuzzy full-text
+        # search, so the jq filter — not the search — decides.
+        existing="$(gh issue list \
+            --repo "${REPO}" \
+            --state open \
+            --search "${title} in:title" \
+            --limit 100 \
+            --json number,title \
+          | jq -r --arg t "${title}" 'map(select(.title == $t)) | .[0].number // empty')"
+
+        if [ "${MODE}" = "resolve" ]; then
+          if [ -z "${existing}" ]; then
+            echo "no open receiver issue for ${title} — nothing to close"
+            echo "issue-number=" >> "${GITHUB_OUTPUT}"
+            echo "outcome=noop" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+          gh issue close "${existing}" --repo "${REPO}" --comment \
+            "Recovered: \`${WORKFLOW}\` succeeded on event \`${EVENT}\` (${REF}, \`${SHA}\`).
+        Run: ${RUN_URL}
+
+        Closed by the receiver — the lane is green again. A later failure opens a fresh issue under the same title." >/dev/null
+          echo "issue-number=${existing}" >> "${GITHUB_OUTPUT}"
+          echo "outcome=closed" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+
+        body="\`${WORKFLOW}\` failed on a run that is **not** a pull request, i.e. on a surface where nothing else would have told anyone.
+
+        | Field | Value |
+        |---|---|
+        | Workflow | \`${WORKFLOW}\` |
+        | Event | \`${EVENT}\` |
+        | Ref | \`${REF}\` |
+        | Commit | \`${SHA}\` |
+        | Run | ${RUN_URL} (attempt ${RUN_ATTEMPT}) |
+
+        **This issue is the single receiver for this workflow.** Further failures append a comment here instead of opening another issue — the title is the dedupe key. The receiver closes this issue automatically on the next successful non-PR run, so an open issue means the lane is red *right now*.
+
+        Substrate: \`.github/actions/report-scheduled-failure\`, documented in \`docs/operations/scheduled-workflow-failure-receiver.md\`."
+
+        if [ -n "${existing}" ]; then
+          gh issue comment "${existing}" --repo "${REPO}" --body \
+            "Failed again on \`${EVENT}\` (${REF}, \`${SHA}\`).
+        Run: ${RUN_URL} (attempt ${RUN_ATTEMPT})"
+          echo "commented on existing receiver issue #${existing}"
+          echo "issue-number=${existing}" >> "${GITHUB_OUTPUT}"
+          echo "outcome=commented" >> "${GITHUB_OUTPUT}"
+          exit 0
+        fi
+
+        # Idempotent: no-op when the label already exists.
+        gh label create "${LABEL}" \
+            --repo "${REPO}" \
+            --color "b60205" \
+            --description "Opened by the scheduled-workflow failure receiver" \
+          >/dev/null 2>&1 || true
+
+        number="$(gh issue create \
+            --repo "${REPO}" \
+            --title "${title}" \
+            --label "${LABEL}" \
+            --body "${body}" \
+          | sed 's#.*/##')"
+        echo "created receiver issue #${number}"
+        echo "issue-number=${number}" >> "${GITHUB_OUTPUT}"
+        echo "outcome=created" >> "${GITHUB_OUTPUT}"

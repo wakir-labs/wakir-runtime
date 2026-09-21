@@ -20,17 +20,33 @@ workflow_dispatch) and `.github/workflows/cosign-keyless-oidc-drift-probe.yml`
 
 ## 1. Why this document exists
 
-Today the cosign substrate runs in **audit-only** posture:
+**Corrected 2026-09-21.** The three bullets that opened this section
+described an audit-only posture and all three were false when
+measured. They are kept below, struck through, because the pattern is
+the point: this paragraph, the identical paragraph in
+`scripts/observability/cosign-strict-mode-readiness-check.py`, and
+§S1 further down all restated a remembered state instead of reading
+the tree, and the readiness check then judged six gates from it for
+124 daily runs.
 
-* `cosign-verify-images.yml` is `workflow_dispatch` only — Operator-Hand
-  recipe per pin refresh; never gates a PR.
-* `cosign-keyless-oidc-drift-probe.yml` is scheduled daily but is NOT
-  a required-status-check — verdict surfaces via Job-Summary +
-  artefact + notify-event on non-GREEN.
-* The 15-binary inventory still carries the
-  `DIGEST_PENDING_KAI_CROSS_REVIEW` placeholder in
-  `carrier_image.expected_image_digest` for entries pending
-  Operator-Hand resolution.
+Measured against `main` @ `67a62fc`, 2026-09-21 (live branch-protection
+read + file read):
+
+* ~~`cosign-verify-images.yml` is `workflow_dispatch` only~~ — false
+  since PR #503. It runs on `workflow_dispatch` + `push: main` +
+  `pull_request`, and since 2026-09-21 additionally on `schedule`.
+* ~~`cosign-keyless-oidc-drift-probe.yml` ... is NOT a
+  required-status-check~~ — false. `Cosign-Keyless-OIDC-Drift-Probe
+  (daily)` is one of the 13 required contexts on `main`, it reports on
+  every pull request, and on `pull_request` it passes
+  `--exit-non-zero-on-drift`, i.e. it reds the PR on drift.
+* ~~The 15-binary inventory still carries the
+  `DIGEST_PENDING_KAI_CROSS_REVIEW` placeholder~~ — false. Gate G1
+  measures zero placeholders on every run.
+
+Gate G6 of the readiness check now measures the required-context
+surface from disk instead of restating it, so this class of drift
+fails a gate rather than sitting in prose.
 * The pinned-trust-root JSON still carries
   `PENDING_OPERATOR_HAND_REFRESH` for `fulcio_root_ca_sha256` and
   `rekor_log_shard_id`.
@@ -129,32 +145,77 @@ All three jobs run on every pull request:
 | `digest-verify python:3.13-slim` | no | live — registry digest of the committed pin |
 | `cosign verify wakir-provisioner` | no | live — Sigstore signature of the committed pin |
 
-**Open, pending Zone-C cross-review — the trigger cut.** Only the
-first job is required; the other two rode onto the PR surface with
-PR #503 without a decision of their own. They ask a *liveness*
-question — "is this pin still real?" — whose answer depends on a
-third party's release calendar and on network egress, so a pull
-request that touches nothing related can be red'd by it and cannot
-fix it. That trains the organisation to read red as normal, which is
-worse than either alternative.
+**The trigger cut — decided 2026-09-21, one job moved of the two
+proposed.** Zone-C cross-review (Tomás Reinhart,
+`agents-workspaces/dev-engineering/outbox/2026-09-21-tomas-zone-c-review-trigger-schnitt.md`)
+gave the cut for `digest-verify python:3.13-slim` under two
+conditions and **refused** it for `cosign verify wakir-provisioner`.
 
-The proposed cut follows the question *"can a pull request influence
-this?"*:
+The test the cut follows is **not** *"can a pull request influence
+this?"* — that question is one-part and too blunt. The test already
+written into `containerfile-digest-pin-gate.yml` is four-part:
+structural, hermetic, decidable from disk, **and always satisfiable
+by the pull request that breaks it**. Applied job by job:
 
-* structural and hermetic checks stay on the PR surface — that is
-  where `verify-containerfile-base-image-digest-pins` lives, and
-  since 2026-09-21 it also carries the tree-wide pin-consistency
-  check;
-* the two non-required liveness jobs move to `schedule` +
-  `workflow_dispatch` as a loudly failing drift probe, modelled on
-  `Cosign-Keyless-OIDC-Drift-Probe (daily)`;
-* `cosign verify SPIRE images` **stays** on the PR trigger under its
-  exact display name, because it is a required context and moving it
-  would need an Operator-Hand branch-protection change first.
+| Job | Follows a third party's calendar? | Outcome |
+|---|---|---|
+| `cosign verify SPIRE images` | yes, but it is a **required context** — moving it needs an Operator-Hand branch-protection change first, and `test_branch_protection_required_checks_doc.py` pins this file as its home | **stays**, unchanged |
+| `digest-verify python:3.13-slim` | yes — DockerHub rebuilds the tag on its own schedule; no pull request can cause or cure that | **moved** to the schedule axis via `if: github.event_name != 'pull_request'` |
+| `cosign verify wakir-provisioner` | **no** — our image, our registry, our workflow, our Quadlet pin | **stays**; cross-review refused |
 
-Not implemented: the cut touches the Container-Image-Pipeline ×
-OTS-Anchoring cross-review zone (ADR-0020 Zone C) and has no
-sign-off yet.
+The refusal for job 3 rests on an argument written in this house
+before the job went red: *a dangling pin is not a calendar — the
+remedy lies entirely with us, and it does not recur in cadence.* The
+job is red right now for a true reason (the pinned digest 404s in
+ghcr). Being red is not an argument for belonging somewhere else; a
+procedure in which every finding justifies its own invisibility is
+worse than the finding. The remedy is the provisioner rebuild plus
+pin refresh, and it is Operator-Hand.
+
+What the cut does **not** do, stated because the opposite was easy to
+claim: it does not take liveness off the pull-request surface. Job 1
+is itself a live network check — `cosign verify` against Sigstore
+plus a `crane digest` cross-check that exits 2 on drift — and it is
+the only one of the three that can block anything. An upstream
+`spiffe` tag re-push or a Sigstore outage reds a **required** context
+on **every** pull request, which is a repo-wide merge freeze. The cut
+removes the two liveness exposures that block nothing and leaves the
+one that blocks everything. That residual exposure is tracked
+separately.
+
+Coverage lost by the move: none. The structural half — that all pin
+sites carry the same digest — lives in the required, hermetic job
+`verify-containerfile-base-image-digest-pins` since #546, tree-wide,
+through the same module.
+
+The two conditions, and how they were met:
+
+* **C1 — a scheduled run needs a receiver.** Measured: 40 workflow
+  files, zero executable notification steps. The schedule axis was a
+  place where checks disappear. Met by
+  `.github/actions/report-scheduled-failure`
+  (`docs/operations/scheduled-workflow-failure-receiver.md`), wired
+  into this workflow and the six scheduled ones, and proven by a
+  deliberately failing run rather than by review.
+* **C2 — the model cited for the move was cited wrongly.**
+  `Cosign-Keyless-OIDC-Drift-Probe (daily)` was quoted as the
+  precedent for "liveness moves to `schedule`". It is the opposite:
+  it runs on `schedule` **and** `workflow_dispatch` **and** `push`
+  **and** `pull_request` without a path filter, it **is** one of the
+  13 required contexts, and it is **hermetic** (stdlib + pyyaml,
+  `--mode=baseline`, no network). Its calendar axis is an
+  *addition* to its pull-request axis, never a replacement. It is
+  therefore the model for **this** file's shape — `schedule` added to
+  the existing `on:` block, nothing removed — and not a precedent for
+  moving anything off the pull-request surface. Verified against the
+  file and the live branch-protection rule on 2026-09-21.
+
+Form of the change (C3): no new workflow file, no new
+branch-protection context name, one `schedule:` entry added to the
+existing `on:` block and one `if:` on job 2. A split would have left
+`tests/infra/test_cosign_drift_coverage_a6.py` **green while its own
+comment turned false** — the exact class this substrate work exists
+to remove.
 
 ### S2. `cosign-keyless-oidc-drift-probe.yml` — strict on PR
 

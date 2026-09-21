@@ -189,3 +189,43 @@ jobs:
           path: out/sbom/
           retention-days: 30
           if-no-files-found: warn
+
+  # --- Receiver for the non-PR surface -------------------------------
+  #
+  # This workflow runs on `schedule` as well as on pull requests. A PR
+  # failure has a receiver by construction; a scheduled failure had
+  # none until 2026-09-21 (measured: 40 workflow files, 0 executable
+  # notification steps). This job is that receiver.
+  #
+  # `issues: write` is scoped to THIS job only — `generate-sbom` above keeps
+  # `contents: read`. Doc: docs/operations/scheduled-workflow-failure-receiver.md
+  scheduled-failure-receiver:
+    name: Scheduled-failure receiver
+    needs: [generate-sbom]
+    # always(): the job must also run when the job it watches failed.
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout (the receiver action is a local composite action)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Open or update the receiver issue
+        if: ${{ needs.generate-sbom.result == 'failure' }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: fail
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close the receiver issue on recovery
+        if: ${{ needs.generate-sbom.result == 'success' }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: resolve
+          github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -14,12 +14,45 @@
 #
 #   Only that first job is required. `digest-verify python:3.13-slim`
 #   and `cosign verify wakir-provisioner` rode onto the PR surface
-#   with #503 without a decision of their own, and both ask a
-#   liveness question that an unrelated pull request can neither
-#   cause nor fix. Moving those two to `schedule` +
-#   `workflow_dispatch` is proposed in
-#   docs/operations/cosign-strict-mode-activation.md §S1 and is
-#   pending Zone-C cross-review; it is NOT implemented here.
+#   with #503 without a decision of their own.
+#
+# The trigger cut (Zone-C cross-review, Tomas Reinhart 2026-09-21)
+#   The line is NOT "does this ask something live?" — job 1 asks
+#   something live too, and it stays. The line is "does this follow a
+#   third party's calendar?":
+#
+#     * `digest-verify python:3.13-slim` — DockerHub rebuilds
+#       `python:3.13-slim` on its own schedule. An unrelated pull
+#       request can neither cause that nor fix it. It runs on
+#       `schedule` from 2026-09-21 (`if: github.event_name !=
+#       'pull_request'`), and the structural half of what it used to
+#       cover — that all pin sites carry the same digest — lives in
+#       the required, hermetic job
+#       `verify-containerfile-base-image-digest-pins` since #546. No
+#       coverage is lost.
+#     * `cosign verify wakir-provisioner` — STAYS on the pull-request
+#       surface. Cross-review for moving it was REFUSED: this is our
+#       image, in our registry, built by our workflow, pinned in our
+#       Quadlet. Nothing in it follows anyone else's calendar, so it
+#       fails the very test that moves job 2. Its pin is currently
+#       dangling (the pinned digest 404s) and that red is true; being
+#       red is not an argument for belonging somewhere else, or every
+#       finding would justify its own invisibility. The fix is the
+#       provisioner rebuild + pin refresh, not a trigger change.
+#
+#   What the cut does NOT do: it does not take liveness off the
+#   pull-request surface. Job 1 is itself a live network check —
+#   `cosign verify` against Sigstore plus a `crane digest` cross-check
+#   with `exit 2` on drift — and it is the only one of the three that
+#   can block anything. The cut removes the two liveness exposures
+#   that block nothing and leaves the one that blocks everything.
+#   Tracked separately, not in this file.
+#
+#   The scheduled surface only became a place where a failure is
+#   noticed on 2026-09-21: `.github/actions/report-scheduled-failure`
+#   (runbook: docs/operations/scheduled-workflow-failure-receiver.md)
+#   is wired in below. Before it, moving a check to `schedule` did not
+#   make it loud, it made it unobserved.
 #
 # Why a workflow at all if it's manual-only:
 #   * Reproducibility — the resolution recipe in
@@ -59,6 +92,13 @@ on:
     branches:
       - main
   pull_request:
+  # Calendar axis for the job that follows someone else's calendar.
+  # 05:15 UTC keeps it clear of the 06:30 drift probe and the 07:30
+  # readiness check, so an operator reading the Actions tab sees three
+  # distinct blocks. This is an ADDITIONAL axis: jobs 1 and 3 keep
+  # reporting on every pull request exactly as before.
+  schedule:
+    - cron: "15 5 * * *"
 
 permissions:
   contents: read
@@ -167,6 +207,12 @@ jobs:
   # ------------------------------------------------------------------
   cosign-verify-python:
     name: digest-verify python:3.13-slim
+    # The one line of the trigger cut. `python:3.13-slim` is rebuilt by
+    # DockerHub on DockerHub's schedule; a pull request can neither
+    # cause that drift nor fix it. Skipped rather than removed, so the
+    # job name stays visible (grey) on the PR instead of silently
+    # disappearing, which reads like a deleted check.
+    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -407,3 +453,55 @@ jobs:
           else
             echo "::notice::pinned digest does not match either registry digest — Sigstore wrapper layer expected; Cosign-Verify (above) is the authoritative gate"
           fi
+
+  # ------------------------------------------------------------------
+  # Receiver for the non-PR surface.
+  #
+  # Job 2 now runs on `schedule`, and a scheduled failure had no reader
+  # in this repository until 2026-09-21 (measured: 40 workflow files, 0
+  # executable notification steps). Moving a check to a calendar
+  # without a receiver does not make it loud, it makes it invisible —
+  # so the receiver is part of the same change, not a follow-up.
+  #
+  # It watches all three jobs, not only job 2: a failure of job 1 or 3
+  # on `push: main` had no reader either. `issues: write` is scoped to
+  # this job; the three verify jobs keep `contents: read`.
+  #
+  # Expected on the first push to main after this lands: `cosign verify
+  # wakir-provisioner` is red for a true reason (its pinned digest 404s
+  # in ghcr) and will open exactly one receiver issue. That is the
+  # intended behaviour, not a regression — the receiver closes it by
+  # itself once the provisioner rebuild + pin refresh lands.
+  # ------------------------------------------------------------------
+  scheduled-failure-receiver:
+    name: Scheduled-failure receiver
+    needs:
+      - cosign-verify-spire
+      - cosign-verify-python
+      - cosign-verify-wakir-provisioner
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout (the receiver action is a local composite action)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Open or update the receiver issue
+        if: ${{ contains(needs.*.result, 'failure') }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: fail
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close the receiver issue on recovery
+        if: ${{ !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: resolve
+          github-token: ${{ secrets.GITHUB_TOKEN }}
