@@ -38,11 +38,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Fail on purpose
+      - name: Succeed on purpose (third push — recovery leg)
         run: |
           set -euo pipefail
-          echo "negative control: failing on purpose so the receiver has something to receive"
-          exit 1
+          echo "negative control: succeeding on purpose so the receiver has a recovery to report"
+          exit 0
 
   scheduled-failure-receiver:
     name: Scheduled-failure receiver
