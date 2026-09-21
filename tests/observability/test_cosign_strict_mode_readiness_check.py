@@ -28,7 +28,9 @@ Invariants (≥12, target 16; closeout: extended to ≥27):
   TV-SM-13 G3 BLOCKED when last probe verdict is non-GREEN.
   TV-SM-14 G4 BLOCKED on inventory drift (size mismatch).
   TV-SM-15 G5 BLOCKED on quadlet-vs-policy set drift.
-  TV-SM-16 G6 GREEN — required-status-check names are non-empty.
+  TV-SM-16 G6 GREEN — canonical names resolve against the measured
+            tree (one job display-name each + present in the
+            required-context snapshot).
   TV-SM-17 aggregate_run_verdict precedence BLOCKED > NOT-CHECKED > GREEN.
   TV-SM-18 render_markdown_summary contains all six gate rows.
   TV-SM-19 envelope_to_json carries schema + run_ts + per-gate rows.
@@ -334,12 +336,113 @@ def test_tv_sm_15_g5_blocked_on_quadlet_policy_set_drift(smod):
     assert "parity drift" in result.summary
 
 
-def test_tv_sm_16_g6_green_on_known_required_check_names(smod):
-    """TV-SM-16: G6 GREEN — required-status-check names are non-empty."""
-    result = smod.evaluate_gate_g6_required_check_names_known()
+def _surface(smod, *, jobs=None, contexts=None, scanned=40, source="test"):
+    """Build a RequiredCheckSurfaceView for the G6 tests.
+
+    Defaults describe the resolving case: every canonical name has
+    exactly one job home and is a required context.
+    """
+    if jobs is None:
+        jobs = {
+            name: (f"{i}.yml",)
+            for i, name in enumerate(smod.STRICT_MODE_REQUIRED_CHECKS)
+        }
+    if contexts is None:
+        contexts = tuple(smod.STRICT_MODE_REQUIRED_CHECKS)
+    return smod.RequiredCheckSurfaceView(
+        job_display_names=jobs,
+        required_contexts=tuple(contexts),
+        workflow_files_scanned=scanned,
+        snapshot_source=source,
+    )
+
+
+def test_tv_sm_16_g6_green_when_names_resolve_against_the_tree(smod):
+    """TV-SM-16: G6 GREEN — every canonical name resolves to exactly one
+    job display-name AND is present in the required-context snapshot."""
+    result = smod.evaluate_gate_g6_required_check_names_resolve(_surface(smod))
     assert result.gate_id == "G6"
     assert result.verdict == "GREEN"
     assert all(n.strip() for n in smod.STRICT_MODE_REQUIRED_CHECKS)
+    # The verdict must be traceable to a measurement, not to a constant.
+    for name in smod.STRICT_MODE_REQUIRED_CHECKS:
+        assert name in result.detail
+
+
+def test_tv_sm_29_g6_blocked_when_a_name_has_no_job_home(smod):
+    """TV-SM-29: G6 BLOCKED — a required context with no job display-name
+    is the forever-pending failure mode (PR #102)."""
+    first = smod.STRICT_MODE_REQUIRED_CHECKS[0]
+    jobs = {
+        name: (f"{i}.yml",)
+        for i, name in enumerate(smod.STRICT_MODE_REQUIRED_CHECKS)
+    }
+    del jobs[first]
+    result = smod.evaluate_gate_g6_required_check_names_resolve(
+        _surface(smod, jobs=jobs)
+    )
+    assert result.verdict == "BLOCKED"
+    assert "no job display-name" in result.summary
+    assert first in result.summary
+
+
+def test_tv_sm_30_g6_blocked_when_a_name_is_declared_twice(smod):
+    """TV-SM-30: G6 BLOCKED — an ambiguous display-name is as much a
+    finding as a missing one."""
+    first = smod.STRICT_MODE_REQUIRED_CHECKS[0]
+    jobs = {
+        name: (f"{i}.yml",)
+        for i, name in enumerate(smod.STRICT_MODE_REQUIRED_CHECKS)
+    }
+    jobs[first] = ("a.yml", "b.yml")
+    result = smod.evaluate_gate_g6_required_check_names_resolve(
+        _surface(smod, jobs=jobs)
+    )
+    assert result.verdict == "BLOCKED"
+    assert "more than one job" in result.summary
+
+
+def test_tv_sm_31_g6_blocked_when_a_name_is_not_a_required_context(smod):
+    """TV-SM-31: G6 BLOCKED — S3 outstanding is a measured state, not a
+    prose claim in the docstring."""
+    result = smod.evaluate_gate_g6_required_check_names_resolve(
+        _surface(smod, contexts=smod.STRICT_MODE_REQUIRED_CHECKS[:1])
+    )
+    assert result.verdict == "BLOCKED"
+    assert "S3 outstanding" in result.summary
+
+
+def test_tv_sm_32_g6_not_checked_when_the_surface_is_unmeasurable(smod):
+    """TV-SM-32: G6 NOT-CHECKED — a gate that cannot measure must not
+    report GREEN. NOT-CHECKED blocks the aggregate (TV-SM-17)."""
+    result = smod.evaluate_gate_g6_required_check_names_resolve(None)
+    assert result.verdict == "NOT-CHECKED"
+    assert smod.aggregate_run_verdict([result]) != "GREEN"
+
+
+def test_tv_sm_33_g6_resolves_against_the_real_repository(smod):
+    """TV-SM-33: on-disk — the canonical names resolve against the actual
+    .github/workflows/ + lane_assignment.json of this repo.
+
+    This is the test that would have caught the two false premises the
+    docstring carried until 2026-09-21: it reads the tree instead of
+    restating it.
+    """
+    pytest.importorskip("yaml")
+    surface = smod.load_required_check_surface(_REPO_ROOT)
+    assert surface is not None
+    assert surface.workflow_files_scanned > 0
+    result = smod.evaluate_gate_g6_required_check_names_resolve(surface)
+    assert result.verdict == "GREEN", result.summary
+
+
+def test_tv_sm_34_drift_probe_is_a_required_context_on_disk(smod):
+    """TV-SM-34: the specific premise that was false — the drift probe IS
+    a required status check. Measured, not asserted in prose."""
+    pytest.importorskip("yaml")
+    surface = smod.load_required_check_surface(_REPO_ROOT)
+    assert surface is not None
+    assert "Cosign-Keyless-OIDC-Drift-Probe (daily)" in surface.required_contexts
 
 
 # ---------------------------------------------------------------------------
