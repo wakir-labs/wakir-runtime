@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# TEMPORARY — negative control for the scheduled-failure receiver.
+# ---------------------------------------------------------------
+#
+# This file exists to produce the evidence that
+# `.github/actions/report-scheduled-failure` actually works, and is
+# deleted in the same PR once the evidence is linked. "The code looks
+# right" is not the standard: the receiver is being added precisely
+# because six workflows have been green for 74 days, which means no
+# failure path in this repository has ever been exercised.
+#
+# What it proves, in three pushes to this branch:
+#   1. a failing non-PR run CREATES exactly one issue,
+#   2. a second failing run creates NO second issue (comments instead),
+#   3. a subsequent successful run CLOSES the issue.
+#
+# It only ever triggers on the feature branch below, never on main.
+
+name: zz-receiver-negative-control
+
+on:
+  push:
+    branches:
+      - kai/empfaenger-und-readiness-praemissen
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zz-receiver-negative-control
+  cancel-in-progress: false
+
+jobs:
+  control:
+    name: Negative control (deliberate outcome)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fail on purpose
+        run: |
+          set -euo pipefail
+          echo "negative control: failing on purpose so the receiver has something to receive"
+          exit 1
+
+  scheduled-failure-receiver:
+    name: Scheduled-failure receiver
+    needs: [control]
+    if: ${{ always() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout (the receiver action is a local composite action)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Open or update the receiver issue
+        if: ${{ needs.control.result == 'failure' }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: fail
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Close the receiver issue on recovery
+        if: ${{ needs.control.result == 'success' }}
+        uses: ./.github/actions/report-scheduled-failure
+        with:
+          mode: resolve
+          github-token: ${{ secrets.GITHUB_TOKEN }}
