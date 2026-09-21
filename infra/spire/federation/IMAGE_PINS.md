@@ -300,14 +300,14 @@ Operator-Hand resolution recipe:
 cosign verify \
     --certificate-identity-regexp 'https://github\.com/wakir-labs/wakir-runtime/' \
     --certificate-oidc-issuer 'https://token.actions.githubusercontent.com' \
-    ghcr.io/wakir-labs/wakir-provisioner:0.1.2
+    ghcr.io/wakir-labs/wakir-provisioner:0.1.4
 
 # Step 3: resolve the digest via crane (cross-check).
-PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.2)
+PROVISIONER_DIGEST=$(crane digest ghcr.io/wakir-labs/wakir-provisioner:0.1.4)
 echo "${PROVISIONER_DIGEST}"   # sha256:<64-hex>
 
 # Step 4: substitute the placeholder in the Quadlet.
-sed -i "s|wakir-provisioner:0.1.2@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.2@${PROVISIONER_DIGEST}|g" \
+sed -i "s|wakir-provisioner:0.1.4@sha256:DIGEST_PENDING_TOMAS_REVIEW|wakir-provisioner:0.1.4@${PROVISIONER_DIGEST}|g" \
     quadlet/wakir-nats-kv-bucket-init.container
 
 # Step 5: re-run the hermetic test surface.
@@ -486,6 +486,6 @@ server-substrate-sequence).
 
 Post-merge Operator-Hand: trigger
 `.github/workflows/build-wakir-provisioner.yml` to publish the
-`wakir-provisioner:0.1.2` artefact carrying the BSL label, then
+`wakir-provisioner:0.1.4` artefact carrying the BSL label, then
 resolve the digest into the Quadlet per §2.5.
 

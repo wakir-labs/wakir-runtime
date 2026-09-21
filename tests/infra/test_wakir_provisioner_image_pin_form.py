@@ -44,7 +44,7 @@ IMAGE_PINS_MD = (
 )
 
 PLACEHOLDER = "DIGEST_PENDING_TOMAS_REVIEW"
-EXPECTED_TAG = "0.1.2"
+EXPECTED_TAG = "0.1.4"
 EXPECTED_IMAGE_PATH = "ghcr.io/wakir-labs/wakir-provisioner"
 
 _DIGEST_RE = rf"(?:{PLACEHOLDER}|[a-f0-9]{{64}})"
