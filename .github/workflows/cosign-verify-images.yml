@@ -383,9 +383,20 @@ jobs:
           # Measured 2026-09-21: the pinned digest
           # sha256:9af7ee68... returned MANIFEST_UNKNOWN from ghcr.io
           # (anonymous AND authenticated), while the tag 0.1.2 resolved
-          # to a different, unsigned manifest. The tag had been
-          # re-pushed; the old manifest was gone and only its orphaned
-          # `sha256-...sig` tag remained.
+          # to a different, unsigned manifest.
+          #
+          # The first reading of that, written here the same day, was
+          # "the tag had been re-pushed and the old manifest was gone".
+          # That was wrong, and the live bring-up disproved it hours
+          # later: the 0.1.3 build reproduced the identical mismatch
+          # with no re-push involved anywhere. The pinned digest was
+          # never in the registry to begin with. The build resolved it
+          # from the LOCAL buildah store, which names the manifest
+          # differently from the one the push leaves behind, and the
+          # orphaned `.sig` tag exists because cosign then signed that
+          # local name. Fixed in build-wakir-provisioner.yml; the
+          # check below stays, because a pin that does not resolve is
+          # worth catching no matter which way it got written.
           #
           # `cosign verify` was GREEN across all of that, because it
           # checks the signature stored under the `.sig` tag derived
