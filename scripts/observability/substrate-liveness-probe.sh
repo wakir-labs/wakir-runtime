@@ -170,7 +170,17 @@ emit() {
     esac
 }
 
-for tool in openssl base64 stat tr sed; do
+# A probe that cannot run must say so in the same shape it says
+# everything else, and it must never be mistaken for a negative
+# verdict. The container healthchecks on this substrate are the
+# counter-example: measured 2026-09-22 08:32 UTC, the SPIRE server's
+# healthcheck has been producing ``ExitCode 1, Output ""`` every ten
+# seconds since May, because podman wraps a string ``HealthCmd`` in
+# ``/bin/sh -c`` and the SPIRE image has no shell. The container has
+# read ``unhealthy`` for four months while the same command run
+# directly answers ``Server is healthy.`` — a check that never started,
+# published as a judgement. Empty output is not a finding.
+for tool in date openssl base64 stat tr sed; do
     command -v "${tool}" >/dev/null 2>&1 || emit unmeasurable "missing_tool_${tool}"
 done
 

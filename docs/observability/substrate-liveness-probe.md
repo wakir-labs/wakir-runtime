@@ -29,10 +29,29 @@ is that every cheap signal a monitor would reasonably have used was
 | container uptime | seconds — the unit is recreated constantly | looks like a fresh healthy start |
 | `podman inspect .RestartCount` | `0` | systemd recreates the container, so podman never counts a restart |
 | workload-API socket file present | yes, dated May | stale inode; nothing listening |
-| server container health | `unhealthy`, `FailingStreak` 636 | correct, and read by nobody |
+| server container health | `unhealthy`, `FailingStreak` 636 | **not even wrong** — see below |
 | persisted agent SVID `notAfter` | node A `2026-05-15T08:32:35Z`, node B `2026-05-17T04:59:19Z` | **unambiguous** |
 
 The last row is the probe.
+
+The `unhealthy` row deserves its own sentence, because it is the same
+defect one level down. Measured 2026-09-22 08:32 UTC: the SPIRE
+containers carry
+`["CMD-SHELL", "/opt/spire/bin/spire-server healthcheck"]`, podman runs
+a string `HealthCmd` through `/bin/sh -c`, and the SPIRE image has no
+`/bin/sh` (`crun: executable file /bin/sh not found`). Every probe since
+May returned `ExitCode 1, Output ""` — and the container published
+`unhealthy` on the strength of it. The same command run directly,
+`podman exec <server> /opt/spire/bin/spire-server healthcheck`, answers
+`Server is healthy.`
+
+So that reading is not a true negative that nobody read. It is a check
+that never started, published as a judgement, and it happened to point
+the same way as the truth for unrelated reasons. **Empty output is not
+a finding.** This probe answers that class explicitly: every case in
+which it cannot do its job produces a payload with a reason code and
+exit 2, and a test asserts that a probe with no tools on its PATH is
+still distinguishable from both a green and a red one.
 
 ## 2. What it measures
 

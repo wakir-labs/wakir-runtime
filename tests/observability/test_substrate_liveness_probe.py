@@ -41,6 +41,7 @@ import base64
 import datetime as dt
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -273,6 +274,49 @@ def test_undecodable_svid_is_unmeasurable_never_green(tmp_path):
     assert rc == 2
     assert out["verdict"] == "unmeasurable"
     assert out["reason"] == "svid_undecodable"
+
+
+def test_probe_that_cannot_run_is_distinguishable_from_a_bad_verdict(tmp_path):
+    """A probe that never started must not look like a probe that found
+    something, and must not look like a probe that found nothing wrong.
+
+    The counter-example is on the substrate itself, measured 2026-09-22
+    08:32 UTC: the SPIRE containers carry
+    ``["CMD-SHELL", ".../spire-server healthcheck"]``, podman runs that
+    through ``/bin/sh -c``, and the SPIRE image has no ``/bin/sh``. Every
+    probe since May returned ``ExitCode 1, Output ""`` — and the container
+    has published ``unhealthy`` on the strength of it, while the same
+    command run directly answers ``Server is healthy.``
+
+    Empty output is not a finding. This probe's answer to that is a
+    payload with a reason code and exit 2, in every case where it could
+    not do its job.
+    """
+    now = dt.datetime(2026, 9, 22, 12, 0, 0, tzinfo=UTC)
+    state = _healthy(tmp_path, now)
+
+    bash = shutil.which("bash")
+    assert bash, "no bash to test with"
+
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    env = dict(os.environ)
+    env["PATH"] = str(empty_bin)
+    env["WAKIR_AGENT_DATA_FILE"] = str(state)
+    env["WAKIR_NOW_EPOCH"] = str(int(now.timestamp()))
+    env["WAKIR_NODE_LABEL"] = "node-a"
+    proc = subprocess.run(
+        [bash, str(PROBE)], env=env, capture_output=True, text=True, timeout=120
+    )
+
+    assert proc.returncode == 2, proc.stdout
+    assert proc.stdout.strip(), "a probe that cannot run must still answer"
+    out = json.loads(proc.stdout)
+    assert out["verdict"] == "unmeasurable"
+    assert out["reason"].startswith("missing_tool_"), out["reason"]
+    # and it must not have invented a measurement it never took
+    assert out["svid_not_after_epoch"] is None
+    assert out["bundle_newest_not_after_epoch"] is None
 
 
 def test_pretty_printed_state_file_parses_identically(tmp_path):
