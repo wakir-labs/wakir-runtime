@@ -21,7 +21,7 @@ Those steps are Operator-Hand by construction per
 OPEN-J2 was marked "kein CI-Substrat moeglich" because
 the rotation drives an actual VM lifecycle: snapshot create,
 image swap, systemd quadlet reload, post-rotation acceptance
-probe against a `192.168.178.*` LAN host. The hermetic claude-dev
+probe against a LAN host on the operator network. The hermetic claude-dev
 Sandbox cannot reach that LAN by design — and we do not relax that
 boundary just to fit a CI lane around it.
 
@@ -239,7 +239,7 @@ Pathway:
    The Sandbox is never in this loop.
 6. **Post-rotation acceptance.** Operator captures the
    post-rotation acceptance probe (real VM, real SSH, real
-   `192.168.178.*` host) and files it as the rotation-closeout
+   operator-LAN host) and files it as the rotation-closeout
    artifact.
 
 If the probe reports `DRIFT` at step 1 the rotation does not

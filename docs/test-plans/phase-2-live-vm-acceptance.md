@@ -69,9 +69,9 @@ rather than a silent pass.
 
 ### 1.1 SSH-key access to the Pilot-VM target
 
-* **Default target host:** `192.168.178.116` (wakir-pilot side per
-  dogfood-LAN topology), override via
-  `WAKIR_PEER_HOST`.
+* **Target host:** named by the operator via `WAKIR_PEER_HOST`.
+  There is no default: as of 2026-09-22 the acceptance scripts abort
+  when it is unset rather than falling back to a baked-in address.
 * **Required:** the operator host has a private key whose public key is
   installed in the target user's `~/.ssh/authorized_keys`. No CI runner
   holds such a key, and per ADR-0077 none is meant to.
@@ -79,7 +79,7 @@ rather than a silent pass.
   acceptance lane (the on-VM `federation-live-vm-acceptance.sh`
   needs root for `systemctl` / `podman exec` against root-Quadlets).
 * **Sandbox boundary:** the claude-dev Sandbox **cannot** reach
-  `192.168.178.*`. The Sandbox-side checks for this Test-Plan are
+  the operator LAN. The Sandbox-side checks for this Test-Plan are
   limited to verifying that the skip-by-default guard fires. Every
   real run is an operator hand — never claude-dev, and (since
   ADR-0077) never a CI runner either.
@@ -295,7 +295,7 @@ substrate-fix.
   bootstrap-substance failure`. Do NOT mark Phase-2 Acceptance-Gate
   failed; mark Acceptance-Gate **pending substrate**.
 
-### 4.4 Peer-VM unreachable (`192.168.178.<peer>:8443`)
+### 4.4 Peer-VM unreachable (`<peer-host>:8443`)
 
 * **Pattern.** `federation-live-vm-acceptance.sh` line ~189 emits
   `WARN: peer ${WAKIR_PEER_HOST}:8443 not reachable`. The local
@@ -334,8 +334,8 @@ substrate-fix.
 * **Pattern.** The TV-LVD-suite is invoked from inside the
   claude-dev Sandbox and somehow gets past the conftest skip-guard.
   Per `feedback_sandbox_host_trennung`, claude-dev has no
-  host-podman-socket access and cannot reach
-  `192.168.178.*`. The `ssh_runner` refusal-stub fires.
+  host-podman-socket access and cannot reach the operator LAN.
+  The `ssh_runner` refusal-stub fires.
 * **Root cause.** A future refactor accidentally flipped the
   skip-default. **This is a test-harness bug, not a substrate
   failure.**

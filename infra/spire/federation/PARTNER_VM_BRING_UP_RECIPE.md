@@ -70,10 +70,19 @@ sich gegenseitig **federieren koennen**:
 Wir nutzen folgende Default-Variante (Variante-C aus operator recommendation
 2026-05-14 19:30 CEST):
 
-| Side | Trust-Domain | VM-Hostname | Bridge-IP (default) |
+| Side | Trust-Domain | VM-Hostname | Bridge-IP (example) |
 |---|---|---|---|
-| Wakir-Side | `wakir.test` | `wakir-pilot` | `10.0.42.10` |
-| Orbit-Side | `orbit.test` | `wakir-orbit-pilot` | `10.0.42.11` |
+| Wakir-Side | `wakir.test` | `wakir-pilot` | `198.51.100.10` |
+| Orbit-Side | `orbit.test` | `wakir-orbit-pilot` | `198.51.100.11` |
+
+> **Addresses in this recipe are examples, not a topology.** Every IP
+> below is from an RFC 5737 documentation range — `192.0.2.0/24` for
+> hosts on the operator network, `198.51.100.0/24` for the
+> Proxmox-internal federation bridge. They are not routable and they
+> are not what any real deployment uses. Substitute your own before
+> running anything. Until 2026-09-22 this file carried the real
+> addresses of the operator's own pilot VMs; a public bring-up recipe
+> is documentation, and documentation uses documentation addresses.
 
 **Variantenraum (AR-Decision-Slot morgen):**
 
@@ -132,7 +141,7 @@ Auf dem Proxmox-Host (nicht in einer VM!):
 ```bash
 # Proxmox-Web-UI: Datacenter > <host> > Network > Create > Linux Bridge
 # Name:        vmbr1
-# Subnet:      10.0.42.0/24
+# Subnet:      198.51.100.0/24
 # Gateway:     (leer, kein Routing nach extern)
 # Comment:     wakir-federation-internal
 # Autostart:   yes
@@ -147,7 +156,7 @@ iface vmbr1 inet manual
     bridge-fd 0
     bridge-vlan-aware no
     # wakir-federation-internal — Cross-VM Federation bridge,
-    # subnet 10.0.42.0/24, no external routing.
+    # subnet 198.51.100.0/24, no external routing.
 EOF
 
 sudo systemctl reload networking
@@ -167,17 +176,17 @@ qm set $WAKIR_VMID --net1 virtio,bridge=vmbr1
 # Erwartet: update VM 101: -net1 virtio,bridge=vmbr1
 ```
 
-In der Wakir-VM die neue NIC konfigurieren (statisch 10.0.42.10):
+In der Wakir-VM die neue NIC konfigurieren (statisch 198.51.100.10):
 
 ```bash
 # In der Wakir-VM (via SSH):
 sudo nmcli connection add type ethernet \
   con-name wakir-federation \
   ifname ens19 \
-  ip4 10.0.42.10/24
+  ip4 198.51.100.10/24
 sudo nmcli connection up wakir-federation
 ip addr show ens19
-# Erwartet: inet 10.0.42.10/24
+# Erwartet: inet 198.51.100.10/24
 ```
 
 (Hinweis: NIC-Name `ens19` ist Fedora-CoreOS-Default fuer die zweite
@@ -196,7 +205,7 @@ Spiegel der Wakir-VM-Spec (PROXMOX_BRING_UP_RECIPE.md §1.1):
 | vCPU | 4 cores | gleiche Workloads |
 | RAM | 4 GiB | gleiche Workloads |
 | Disk | 32 GiB (thin-provisioned) | gleiche Workloads |
-| Netzwerk | 2 NICs: vmbr0 (extern), vmbr1 (10.0.42.0/24) | Federation-Bridge |
+| Netzwerk | 2 NICs: vmbr0 (extern), vmbr1 (198.51.100.0/24) | Federation-Bridge |
 | Snapshot | aktiviert | jeder Schritt unten endet mit Snapshot-Empfehlung |
 
 ### 3.2 VM-Erstellung
@@ -240,10 +249,10 @@ In der Orbit-VM via SSH:
 sudo nmcli connection add type ethernet \
   con-name wakir-federation \
   ifname ens19 \
-  ip4 10.0.42.11/24
+  ip4 198.51.100.11/24
 sudo nmcli connection up wakir-federation
 ip addr show ens19
-# Erwartet: inet 10.0.42.11/24
+# Erwartet: inet 198.51.100.11/24
 ```
 
 ### 3.4 Cross-VM-DNS via /etc/hosts
@@ -253,7 +262,7 @@ Auf der **Wakir-VM** (rueckwirkend):
 ```bash
 sudo tee -a /etc/hosts <<'EOF'
 # Cross-VM Federation peer (Orbit-Side)
-10.0.42.11   spire-server-orbit  wakir-orbit-pilot
+198.51.100.11   spire-server-orbit  wakir-orbit-pilot
 EOF
 ```
 
@@ -262,7 +271,7 @@ Auf der **Orbit-VM**:
 ```bash
 sudo tee -a /etc/hosts <<'EOF'
 # Cross-VM Federation peer (Wakir-Side)
-10.0.42.10   spire-server-wakir  wakir-pilot
+198.51.100.10   spire-server-wakir  wakir-pilot
 EOF
 ```
 
@@ -354,18 +363,18 @@ dann automatisch:
 **Empfohlene Variante (Cross-VM auto-wired):**
 
 ```bash
-# In der Orbit-VM (Beispiel: wakir-pilot ist auf 192.168.178.116):
+# In der Orbit-VM (Beispiel: wakir-pilot ist auf 192.0.2.116):
 sudo env \
   WAKIR_SIDE=orbit \
   WAKIR_PILOT_MODE=federation \
   WAKIR_PEER_SIDE=wakir \
-  WAKIR_PEER_HOST=192.168.178.116 \
+  WAKIR_PEER_HOST=192.0.2.116 \
   WAKIR_ORG_ID=acme \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh
 # Erwartet: 8 Schritte gruen, Final-Smoke 6/6.
 #
 # Bonus: das Bootstrap installiert beim Schritt 6 automatisch eine
-# /etc/hosts-Entry: "192.168.178.116  spire-server-wakir".
+# /etc/hosts-Entry: "192.0.2.116  spire-server-wakir".
 # Der HTTPS-Endpoint des wakir-VM wird damit cross-VM erreichbar.
 ```
 
@@ -379,7 +388,7 @@ sudo env \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh
 
 # Dann Operator-Hand: /etc/hosts editieren, eine Zeile:
-#   192.168.178.116  spire-server-wakir
+#   192.0.2.116  spire-server-wakir
 # (Ersetze die IP durch den tatsaechlichen Peer-VM-Endpoint.)
 ```
 
@@ -426,7 +435,7 @@ sudo env \
   WAKIR_SIDE=wakir \
   WAKIR_PILOT_MODE=federation \
   WAKIR_PEER_SIDE=orbit \
-  WAKIR_PEER_HOST=192.168.178.191 \
+  WAKIR_PEER_HOST=192.0.2.191 \
   WAKIR_ORG_ID=acme \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh \
     --resume-from 6
@@ -482,7 +491,7 @@ jq '.keys | length' /tmp/wakir-bundle.jwks
 
 ```bash
 # Auf der Wakir-VM:
-scp /tmp/wakir-bundle.jwks core@10.0.42.11:/tmp/wakir-bundle.jwks
+scp /tmp/wakir-bundle.jwks core@198.51.100.11:/tmp/wakir-bundle.jwks
 ```
 
 ### 6.3 Orbit-Side: Wakir-Bundle als Federated-Bundle einspielen
@@ -509,7 +518,7 @@ sudo podman exec wakir-spire-server-federation-orbit \
 sudo podman exec wakir-spire-server-federation-orbit \
   /opt/spire/bin/spire-server bundle show -format spiffe \
     > /tmp/orbit-bundle.jwks
-scp /tmp/orbit-bundle.jwks core@10.0.42.10:/tmp/orbit-bundle.jwks
+scp /tmp/orbit-bundle.jwks core@198.51.100.10:/tmp/orbit-bundle.jwks
 
 # Auf der Wakir-VM:
 sudo podman exec -i wakir-spire-server-federation-wakir \
@@ -606,32 +615,32 @@ gruen gegen `WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443`.
 **Bootstrap-Sequenz (beide VMs, auto-wired):**
 
 ```bash
-# Schritt 1: wakir-orbit (192.168.178.191) auf federation-mode flashen.
-ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose root@192.168.178.191
+# Schritt 1: wakir-orbit (192.0.2.191) auf federation-mode flashen.
+ssh -i ~/.ssh/<operator-diagnose-key> root@192.0.2.191
 sudo systemctl stop wakir-spire-agent-orbit.service \
                    wakir-spire-server-federation-orbit.service
 sudo env \
   WAKIR_SIDE=orbit \
   WAKIR_PILOT_MODE=federation \
   WAKIR_PEER_SIDE=wakir \
-  WAKIR_PEER_HOST=192.168.178.116 \
+  WAKIR_PEER_HOST=192.0.2.116 \
   WAKIR_ORG_ID=acme \
   bash /opt/wakir-runtime/infra/spire/federation/wakir-pilot-bootstrap.sh \
     --resume-from 6
 sudo systemctl start wakir-spire-server-federation-orbit.service
 sudo systemctl start wakir-spire-agent-orbit.service
 
-# Schritt 2: wakir-pilot (192.168.178.116) — Option B aus Auftrag:
+# Schritt 2: wakir-pilot (192.0.2.116) — Option B aus Auftrag:
 #   wakir-pilot bleibt single-org als V2-Anchor. Kein Switch noetig.
 # Falls Option A (beide federation) oder Option C (beide federation
 # mit pre-snapshot-Backup) gewaehlt wird: analoger Aufruf auf
-# wakir-pilot mit WAKIR_PEER_SIDE=orbit, WAKIR_PEER_HOST=192.168.178.191.
+# wakir-pilot mit WAKIR_PEER_SIDE=orbit, WAKIR_PEER_HOST=192.0.2.191.
 
 # Schritt 3: Bundle-Sync (Operator-Hand, einmalig per CLI seed):
 # Folge §6 (Federation-Bundle-Sync) zwischen den beiden VMs.
 
 # Schritt 4: Smoke-Verify auf wakir-orbit:
-ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose root@192.168.178.191
+ssh -i ~/.ssh/<operator-diagnose-key> root@192.0.2.191
 sudo env \
   WAKIR_FEDERATION_MODE=enabled \
   /opt/wakir-runtime/bin/proxmox-bringup-smoke \
@@ -650,8 +659,8 @@ WAKIR_LIVE_PARTNER_URL=https://wakir-orbit:8443 \
 ```
 
 **Bei Fehler (Bring-up bricht):** SSH-Diagnose-Pfad ist via
-`/home/fred/.ssh/wakir-pilot-vm-diagnose` verfuegbar fuer beide VMs
-(root@192.168.178.191 = wakir-orbit, root@192.168.178.116 = wakir-pilot).
+`~/.ssh/<operator-diagnose-key>` verfuegbar fuer beide VMs
+(root@192.0.2.191 = wakir-orbit, root@192.0.2.116 = wakir-pilot).
 Live-Diagnose-Logs (analog Bug-26/27/28-Pattern) sammeln, Infra-Owner fixt
 source.
 

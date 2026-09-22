@@ -6,7 +6,7 @@
 **Date (UTC):** 2026-05-18T18:35Z
 **Sprint-Tag:** 42
 **Operator:** Amara Osei (QA-Engineer), via Mira-SSH-Hand (substance only)
-**Target VM:** `wakir-pilot` (192.168.178.116)
+**Target VM:** `wakir-pilot` ([redacted])
 **Welle:** 7 (`recovery_workflow`)
 **Probe-Script:** `scripts/phase-3c/welle-7-pre-cutover-probe.sh`
 **ADR-Authority:** ADR-0058 §Nachtrag (Mira-SSH-Hand), ADR-0065 §Welle-7
@@ -27,6 +27,17 @@ Auditor-Workflow)
 > the Phase-3-COMPLETE-Marker.
 
 ---
+
+> **Redaction notice — 2026-09-22.** The addresses of the operator's
+> pilot VMs, and the path to the operator's SSH diagnose key, were
+> removed from this report and replaced with `[redacted]` markers.
+> Nothing else was changed: no verdict, no timestamp, no command
+> output, no wording. A report is a record, so the edit is declared
+> here rather than made silently. The addresses were non-routable
+> (RFC1918) and the removal is topology hygiene, not an incident
+> response. The redaction applies to the working tree only; the
+> unredacted text remains in this repository's git history, which was
+> deliberately not rewritten.
 
 ## 1. Executive Summary
 

@@ -11,8 +11,8 @@
 # rotating an actual VM lifecycle (snapshot, image swap, quadlet
 # reload, post-rotation acceptance probe) is by construction
 # Operator-Hand. See ``feedback_sandbox_host_trennung.md``
-# — claude-dev never reaches a live 192.168.178.*
-# VM, and that boundary is hard.
+# — claude-dev never reaches a live VM on the operator
+# network, and that boundary is hard.
 #
 # What *can* be validated hermetically is the **rotation plan
 # state-machine**: the set of entry states, the transition table,

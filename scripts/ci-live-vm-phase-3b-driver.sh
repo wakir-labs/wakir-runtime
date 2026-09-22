@@ -364,9 +364,8 @@ exit_for_status() {
 # `tests/scripts/test_ci_live_vm_phase_3b_driver.py`. It reads the
 # verdict-shape from WAKIR_PHASE_3B_MOCK_* ENV-vars and emits a
 # fully-valid report without touching SSH or the Pilot-VM. This
-# matches the sandbox boundary: hermetic Sandbox cannot
-# reach 192.168.178.*, so any test surface for the driver must
-# bypass SSH.
+# matches the sandbox boundary: the hermetic Sandbox cannot reach the
+# operator LAN, so any test surface for the driver must bypass SSH.
 
 run_self_test_mode() {
   # Self-test mode lets the hermetic test suite inject every documented

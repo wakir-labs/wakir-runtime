@@ -6,13 +6,24 @@
 **Date (UTC):** 2026-05-18T18:35Z
 **Sprint-Tag:** 42
 **Operator:** Selin Çelik (Persona-Engine), via Mira-SSH-Hand
-**Target VM:** `wakir-pilot` (192.168.178.116)
+**Target VM:** `wakir-pilot` ([redacted])
 **Welle:** 2 (`svid_workload_identity`)
 **Probe-Script:** `scripts/phase-3c/welle-2-pre-cutover-probe.sh`
 **ADR-Authority:** ADR-0058 §Nachtrag (Mira-SSH-Hand), ADR-0065
 §Option-B (Phase-3c Cutover-Plan Welle-2), ADR-0066 (Doppel-Welle order)
 
 ---
+
+> **Redaction notice — 2026-09-22.** The addresses of the operator's
+> pilot VMs, and the path to the operator's SSH diagnose key, were
+> removed from this report and replaced with `[redacted]` markers.
+> Nothing else was changed: no verdict, no timestamp, no command
+> output, no wording. A report is a record, so the edit is declared
+> here rather than made silently. The addresses were non-routable
+> (RFC1918) and the removal is topology hygiene, not an incident
+> response. The redaction applies to the working tree only; the
+> unredacted text remains in this repository's git history, which was
+> deliberately not rewritten.
 
 ## 1. Executive Summary
 
@@ -105,9 +116,9 @@ this section.
 ## 4. Probe-Run-Log
 
 ```
-$ timeout 8 ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose \
+$ timeout 8 ssh -i [redacted-key-path] \
     -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
-    root@192.168.178.116 "echo CONNECTED"
+    root@[redacted] "echo CONNECTED"
 [Tag-41 attempt log per PR #267 §4: classifier denies the deeper
 read — same boundary applies for Welle-2 SVID-Workload-Identity
 content reads. Operator-hand replay outside the classifier is the

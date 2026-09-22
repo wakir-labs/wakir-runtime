@@ -325,7 +325,7 @@ def test_known_bug20_lines_have_relabel_flag() -> None:
 # Bug-26 —:U-Flag-Disziplin (Volume-Chown-on-Mount)
 # ====================================================================
 #
-# AR-Live-Diagnose 2026-05-15 ~01:35 UTC auf Pilot-VM 192.168.178.116
+# AR-Live-Diagnose 2026-05-15 ~01:35 UTC auf der Pilot-VM
 # via operator-SSH (ADR-0051-Revision):
 #
 # 01:34:57 Owner=1000:1000 Mtime=01:34:57 (Bootstrap-chown OK)

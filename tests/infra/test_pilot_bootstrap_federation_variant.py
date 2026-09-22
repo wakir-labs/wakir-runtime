@@ -238,7 +238,7 @@ def test_peer_side_validation_rejects_symbols() -> None:
 def test_peer_host_validation_rejects_symbols() -> None:
     proc = _run_bootstrap_validation({
         "WAKIR_PILOT_MODE": "federation",
-        "WAKIR_PEER_HOST": "10.0.42.10; rm -rf /",
+        "WAKIR_PEER_HOST": "198.51.100.10; rm -rf /",
     })
     assert proc.returncode == 1, (
         f"WAKIR_PEER_HOST with a semicolon must be rejected; got rc={proc.returncode}"
@@ -263,7 +263,7 @@ def test_peer_side_accepts_valid_literals_in_help() -> None:
         "WAKIR_PILOT_MODE": "federation",
         "WAKIR_SIDE": "orbit",
         "WAKIR_PEER_SIDE": "wakir",
-        "WAKIR_PEER_HOST": "192.168.178.116",
+        "WAKIR_PEER_HOST": "192.0.2.116",
     })
     assert proc.returncode == 0, (
         f"valid peer-side/host must be accepted; got rc={proc.returncode}\n"
@@ -325,7 +325,7 @@ def test_peer_host_entry_skipped_in_single_org(tmp_path: Path) -> None:
         {
             "WAKIR_PILOT_MODE": "single-org",
             "WAKIR_PEER_SIDE": "wakir",
-            "WAKIR_PEER_HOST": "192.168.178.116",
+            "WAKIR_PEER_HOST": "192.0.2.116",
             "WAKIR_SIDE": "orbit",
             "WAKIR_SKIP_PROMPTS": "1",
         },
@@ -366,14 +366,14 @@ def test_peer_host_entry_appended_in_federation(tmp_path: Path) -> None:
             "WAKIR_PILOT_MODE": "federation",
             "WAKIR_SIDE": "orbit",
             "WAKIR_PEER_SIDE": "wakir",
-            "WAKIR_PEER_HOST": "192.168.178.116",
+            "WAKIR_PEER_HOST": "192.0.2.116",
             "WAKIR_SKIP_PROMPTS": "1",
         },
         hosts,
     )
     assert proc.returncode == 0, proc.stderr
     body = hosts.read_text(encoding="utf-8")
-    assert "192.168.178.116" in body
+    assert "192.0.2.116" in body
     assert "spire-server-wakir" in body
     assert "# wakir-bootstrap: peer-side wakir" in body
 
@@ -385,7 +385,7 @@ def test_peer_host_entry_idempotent(tmp_path: Path) -> None:
         "WAKIR_PILOT_MODE": "federation",
         "WAKIR_SIDE": "orbit",
         "WAKIR_PEER_SIDE": "wakir",
-        "WAKIR_PEER_HOST": "192.168.178.116",
+        "WAKIR_PEER_HOST": "192.0.2.116",
         "WAKIR_SKIP_PROMPTS": "1",
     }
     # First run: append.
@@ -413,21 +413,21 @@ def test_peer_host_entry_updates_ip_on_override(tmp_path: Path) -> None:
         "WAKIR_PILOT_MODE": "federation",
         "WAKIR_SIDE": "orbit",
         "WAKIR_PEER_SIDE": "wakir",
-        "WAKIR_PEER_HOST": "10.0.42.10",
+        "WAKIR_PEER_HOST": "198.51.100.10",
         "WAKIR_SKIP_PROMPTS": "1",
     }
     proc1 = _invoke_peer_host_entry(env_v1, hosts)
     assert proc1.returncode == 0
     body1 = hosts.read_text(encoding="utf-8")
-    assert "10.0.42.10" in body1
+    assert "198.51.100.10" in body1
 
     # Operator-Hand IP override.
-    env_v2 = {**env_v1, "WAKIR_PEER_HOST": "192.168.178.116"}
+    env_v2 = {**env_v1, "WAKIR_PEER_HOST": "192.0.2.116"}
     proc2 = _invoke_peer_host_entry(env_v2, hosts)
     assert proc2.returncode == 0
     body2 = hosts.read_text(encoding="utf-8")
-    assert "192.168.178.116" in body2
-    assert "10.0.42.10" not in body2
+    assert "192.0.2.116" in body2
+    assert "198.51.100.10" not in body2
     assert body2.count("spire-server-wakir") == 1
 
 
@@ -437,21 +437,21 @@ def test_peer_host_entry_preserves_manual_entry(tmp_path: Path) -> None:
     touch the line. Operator-Hand-owned entries are sacrosanct."""
     hosts = tmp_path / "hosts"
     hosts.write_text(
-        "127.0.0.1\tlocalhost\n10.99.99.99\tspire-server-wakir # operator-managed\n",
+        "127.0.0.1\tlocalhost\n203.0.113.99\tspire-server-wakir # operator-managed\n",
         encoding="utf-8",
     )
     env = {
         "WAKIR_PILOT_MODE": "federation",
         "WAKIR_SIDE": "orbit",
         "WAKIR_PEER_SIDE": "wakir",
-        "WAKIR_PEER_HOST": "192.168.178.116",
+        "WAKIR_PEER_HOST": "192.0.2.116",
         "WAKIR_SKIP_PROMPTS": "1",
     }
     proc = _invoke_peer_host_entry(env, hosts)
     assert proc.returncode == 0, proc.stderr
     body = hosts.read_text(encoding="utf-8")
     # The operator-managed line stays untouched.
-    assert "10.99.99.99\tspire-server-wakir # operator-managed" in body
+    assert "203.0.113.99\tspire-server-wakir # operator-managed" in body
     # The bootstrap did NOT add a second line.
     assert body.count("spire-server-wakir") == 1
-    assert "192.168.178.116" not in body
+    assert "192.0.2.116" not in body

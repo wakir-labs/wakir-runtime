@@ -90,8 +90,8 @@ The live fetcher accepts two TLS modes via the constructor:
    CAs. This is the boring-default for any production federation.
 2. ``insecure_tls`` (Phase-2c-pilot only): boolean. When ``True``,
    the fetcher disables certificate validation entirely. This is
-   the **pilot-stand** posture of the pilot stand: the two pilot VMs (wakir-pilot 192.168.178.116 and
-   wakir-orbit 192.168.178.191) currently run with self-signed
+   the **pilot-stand** posture of the pilot stand: the two pilot VMs
+   (``wakir-pilot`` and ``wakir-orbit``) currently run with self-signed
    SPIRE-Server certs and no shared CA-bootstrap path yet. The
    ``insecure_tls=True`` mode is gated by an explicit constructor
    argument so that no production caller can fall into it by

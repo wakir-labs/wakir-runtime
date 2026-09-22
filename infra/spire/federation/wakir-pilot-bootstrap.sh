@@ -56,10 +56,12 @@
 #                             Federation-mode only. Peer VM's IP for
 #                             the /etc/hosts auto-install. For the
 #                             home-LAN dogfood topology this is the
-#                             peer VM's LAN IP (e.g. ``192.168.178.116``).
+#                             peer VM's LAN IP (e.g. ``192.0.2.116``).
 #                             For the Proxmox-internal bridge topology
 #                             this is the bridge-internal IP (e.g.
-#                             ``10.0.42.10``).
+#                             ``198.51.100.10``). Both examples are RFC
+#                             5737 documentation addresses — substitute
+#                             the real one for your topology.
 #   WAKIR_REPO_BRANCH         default: main
 #   WAKIR_REPO_URL            default: https://github.com/wakir-labs/wakir-runtime.git
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
@@ -281,7 +283,7 @@ esac
 #   WAKIR_PEER_SIDE           e.g. ``wakir`` (peer trust-domain side
 #                             literal; mirror of --peer-side in the
 #                             proxmox-bringup-smoke script).
-#   WAKIR_PEER_HOST           e.g. ``192.168.178.116`` (the peer VM's
+#   WAKIR_PEER_HOST           e.g. ``192.0.2.116`` (the peer VM's
 #                             reachable IP — LAN-direct for the
 #                             home-LAN dogfood topology, or the
 #                             Proxmox-internal bridge IP).

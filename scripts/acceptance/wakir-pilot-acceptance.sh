@@ -45,7 +45,8 @@
 # Same as ``federation-live-vm-acceptance.sh``: this script DOES NOT
 # run in the claude-dev Sandbox. It runs on an operator-controlled
 # host (operator-hand) that has SSH access to the Pilot-VM. The Sandbox
-# cannot reach 192.168.178.* — see ``feedback_sandbox_host_trennung.md``.
+# cannot reach the operator LAN at all — see the sandbox/host-operations
+# boundary note in the operations docs.
 #
 # Invocation
 # ----------
@@ -64,7 +65,11 @@
 #                             {federation, single-org}
 #   WAKIR_SIDE                default: orbit  (federation-mode)
 #   WAKIR_PEER_SIDE           default: wakir  (federation-mode)
-#   WAKIR_PEER_HOST           default: 192.168.178.116
+#   WAKIR_PEER_HOST           REQUIRED in federation-mode, no default.
+#                             The peer VM's address on the operator
+#                             network, e.g. 192.0.2.116 (RFC 5737
+#                             documentation range; substitute the real
+#                             one). Unset in federation-mode aborts.
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 1  (DEV-ONLY)
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
 #
@@ -83,7 +88,11 @@ set -eu -o pipefail
 WAKIR_PILOT_MODE="${WAKIR_PILOT_MODE:-federation}"
 WAKIR_SIDE="${WAKIR_SIDE:-orbit}"
 WAKIR_PEER_SIDE="${WAKIR_PEER_SIDE:-wakir}"
-WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-192.168.178.116}"
+# No default. A concrete peer address baked into a script published in a
+# public repository is operator-topology, and the previous default was
+# exactly that. Federation-mode therefore demands it explicitly; the
+# abort below says what to set. single-org mode never reads it.
+WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-}"
 WAKIR_SKIP_COSIGN_VERIFY="${WAKIR_SKIP_COSIGN_VERIFY:-1}"
 WAKIR_REPO_ROOT="${WAKIR_REPO_ROOT:-/opt/wakir-runtime}"
 
@@ -105,6 +114,14 @@ fi
 
 case "$WAKIR_PILOT_MODE" in
   federation)
+    if [[ -z "$WAKIR_PEER_HOST" ]]; then
+      fail "WAKIR_PEER_HOST is not set, and federation-mode needs the peer VM's address.
+  Set it to the peer VM's address on your operator network and re-run, e.g.
+
+      WAKIR_PEER_HOST=<peer-vm-address> sudo -E bash $0
+
+  Single-org mode does not need it; set WAKIR_PILOT_MODE=single-org instead."
+    fi
     fed_script="${WAKIR_REPO_ROOT}/scripts/federation-live-vm-acceptance.sh"
     if [[ ! -f "$fed_script" ]]; then
       fail "federation acceptance script not found at $fed_script" 1

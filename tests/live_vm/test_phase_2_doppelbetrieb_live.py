@@ -10,7 +10,7 @@ already on main (``tests/infra/test_pilot_phase_e2e_smoke.py`` and
 ``tests/infra/test_ci_live_vm_acceptance_wrapper.py``) by closing
 the operator-side gap documented in
 ``feedback_live_bringup_sandbox_gap.md``: hermetic-Sandbox tests
-cannot reach an SSH-driven 192.168.178.* target, but the
+cannot reach an SSH-driven operator-LAN target, but the
 substance-bugs that have repeatedly slipped through the Sandbox can
 only be caught by exercising the live-target invariants.
 
@@ -134,15 +134,27 @@ SshRunner = Callable[[str, str], tuple[int, str, str]]
 
 @pytest.fixture
 def pilot_vm_host() -> str:
-    """The Pilot-VM target host.
+    """The Pilot-VM target host, named by the operator.
 
-    Defaults to the wakir-pilot side per topology,
-    overridable via ``WAKIR_PEER_HOST`` to mirror the operator-script
-    invocation. The default is intentionally an RFC1918 address so a
-    careless live-run cannot exfiltrate.
+    ``WAKIR_PEER_HOST`` is mandatory and has no default, mirroring the
+    operator-script invocation. It used to default to the address of
+    the operator's own pilot VM, justified in this docstring as
+    "intentionally an RFC1918 address so a careless live-run cannot
+    exfiltrate" — which answers the wrong question. Non-routable
+    protects the *run*; it does nothing for the address itself, which
+    was published in a public repository for four months.
+
+    Unset means the operator has not said what to run against, so the
+    test skips rather than probing a host nobody named.
     """
 
-    return os.environ.get("WAKIR_PEER_HOST", "192.168.178.116")
+    host = os.environ.get("WAKIR_PEER_HOST", "").strip()
+    if not host:
+        pytest.skip(
+            "WAKIR_PEER_HOST is not set. This live lane needs an explicit "
+            "target; set WAKIR_PEER_HOST=<pilot-vm-address> to run it."
+        )
+    return host
 
 
 @pytest.fixture

@@ -336,7 +336,7 @@ def test_vm_down_dispatches_proxmox_via_fake_qm(tmp_path: Path) -> None:
             """\
             WAKIR_E2E_VM_NAME=wakir-pilot-e2e-fake
             WAKIR_E2E_VM_PROVIDER=proxmox
-            WAKIR_E2E_VM_IP=10.0.0.42
+            WAKIR_E2E_VM_IP=192.0.2.42
             WAKIR_E2E_SSH_KEY=/dev/null
             WAKIR_E2E_DESTROY_HANDLE=proxmox:999
             WAKIR_E2E_STATE_DIR=%s
