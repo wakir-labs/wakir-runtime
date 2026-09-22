@@ -88,7 +88,7 @@ PublishPort=127.0.0.1:8222:8222
 # on JetStream-store creation. Bug-20 was observed on the SPIRE-Agent
 # path (Bring-up-4 crash-loop, AR Fred 2026-05-14); the same root-
 # cause applies to every named-volume Quadlet on this host.
-Volume=wakir-nats-jetstream-data.volume:/data/jetstream:Z
+Volume=wakir-nats-jetstream-data.volume:/data/jetstream:Z,U
 
 # User-defined bridge network for orchestrator co-location (defined in
 # wakir-orchestrator.network sidecar).
@@ -99,6 +99,25 @@ Network=wakir-orchestrator.network
 # the default unprivileged port mapping.
 DropCapability=ALL
 NoNewPrivileges=true
+
+# Run as uid:gid 1000:1000.
+#
+# The nats:2.11-alpine image declares no USER, so without this the
+# container runs as root -- and with DropCapability=ALL it runs as a
+# root that has no CAP_DAC_OVERRIDE. The bootstrap chowns the
+# JetStream volume to 1000:1000 (_pre_start_chown_sweep, kind=nats),
+# so that root cannot write into its own store directory:
+#
+#   [FTL] Can't start JetStream: storage directory is not writable
+#
+# Measured on the pilot VM 2026-09-22: the running container survived
+# only because nothing ever restarted it after the chown. The first
+# converged step-6 run applied the installed unit and NATS died. Unit
+# and volume ownership have to agree; 1000:1000 is the side the SPIRE
+# units already stand on (User=1000/Group=1000) and the side the
+# on-disk data is already owned by.
+User=1000
+Group=1000
 
 # Resource envelope. Unlike compose v2 `deploy.resources` (advisory
 # only outside Swarm), Quadlet maps these cleanly to cgroup-v2 limits

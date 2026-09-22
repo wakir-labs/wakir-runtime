@@ -597,6 +597,7 @@ EOF
     "grep"       # used in step 6/7 unit-state checks
     "awk"        # legacy callers + journal parsers
     "cmp"        # _install_substituted idempotency comparator
+    "sha256sum"  # step-6 applied-state fingerprint (convergence)
     "install"    # step 6/7 unit installs
     "mktemp"     # resolver atomic rewrite
     "stat"       # resolver mode-preserve
@@ -1163,9 +1164,14 @@ _pre_start_chown_sweep() {
       )
       ;;
     nats)
-      # Mirror of wakir-nats.container Volume= line. NATS runs as
-      # uid:1000 too (compose parity). The bucket-init service is a
-      # one-shot client and does not mount its own volume.
+      # Mirror of wakir-nats.container Volume= line. The NATS Quadlet
+      # pins User=1000/Group=1000 -- note that compose/nats.yaml does
+      # NOT (it leaves the image's root default and a root-owned
+      # volume). The two tracks differ here, and this chown belongs to
+      # the Quadlet track: uid 1000 must own the JetStream store or
+      # NATS aborts with "storage directory is not writable". The
+      # bucket-init service is a one-shot client and does not mount its
+      # own volume.
       vols=(
         "wakir-nats-jetstream-data"
       )
@@ -1394,6 +1400,378 @@ _install_peer_host_entry() {
 }
 
 # ---------------------------------------------------------------------------
+# Step-6 convergence substrate: "installed" is not "applied"
+#
+# Measured evidence (Operator-Hand, Live-VM, 2026-09-21/22): step 6
+# rendered a Quadlet unit, wrote it to /etc/containers/systemd, ran
+# ``systemctl daemon-reload``, found the service ``active`` and then
+# SKIPPED the start -- logging ``OK <unit> already active``. The unit
+# file on disk carried ``PublishPort=0.0.0.0:8443:8443`` while the
+# running container still bound ``127.0.0.1:8443``, because that
+# container had been created two runs earlier. ``ss -ltn`` and the
+# unit file disagreed; the log said OK. A ``systemctl restart`` made
+# the installed directive live immediately.
+#
+# Generalised: every Quadlet change -- image pin, mount, env,
+# resource limit, PublishPort -- could be installed, logged OK and
+# never applied. The bootstrap was idempotent, not convergent.
+#
+# The substrate below closes that gap with two independent
+# change-signals per service unit:
+#
+#   1. In-run signal. Every step-6 install path goes through
+#      ``_install_if_changed``. Where ``cmp -s`` fails and ``install``
+#      runs, the owning service unit is marked via
+#      ``_note_config_change`` -> ``_mark_unit_changed``. Precise and
+#      state-free, but blind to a change made by an EARLIER run.
+#   2. Applied-state fingerprint. After a successful start/restart
+#      ``_record_unit_applied`` writes the SHA-256 of every file that
+#      defines the unit (Quadlet ``.container``, the bind-mounted
+#      config file, the referenced ``.volume`` / ``.network`` units)
+#      to ``<applied-state-dir>/<unit>.applied``. The next run
+#      compares the current fingerprint against that record. This is
+#      the signal that catches the 2026-09-21 case, where the unit
+#      came from run N-1 and the container from run N-2.
+#
+# Why a content fingerprint and not the unit-file mtime: mtime says
+# nothing about content (an operator ``touch``; a re-render that
+# produced identical bytes), and a container that systemd restarted
+# on its own AFTER the file changed but BEFORE the daemon-reload
+# would look newer than a unit it never applied. The fingerprint
+# compares what is installed against what was last known to run.
+#
+# Cost, stated plainly: on the FIRST run after this change no unit has
+# a record, so every running unit counts as "convergence state
+# unknown" and is restarted once. That one-time convergence pass is
+# deliberate -- on a substrate where an unapplied unit may have been
+# sitting there for months, "assume it is fine" is the assumption that
+# produced this bug. From the second run on, a run without a change
+# restarts nothing.
+#
+# Env overrides (hermetic tests; production uses the defaults):
+#   WAKIR_BOOTSTRAP_QUADLET_DIR       default /etc/containers/systemd
+#   WAKIR_BOOTSTRAP_ETC_DIR           default /etc/wakir
+#   WAKIR_BOOTSTRAP_APPLIED_STATE_DIR default /var/lib/wakir/bootstrap/applied
+# ---------------------------------------------------------------------------
+
+# Newline-delimited set of service units whose on-disk definition this
+# run rewrote. Populated by _mark_unit_changed, read by
+# _unit_definition_drifted.
+WAKIR_CHANGED_UNITS=""
+
+# Human-readable reason why the last _unit_definition_drifted call
+# returned "needs applying". Surfaced in the OK line so the operator
+# sees WHY a restart happened.
+_WAKIR_CONVERGE_REASON=""
+
+_applied_state_dir() {
+  printf '%s' "${WAKIR_BOOTSTRAP_APPLIED_STATE_DIR:-/var/lib/wakir/bootstrap/applied}"
+}
+
+_quadlet_dir() {
+  printf '%s' "${WAKIR_BOOTSTRAP_QUADLET_DIR:-/etc/containers/systemd}"
+}
+
+_wakir_etc_dir() {
+  printf '%s' "${WAKIR_BOOTSTRAP_ETC_DIR:-/etc/wakir}"
+}
+
+# Mark a service unit as "its definition was rewritten in this run".
+# Idempotent; logs once per unit.
+_mark_unit_changed() {
+  local unit="$1"
+  case "${WAKIR_CHANGED_UNITS}" in
+    *"|${unit}|"*) return 0 ;;
+  esac
+  WAKIR_CHANGED_UNITS="${WAKIR_CHANGED_UNITS}|${unit}|"
+  log_note "definition changed in this run: ${unit} (will be applied, not just installed)"
+  return 0
+}
+
+_unit_is_marked_changed() {
+  local unit="$1"
+  case "${WAKIR_CHANGED_UNITS}" in
+    *"|${unit}|"*) return 0 ;;
+  esac
+  return 1
+}
+
+# Map a just-written config path to the service unit(s) it defines.
+# Emits one unit name per line; empty output = file belongs to no
+# service unit we start here (then nothing is marked).
+_units_for_config_path() {
+  local base
+  base="$(basename "$1")"
+  local side="${WAKIR_SIDE}"
+  local server_unit="wakir-spire-server-federation-${side}.service"
+  local agent_unit="wakir-spire-agent-${side}.service"
+  local nats_unit="wakir-nats.service"
+  case "$base" in
+    "wakir-spire-server-federation-${side}.container" \
+      |"spire-server-${side}.conf")
+      printf '%s\n' "$server_unit"
+      ;;
+    "wakir-spire-agent-${side}.container" \
+      |"spire-agent-${side}.conf")
+      printf '%s\n' "$agent_unit"
+      ;;
+    "wakir-nats.container")
+      printf '%s\n' "$nats_unit"
+      ;;
+    "wakir-spire-server-federation-${side}-"*.volume)
+      # The agent mounts the server's bundles volume read-only.
+      printf '%s\n' "$server_unit" "$agent_unit"
+      ;;
+    "wakir-spire-agent-${side}-"*.volume)
+      printf '%s\n' "$agent_unit"
+      ;;
+    "wakir-nats-"*.volume)
+      printf '%s\n' "$nats_unit"
+      ;;
+    *.network)
+      # A changed network definition needs every container on that
+      # network re-created, not just re-declared.
+      printf '%s\n' "$server_unit" "$agent_unit" "$nats_unit"
+      ;;
+    *)
+      : # not a definition of a unit this step starts
+      ;;
+  esac
+}
+
+# Record that <path> was (re)written in this run.
+_note_config_change() {
+  local path="$1"
+  local unit
+  while IFS= read -r unit; do
+    [[ -n "$unit" ]] || continue
+    _mark_unit_changed "$unit"
+  done < <(_units_for_config_path "$path")
+  return 0
+}
+
+# Content-idempotent install with a change-signal.
+#
+# Bug 5 kept the "do not overwrite an identical file" guard; Bug-40
+# adds the other half: where the guard does NOT hold, the write is
+# recorded so step 6h/6j can apply it instead of installing it and
+# hoping.
+_install_if_changed() {
+  local src="$1"
+  local target="$2"
+  if [[ -f "$target" ]] && cmp -s "$src" "$target"; then
+    return 0
+  fi
+  install -m 644 "$src" "$target" || return 1
+  _note_config_change "$target"
+  return 0
+}
+
+# Read the join-token that step 6i injected into an already-installed
+# agent unit. Empty output when the file is absent or still carries the
+# placeholder. See the call site in step 6d for why this exists.
+_carried_join_token() {
+  local unit_file="$1"
+  if [[ ! -f "$unit_file" ]]; then
+    return 0
+  fi
+  local tok
+  tok=$(sed -n \
+    's/^Exec=.*-joinToken[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*$/\1/p' \
+    "$unit_file" | head -1)
+  if [[ "$tok" == "WAKIR_JOIN_TOKEN_PLACEHOLDER" ]]; then
+    return 0
+  fi
+  printf '%s' "$tok"
+  return 0
+}
+
+# Every file that defines <unit>. Missing files are fine (they are
+# fingerprinted as "absent", which is itself a state worth noticing).
+_unit_tracked_files() {
+  local unit="$1"
+  local side="${WAKIR_SIDE}"
+  local qdir edir
+  qdir="$(_quadlet_dir)"
+  edir="$(_wakir_etc_dir)"
+  case "$unit" in
+    "wakir-spire-server-federation-${side}.service")
+      printf '%s\n' \
+        "${qdir}/wakir-spire-server-federation-${side}.container" \
+        "${edir}/spire-federation/spire-server-${side}.conf" \
+        "${qdir}/wakir-spire-server-federation-${side}-data.volume" \
+        "${qdir}/wakir-spire-server-federation-${side}-sockets.volume" \
+        "${qdir}/wakir-spire-server-federation-${side}-bundles.volume" \
+        "${qdir}/wakir-orchestrator.network" \
+        "${qdir}/wakir-federation.network"
+      ;;
+    "wakir-spire-agent-${side}.service")
+      printf '%s\n' \
+        "${qdir}/wakir-spire-agent-${side}.container" \
+        "${edir}/spire-agent-${side}.conf" \
+        "${qdir}/wakir-spire-agent-${side}-data.volume" \
+        "${qdir}/wakir-spire-agent-${side}-sockets.volume" \
+        "${qdir}/wakir-spire-server-federation-${side}-bundles.volume" \
+        "${qdir}/wakir-orchestrator.network" \
+        "${qdir}/wakir-federation.network"
+      ;;
+    "wakir-nats.service")
+      printf '%s\n' \
+        "${qdir}/wakir-nats.container" \
+        "${qdir}/wakir-nats-jetstream-data.volume" \
+        "${qdir}/wakir-orchestrator.network"
+      ;;
+    *)
+      : # unknown unit -> empty fingerprint, handled by the caller
+      ;;
+  esac
+}
+
+# SHA-256 fingerprint of a unit's definition set, one line per file,
+# sorted by path so the output is stable across runs.
+_unit_config_fingerprint() {
+  local unit="$1"
+  local f h
+  while IFS= read -r f; do
+    [[ -n "$f" ]] || continue
+    if [[ -f "$f" ]]; then
+      h="$(sha256sum < "$f")"
+      h="${h%% *}"
+    else
+      h="absent"
+    fi
+    printf '%s  %s\n' "$h" "${f##*/}"
+  done < <(_unit_tracked_files "$unit" | LC_ALL=C sort)
+}
+
+# Persist "this definition is what the running container was created
+# from". Called ONLY after a successful start/restart, or when the
+# running unit was verified in sync.
+#
+# A failure to persist is a warning, never a hard stop: the worst case
+# is that the next run cannot tell installed from applied and restarts
+# once more. Failing the bring-up over a bookkeeping file would be the
+# wrong trade.
+_record_unit_applied() {
+  local unit="$1"
+  local dir
+  dir="$(_applied_state_dir)"
+  if ! install -d -m 700 "$dir" 2>/dev/null; then
+    log_warn "applied-state dir ${dir} not writable; next run cannot tell installed from applied"
+    return 0
+  fi
+  local tmp
+  tmp="$(mktemp)" || return 0
+  if ! _unit_config_fingerprint "$unit" > "$tmp"; then
+    rm -f "$tmp"
+    log_warn "could not fingerprint ${unit}; applied-state not recorded"
+    return 0
+  fi
+  if ! install -m 600 "$tmp" "${dir}/${unit}.applied"; then
+    log_warn "applied-state record for ${unit} not written"
+  fi
+  rm -f "$tmp"
+  return 0
+}
+
+# Does the installed definition of <unit> still need to be applied?
+#
+# Returns 0 (yes, restart) with _WAKIR_CONVERGE_REASON set, or 1 (no,
+# the running container was created from exactly this definition).
+_unit_definition_drifted() {
+  local unit="$1"
+  local stamp
+  stamp="$(_applied_state_dir)/${unit}.applied"
+
+  if _unit_is_marked_changed "$unit"; then
+    _WAKIR_CONVERGE_REASON="definition rewritten in this run"
+    return 0
+  fi
+  if [[ ! -f "$stamp" ]]; then
+    _WAKIR_CONVERGE_REASON="no applied-state record: running configuration unverifiable"
+    return 0
+  fi
+  if ! _unit_config_fingerprint "$unit" | cmp -s - "$stamp"; then
+    _WAKIR_CONVERGE_REASON="installed definition differs from the last applied one (change from an earlier run)"
+    return 0
+  fi
+  _WAKIR_CONVERGE_REASON="installed definition equals the applied one"
+  return 1
+}
+
+# Converge one service unit: start it if it is not running, restart it
+# if it runs from a definition other than the installed one, leave it
+# alone if it is in sync.
+#
+# Args:
+#   $1  unit name
+#   $2  kind for _pre_start_chown_sweep (server|agent|nats|"")
+#
+# Returns:
+#   0  unit is running from the installed definition
+#   2  hard failure (caller MUST propagate)
+#
+# The Bug-25 wait points run on BOTH the start and the restart path --
+# a restart re-opens exactly the same activating/socket-bind race as a
+# cold start.
+_converge_service_unit() {
+  local unit="$1"
+  local kind="$2"
+  local side="${WAKIR_SIDE}"
+  local action=""
+
+  if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
+    action="start"
+    _WAKIR_CONVERGE_REASON="unit not running"
+  elif _unit_definition_drifted "$unit"; then
+    action="restart"
+  else
+    log_ok "${unit} active, running configuration matches the installed unit (${_WAKIR_CONVERGE_REASON}; no restart)"
+    _record_unit_applied "$unit"
+    return 0
+  fi
+
+  if [[ "$kind" == "agent" ]]; then
+    # Refuse to apply an agent unit that still carries the join-token
+    # placeholder. Before convergence this was survivable by accident:
+    # the unit was never applied, so nobody noticed that step 6i had
+    # left it incoherent -- until a VM reboot started the agent with
+    # ``-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER`` and it crash-looped
+    # (Bug-37). Now that the bootstrap applies what it installs, that
+    # unit must not be applied; it must be reported.
+    local agent_unit_file
+    agent_unit_file="$(_quadlet_dir)/wakir-spire-agent-${side}.container"
+    if [[ -f "$agent_unit_file" ]] \
+       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_unit_file"; then
+      log_err "${unit}: installed unit still carries WAKIR_JOIN_TOKEN_PLACEHOLDER -- refusing to ${action} the agent into it"
+      log_note "step 6i must inject a join-token before the agent unit is applied"
+      log_note "diagnose: grep -n joinToken ${agent_unit_file}"
+      return 2
+    fi
+  fi
+
+  if [[ -n "$kind" ]]; then
+    # Bug-22 defensive re-chown immediately before the
+    # start: podman reconciles volume ownership at container create,
+    # and a restart creates a new container.
+    _pre_start_chown_sweep "$kind" "$side" || return 2
+  fi
+  "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$unit" 2>/dev/null || true
+  if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" "$action" "$unit"; then
+    log_err "systemctl ${action} ${unit} failed"
+    log_note "diagnose: journalctl -u ${unit} -n 50 --no-pager"
+    return 2
+  fi
+  log_ok "${unit} ${action} issued (${_WAKIR_CONVERGE_REASON})"
+  _wait_for_service_active "$unit" || return 2
+  if [[ "$kind" == "agent" ]]; then
+    _wait_for_workload_api_socket "wakir-spire-agent-${side}" || return 2
+  fi
+  _record_unit_applied "$unit"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Step 6: Quadlet units
 # ---------------------------------------------------------------------------
 
@@ -1407,7 +1785,7 @@ step_6_quadlet() {
   local quadlet_src="${WAKIR_REPO_ROOT}/quadlet"
   local fed_src="${WAKIR_REPO_ROOT}/infra/spire/federation/quadlet"
   local agent_src="${WAKIR_REPO_ROOT}/infra/spire/agent/quadlet"
-  local dst="/etc/containers/systemd"
+  local dst="${WAKIR_BOOTSTRAP_QUADLET_DIR:-/etc/containers/systemd}"
   # Cross-VM-Federation substance: side is no longer
   # hardcoded; the WAKIR_SIDE env-var (validated in the post-defaults
   # block) drives Quadlet-naming, config-file selection, and the
@@ -1433,11 +1811,10 @@ step_6_quadlet() {
     local tmp
     tmp=$(mktemp)
     sed "$@" "$src" > "$tmp" || { rm -f "$tmp"; return 1; }
-    if [[ -f "$target" ]] && cmp -s "$tmp" "$target"; then
-      rm -f "$tmp"
-      return 0
-    fi
-    install -m 644 "$tmp" "$target" || { rm -f "$tmp"; return 1; }
+    # Bug-40: the write-or-skip decision AND the
+    # change-signal it emits live in _install_if_changed, so every
+    # step-6 install path feeds the same convergence bookkeeping.
+    _install_if_changed "$tmp" "$target" || { rm -f "$tmp"; return 1; }
     rm -f "$tmp"
     return 0
   }
@@ -1450,10 +1827,7 @@ step_6_quadlet() {
   do
     if [[ -f "$f" ]]; then
       local target="$dst/$(basename "$f")"
-      if [[ -f "$target" ]] && cmp -s "$f" "$target"; then
-        continue
-      fi
-      install -m 644 "$f" "$target" \
+      _install_if_changed "$f" "$target" \
         || { log_err "install $f failed"; return 2; }
     fi
   done
@@ -1482,10 +1856,7 @@ step_6_quadlet() {
   for v in "${quadlet_src}"/*.volume; do
     [[ -f "$v" ]] || continue
     local target="$dst/$(basename "$v")"
-    if [[ -f "$target" ]] && cmp -s "$v" "$target"; then
-      continue
-    fi
-    install -m 644 "$v" "$target" \
+    _install_if_changed "$v" "$target" \
       || { log_err "install $v failed"; return 2; }
   done
 
@@ -1622,8 +1993,32 @@ step_6_quadlet() {
         -e "\|wakir-spire-server-federation-<SIDE>-bundles\.volume:/var/lib/spire/bundles:ro|d"
       )
     fi
+    # Bug-40 corollary -- join-token round-trip. Step 6i
+    # seds the ISSUED join-token into the installed unit, so the
+    # installed file can never equal a freshly rendered template (which
+    # carries ``WAKIR_JOIN_TOKEN_PLACEHOLDER``). Under the pre-Bug-40
+    # "start only if stopped" logic that was invisible: every re-run
+    # rewrote the unit back to the placeholder and the placeholder
+    # version was simply never applied -- until the next VM reboot,
+    # where systemd would start the agent with
+    # ``-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER`` (the Bug-37
+    # crash-loop, armed and waiting). With convergence the same rewrite
+    # would restart the agent into that broken unit on EVERY run.
+    #
+    # Fix: carry the live token over into the render. A re-run then
+    # produces a byte-identical file (no change signal, no restart),
+    # and a genuine template change is rendered WITH the live token.
+    local agent_quadlet_installed="${dst}/wakir-spire-agent-${side}.container"
+    local carried_token
+    carried_token="$(_carried_join_token "$agent_quadlet_installed")"
+    if [[ -n "$carried_token" ]]; then
+      agent_sed_args+=(
+        -e "s|WAKIR_JOIN_TOKEN_PLACEHOLDER|${carried_token}|g"
+      )
+      log_note "carried live join-token into the agent-unit render (no spurious rewrite)"
+    fi
     _install_substituted "$agent_tpl" \
-        "${dst}/wakir-spire-agent-${side}.container" \
+        "$agent_quadlet_installed" \
         "${agent_sed_args[@]}" \
       || { log_err "install $agent_tpl failed"; return 2; }
 
@@ -1659,10 +2054,8 @@ step_6_quadlet() {
   # 6e. NATS container (idempotent install).
   if [[ -f "${quadlet_src}/wakir-nats.container" ]]; then
     local nats_dst="${dst}/wakir-nats.container"
-    if ! cmp -s "${quadlet_src}/wakir-nats.container" "$nats_dst" 2>/dev/null; then
-      install -m 644 "${quadlet_src}/wakir-nats.container" "$nats_dst" \
-        || { log_err "install wakir-nats.container failed"; return 2; }
-    fi
+    _install_if_changed "${quadlet_src}/wakir-nats.container" "$nats_dst" \
+      || { log_err "install wakir-nats.container failed"; return 2; }
     log_ok "NATS unit installed"
   else
     log_warn "wakir-nats.container not found"
@@ -1751,24 +2144,14 @@ step_6_quadlet() {
   # the podman-system-generator's volume reconciliation at service-
   # start. See helper rationale.
   local server_unit="wakir-spire-server-federation-${side}.service"
-  if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$server_unit"; then
-    log_ok "${server_unit} already active"
-  else
-    _pre_start_chown_sweep "server" "$side" || return 2
-    "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$server_unit" 2>/dev/null || true
-    if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$server_unit"; then
-      log_err "systemctl start ${server_unit} failed"
-      log_note "diagnose: journalctl -u ${server_unit} -n 50 --no-pager"
-      return 2
-    fi
-    log_ok "${server_unit} started"
-    # Bug-25 substance fix: systemctl start returns
-    # while the unit is still ``activating``. Block until is-active
-    # before issuing the join-token generate against the server (step
-    # 6i) — otherwise ``podman exec ... spire-server token generate``
-    # races the server boot and crashes the bootstrap.
-    _wait_for_service_active "$server_unit" || return 2
-  fi
+  # Bug-40 substance-fix: converge, do not "start if
+  # stopped". _converge_service_unit starts a stopped unit, restarts a
+  # running unit whose installed definition is not the one the
+  # container was created from, and leaves an in-sync unit untouched.
+  # The Bug-25 wait-for-active runs inside the helper on BOTH paths --
+  # step 6i issues ``spire-server token generate`` against this server
+  # immediately after and must not race its boot.
+  _converge_service_unit "$server_unit" "server" || return 2
 
   # 6i. Bug 1/15 substance-fix: single-org Phase-1b
   # pilots use the join-token node-attestor. Token generation is a
@@ -1825,8 +2208,14 @@ step_6_quadlet() {
     agent_already_attested=1
     log_ok "agent already attested (skip join-token generate)"
   fi
-  if [[ "$agent_already_attested" -eq 0 ]] \
-     && [[ -f "$agent_quadlet_dst" ]] \
+  # Bug-40: the placeholder alone decides, not the
+  # attestation state. An already-attested agent whose unit was
+  # re-installed from the template carries the placeholder again; under
+  # "start only if stopped" that stayed invisible, under convergence it
+  # is a unit that must not be applied. Issuing a token that then goes
+  # unused costs nothing (TTL 1h, one row in the datastore); leaving
+  # the placeholder in an applied unit costs the agent.
+  if [[ -f "$agent_quadlet_dst" ]] \
      && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
     local jt_spiffe="spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"
     local jt_raw="" jt_token=""
@@ -1844,6 +2233,10 @@ step_6_quadlet() {
             "$agent_quadlet_dst" \
         || { log_err "join-token sed-substitute on ${agent_quadlet_dst} failed"; return 2; }
       log_ok "join-token issued for ${jt_spiffe} and injected into agent Quadlet (mode=${WAKIR_PILOT_MODE})"
+      # Bug-40: the injection rewrote the agent unit --
+      # register it so step 6j applies the unit instead of leaving a
+      # running agent on the pre-injection definition.
+      _note_config_change "$agent_quadlet_dst"
       # Daemon-reload so the regenerated Exec= line is picked up
       # before agent start.
       "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
@@ -1853,8 +2246,7 @@ step_6_quadlet() {
       log_note "diagnose: podman exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server token generate -spiffeID ${jt_spiffe} -ttl 3600"
       return 2
     fi
-  elif [[ "$agent_already_attested" -eq 0 ]] \
-       && [[ -f "$agent_quadlet_dst" ]]; then
+  elif [[ -f "$agent_quadlet_dst" ]]; then
     log_ok "join-token placeholder already substituted (no-op)"
   fi
 
@@ -1885,40 +2277,19 @@ step_6_quadlet() {
       "wakir-spire-agent-${side}.service" \
       "wakir-nats.service"
   do
-    if "$WAKIR_BOOTSTRAP_SYSTEMCTL" is-active --quiet "$unit"; then
-      log_ok "${unit} already active"
-      continue
-    fi
     case "$unit" in
       "wakir-spire-agent-${side}.service") kind="agent" ;;
       "wakir-nats.service")                kind="nats"  ;;
       *)                                   kind=""      ;;
     esac
-    if [[ -n "$kind" ]]; then
-      _pre_start_chown_sweep "$kind" "$side" || return 2
-    fi
-    "$WAKIR_BOOTSTRAP_SYSTEMCTL" reset-failed "$unit" 2>/dev/null || true
-    if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" start "$unit"; then
-      log_err "systemctl start ${unit} failed"
-      log_note "diagnose: journalctl -u ${unit} -n 50 --no-pager"
-      return 2
-    fi
-    log_ok "${unit} started"
-    # Bug-25 substance fix: wait for the unit to
-    # actually reach is-active before proceeding. systemctl start
-    # returns while the unit is still ``activating`` (Quadlet-
-    # generated container does image-pull-from-cache + container-init
-    # + attestation handshake + SVID-caching + socket-bind in the
-    # background). Bring-up-3/4/5/6 Run-1 evidence: smoke caught the
-    # unit ``activating`` because the bootstrap did not wait.
-    _wait_for_service_active "$unit" || return 2
-    # Agent has an additional race window after is-active: the
-    # Workload-API socket gets bound only after server-attestation
-    # completes. Bring-up-3/4/5/6 Run-2 evidence: units active but
-    # socket FAIL. Wait for it explicitly.
-    if [[ "$kind" == "agent" ]]; then
-      _wait_for_workload_api_socket "wakir-spire-agent-${side}" || return 2
-    fi
+    # Bug-40: same convergence helper as step 6h. The
+    # server -> agent order is preserved by the call order (6h before
+    # 6j): the agent pulls its join-token from a running server, and a
+    # server re-issue after the agent start loses the attestation.
+    # The Bug-25 wait points (is-active, and the agent's Workload-API
+    # socket) live inside the helper and therefore now also cover the
+    # restart path -- a restart re-opens the same race as a cold start.
+    _converge_service_unit "$unit" "$kind" || return 2
   done
 
   return 0

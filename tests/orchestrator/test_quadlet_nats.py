@@ -280,15 +280,24 @@ def test_quadlet_volume_mount_matches_compose(
     compose_doc: dict, quadlet_container: configparser.ConfigParser
 ) -> None:
     quadlet_volume_decl = quadlet_container.get("Container", "Volume")
-    # Quadlet form: ``<name>.volume:/mountpoint:Z``.
+    # Quadlet form: ``<name>.volume:/mountpoint:Z,U``.
     # Bug-20: ``:Z`` SELinux-relabel flag is mandatory
     # on FCOS-enforced hosts; compose-yaml has no equivalent because
     # docker-compose carries volume-driver options elsewhere. Quadlet
     # is the canonical install path on the pilot.
-    assert quadlet_volume_decl == "wakir-nats-jetstream-data.volume:/data/jetstream:Z", (
+    # Bug-26/Bug-40: ``:U`` follows from ``User=1000`` -- the unit runs
+    # NATS as uid 1000 (the image declares no USER, and root with
+    # DropCapability=ALL cannot write a 1000-owned store dir), so podman
+    # must chown the named volume to the container user at start. The
+    # :U-discipline is enforced repo-wide by
+    # tests/infra/test_quadlet_selinux_relabel.py.
+    assert quadlet_volume_decl == (
+        "wakir-nats-jetstream-data.volume:/data/jetstream:Z,U"
+    ), (
         f"Quadlet Volume= must reference wakir-nats-jetstream-data.volume "
         f"sidecar mounted at /data/jetstream with the SELinux-relabel "
-        f"flag :Z; got: {quadlet_volume_decl!r}"
+        f"flag :Z and the chown-to-container-user flag :U; got: "
+        f"{quadlet_volume_decl!r}"
     )
 
     # Cross-check: compose volumes: short form must alias to the same
