@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Hourly cadence, per ADR-0076 §Abnahme ("stündliche Sonde je Seite").
+#
+# One hour is also the measured ``default_x509_svid_ttl``, which means
+# the sampling interval and the quantity being sampled are the same
+# order of magnitude. That is a real limit and it is stated rather than
+# papered over: the series can establish *that* the expiry moves, and it
+# cannot count how many times it moved between two samples. The judge's
+# Z2 tolerance is TTL + one interval for exactly this reason.
+#
+# ``Persistent=true`` so a reboot inside the window does not silently
+# drop the sample that was due while the node was down; the judge treats
+# an unexplained gap as UNKNOWN, and a missing hour is easier to catch
+# up than to explain.
+[Unit]
+Description=Wakir ADR-0076 acceptance sample (%i side, hourly)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/test-plans/adr-0076-seven-day-acceptance-window.md
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1h
+RandomizedDelaySec=60s
+Persistent=true
+Unit=wakir-substrate-acceptance-probe@%i.service
+
+[Install]
+WantedBy=timers.target

@@ -153,6 +153,8 @@ jobs:
             --ignore=tests/infra/test_quadlet_lint.py \
             --ignore=tests/infra/test_quadlet_selinux_relabel.py \
             --ignore=tests/infra/test_spdx_header_consistency.py \
+            --ignore=tests/infra/test_substrate_acceptance_probe.py \
+            --ignore=tests/infra/test_substrate_acceptance_window.py \
             --ignore=tests/infra/test_vm_e2e_acceptance_gate.py \
             --ignore=tests/orchestrator/test_compose_spire_cosign_pin.py \
             --ignore=tests/orchestrator/test_nats_py_pin.py \

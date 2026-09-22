@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# One hourly sample for the ADR-0076 seven-day acceptance window.
+# Instance name is the federation side, e.g.
+# ``wakir-substrate-acceptance-probe@orbit.service``.
+#
+# This unit is installed and enabled by operator hand at the start of
+# the acceptance window and stopped at the end of it. It is deliberately
+# NOT wired into the bootstrap: the window is a dated measurement with a
+# beginning and an end, not a standing service, and a sampler that keeps
+# running after the window has been judged produces a log that looks
+# like evidence for a period nobody agreed on.
+#
+# Exit codes, and why the unit does not hide them:
+#   0  a sample was written, every source measured
+#   2  a sample was written, something could not be measured
+#   3  nothing was recorded
+# All three are left as they are. A failed unit is how an operator finds
+# out that the series has a hole in it, and a hole in the series is the
+# difference between a judged window and an assumed one.
+[Unit]
+Description=Wakir ADR-0076 acceptance sample (%i side)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/test-plans/adr-0076-seven-day-acceptance-window.md
+
+[Service]
+Type=oneshot
+Environment=WAKIR_ACC_SIDE=%i
+# Optional overrides (log path, container names, the staged anchor's
+# file name) live here. The file is not required to exist.
+EnvironmentFile=-/etc/wakir/substrate-acceptance.env
+ExecStart=/usr/local/lib/wakir/substrate-acceptance-probe.sh
+# The probe reads podman volume mountpoints under /var/lib/containers,
+# so ProtectSystem=strict is wrong here for the same reason it was wrong
+# for the liveness heartbeat: it would make the probe answer
+# "unmeasured" and the fault would be the unit, not the substrate.
+ProtectSystem=full
+ProtectHome=true
+NoNewPrivileges=true
+Nice=10
