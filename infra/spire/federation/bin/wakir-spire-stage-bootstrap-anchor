@@ -61,7 +61,7 @@
 # negative controls (empty output, unparseable output, zero keys,
 # non-zero exit).
 #
-# -- Kai
+# -- the engineering zone
 
 set -uo pipefail
 
