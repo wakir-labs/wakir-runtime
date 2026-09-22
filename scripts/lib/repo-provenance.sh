@@ -23,16 +23,28 @@
 # file reads it back and turns it into one of five states. Exactly one
 # of them may be quoted as acceptance evidence.
 #
-#   canonical        HEAD is the freshly fetched origin/<branch> tip and
+#   canonical        HEAD is the origin/<branch> tip, that reference was
+#                    refreshed during the run that wrote the record, and
 #                    the worktree is clean. Evidence.
-#   non-canonical    the record says so, and says why. Not evidence.
+#   non-canonical    the tree was measured and is not the branch tip.
+#                    The record says why. Not evidence.
+#   unmeasured       the comparison did not happen -- most often because
+#                    the comparison reference could not be refreshed, so
+#                    HEAD would have been compared against a file of
+#                    unknown age. A different statement from
+#                    non-canonical, and it must not be collapsed into
+#                    it. Not evidence.
 #   missing          no record -- an older bootstrap on the node, or a
 #                    resume that skipped step 4. Not evidence: the tree
 #                    is unknown, and unknown is not canonical.
 #   stale            a record from a different run. Not evidence, for
 #                    the same reason -- it describes some other tree.
 #   schema-mismatch  a record this reader does not understand. Not
-#                    evidence.
+#                    evidence. Records written before schema @2 land
+#                    here on purpose: their `canonical=yes` did not
+#                    carry the freshness guarantee, so re-interpreting
+#                    one as if it did would be the defect @2 exists to
+#                    close.
 #
 # One writer (bootstrap step 4), one reader (this file). The key set
 # they share is pinned by tests/infra/test_acceptance_run_provenance.py
@@ -54,7 +66,7 @@
 # Schema this reader understands. A record that says anything else is
 # not interpreted -- guessing at an unknown shape is how a reader ends
 # up reporting a default as a measurement.
-WAKIR_PROVENANCE_SCHEMA_EXPECTED="wakir-runtime/repo-provenance@1"
+WAKIR_PROVENANCE_SCHEMA_EXPECTED="wakir-runtime/repo-provenance@2"
 
 # The exit code a lane uses when its run is not acceptance evidence.
 # Deliberately not 0 and deliberately not one of the lanes' failure
@@ -94,6 +106,7 @@ wakir_provenance_load() {
   WAKIR_PROVENANCE_REQUESTED_REF=""
   WAKIR_PROVENANCE_HEAD=""
   WAKIR_PROVENANCE_REMOTE_TIP=""
+  WAKIR_PROVENANCE_REMOTE_TIP_FRESH=""
   WAKIR_PROVENANCE_WORKTREE=""
   WAKIR_PROVENANCE_CANONICAL=""
   WAKIR_PROVENANCE_REASON=""
@@ -118,7 +131,8 @@ wakir_provenance_load() {
 WAKIR_PROVENANCE_WRITTEN_UTC|WAKIR_PROVENANCE_REPO_ROOT|\
 WAKIR_PROVENANCE_BRANCH|WAKIR_PROVENANCE_REF_MODE|\
 WAKIR_PROVENANCE_REQUESTED_REF|WAKIR_PROVENANCE_HEAD|\
-WAKIR_PROVENANCE_REMOTE_TIP|WAKIR_PROVENANCE_WORKTREE|\
+WAKIR_PROVENANCE_REMOTE_TIP|WAKIR_PROVENANCE_REMOTE_TIP_FRESH|\
+WAKIR_PROVENANCE_WORKTREE|\
 WAKIR_PROVENANCE_CANONICAL|WAKIR_PROVENANCE_REASON)
         printf -v "$key" '%s' "$val"
         ;;
@@ -143,6 +157,11 @@ WAKIR_PROVENANCE_CANONICAL|WAKIR_PROVENANCE_REASON)
     return 0
   fi
 
+  if [[ "$WAKIR_PROVENANCE_CANONICAL" == "unmeasured" ]]; then
+    WAKIR_PROVENANCE_STATUS="unmeasured"
+    return 1
+  fi
+
   WAKIR_PROVENANCE_STATUS="non-canonical"
   return 1
 }
@@ -163,6 +182,13 @@ wakir_provenance_tree_line() {
         "$WAKIR_PROVENANCE_HEAD" \
         "$WAKIR_PROVENANCE_BRANCH" \
         "$WAKIR_PROVENANCE_REF_MODE"
+      ;;
+    unmeasured)
+      printf 'tree: %s — NOT MEASURED (ref-mode=%s, requested=%s): %s' \
+        "$WAKIR_PROVENANCE_HEAD" \
+        "$WAKIR_PROVENANCE_REF_MODE" \
+        "$WAKIR_PROVENANCE_REQUESTED_REF" \
+        "$WAKIR_PROVENANCE_REASON"
       ;;
     non-canonical)
       printf 'tree: %s — NOT the canonical %s tip (ref-mode=%s, requested=%s): %s' \

@@ -923,8 +923,14 @@ _git_repo_q() {
 # and a track-remote run whose fetch produced nothing comparable is not.
 # The alternative -- trusting the mode flag -- would be one more check
 # that reports what it was told instead of what is there.
+# $1: "yes" when THIS run has already refreshed
+#     refs/remotes/origin/<branch> through a checked fetch. The
+#     track-remote arm has; the other two have not, and the refresh is
+#     then this function's job.
 _record_repo_provenance() {
-  local head remote_tip worktree canonical reason requested prov_file prov_dir
+  local already_fresh="${1:-no}"
+  local head remote_tip remote_fresh worktree canonical reason requested
+  local prov_file prov_dir
 
   # ``rev-parse <ref>`` echoes the ref back and exits non-zero when it
   # cannot resolve it, so taking its stdout without its status yields the
@@ -934,14 +940,39 @@ _record_repo_provenance() {
   head=$(_git_repo_q rev-parse --verify --quiet HEAD) || head=""
   [[ -z "$head" ]] && head="unknown"
 
-  # keep-mode does not fetch, so there is nothing current to compare
-  # against yet. Try once, purely to measure. A failure here is not
-  # fatal -- it only means the run cannot claim a canonical tree, which
-  # is the correct direction for a failed measurement.
-  if [[ "$WAKIR_REPO_REF_MODE" == "keep" ]]; then
-    if ! _git_repo_q fetch --depth 1 origin "$WAKIR_REPO_BRANCH" >/dev/null; then
-      log_warn "could not fetch origin/${WAKIR_REPO_BRANCH} for comparison; this run cannot claim a canonical tree"
-    fi
+  # How old is the thing we are about to compare against?
+  #
+  # The verdict compares HEAD with refs/remotes/origin/<branch>, which is
+  # A FILE ON THIS NODE, left there by some earlier run. Reading it
+  # without knowing whether this run refreshed it would be exactly the
+  # defect this step was repaired for, one level up. Defect A was "reset
+  # to a stale tracking ref and call it an update"; this would be
+  # "compare against a stale tracking ref and call it canonical".
+  #
+  # It is not hypothetical and it does not need a broken network. Pin a
+  # tag that points at yesterday's commit -- the commit this node's
+  # tracking ref still names -- and the comparison finds them equal.
+  #
+  #   track-remote  already refreshed, by a fetch whose status is checked
+  #                 and whose failure aborts the step. Nothing to do.
+  #   pin           fetches ONLY the requested ref. If that ref is a
+  #                 branch name git refreshes the tracking ref
+  #                 incidentally; if it is a tag or a pull ref, nothing
+  #                 does. So: refresh it here, on purpose.
+  #   keep          fetches nothing at all.
+  #
+  # The refspec is explicit rather than relying on git's opportunistic
+  # remote-tracking update: a measurement should not depend on a side
+  # effect.
+  if [[ "$already_fresh" == "yes" ]]; then
+    remote_fresh="yes"
+  elif _git_repo_q fetch --depth 1 origin \
+         "+refs/heads/${WAKIR_REPO_BRANCH}:refs/remotes/origin/${WAKIR_REPO_BRANCH}" \
+         >/dev/null; then
+    remote_fresh="yes"
+  else
+    remote_fresh="no"
+    log_warn "could not refresh origin/${WAKIR_REPO_BRANCH} in this run; the tree cannot be compared against anything current"
   fi
 
   remote_tip=$(_git_repo_q rev-parse --verify --quiet \
@@ -960,26 +991,44 @@ _record_repo_provenance() {
     requested="$WAKIR_REPO_BRANCH"
   fi
 
+  # Three outcomes, not two. "no" means the tree was measured and is not
+  # the branch tip. "unmeasured" means the comparison did not happen --
+  # a different statement, and the one the reader must not collapse into
+  # either of the others. Same distinction as UNKNOWN on the reader side:
+  # the absence of a measurement is not a failed measurement, and it is
+  # certainly not a passed one.
   canonical="no"
   if [[ "$head" == "unknown" ]]; then
+    canonical="unmeasured"
     reason="HEAD of ${WAKIR_REPO_ROOT} could not be read"
+  elif [[ "$remote_fresh" != "yes" ]]; then
+    canonical="unmeasured"
+    reason="origin/${WAKIR_REPO_BRANCH} could not be refreshed in this run, so HEAD was compared against nothing current"
   elif [[ "$remote_tip" == "unknown" ]]; then
-    reason="origin/${WAKIR_REPO_BRANCH} is not known on this node, so HEAD has nothing to be compared against"
+    canonical="unmeasured"
+    reason="origin/${WAKIR_REPO_BRANCH} is not known on this node even after the refresh"
   elif [[ "$head" != "$remote_tip" ]]; then
     reason="HEAD ${head} is not the origin/${WAKIR_REPO_BRANCH} tip ${remote_tip}"
   elif [[ "$worktree" != "clean" ]]; then
     reason="HEAD is the origin/${WAKIR_REPO_BRANCH} tip but the worktree carries uncommitted modifications"
   else
     canonical="yes"
-    reason="HEAD is the origin/${WAKIR_REPO_BRANCH} tip and the worktree is clean"
+    reason="HEAD is the origin/${WAKIR_REPO_BRANCH} tip, freshly fetched in this run, and the worktree is clean"
   fi
 
-  if [[ "$canonical" == "yes" ]]; then
-    log_ok "tree: ${head} (canonical ${WAKIR_REPO_BRANCH} tip, clean worktree)"
-  else
-    log_warn "tree: ${head} is NOT the canonical tree -- ${reason}"
-    log_warn "a run against this tree is not acceptance evidence"
-  fi
+  case "$canonical" in
+    yes)
+      log_ok "tree: ${head} (canonical ${WAKIR_REPO_BRANCH} tip, clean worktree)"
+      ;;
+    no)
+      log_warn "tree: ${head} is NOT the canonical tree -- ${reason}"
+      log_warn "a run against this tree is not acceptance evidence"
+      ;;
+    *)
+      log_warn "tree: ${head} was NOT MEASURED -- ${reason}"
+      log_warn "a run whose tree was not measured is not acceptance evidence"
+      ;;
+  esac
 
   # The record is load-bearing: a lane that cannot read one treats the
   # tree as unknown and refuses to report evidence. So failing to write
@@ -995,7 +1044,12 @@ _record_repo_provenance() {
 # Written by wakir-pilot-bootstrap.sh step 4. Machine-read by the
 # acceptance lanes via scripts/lib/repo-provenance.sh. Do not hand-edit:
 # the point of the file is that it was produced by a measurement.
-WAKIR_PROVENANCE_SCHEMA=wakir-runtime/repo-provenance@1
+#
+# Field order is load-bearing. The operator-controlled values
+# (REQUESTED_REF, BRANCH, REPO_ROOT) stand BEFORE the verdict fields, so
+# that a newline smuggled into one of them can only inject a line the
+# real verdict line then overrides. Do not reorder.
+WAKIR_PROVENANCE_SCHEMA=wakir-runtime/repo-provenance@2
 WAKIR_PROVENANCE_RUN_ID=${WAKIR_PROVENANCE_RUN_ID}
 WAKIR_PROVENANCE_WRITTEN_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
 WAKIR_PROVENANCE_REPO_ROOT=${WAKIR_REPO_ROOT}
@@ -1004,6 +1058,7 @@ WAKIR_PROVENANCE_REF_MODE=${WAKIR_REPO_REF_MODE}
 WAKIR_PROVENANCE_REQUESTED_REF=${requested}
 WAKIR_PROVENANCE_HEAD=${head}
 WAKIR_PROVENANCE_REMOTE_TIP=${remote_tip}
+WAKIR_PROVENANCE_REMOTE_TIP_FRESH=${remote_fresh}
 WAKIR_PROVENANCE_WORKTREE=${worktree}
 WAKIR_PROVENANCE_CANONICAL=${canonical}
 WAKIR_PROVENANCE_REASON=${reason}
@@ -1038,7 +1093,33 @@ step_4_repo_clone() {
     log_ok "repo cloned"
   fi
 
-  # (b) Move it -- or deliberately do not -- to the requested ref.
+  # (b) Say what is about to be destroyed, before destroying it.
+  #
+  # track-remote's ``reset --hard`` and pin's ``checkout --force`` both
+  # discard tracked modifications; untracked files survive both. The pin
+  # arm therefore introduces no new loss class -- the default arm has
+  # behaved this way since the lane exists. Refusing to run on a dirty
+  # checkout would be worse: the lane is unattended
+  # (WAKIR_SKIP_PROMPTS=1) and it is the only path to live evidence, so
+  # a refusal turns "the run discarded something nobody needed" into
+  # "the run did not happen". But it should not happen silently: the
+  # bring-up log is kept by the lane and quoted on every failure path.
+  local pending=""
+  if [[ "$WAKIR_REPO_REF_MODE" != "keep" ]]; then
+    pending=$(_git_repo_q status --porcelain)
+    if [[ -n "$pending" ]]; then
+      log_warn "the checkout carries local changes; ${WAKIR_REPO_REF_MODE} discards the tracked ones (untracked files survive):"
+      printf '%s\n' "$pending" | sed 's/^/      /'
+      _git_repo_q diff --stat | sed 's/^/      /'
+    fi
+  fi
+
+  # (c) Move it -- or deliberately do not -- to the requested ref.
+  #
+  # remote_ref_fresh records whether THIS arm left
+  # refs/remotes/origin/<branch> refreshed. Only track-remote does; the
+  # provenance measurement arranges its own refresh otherwise.
+  local remote_ref_fresh="no"
   case "$WAKIR_REPO_REF_MODE" in
     track-remote)
       log_ok "repo present; fetching latest on ${WAKIR_REPO_BRANCH}"
@@ -1052,6 +1133,9 @@ step_4_repo_clone() {
       _git_repo "reset" reset --hard "origin/${WAKIR_REPO_BRANCH}" \
         >/dev/null || return 2
       log_ok "repo updated to origin/${WAKIR_REPO_BRANCH}"
+      # The fetch above is checked and its failure returns 2, so
+      # reaching this line means the tracking ref is current.
+      remote_ref_fresh="yes"
       ;;
     pin)
       log_warn "WAKIR_REPO_REF_MODE=pin: moving the checkout to '${WAKIR_REPO_REF}', NOT to the ${WAKIR_REPO_BRANCH} tip"
@@ -1066,8 +1150,8 @@ step_4_repo_clone() {
       ;;
   esac
 
-  # (c) Say which tree this run is about to use.
-  _record_repo_provenance || return 2
+  # (d) Say which tree this run is about to use.
+  _record_repo_provenance "$remote_ref_fresh" || return 2
   return 0
 }
 

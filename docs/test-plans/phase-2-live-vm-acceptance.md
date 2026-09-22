@@ -56,18 +56,47 @@ Step 4 now takes `WAKIR_REPO_REF_MODE`:
 | `keep` | leave the checkout exactly as it is | only if it already is the branch tip, clean |
 
 The switch is the smaller half. The larger half is that step 4 now
-**measures** the tree it ends up with — HEAD against the freshly fetched
-`origin/<branch>`, plus worktree cleanliness — and writes a provenance
-record carrying a per-run nonce. The acceptance lanes read it back,
-print which tree the run used on every path including failure paths, and
-end a non-canonical run as `NOT EVIDENCE` with exit 10 instead of
-`PASS`, with the regression list omitted.
+**measures** the tree it ends up with — HEAD against `origin/<branch>`,
+plus worktree cleanliness — and writes a provenance record carrying a
+per-run nonce. The acceptance lanes read it back, print which tree the
+run used on every path including failure paths, and end a non-canonical
+run as `NOT EVIDENCE` with exit 10 instead of `PASS`, with the
+regression list omitted.
+
+**The comparison reference is refreshed in the run that compares**, and
+whether that succeeded is a recorded field
+(`WAKIR_PROVENANCE_REMOTE_TIP_FRESH`). `refs/remotes/origin/<branch>` is
+a file on the node, left there by some earlier run; comparing against it
+without knowing its age is the same defect one level up — not "reset to
+a stale tracking ref and call it an update" but "compare against a stale
+tracking ref and call it canonical". Pinning a tag that points at
+yesterday's commit reproduced that on a completely healthy network
+before it was closed.
 
 The verdict is measured, never taken from the mode flag: a `pin` that
 lands on the branch tip is canonical, and a `track-remote` run whose
-comparison could not be made is not. A missing or stale record is
-`UNKNOWN`, which is not evidence either — the absence of a measurement
-is not a passing measurement.
+comparison could not be made is not.
+
+Three verdicts, not two. `no` means the tree was measured and is not the
+branch tip. **`unmeasured` means the comparison did not happen** — most
+often because the reference could not be refreshed. A missing or stale
+record reads as `UNKNOWN`. All three are non-evidence; only `no` means
+something is wrong with the *tree*. The absence of a measurement is not
+a failed measurement, and certainly not a passing one.
+
+**What "clean worktree" means, precisely.** It is measured at the end of
+step 4. Step 5 then runs the image-pin resolver with `--apply` against
+files under `${WAKIR_REPO_ROOT}`. The line therefore answers "which
+source state did this run start from", not "the files on disk stayed
+byte-identical to the tip throughout the run". For the first question it
+is exact; for the second it is weaker than it sounds.
+
+**What a non-`keep` run discards.** `track-remote`'s `reset --hard` and
+`pin`'s `checkout --force` both drop tracked modifications; untracked
+files survive both. The lane is unattended, and a node carrying an
+operator-hand change is the normal case rather than the exception, so
+step 4 does not refuse — it writes `status --porcelain` and `diff --stat`
+into the bring-up log *before* discarding, in both arms.
 
 Consequence for this plan: an acceptance result quoted in section 3 or
 section 7 is only admissible together with the tree line the run
