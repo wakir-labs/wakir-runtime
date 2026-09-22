@@ -300,17 +300,23 @@ _STUB_SMOKE = textwrap.dedent(
 #
 # The digests below are valid-shape sha256s but NOT real upstream
 # digests -- the e2e-container test only asserts that phase 5
-# completed and phase 6 installed the Quadlet substrate; the real
-# digest values are validated by separate lanes (cosign-verify-images,
-# resolve-image-pins-ci).
+# completed and phase 6 installed the Quadlet substrate.
+#
+# The real digest values are validated by cosign-verify-images, which
+# runs on every push and PR. This comment used to name
+# resolve-image-pins-ci alongside it. Measured 2026-09-21: that
+# workflow is workflow_dispatch-only and has never run, not once.
+# Naming a lane that does not run as the reason this one need not
+# check is how a gap gets written down as covered.
 _STUB_SKOPEO = textwrap.dedent(
     """\
     #!/bin/bash
     # Tag-34 stub: emit canonical skopeo-inspect JSON shape with a
     # well-formed sha256 Digest so the bootstrap's jq parse succeeds.
-    # The actual digest value is not asserted by this E2E test; the
-    # ``cosign-verify-images`` and ``resolve-image-pins-ci`` lanes
-    # validate the real upstream digests.
+    # The actual digest value is not asserted by this E2E test;
+    # ``cosign-verify-images`` validates the real upstream digests on
+    # every push and PR. (``resolve-image-pins-ci``, named here
+    # before, has never run -- see the note above the stub.)
     echo "[stub-skopeo] $*" >> /tmp/skopeo-calls.log
     case "${1:-}" in
       inspect)
@@ -530,6 +536,20 @@ def _run_bootstrap_in_container(
         "WAKIR_TRUST_DOMAIN": "wakir.test",
         "WAKIR_SKIP_COSIGN_VERIFY": "1",
         "WAKIR_SKIP_PROMPTS": "1",
+        # The skopeo stub above answers with one well-formed but
+        # fictional digest for every image. Since 2026-09-21 the
+        # resolver checks a concrete committed pin against the digest
+        # it was handed, and a fictional digest disagrees with every
+        # real pin by construction. This lane does not assert digest
+        # truth. ``cosign-verify-images`` does, on every push and PR.
+        # ``resolve-image-pins-ci`` is named here too in older comments,
+        # and should not be: measured 2026-09-21 it is
+        # ``workflow_dispatch``-only and has never been run, not once,
+        # since it was written. So this lane declares its digests
+        # synthetic, and the resolver logs per file that it is not
+        # checking -- while the only lane that really checks a pin
+        # against the registry is cosign-verify-images.
+        "WAKIR_SYNTHETIC_DIGESTS": "1",
         "WAKIR_REPO_ROOT": "/opt/wakir-runtime",
         "WAKIR_REPO_URL": "stub://no-clone-needed",
         "WAKIR_BOOTSTRAP_SYSTEMCTL": "/work/stubs/systemctl",

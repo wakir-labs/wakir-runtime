@@ -555,3 +555,122 @@ def test_provisioner_only_dry_run_does_not_mutate(tmp_path: Path) -> None:
         root / "quadlet" / "wakir-nats-kv-bucket-init.container"
     ).read_text()
     assert before == after, "dry-run mutated file"
+
+
+# ----------------------------------------------------------------------
+# A concrete pin is something to check, not something to skip.
+#
+# Added 2026-09-21, after the live bring-up on wakir-pilot died at
+# bootstrap step 7 with ``manifest unknown``. The Quadlet carried a
+# concrete wakir-provisioner digest that the registry never served. The
+# resolver had just resolved the correct one, saw no DIGEST_PENDING
+# placeholder in the file, printed ``note: no placeholder; skip`` and
+# handed it through. The failure surfaced two steps later, inside
+# podman, four months after the pin was written.
+# ----------------------------------------------------------------------
+
+_LIVE_DIGEST = "sha256:" + "a1" * 32
+_STALE_DIGEST = "sha256:" + "b2" * 32
+
+
+def _skeleton_with_concrete_provisioner_pin(root: Path, digest: str) -> None:
+    _build_skeleton(
+        root,
+        "Image=ghcr.io/wakir-labs/wakir-provisioner:0.1.4@" + digest,
+    )
+
+
+def _run_with_provisioner_digest(
+    root: Path, digest: str, *, extra: list[str] | None = None
+) -> subprocess.CompletedProcess:
+    cmd = [
+        "bash",
+        str(RESOLVER),
+        "--spire-server-digest", SHA256_A,
+        "--spire-agent-digest", SHA256_B,
+        "--python-digest", SHA256_C,
+        "--wakir-provisioner-digest", digest,
+        "--root", str(root),
+        "--apply",
+    ]
+    if extra:
+        cmd.extend(extra)
+    return subprocess.run(cmd, check=False, capture_output=True, text=True)
+
+
+def test_stale_concrete_pin_fails_loudly(tmp_path: Path) -> None:
+    """The pin in the file disagrees with the digest the tag resolves
+    to. This is the wakir-pilot case, and it must stop the resolver."""
+    _skeleton_with_concrete_provisioner_pin(tmp_path, _STALE_DIGEST)
+    proc = _run_with_provisioner_digest(tmp_path, _LIVE_DIGEST)
+    assert proc.returncode != 0, (
+        "a stale concrete pin exited 0; that is the defect this test "
+        f"exists for.\nstdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
+    combined = proc.stdout + proc.stderr
+    assert _STALE_DIGEST in combined and _LIVE_DIGEST in combined, (
+        "the error must name BOTH digests -- an operator who only sees "
+        "'pin mismatch' has to go find them by hand"
+    )
+
+
+def test_matching_concrete_pin_passes(tmp_path: Path) -> None:
+    """Negative control. Without this, a check that always fails would
+    pass the test above and nobody would notice."""
+    _skeleton_with_concrete_provisioner_pin(tmp_path, _LIVE_DIGEST)
+    proc = _run_with_provisioner_digest(tmp_path, _LIVE_DIGEST)
+    assert proc.returncode == 0, (
+        "a pin that already matches the live digest must not fail.\n"
+        f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+    )
+
+
+def test_synthetic_digests_flag_suppresses_the_check_but_says_so(
+    tmp_path: Path,
+) -> None:
+    """The hermetic e2e-container lane stubs skopeo and therefore hands
+    the resolver a fictional digest. It may opt out -- loudly."""
+    _skeleton_with_concrete_provisioner_pin(tmp_path, _STALE_DIGEST)
+    proc = _run_with_provisioner_digest(
+        tmp_path, _LIVE_DIGEST, extra=["--synthetic-digests"]
+    )
+    assert proc.returncode == 0
+    combined = proc.stdout + proc.stderr
+    assert "--synthetic-digests" in combined and "NOT checking" in combined, (
+        "the opt-out must announce itself; a quiet opt-out is how a "
+        "check stops running without anyone deciding that it should"
+    )
+
+
+def test_only_the_hermetic_lane_declares_its_digests_synthetic() -> None:
+    """Guards the escape hatch. If a shipped script, workflow or runbook
+    ever sets this, the check is off on a path that pulls real images."""
+    offenders = []
+    for path in REPO_ROOT.rglob("*"):
+        if not path.is_file() or ".git" in path.parts:
+            continue
+        if path.suffix not in {".sh", ".yml", ".yaml", ".md", ".py"}:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if "WAKIR_SYNTHETIC_DIGESTS" not in text:
+            continue
+        rel = path.relative_to(REPO_ROOT).as_posix()
+        # The resolver/bootstrap implement the flag; the e2e lane and
+        # this test are its only declared users.
+        allowed = (
+            rel == "infra/spire/federation/wakir-pilot-bootstrap.sh"
+            or rel == "tests/infra/test_pilot_bringup_e2e_container.py"
+            or rel == "tests/orchestrator/test_proxmox_resolve_image_pins.py"
+        )
+        if not allowed:
+            offenders.append(rel)
+    assert not offenders, (
+        "WAKIR_SYNTHETIC_DIGESTS appears outside the hermetic lane: "
+        f"{offenders}. Declaring digests synthetic turns off the "
+        "concrete-pin check; on a path that really pulls images that "
+        "is how wakir-pilot ended up pinned to a manifest that did "
+        "not exist."
+    )

@@ -97,6 +97,12 @@ WAKIR_PROVISIONER_VERSION=""
 PROVISIONER_ONLY=0
 ROOT="/opt/wakir-runtime"
 APPLY=0
+# Hermetic-harness escape hatch. Set ONLY by a caller that feeds
+# digests which did not come from a registry (the e2e-container lane
+# stubs skopeo). It disables the concrete-pin check, and says so
+# loudly on every file, because a silent skip is the defect this
+# check exists to catch.
+SYNTHETIC_DIGESTS=0
 
 usage() {
   cat <<'EOF'
@@ -108,6 +114,7 @@ Usage: resolve-image-pins.sh
        [--wakir-provisioner-version <tag>]
        [--root /opt/wakir-runtime]
        [--apply]
+       [--synthetic-digests]
 
        OR (Bug-33 substance-fix path):
 
@@ -182,6 +189,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --apply)
       APPLY=1
+      shift
+      ;;
+    --synthetic-digests)
+      SYNTHETIC_DIGESTS=1
       shift
       ;;
     -h|--help)
@@ -273,6 +284,46 @@ declare -a WAKIR_PROVISIONER_FILES=(
 # match is intentionally directive-agnostic so the SAME function
 # handles both Quadlet ``Image=`` lines and Containerfile ``FROM``
 # lines (the python pin moved across that boundary).
+# A file that carries no placeholder is not automatically fine. It may
+# already hold a CONCRETE pin — and a concrete pin can be wrong. The
+# 0.1.2 provisioner pin (2026-05-20 .. 2026-09-21) was a digest the
+# registry never served: the resolver printed "no placeholder; skip",
+# handed the file through untouched, and the bring-up died two steps
+# later inside podman with "manifest unknown". The resolver had the
+# correct digest in hand at that moment and discarded it.
+#
+# So: when a file pins $label concretely and that pin disagrees with
+# the digest the tag resolves to right now, stop. Refreshing the
+# committed pin is an Operator-Hand step (IMAGE_PINS.md) — this script
+# deliberately does not rewrite a concrete pin, because the committed
+# pin is the source of truth. It only refuses to pretend it looked.
+check_concrete_pin() {
+  local label="$1" file="$2" image_re="$3" digest="$4"
+  if [[ "$SYNTHETIC_DIGESTS" -eq 1 ]]; then
+    echo "[$PROG] WARN: --synthetic-digests: NOT checking the concrete $label pin in $file."
+    echo "[$PROG] WARN: the supplied digest did not come from a registry, so comparing"
+    echo "[$PROG] WARN: against it would prove nothing. Real bring-up never sets this."
+    return 0
+  fi
+  local committed
+  committed=$(grep -oE "${image_re}@sha256:[0-9a-f]{64}" "$file" 2>/dev/null \
+                | head -n1 | sed 's|.*@||')
+  if [[ -z "$committed" ]]; then
+    echo "[$PROG] note: $file has no $label placeholder and no concrete $label pin; skip"
+    return 0
+  fi
+  if [[ "$committed" == "$digest" ]]; then
+    echo "[$PROG] OK: $file pins $label at the live digest already"
+    return 0
+  fi
+  echo "[$PROG] ERROR: $file pins $label at $committed" >&2
+  echo "[$PROG]        but the tag resolves to $digest right now." >&2
+  echo "[$PROG]        A stale concrete pin is not a no-op: the pull fails" >&2
+  echo "[$PROG]        later, inside podman, as 'manifest unknown'." >&2
+  echo "[$PROG]        Refresh the committed pin (IMAGE_PINS.md) and re-run." >&2
+  return 1
+}
+
 resolve_group() {
   local label="$1"
   local image_prefix="$2"   # e.g. ghcr.io/spiffe/spire-server:1.14.6
@@ -286,7 +337,8 @@ resolve_group() {
       continue
     fi
     if ! grep -q "${image_prefix}@sha256:DIGEST_PENDING_TOMAS_REVIEW" "$file"; then
-      echo "[$PROG] note: $file has no $label placeholder; skip"
+      check_concrete_pin "$label" "$file" \
+        "$(printf '%s' "$image_prefix" | sed 's|[.[\*^$]|\\&|g')" "$digest" || return 1
       continue
     fi
     local from="${image_prefix}@sha256:DIGEST_PENDING_TOMAS_REVIEW"
@@ -367,7 +419,8 @@ resolve_group_tagged() {
       fi
     done < "$file"
     if [[ "$file_matched" -ne 1 ]]; then
-      echo "[$PROG] note: $file has no $label placeholder; skip"
+      check_concrete_pin "$label" "$file" \
+        "${escaped_base}(:[^@[:space:]]+)?" "$digest" || return 1
       continue
     fi
     # Second pass: build a dry-run preview from the first matching
