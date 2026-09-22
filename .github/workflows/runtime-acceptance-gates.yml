@@ -459,6 +459,8 @@ jobs:
             tests/federation/test_federation_frame_parser.py \
             tests/identity/test_federation_resolver_cross_lang_parity.py \
             tests/identity/test_svid_workload_identity_cross_lang_parity.py \
+            tests/infra/test_acceptance_run_provenance.py \
+            tests/infra/test_bootstrap_step4_fetch_failure.py \
             tests/persona_engine/test_bridge_audit_writer_cross_lang_parity.py \
             tests/persona_engine/test_nats_subjects.py \
             tests/integration/test_bug_42_regression_suite.py \

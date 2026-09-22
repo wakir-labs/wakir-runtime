@@ -134,7 +134,9 @@ jobs:
             --ignore=tests/audit/test_res_d_items_ots_probe.py \
             --ignore=tests/audit/test_wirelang_spec_freeze_seal_probe.py \
             --ignore=tests/audit/test_wirelang_spec_ots_pre_anchor_probe.py \
+            --ignore=tests/infra/test_acceptance_run_provenance.py \
             --ignore=tests/infra/test_bootstrap_podman_volume_selinux_discipline.py \
+            --ignore=tests/infra/test_bootstrap_step4_fetch_failure.py \
             --ignore=tests/infra/test_cross_substrate_parity_3way.py \
             --ignore=tests/infra/test_hash_derivate_consistency.py \
             --ignore=tests/infra/test_license_hygiene_consistency.py \

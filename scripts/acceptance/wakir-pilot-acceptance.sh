@@ -72,14 +72,31 @@
 #                             one). Unset in federation-mode aborts.
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 1  (DEV-ONLY)
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
+#   WAKIR_REPO_REF_MODE       default: track-remote
+#                             {track-remote, pin, keep} — what the
+#                             bootstrap's step 4 does to the checkout on
+#                             the node. Forwarded to both arms.
+#   WAKIR_REPO_REF            default: (unset) — required by ref-mode
+#                             ``pin``.
+#
+# Which tree the run measures
+# ---------------------------
+#
+# Both arms forward the ref-mode to the bootstrap and both report which
+# tree the run used. A run that did not measure the canonical branch
+# tip, or whose tree could not be established, ends in ``NOT EVIDENCE``
+# and exit 10 rather than ``PASS``. See scripts/lib/repo-provenance.sh
+# for why the state is measured rather than taken from the mode flag.
 #
 # Exit-Codes
 # ----------
 #
-#   0  Acceptance PASS
+#   0  Acceptance PASS (canonical tree)
 #   1  Pre-Flight-Fehler
 #   2  Bootstrap-Phase-Fehler
 #   3  Acceptance-Verifikation fehlgeschlagen
+#  10  Checks passed, but not against the canonical tree — not a
+#      failure and not evidence.
 #
 # -- dev-engineering
 
@@ -95,6 +112,8 @@ WAKIR_PEER_SIDE="${WAKIR_PEER_SIDE:-wakir}"
 WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-}"
 WAKIR_SKIP_COSIGN_VERIFY="${WAKIR_SKIP_COSIGN_VERIFY:-1}"
 WAKIR_REPO_ROOT="${WAKIR_REPO_ROOT:-/opt/wakir-runtime}"
+WAKIR_REPO_REF_MODE="${WAKIR_REPO_REF_MODE:-track-remote}"
+WAKIR_REPO_REF="${WAKIR_REPO_REF:-}"
 
 log()  { printf '[wakir-pilot-acceptance] %s\n' "$*"; }
 warn() { printf '[wakir-pilot-acceptance] WARN: %s\n' "$*" >&2; }
@@ -109,6 +128,14 @@ fi
 if [[ ! -d "$WAKIR_REPO_ROOT" ]]; then
   fail "repo root not found at $WAKIR_REPO_ROOT — install wakir-runtime first" 1
 fi
+
+provenance_lib="${WAKIR_REPO_ROOT}/scripts/lib/repo-provenance.sh"
+if [[ ! -f "$provenance_lib" ]]; then
+  fail "provenance reader not found at $provenance_lib — this checkout predates the tree-provenance record, and a run from it cannot say which tree it measured" 1
+fi
+# shellcheck source=scripts/lib/repo-provenance.sh
+source "$provenance_lib"
+provenance_run_id="$(wakir_provenance_new_run_id)"
 
 # --- Dispatch --------------------------------------------------------------
 
@@ -134,6 +161,8 @@ case "$WAKIR_PILOT_MODE" in
       WAKIR_PILOT_MODE="$WAKIR_PILOT_MODE" \
       WAKIR_SKIP_COSIGN_VERIFY="$WAKIR_SKIP_COSIGN_VERIFY" \
       WAKIR_REPO_ROOT="$WAKIR_REPO_ROOT" \
+      WAKIR_REPO_REF_MODE="$WAKIR_REPO_REF_MODE" \
+      WAKIR_REPO_REF="$WAKIR_REPO_REF" \
       bash "$fed_script"
     ;;
   single-org)
@@ -153,10 +182,20 @@ case "$WAKIR_PILOT_MODE" in
     set +e
     WAKIR_PILOT_MODE="single-org" \
     WAKIR_SKIP_COSIGN_VERIFY="$WAKIR_SKIP_COSIGN_VERIFY" \
+    WAKIR_REPO_ROOT="$WAKIR_REPO_ROOT" \
+    WAKIR_REPO_REF_MODE="$WAKIR_REPO_REF_MODE" \
+    WAKIR_REPO_REF="$WAKIR_REPO_REF" \
+    WAKIR_PROVENANCE_RUN_ID="$provenance_run_id" \
     WAKIR_SKIP_PROMPTS=1 \
       bash "$bootstrap" >"$bootstrap_log" 2>&1
     rc=$?
     set -e
+    # Read the tree back before the rc is handled, so the failure paths
+    # name it too.
+    set +e
+    wakir_provenance_load "$provenance_run_id"
+    set -e
+    log "$(wakir_provenance_tree_line)"
     if [[ $rc -ne 0 ]]; then
       warn "bootstrap exited with rc=$rc"
       tail -50 "$bootstrap_log" >&2
@@ -193,7 +232,20 @@ case "$WAKIR_PILOT_MODE" in
     log "Phase 3: PASS"
 
     log ""
+    if ! wakir_provenance_is_evidence; then
+      log "Single-Org Live-VM Acceptance: NOT EVIDENCE"
+      log "  $(wakir_provenance_tree_line)"
+      log ""
+      log "  Every check in this run passed. The run is still not"
+      log "  acceptance evidence, because it did not measure the"
+      log "  canonical tree."
+      log ""
+      log "  bootstrap: $bootstrap_log"
+      log "  smoke:     $smoke_log"
+      exit "$WAKIR_PROVENANCE_NOT_EVIDENCE_RC"
+    fi
     log "Single-Org Live-VM Acceptance: PASS"
+    log "  $(wakir_provenance_tree_line)"
     log "  bootstrap: $bootstrap_log"
     log "  smoke:     $smoke_log"
     exit 0
