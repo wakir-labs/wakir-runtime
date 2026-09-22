@@ -1164,9 +1164,14 @@ _pre_start_chown_sweep() {
       )
       ;;
     nats)
-      # Mirror of wakir-nats.container Volume= line. NATS runs as
-      # uid:1000 too (compose parity). The bucket-init service is a
-      # one-shot client and does not mount its own volume.
+      # Mirror of wakir-nats.container Volume= line. The NATS Quadlet
+      # pins User=1000/Group=1000 -- note that compose/nats.yaml does
+      # NOT (it leaves the image's root default and a root-owned
+      # volume). The two tracks differ here, and this chown belongs to
+      # the Quadlet track: uid 1000 must own the JetStream store or
+      # NATS aborts with "storage directory is not writable". The
+      # bucket-init service is a one-shot client and does not mount its
+      # own volume.
       vols=(
         "wakir-nats-jetstream-data"
       )
