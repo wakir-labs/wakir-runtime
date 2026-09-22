@@ -2,9 +2,10 @@
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 """Tests for ``scripts/ci-live-vm-phase-3b-driver.sh`` — Mini-wave.
 
-The driver script is the matrix-cell hand-off declared in
-``.github/workflows/live-vm-acceptance.yml`` and documented in
-``docs/operations/live-vm-acceptance-phase-3b.md`` §4. These tests
+The driver script was written as the matrix-cell hand-off for a CI
+lane that has since been withdrawn (ADR-0077, 2026-09-22); its contract
+is documented in ``docs/operations/live-vm-acceptance-phase-3b.md`` §4
+and it is now invoked by operator hand. These tests
 exercise the driver via real subprocess invocations against the
 ``--mode=self-test`` surface, so the verdict JSON-schema, the CLI
 argument-handling, and the latency-budget gate are validated against
@@ -15,9 +16,13 @@ Hermetic constraints
 
 * No SSH. Every test runs ``--mode=self-test`` so the driver bypasses
   the SSH path entirely. The hermetic claude-dev sandbox cannot reach
-  192.168.178.* (see ``feedback_sandbox_host_trennung.md``), and even
-  the GitHub-Actions hosted runner does not have an authorised key to
-  the Pilot-VM at test time.
+  the substrate network (see ``feedback_sandbox_host_trennung.md``),
+  and no hosted runner holds a key to it either — which is one of the
+  two reasons the CI lane was withdrawn.
+
+  Read that boundary for what it is: this module proves the driver's
+  CLI and its verdict shapes, and the ``ssh`` path it would use in
+  earnest has never been executed by anything.
 * No real persona-engine. The verdict-shape is driven by
   ``WAKIR_PHASE_3B_MOCK_*`` ENV-vars. The driver still applies the
   latency-budget gate to the mocked values, which is the substantial
@@ -137,14 +142,15 @@ def _canonical_self_test_args(report_path: Path, **overrides: str) -> list[str]:
 
 
 def test_driver_script_exists_and_is_executable() -> None:
-    """The driver script lives at the canonical path the workflow uses."""
+    """The driver lives at the canonical path its documentation names."""
     assert DRIVER_PATH.exists(), (
-        f"driver script missing at {DRIVER_PATH}; the workflow at "
-        f".github/workflows/live-vm-acceptance.yml:647 hard-codes this path."
+        f"driver script missing at {DRIVER_PATH}; "
+        f"docs/operations/live-vm-acceptance-phase-3b.md §4 names this path "
+        f"as the operator invocation."
     )
     assert os.access(DRIVER_PATH, os.X_OK), (
-        f"driver script {DRIVER_PATH} is not executable; the workflow "
-        f"checks `[[ -x \"${{DRIVER}}\" ]]` before invocation."
+        f"driver script {DRIVER_PATH} is not executable; an operator "
+        f"invokes it directly."
     )
 
 
@@ -359,9 +365,11 @@ def test_self_test_driver_not_present_status_passthrough(
     tmp_path: Path,
 ) -> None:
     """The ``driver-not-present`` status is emitted with exit-code 0 —
-    same as ``ok``, matching the workflow per-permutation verdict-step
-    (live-vm-acceptance.yml:711-714 maps driver-not-present to a clean
-    SKIP)."""
+    same as ``ok``. The token dates from the withdrawn lane, where a
+    per-permutation verdict step mapped it to a clean SKIP; it is kept
+    because the verdict contract in §4 is written against it and an
+    operator reading a report needs "not deployed" to stay
+    distinguishable from "ran and failed"."""
     report_path = tmp_path / "report.json"
     args = _canonical_self_test_args(report_path)
     env = {

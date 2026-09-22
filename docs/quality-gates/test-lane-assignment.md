@@ -67,12 +67,24 @@ say so:
 | `phase-3c-opt-in` | `WAKIR_PHASE_3C_*` / `--phase-3c-*` | **no workflow sets these** | **0, ever** → 1, on 2026-09-20 ([below](#the-first-date-that-bit)) |
 | `phase-3-skeleton-opt-in` | `WAKIR_PHASE_3_SKELETON=1` | **no workflow sets this** | **0, ever** |
 
-All 22 modules classified as deliberate standing exceptions have never
-executed. `live-vm-acceptance.yml` has not been dispatched once since it
+All 22 modules classified as deliberate standing exceptions had never
+executed. `live-vm-acceptance.yml` had not been dispatched once since it
 was added on 2026-05-16. No workflow in this repository sets any of the
 Phase-3c opt-in variables, so 207 tests documented as "skip-by-default,
 opt-in" are in practice skip-always — the acceptance criteria for a
 cutover, written down and unexecuted.
+
+**What has happened to the first row since.** The live-VM acceptance ran
+on 2026-09-21/22 — three times, by operator hand on the substrate node,
+and it failed there, which is the useful kind of failing. The workflow
+half never ran and, on a closer reading, never could have: a hosted
+runner has no route to a private-network target and the repository holds
+no Actions secrets. It was withdrawn on 2026-09-22 under ADR-0077, along
+with the companion real-VM job whose runner label no runner carries. So
+the row's `enabled by` column now reads *operator hand on the node*, and
+the exemption's own `execution_evidence` says so. The mechanism column
+is unchanged in one respect that matters: `--run-live-vm` is still the
+switch, and nothing in CI passes it.
 
 So the rule is now: every standing exception states the mechanism that
 would run it, what enables that mechanism, and when it last actually ran
