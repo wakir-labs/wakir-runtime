@@ -23,6 +23,7 @@ unit:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -125,7 +126,21 @@ def test_quadlet_hardening_posture(quadlet_text: str) -> None:
 
 
 def test_quadlet_health_probe(quadlet_text: str) -> None:
-    assert "HealthCmd=/opt/spire/bin/spire-server healthcheck" in quadlet_text
+    # This used to assert the string form literally, which is the form
+    # that cannot run: podman wraps a string HealthCmd in /bin/sh -c and
+    # the SPIRE image has no shell. Measured on the live node
+    # 2026-09-22 — the probe had been failing with empty output every
+    # ten seconds since May while the container published `unhealthy`.
+    # Asserting the property, not a spelling.
+    health = re.search(r"^HealthCmd=(.+)$", quadlet_text, re.M)
+    assert health, "no HealthCmd= in the quadlet"
+    health_value = health.group(1).strip()
+    assert health_value.startswith("["), (
+        f"HealthCmd must be exec form (a JSON array), got: {health_value}"
+    )
+    health_parsed = json.loads(health_value)
+    assert health_parsed[0] == "/opt/spire/bin/spire-server", health_parsed
+    assert "healthcheck" in health_parsed, health_parsed
     assert "HealthInterval=10s" in quadlet_text
     assert "HealthTimeout=5s" in quadlet_text
     assert "HealthRetries=5" in quadlet_text

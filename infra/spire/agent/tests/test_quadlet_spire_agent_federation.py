@@ -26,6 +26,7 @@ Asserts:
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -124,10 +125,29 @@ def test_hardening_directives(container_text: str) -> None:
 
 
 def test_health_cmd_uses_spire_agent_self_check(container_text: str) -> None:
-    assert re.search(
-        r"HealthCmd=/opt/spire/bin/spire-agent\s+healthcheck",
-        container_text,
-    ), "HealthCmd must invoke spire-agent healthcheck subcommand"
+    """Binary and subcommand, in exec form.
+
+    This assertion used to pin the string form
+    ``HealthCmd=/opt/spire/bin/spire-agent healthcheck`` literally — and
+    that form cannot run: podman wraps a string HealthCmd in
+    ``/bin/sh -c`` and the SPIRE image has no shell (measured on the live
+    node 2026-09-22; the check had been returning ExitCode 1 with empty
+    output every ten seconds since May while the container published
+    ``unhealthy``).
+
+    So the test was asserting the defect. It now asserts the property —
+    exec form, right binary, right subcommand — rather than one spelling,
+    so it cannot pin a broken spelling again.
+    """
+    match = re.search(r"^HealthCmd=(.+)$", container_text, re.M)
+    assert match, "no HealthCmd= in the quadlet"
+    value = match.group(1).strip()
+    assert value.startswith("["), (
+        f"HealthCmd must be exec form (a JSON array), got string form: {value}"
+    )
+    parsed = json.loads(value)
+    assert parsed[0] == "/opt/spire/bin/spire-agent", parsed
+    assert "healthcheck" in parsed, parsed
 
 
 # ---------------------------------------------------------------------

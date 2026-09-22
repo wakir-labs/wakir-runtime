@@ -459,6 +459,7 @@ jobs:
             tests/observability/test_pre_cutover_daily_trend_analyzer.py \
             tests/observability/test_pre_cutover_probe_failure_rate_tracker.py \
             tests/observability/test_quadlet_15_binary_live_boot_test.py \
+            tests/observability/test_quadlet_healthcmd_exec_form.py \
             tests/observability/test_recovery_workflow_alert_routing.py \
             tests/observability/test_stability_window_doc_mirror_routing.py \
             tests/observability/test_state_backing_alert_routing.py \
