@@ -778,19 +778,59 @@ step_3_cli_tools() {
 # Step 4: Repo clone
 # ---------------------------------------------------------------------------
 
+# Run one git command inside ${WAKIR_REPO_ROOT} and keep BOTH its output
+# and its exit status.
+#
+# The form this replaces was a subshell of three chained git calls, each
+# with its own ``>/dev/null 2>&1``, whose combined status is the status
+# of the LAST command only:
+#
+#     ( cd "$root"
+#       git fetch  ... >/dev/null 2>&1
+#       git checkout ... >/dev/null 2>&1
+#       git reset --hard "origin/$branch" >/dev/null 2>&1
+#     ) || { log_err "git fetch/reset failed"; return 2; }
+#
+# A failing ``fetch`` -- no network, expired credentials, a remote that
+# has moved -- was invisible there. ``reset --hard origin/<branch>``
+# then succeeded against whatever the remote-tracking ref happened to
+# hold from some earlier run, and the step logged
+# ``repo updated to origin/<branch>``. The step reported success for an
+# update that had not happened, and every later step ran against a tree
+# nobody had checked.
+#
+# So: one call per invocation, status checked, output kept and surfaced
+# on the failure path instead of discarded.
+_git_repo() {
+  local label="$1"
+  shift
+  local out="" rc=0
+  out=$( cd "$WAKIR_REPO_ROOT" && "$WAKIR_BOOTSTRAP_GIT" "$@" 2>&1 ) || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    log_err "git ${label} failed (rc=${rc}): git $*"
+    if [[ -n "$out" ]]; then
+      printf '%s\n' "$out" | tail -n 5 >&2
+    fi
+    return "$rc"
+  fi
+  printf '%s' "$out"
+  return 0
+}
+
 step_4_repo_clone() {
   log_step 4 "$TOTAL_STEPS" "Repo klonen nach ${WAKIR_REPO_ROOT}"
 
   if [[ -d "${WAKIR_REPO_ROOT}/.git" ]]; then
     log_ok "repo already present; fetching latest on ${WAKIR_REPO_BRANCH}"
-    (
-      cd "$WAKIR_REPO_ROOT"
-      "$WAKIR_BOOTSTRAP_GIT" fetch --depth 1 origin "$WAKIR_REPO_BRANCH" \
-        >/dev/null 2>&1
-      "$WAKIR_BOOTSTRAP_GIT" checkout "$WAKIR_REPO_BRANCH" >/dev/null 2>&1
-      "$WAKIR_BOOTSTRAP_GIT" reset --hard "origin/${WAKIR_REPO_BRANCH}" \
-        >/dev/null 2>&1
-    ) || { log_err "git fetch/reset failed"; return 2; }
+    # Each of the three calls is load-bearing and each is checked. A
+    # failed fetch stops here: continuing would reset the checkout to a
+    # remote-tracking ref of unknown age, which is worse than not
+    # updating at all, because it looks like an update.
+    _git_repo "fetch" fetch --depth 1 origin "$WAKIR_REPO_BRANCH" \
+      >/dev/null || { log_err "cannot reach origin; refusing to reset the checkout to a stale remote-tracking ref"; return 2; }
+    _git_repo "checkout" checkout "$WAKIR_REPO_BRANCH" >/dev/null || return 2
+    _git_repo "reset" reset --hard "origin/${WAKIR_REPO_BRANCH}" \
+      >/dev/null || return 2
     log_ok "repo updated to origin/${WAKIR_REPO_BRANCH}"
     return 0
   fi
