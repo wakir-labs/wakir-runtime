@@ -36,8 +36,12 @@
 # Sandbox boundary
 # ----------------
 # All stages are hermetic: in-memory mocks, no podman, no NATS, no live
-# VM. The live-VM acceptance gate (`e2e-vm-acceptance-gate.yml`) stays
-# an operator-hand lane.
+# VM. Nor is there a CI lane elsewhere that supplies the live half:
+# `e2e-vm-acceptance-gate.yml` is hermetic too since ADR-0077 withdrew
+# its real-VM job, and the workflow that named the live path was
+# withdrawn in the same decision. Live acceptance is an operator-hand
+# run on the substrate node, bounded by a dated exemption rather than
+# by any job here.
 #
 # Required status check
 # ---------------------
