@@ -1,13 +1,24 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
-"""Hermetic tests for -CI-Wrapper for Live-VM-Acceptance:
+"""Hermetic tests for the remote Live-VM-Acceptance wrapper:
 ``scripts/ci-live-vm-acceptance-wrapper.sh``.
 
 Anlass — AR-Direktive 2026-05-15 23:35 CEST. The engineering zone's /9 on-VM
 acceptance script is source-of-truth; this wrapper adds the
-SSH-driven CI-callable half (operator-host pre-check, repo-pull,
+SSH-driven remote half (operator-host pre-check, repo-pull,
 federation-config reset, on-VM acceptance invocation, summary-JSON
 emit).
+
+What these tests do not say
+---------------------------
+
+They say the wrapper's CLI surface and its emitted shapes are what the
+documentation claims. They say nothing about whether it works, because
+it has never been run — not in CI, which no longer has a lane that
+calls it (ADR-0077 withdrew the one that was written to), and not by
+hand. The ``ci-`` in the file name is a leftover from the withdrawn
+lane; the file keeps it so that renaming does not churn the documents
+that cite it.
 
 Test-Vector index
 -----------------

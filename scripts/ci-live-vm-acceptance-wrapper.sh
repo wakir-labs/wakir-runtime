@@ -2,30 +2,43 @@
 # SPDX-License-Identifier: BUSL-1.1
 # SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
 #
-# Live-VM-Acceptance CI-Wrapper
-# (Item: codify the operator-hand procedure into a CI-callable
-#  wrapper script).
+# Live-VM-Acceptance remote wrapper
+# (codifies the operator-hand procedure into a repeatable script).
 #
 # **Why this script exists.**
 #
 # `scripts/federation-live-vm-acceptance.sh` is the source-of-truth
 # acceptance lane. It runs ON the Pilot-VM,
 # as root, after the substrate has been installed at
-# /opt/wakir-runtime. That covers the manual Operator-Hand path.
+# /opt/wakir-runtime. That covers the on-node Operator-Hand path, and
+# it is the path that produced the live evidence of 2026-09-21/22.
 #
-# This wrapper adds the **CI-callable** half: an SSH-driven script
-# that runs on the operator host (or a CI runner with SSH credentials
-# to the target VM), pulls the repo into the right place, resets
+# This wrapper adds the remote half: an SSH-driven script that runs on
+# the operator host, pulls the repo into the right place, resets
 # federation-config from source, invokes the on-VM acceptance script,
-# and emits a summary-JSON to stdout for CI ingestion.
+# and emits a summary-JSON to stdout.
+#
+# Status — read this before believing the file name
+# -------------------------------------------------
+#
+# Nothing in CI calls this script, and nothing has. The workflow that
+# was written to call it aimed a hosted runner at a private-network
+# address and read its credentials from Actions secrets the repository
+# does not have; it was never dispatched and was withdrawn on
+# 2026-09-22 under ADR-0077. The `ci-` in the file name is a leftover
+# from that design and is kept only because renaming the file would
+# churn its tests and the documents that cite it by name.
+#
+# So: this is operator tooling. It has never been executed, in CI or by
+# hand. Treat a run of it as a first run.
 #
 # Sandbox boundary
 # ----------------
 #
 # This wrapper DOES NOT run in the claude-dev Sandbox. The Sandbox
-# cannot reach 192.168.178.* — see feedback_sandbox_host_trennung.md.
-# It runs on an operator-controlled host (operator-hand) or a CI runner
-# that has SSH access to wakir-orbit / wakir-pilot.
+# cannot reach the substrate network — see
+# feedback_sandbox_host_trennung.md. It runs on an operator-controlled
+# host that has SSH access to the substrate nodes.
 #
 # Invocation
 # ----------
@@ -49,8 +62,8 @@
 #                     sudo-NOPASSWD on the target for this user (the
 #                     acceptance script needs root).
 #   --ssh-key         Private-key path. The wrapper does NOT touch
-#                     ssh-agent; the key path is explicit so the CI
-#                     runner can manage its own key lifecycle.
+#                     ssh-agent; the key path is explicit so the
+#                     caller manages its own key lifecycle.
 #
 # Optional flags:
 #   --side                  Same semantics as WAKIR_SIDE on the target.
@@ -71,8 +84,8 @@
 #   --skip-cosign-verify    Pass through to the bootstrap. Default: 1
 #                           (parity with the on-VM acceptance script).
 #   --summary-json          Output path for the summary-JSON; default
-#                           is stdout. CI passes a file path so the
-#                           summary lands on the runner FS.
+#                           is stdout. Pass a file path to land the
+#                           summary on the calling host's filesystem.
 #   --pre-check-only        Run the SSH + repo-pull precheck but do
 #                           NOT invoke the acceptance script on the
 #                           target. Useful for dry-run + connection

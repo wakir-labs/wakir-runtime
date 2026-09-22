@@ -5,19 +5,53 @@ Copyright (c) 2026 Callandor GmbH and contributors
 
 # Live-VM Acceptance — Phase-3b Backend-Matrix Lane
 
-**Status:** Living operations document.
-**Scope:** Operator companion for the Phase-3b backend-matrix
-extension of `.github/workflows/live-vm-acceptance.yml` (
-mini wave, 2026-05-17).
+**Status:** Living operations document — read section 0 first.
+**Scope:** Operator companion for the Phase-3b backend matrix, driven
+by hand through `scripts/ci-live-vm-phase-3b-driver.sh`.
 **Predecessor:** `docs/test-plans/phase-2-live-vm-acceptance.md`
-(/16 operator companion for the base lane).
+(operator companion for the base acceptance).
 **Related PR:** `wirelang/persona_engine/rust_backend_switch.py`
-(PR #167 mini wave) introduced the ENV-gated Rust-default
-switches that this lane validates on a real Pilot-VM.
+(PR #167) introduced the ENV-gated Rust-default switches that this
+matrix validates on a real Pilot-VM.
 
 ---
 
-## 1. Why a separate Phase-3b lane exists
+## 0. What changed on 2026-09-22, and what this document is now
+
+This document was written as the companion to a CI lane: a matrix job
+that expanded the backend permutations, and an aggregate job that
+collected the per-cell reports, enforced final-state-hash equivalence
+and applied the latency budget. **That lane no longer exists.** It aimed
+a hosted runner at a private-network address and read its credentials
+from Actions secrets the repository does not hold; it was never
+dispatched once in four months, and it was withdrawn under ADR-0077.
+
+What survives is the part that never needed a workflow:
+
+* the **driver** (`scripts/ci-live-vm-phase-3b-driver.sh`), which
+  reaches the target over SSH from an operator-controlled host and
+  writes one report per invocation;
+* the **contracts** — the driver flags in section 4, the report shape in
+  section 4, the aggregation rules in section 5, the latency budget in
+  section 6.
+
+What an operator now does instead of dispatching: expand the matrix by
+invoking the driver once per permutation, then apply section 5 to the
+reports by hand or with a script of their own. Nothing aggregates
+automatically, and no status is reported anywhere unless somebody
+reports it.
+
+**Neither the matrix nor the driver has ever been executed against a
+real VM.** The lane that would have done it never ran, and no operator
+has run the driver by hand. Read the rest of this document as a design
+that is written down and untried, not as a procedure with a track
+record. The acceptance that does have a track record is the base one —
+`scripts/federation-live-vm-acceptance.sh`, run on the node itself,
+three times on 2026-09-21/22, and it failed there.
+
+---
+
+## 1. Why a separate Phase-3b run exists
 
 PR #167 wires two Rust crates (`persona-engine-recovery`,
 `persona-engine-state-backing`) into the Python persona-engine via
@@ -34,7 +68,7 @@ the **switch itself** is correct. It cannot prove the **Rust
 binaries** behave identically to their Python pendants on a real VM
 with production-shaped storage, networking and SELinux context.
 
-That live equivalence claim is what the Phase-3b backend-matrix lane
+That live equivalence claim is what the Phase-3b backend matrix
 validates. The matrix re-runs the persona spawn → R1..R4 recovery →
 state-backing roundtrip cycle once per `(recovery_backend ×
 state_backing_backend)` permutation on the same Pilot-VM, then
@@ -53,54 +87,38 @@ PASS.
 
 ---
 
-## 2. Lane topology
-
-The Phase-3b extension adds two jobs to `live-vm-acceptance.yml`:
+## 2. Run topology
 
 ```
-                +----------------------------+
-                | live-vm-acceptance         |  (base lane)
-                | (Operator-Hand dispatch)   |
-                +----------------------------+
-                              |
-                              v  needs:
-                +----------------------------+
-                | live-vm-acceptance-        |  matrix:
-                | phase-3b                   |   recovery_backend  x
-                | (matrix-spawned)           |   state_backing_backend
-                +----------------------------+
-                              |
-                              v  needs:
-                +----------------------------+
-                | live-vm-acceptance-        |  collects per-cell
-                | phase-3b-aggregate         |  reports, enforces
-                | (single job)               |  equivalence + budget
-                +----------------------------+
+   base acceptance on the node          one driver run per permutation
+   (proven; run first)                  (never run; from operator host)
+ +-----------------------------+      +------------------------------+
+ | federation-live-vm-         |  ->  | ci-live-vm-phase-3b-driver   |
+ | acceptance.sh, as root on   |      | --recovery-backend X         |
+ | the substrate node          |      | --state-backing-backend Y    |
+ +-----------------------------+      | --report-json <path>         |
+                                      +------------------------------+
+                                                     |
+                                                     v
+                                        section 5, applied by the
+                                        operator to the collected
+                                        reports
 ```
 
-Both new jobs gate themselves on the `recovery_backend != 'none'` OR
-`state_backing_backend != 'none'` condition. When both inputs are
-`none` (the default), only the base lane runs and the new jobs
-no-op — preserving/16 dispatch semantics for operators who
-do not want Phase-3b validation in a given run.
+Order matters for the same reason it did when a job enforced it: a
+backend-equivalence claim over a substrate that does not pass its base
+acceptance is a claim about nothing. Run the base acceptance first and
+read its verdict before expanding the matrix.
+
+There is no longer a "skip Phase-3b" setting, because there is no run
+to opt out of: not invoking the driver is the default.
 
 ---
 
-## 3. Dispatch inputs (Phase-3b-specific)
+## 3. The matrix an operator expands
 
-| input | type | default | meaning |
-|---|---|---|---|
-| `recovery_backend` | choice | `none` | `none` = skip Phase-3b; `python` = only Python; `rust` = only Rust; `both` = matrix-both |
-| `state_backing_backend` | choice | `none` | `none` = skip Phase-3b; `python` / `rust_inmemory` / `rust_natskv` = single backend; `both` = matrix-both |
-| `phase_3b_latency_budget_ms` | string | `1500` | per-backend p95 budget (recovery + state-backing) in milliseconds |
-
-The base-lane inputs (`target_vm`, `test_filter`, `peer_host`,
-`skip_cosign_verify`) are unchanged. Their semantics carry over to
-the Phase-3b jobs unmodified — the Phase-3b driver SSHes into the
-same target VM as the base wrapper.
-
-When `recovery_backend = both` and `state_backing_backend = both`,
-the matrix expands to 2 × 3 = 6 permutations:
+The axes are the two backend switches. The full matrix is 2 × 3 = 6
+permutations, one driver invocation each:
 
 ```
 (python, python)
@@ -111,22 +129,30 @@ the matrix expands to 2 × 3 = 6 permutations:
 (rust,   rust_natskv)
 ```
 
-Cells that do not match the operator's selection are filtered out
-inside each cell's `Decide should_run for this permutation` step
-(see workflow source, the GitHub-Actions matrix can only be a
-Cartesian product so per-axis filters live inside the cells).
+There is no dispatch form to fill in and no per-axis filter to
+configure: the operator runs the permutations they want and leaves out
+the ones they do not. A partial matrix is legitimate for triage
+(section 7.2) but does not support the equivalence claim — that claim
+needs every permutation whose backends it is about.
+
+The per-backend p95 latency budget, previously a dispatch input, is now
+the `--latency-budget-ms` flag. Its default remains 1500 ms; the
+reasoning is in section 6.
+
+The target VM, SSH user and key are driver flags (section 4), and point
+at the same nodes the base acceptance runs on.
 
 ---
 
 ## 4. The driver script
 
-The matrix-cell calls `scripts/ci-live-vm-phase-3b-driver.sh` with
-the following flags:
+Invoke `scripts/ci-live-vm-phase-3b-driver.sh` with the following
+flags — one invocation per permutation:
 
 ```
 --target              <wakir-pilot|wakir-orbit|both>
 --ssh-user            wakir-acceptance
---ssh-key             <runner-temp-path>
+--ssh-key             <path to the operator's key>
 --recovery-backend    <python|rust>
 --state-backing-backend <python|rust_inmemory|rust_natskv>
 --latency-budget-ms   <int>
@@ -155,12 +181,13 @@ a structured JSON report:
 }
 ```
 
-### Driver-not-present staging
+### The `driver-not-present` status
 
-The mini wave ships the **workflow surface**. The driver
-script itself (`scripts/ci-live-vm-phase-3b-driver.sh`) is a
-follow-up sprint deliverable. When the driver is absent, each
-matrix-cell emits a structured `driver-not-present` stub:
+The status dates from a staging posture: the lane surface landed one
+sprint before the driver did, and a cell with no driver emitted a
+structured stub rather than a silent pass. The stub shape is kept
+because the distinction it encodes is the one that matters when reading
+reports — "nothing ran here" must not look like "ran and passed":
 
 ```json
 {
@@ -178,18 +205,19 @@ matrix-cell emits a structured `driver-not-present` stub:
 }
 ```
 
-The aggregate job recognises `driver-not-present` as a clean SKIP —
-the workflow returns success but the operator sees a clear signal
-that no real acceptance ran. This mirrors the staging
-posture where the wrapper and the on-VM script landed in
-separate sprints.
+Section 5 treats an all-`driver-not-present` report set as a SKIP, not
+a pass. Since the aggregation is now done by the reader, this is the
+rule the reader applies: a report set that contains such a status has
+told you where it is not evidence.
 
 ---
 
 ## 5. Aggregation contract
 
-`live-vm-acceptance-phase-3b-aggregate` collects every per-cell
-report and emits an aggregate summary:
+This section used to describe what an aggregate job did. It now
+describes what the operator has to do with the collected reports — the
+rules are unchanged, the enforcement is a hand. Collect the per-run
+reports and derive the same summary:
 
 ```json
 {
@@ -206,7 +234,7 @@ report and emits an aggregate summary:
 }
 ```
 
-Aggregate status transitions:
+Aggregate status values, and how to reach them:
 
 | status | meaning | exit code |
 |---|---|---|
@@ -215,7 +243,7 @@ Aggregate status transitions:
 | `fail` | one or more per-cell reports are `fail` | 1 |
 | `fail-equivalence-break` | `ok` reports carry more than one distinct `final_state_hash` (cross-backend drift) | 1 |
 | `fail-latency-budget` | one or more `ok` reports exceed the p95 budget | 1 |
-| `no-reports` | matrix did not emit any report (lane misconfigured) | 1 |
+| `no-reports` | no report was produced at all — which now means nobody ran the driver, and is the state this matrix has been in since it was written | 1 |
 | `unknown` | catch-all (should never fire under documented inputs) | 1 |
 
 The `equivalence_class` count is the **operator's primary
@@ -231,7 +259,7 @@ Default `phase_3b_latency_budget_ms = 1500`. The budget covers:
 
 * **Rust subprocess-bridge cold-start.** Each Rust-backend
   permutation forks a CLI binary; cold-start dominates the first
-  R1..R4 invocation in the matrix-cell. Subsequent invocations
+  R1..R4 invocation of each permutation. Subsequent invocations
   benefit from the OS page-cache and stay below 500 ms.
 * **NATS-KV roundtrip on the `rust_natskv` permutation.** The
   state-backing path traverses NATS-KV; production NATS-KV reads
@@ -240,107 +268,117 @@ Default `phase_3b_latency_budget_ms = 1500`. The budget covers:
   The Python persona-engine carries `wirelang.persona_engine.engine`
   module-load overhead.
 
-When the per-permutation p95 exceeds 1500 ms the lane fails with
-`fail-latency-budget`. Operators triaging a budget failure should:
+When the per-permutation p95 exceeds 1500 ms the driver exits with
+`fail` / `fail_subkind: latency-budget`. Operators triaging a budget
+failure should:
 
 1. Check whether the Pilot-VM is under unrelated load (cosign
    keyless sign-push, image pull, peer-VM ping floods).
 2. Confirm the Rust binary at `/opt/wakir/bin/wakir-persona-engine-*`
    matches the production-image-pin from
    `infra/persona-images-pinned.json`.
-3. Re-run the lane with a higher budget (`3000` ms) to distinguish
+3. Re-run with a higher `--latency-budget-ms` (`3000`) to distinguish
    a transient overload from a substrate regression.
 
 ---
 
 ## 7. Operator runbook
 
-### 7.1 Dispatch a Phase-3b-only validation run
+### 7.1 A full backend-equivalence run
 
-GitHub UI → Actions → live-vm-acceptance → Run workflow with:
+Run the base acceptance on the node first and read its verdict
+(`scripts/federation-live-vm-acceptance.sh`). Then, from the operator
+host, one driver invocation per permutation against the same VM:
 
+```sh
+for rec in python rust; do
+  for sb in python rust_inmemory rust_natskv; do
+    bash scripts/ci-live-vm-phase-3b-driver.sh \
+      --target wakir-pilot \
+      --ssh-user wakir-acceptance \
+      --ssh-key "$KEY" \
+      --recovery-backend "$rec" \
+      --state-backing-backend "$sb" \
+      --latency-budget-ms 1500 \
+      --report-json "reports/$rec-$sb.json"
+  done
+done
 ```
-target_vm              = wakir-pilot
-recovery_backend       = both
-state_backing_backend  = both
-phase_3b_latency_budget_ms = 1500
-```
 
-This re-runs the base lane (cheap), then expands the 2×3 matrix
-on the same VM, then aggregates.
+Then apply section 5 to `reports/*.json`. The value to read first is
+the number of distinct `final_state_hash` values across the `ok`
+reports: one means the backends agree, anything else means they do not.
 
 ### 7.2 Single-backend regression triage
 
-When a previous run flagged `fail-equivalence-break` and the
-operator suspects the `rust + rust_natskv` permutation:
-
-```
-recovery_backend       = rust
-state_backing_backend  = rust_natskv
-phase_3b_latency_budget_ms = 1500
-```
-
-The matrix collapses to a single cell; the aggregate verdict is the
-per-cell verdict.
-
-### 7.3 Skip Phase-3b entirely (/16 parity)
-
-```
-recovery_backend       = none
-state_backing_backend  = none
-```
-
-The new jobs no-op; the lane behaves exactly as before.
-
-### 7.4 Verdict consumption
-
-The aggregate summary lands as an artefact named
-`phase-3b-aggregate-summary-<run-id>`. Operators consuming the
-verdict programmatically should fetch this artefact and read
-`aggregate-summary.json`:
+When a previous set showed an equivalence break and the suspicion falls
+on one permutation, run that one alone:
 
 ```sh
-gh run download <run-id> --name phase-3b-aggregate-summary-<run-id>
-jq '.status, .equivalence_class, .latency_violations' aggregate-summary.json
+bash scripts/ci-live-vm-phase-3b-driver.sh \
+  --target wakir-pilot --ssh-user wakir-acceptance --ssh-key "$KEY" \
+  --recovery-backend rust --state-backing-backend rust_natskv \
+  --latency-budget-ms 1500 --report-json reports/triage.json
 ```
+
+A single report is its own verdict. It supports a triage conclusion, not
+an equivalence claim — see section 3.
+
+### 7.3 Verdict consumption and keeping the evidence
+
+The reports are the evidence and nothing stores them for you. Keep the
+per-permutation JSON files together with the base acceptance log from
+the same session, under a path that names the date and the commit the
+substrate was running.
+
+```sh
+jq -s 'map(.status)          | unique' reports/*.json
+jq -s 'map(select(.status=="ok") | .final_state_hash) | unique' reports/*.json
+jq -s 'map(select(.recovery_latency_ms_p95 > 1500))' reports/*.json
+```
+
+The three lines are section 5's status set, equivalence class and
+latency violations. An operator who runs the matrix and does not keep
+the output has produced no evidence — the same defect as a gate that
+reports without measuring, arrived at from the other side.
 
 ---
 
 ## 8. Cross-Review anchors
 
 * **PR #167** (mini wave, ENV-gated Rust-default switches)
-  — this lane is the Phase-3b production validation surface for
-  the switches.
+  — this matrix is the Phase-3b production validation surface for
+  the switches, and it has not been exercised.
 * **ADR-0058** (Pilot-Persona-Migrations-Plan) — §"Phase 4
   cutover-Entscheidung". The Phase-3b equivalence verdict is one
   of the inputs to the Phase-3a → Phase-4 cutover decision.
-* **Zone N** (QA × Audit) — the aggregate summary JSON is
-  evidence for the Doppelbetrieb cross-language equivalence
-  claim. internal audit samples a Phase-3b run per audit window.
-* **Zone J** (Persona-Engine × Container-Substrate) — the lane is
-  Persona-Engine substance running on infrastructure-owned container infra;
-  persona-engine engineering and infrastructure engineering cross-review the driver-script PR when it lands.
-* **`feedback_sandbox_host_trennung.md`** (Memory) — the
-  hermetic claude-dev Sandbox cannot reach `192.168.178.*`.
-  Phase-3b inherits the base-lane SSH-precheck and fails closed
-  when the secret is absent.
+* **Zone N** (QA × Audit) — the collected reports are the evidence for
+  the Doppelbetrieb cross-language equivalence claim. Internal audit
+  samples a Phase-3b run per audit window; as of 2026-09-22 there is no
+  run to sample, which is itself the finding.
+* **Zone J** (Persona-Engine × Container-Substrate) — the matrix is
+  Persona-Engine substance running on infrastructure-owned container
+  infra; persona-engine engineering and infrastructure engineering
+  cross-review changes to the driver script.
+* **`feedback_sandbox_host_trennung.md`** (Memory) — the hermetic
+  claude-dev sandbox cannot reach the substrate network. The driver
+  fails closed when it cannot reach the target, and `--mode=self-test`
+  is the only surface a sandbox may use.
+* **ADR-0077** (2026-09-22) — withdrew the CI lane this document was
+  written for. Section 0 states what that changed.
 
 ---
 
 ## 9. Out of scope
 
-* ~~`scripts/ci-live-vm-phase-3b-driver.sh`~~ — landed (this
-  follow-up). The driver is the matrix-cell hand-off implementation
-  that fulfils the §4 contract. The workflow keeps its inline
-  `driver-not-present` stub-emit as a defence-in-depth safety net
-  for branches that predate this change (see
-  `live-vm-acceptance.yml:648` `if [[ -x "${DRIVER}" ]]; then`).
-* Real-VM bring-up in CI. The hermetic Sandbox cannot reach the
-  Pilot-VM. The Phase-3b lane is Operator-Hand-dispatch only,
-  identical to the base lane. The driver itself supports an
-  `--mode=self-test` surface so its CLI + verdict-emit can be
-  exercised hermetically via `WAKIR_PHASE_3B_MOCK_*` ENV-vars
-  (see `tests/scripts/test_ci_live_vm_phase_3b_driver.py`).
+* Real-VM bring-up in CI. There is no CI path to a real VM in this
+  repository and, per ADR-0077, no plan to build one: the capability
+  lives in the operator's hand and a self-hosted runner was weighed
+  and declined. The driver supports `--mode=self-test` so its CLI and
+  verdict-emit can be exercised hermetically via
+  `WAKIR_PHASE_3B_MOCK_*` ENV-vars (see
+  `tests/scripts/test_ci_live_vm_phase_3b_driver.py`); that surface
+  proves the driver's shape and nothing about a substrate.
 * Automatic cross-language equivalence assertion in the/16
   hermetic test surface. The hermetic surface already pins
   `final_state_hash` via PR #135 / #140 cross-language fixtures;
@@ -348,16 +386,16 @@ jq '.status, .equivalence_class, .latency_violations' aggregate-summary.json
 
 ---
 
-## 10. driver follow-up — verdict-status codomain narrowing
+## 10. Verdict-status codomain narrowing
 
-The workflow YAML §4 originally hinted at a richer
-verdict-status codomain
+An earlier draft hinted at a richer verdict-status codomain
 (`{ok, fail, fail-latency-budget, fail-driver-error,
-driver-not-present}`). The driver implementation discovered
-that the per-permutation verdict-step
-(`live-vm-acceptance.yml:707-724`) only accepts three tokens
-(`{ok, fail, driver-not-present}`) before tripping its
-`Unknown report status` hard-error branch.
+driver-not-present}`). The driver implementation found that the
+per-permutation verdict step of the (since withdrawn) lane accepted
+only three tokens (`{ok, fail, driver-not-present}`) before tripping
+its `Unknown report status` hard-error branch. The narrow codomain
+outlived the step that forced it, because the reports and this
+contract are written against it.
 
 The driver therefore narrows the emitted verdict-status to that
 three-token codomain and surfaces the richer failure-mode
@@ -371,7 +409,7 @@ discriminator via `backend_decision_record.fail_subkind`:
 | `fail`               | `on-vm`          | 4         | remote acceptance script returned status==fail     |
 | `driver-not-present` | `null`           | 0         | remote driver binary not yet deployed              |
 
-The aggregate-job consumes `status` only; the exit code is the
-operator-side richer signal. Auditors (internal audit's sample-audit lane,
-Zone N) can read `backend_decision_record.fail_subkind` to
-distinguish the failure-modes without re-running the lane.
+Section 5's aggregation consumes `status` only; the exit code is the
+richer signal at the point of invocation. Auditors (internal audit's
+sample-audit lane, Zone N) read `backend_decision_record.fail_subkind`
+to tell the failure modes apart without re-running anything.

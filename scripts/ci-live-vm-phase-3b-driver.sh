@@ -8,15 +8,30 @@
 #
 # **Why this script exists.**
 #
-# `.github/workflows/live-vm-acceptance.yml` (increment, PR
-# #168) introduced the `live-vm-acceptance-phase-3b` matrix job. Each
-# matrix-cell shells out to `scripts/ci-live-vm-phase-3b-driver.sh`
-# with seven flags and expects a structured JSON report.
-# tolerated the driver being absent by emitting a `driver-not-present`
-# stub from the workflow YAML itself; this deliverable ships
-# the real driver and replaces that stub-path on the workflow side
-# (the workflow still keeps the stub-emit as a safety net — see
-# `live-vm-acceptance.yml:648` `if [[ -x "${DRIVER}" ]]; then`).
+# It was written as the matrix-cell hand-off for a CI lane: one
+# invocation per (recovery_backend x state_backing_backend)
+# permutation, each emitting a structured JSON report that a following
+# aggregate job collected, checked for final-state-hash equivalence
+# and held against a latency budget.
+#
+# Status — read this before believing the file name
+# -------------------------------------------------
+#
+# That lane is gone. It aimed a hosted runner at a private-network
+# address and read its credentials from Actions secrets the repository
+# does not have; it was never dispatched once and was withdrawn on
+# 2026-09-22 under ADR-0077. With it went the aggregate job, so there
+# is no longer anything that collects per-cell reports: an operator
+# running several permutations expands the matrix and compares the
+# reports by hand. The aggregation contract is still written down in
+# `docs/operations/live-vm-acceptance-phase-3b.md` section 5, now as a
+# description of what to check rather than of what a job checks.
+#
+# The driver itself needs no workflow — it drives the target over SSH
+# from an operator host. It has also never been executed in `ssh` mode,
+# by CI or by hand. Treat a run of it as a first run. The `ci-` in the
+# file name is a leftover from the withdrawn lane, kept only because
+# renaming would churn its tests and the documents that cite it.
 #
 # Driver contract (anchored in
 # `docs/operations/live-vm-acceptance-phase-3b.md` §4)
@@ -55,10 +70,9 @@
 # ----------------
 #
 # This driver DOES NOT run in the claude-dev Sandbox in `--mode=ssh`.
-# The Sandbox cannot reach 192.168.178.* — see
-# `feedback_sandbox_host_trennung.md`. It runs on the GitHub-Actions
-# runner that the workflow allocates, with the SSH key materialised
-# into `${RUNNER_TEMP}` by the `Materialise SSH key` step.
+# The Sandbox cannot reach the substrate network — see
+# `feedback_sandbox_host_trennung.md`. It runs on an operator-controlled
+# host, with the SSH key path supplied by the operator.
 #
 # `--mode=self-test` is the safe surface for hermetic tests: it bypasses
 # SSH entirely and reads its verdict-shape from ENV-vars. This mirrors
@@ -92,10 +106,11 @@
 #   }
 #
 # Status-codomain is deliberately narrow ({ok, fail, driver-not-present}).
-# The narrow set is dictated by the workflow's `Per-permutation verdict`
-# step (live-vm-acceptance.yml:707-724) which accepts exactly those three
-# tokens and treats anything else as an unknown-status hard-error. The
-# driver therefore funnels its richer internal failure-modes into
+# The narrow set was dictated by the withdrawn lane's per-permutation
+# verdict step, which accepted exactly those three tokens and treated
+# anything else as an unknown-status hard-error. It is kept because the
+# reports and the documented contract are written against it. The
+# driver funnels its richer internal failure-modes into
 # ``status=fail`` with a structured ``backend_decision_record.fail_subkind``
 # discriminator so an operator triaging the verdict-JSON can still tell
 # the failure-modes apart.
@@ -109,12 +124,11 @@
 #   4   verdict is `fail` with fail_subkind == "on-vm" (default fail)
 #   64  CLI-usage error (missing flag, unknown flag, conflicting flags)
 #
-# The workflow consumes the verdict-JSON via jq in the
-# `Per-permutation verdict` step; the exit code is informational
-# only (the workflow re-derives PASS/FAIL from the `status` field).
-# The richer exit-code surface stays useful for direct operator
-# invocations and for the aggregate-job's defence-in-depth p95-budget
-# re-check (live-vm-acceptance.yml:773-830).
+# With the lane withdrawn, the exit code is no longer merely
+# informational: it is the signal an operator reads directly, and the
+# verdict-JSON is what gets kept as the artefact. `status` and the exit
+# code agree by construction; the exit code carries the finer
+# `fail_subkind` distinction without a jq call.
 #
 # --------------------------------------------------------------------
 

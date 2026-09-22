@@ -161,18 +161,26 @@ sudo /opt/wakir-runtime/infra/test-e2e/vm-lifecycle-harness/run-acceptance-gate.
 The CI lane `e2e-vm-acceptance-gate` (in
 `.github/workflows/e2e-vm-acceptance-gate.yml`) does NOT trigger a
 real VM run in GitHub Actions — that requires nested-virt that the
-default `ubuntu-latest` runner does not reliably provide. Instead the
-lane runs the **hermetic harness-logic tests** that prove the gate
-script grades correctly given a mock smoke JSON.
+default `ubuntu-latest` runner does not reliably provide. The lane runs
+the **hermetic harness-logic tests** that prove the gate script grades
+correctly given a mock smoke JSON, and nothing else.
 
-The real-VM lane is triggered manually by the Operator-Hand on a host
-with `/dev/kvm`. Outputs (logs, smoke JSON, gate verdict) are uploaded
-back to the PR as evidence.
+That is the whole of the CI story. The workflow used to carry a second
+job for the real VM, gated on a self-hosted runner label; no runner ever
+carried that label, so the job stood at `skipping` on every pull request
+while the workflow reported success from the hermetic job. It was
+withdrawn on 2026-09-22 under ADR-0077.
 
-Future work (post-Phase-1b): self-hosted GitHub-Actions runner with
-nested-KVM on the Proxmox host so the real-VM lane can run automatically
-on each PR touching the bootstrap script. Tracked under
-`needs-attention.md`.
+Running this harness against a real VM is an operator action on a host
+with `/dev/kvm` — the invocation above, by hand. Its outputs (logs,
+smoke JSON, gate verdict) are the evidence; nothing uploads them for
+you, so attach them where the run is being reported.
+
+Standing up a self-hosted runner with nested KVM was considered and
+declined in the same decision: it would add cost, maintenance and a
+runner executing pull-request code inside the network it is meant to
+audit, for a capability that already exists in the operator's hand and
+has delivered.
 
 ## Operator-Hand-Run Note
 

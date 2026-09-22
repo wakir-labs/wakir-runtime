@@ -56,9 +56,12 @@ What it cannot catch, stated so nobody reads more into a green run
 This lint is hermetic. It knows whether a workflow file exists and
 whether a module sits in a lane; it does not know how often anything
 has run. Two of the four PR-#540 corrections were of that second kind —
-``live-vm-acceptance.yml`` exists and has had zero runs since
-2026-05-16; the real-VM leg of ``e2e-vm-acceptance-gate.yml`` exists and
-has never been dispatched. Only the Actions API can say that. The
+``live-vm-acceptance.yml`` existed and had had zero runs since
+2026-05-16; the real-VM leg of ``e2e-vm-acceptance-gate.yml`` existed
+and had never been dispatched. Only the Actions API can say that. Both
+were withdrawn on 2026-09-22 under ADR-0077, which is the point worth
+keeping: this lint would have gone on passing either way, because a
+file that exists satisfies check 2 no matter how often it runs. The
 counterpart here is the ``execution_evidence`` block that every standing
 exemption in ``lane_assignment.json`` carries.
 

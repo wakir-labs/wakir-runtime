@@ -10,14 +10,13 @@ pattern on every push and PR. The GitHub Actions validator annotation
 identified two distinct problems we close in this patch:
 
 1. **Real bug** — ``${{ runner.temp }}`` was referenced inside the
-   ``real-vm`` job's job-level ``env:`` block (line 138). The
+   since-withdrawn real-VM job's job-level ``env:`` block. The
    ``runner.*`` context is only valid inside steps and
    ``defaults.run``; at job-level it raises
    ``Unrecognized named-value: 'runner'`` and the validator drops the
-   entire workflow definition to 0 jobs. We now seed the state-dir
-   in a step via ``$RUNNER_TEMP`` (an env var that IS available at
-   step scope) and write the path to ``$GITHUB_ENV`` for downstream
-   steps to consume.
+   entire workflow definition to 0 jobs. The job that carried the
+   defect is gone (see below), but the defect class is not
+   job-specific, so the pin below now covers every job in the file.
 
 2. **Hygiene defence** — the bare top-level key ``on:`` is a YAML 1.1
    reserved-word that PyYAML's safe-mode resolver collapses to the
@@ -26,6 +25,23 @@ identified two distinct problems we close in this patch:
    pre-merge check would have flagged it. We quote the key
    (``"on":``) so both resolver-paths agree.
 
+The withdrawn real-VM job
+------------------------
+The workflow carried a second job that booted a disposable
+Fedora-CoreOS VM on a self-hosted runner selected by a nested-KVM
+label. Measured on 2026-09-22: no runner in the repository carries
+that label, and the repository has no self-hosted runners at all. The
+job could therefore never be scheduled — it stood at ``skipping`` on
+every pull request while the workflow reported ``success`` from the
+hermetic job alone. It was withdrawn under ADR-0077.
+
+The tests that pinned that job's shape are gone with it. What replaces
+them is a pin in the other direction: no job in this workflow may
+select a self-hosted runner. Re-introducing one is a decision about
+infrastructure that must be taken deliberately and with a runner that
+exists, not by editing a YAML file back into a shape that grades
+nothing.
+
 Coverage
 --------
 * The workflow YAML parses cleanly under PyYAML's safe_load.
@@ -33,15 +49,12 @@ Coverage
   boolean ``True``).
 * The ``on`` map contains the expected triggers (``push``,
   ``pull_request``, ``workflow_dispatch``).
-* The two jobs (``harness-logic``, ``real-vm``) are defined with
-  the expected ``runs-on`` and ``needs`` topology.
-* The ``real-vm`` job is correctly gated on
-  ``workflow_dispatch + run_real_vm == 'true'``.
-* The ``real-vm`` job-level ``env:`` block does NOT reference
-  ``runner.*`` — the validator-killing pattern from PR #38 is pinned
-  out.
-* The ``real-vm`` steps include a state-dir-seeding step that writes
-  ``WAKIR_E2E_STATE_DIR`` to ``$GITHUB_ENV`` via ``$RUNNER_TEMP``.
+* The job set is exactly ``{harness-logic}``, ungated, on
+  ``ubuntu-latest``.
+* No job selects a self-hosted runner.
+* No job-level ``env:`` block references ``runner.*`` — the
+  validator-killing pattern from PR #38 is pinned out for every job,
+  not only for the one that once carried it.
 
 Sandbox boundary: pure-Python static-analysis of a checked-in YAML
 file. No GitHub API call, no live runner.
@@ -117,46 +130,46 @@ def test_pr_trigger_paths_match_push_trigger_paths() -> None:
     )
 
 
-def test_jobs_topology_is_harness_logic_then_real_vm() -> None:
+def test_jobs_topology_is_the_hermetic_lane_only() -> None:
     doc = _load()
     jobs = doc["jobs"]
-    assert set(jobs.keys()) == {"harness-logic", "real-vm"}, list(jobs.keys)
+    assert set(jobs.keys()) == {"harness-logic"}, list(jobs.keys())
 
     harness = jobs["harness-logic"]
     assert harness["runs-on"] == "ubuntu-latest"
     # harness-logic must NOT be gated — every PR/push runs it.
     assert "if" not in harness
 
-    real_vm = jobs["real-vm"]
-    # real-vm runs on the labelled self-hosted runner.
-    runs_on = real_vm["runs-on"]
-    if isinstance(runs_on, str):
-        labels = [runs_on]
-    else:
-        labels = list(runs_on)
-    assert "self-hosted" in labels
-    assert "wakir-nested-kvm" in labels
 
-    # real-vm depends on harness-logic.
-    needs = real_vm.get("needs")
-    if isinstance(needs, str):
-        needs = [needs]
-    assert needs == ["harness-logic"]
+def test_no_job_selects_a_self_hosted_runner() -> None:
+    """ADR-0077 pin: this workflow may not schedule onto a runner label.
 
+    The withdrawn real-VM job selected ``[self-hosted, wakir-nested-kvm]``
+    and no runner carried that label, so it never ran while the workflow
+    reported success from the hermetic job beside it. A job that cannot
+    be scheduled does not fail — it waits, and a waiting job under an
+    ``if:`` that is false reads as ``skipping``. That is the shape this
+    assertion refuses to let back in silently.
 
-def test_real_vm_job_is_dispatch_gated() -> None:
-    """real-vm must only run on explicit workflow_dispatch + flag.
-
-    A misconfigured gate that auto-runs the real-vm lane on every
-    push would burn the self-hosted runner queue and erode the
-    acceptance-gate signal. The design says: real-vm
-    is Operator-Hand-triggered only.
+    Re-introducing a self-hosted lane is legitimate; doing it needs a
+    runner that exists, and then this test is the place where that fact
+    is recorded.
     """
     doc = _load()
-    real_vm_if = doc["jobs"]["real-vm"].get("if", "")
-    assert "workflow_dispatch" in real_vm_if
-    assert "run_real_vm" in real_vm_if
-    assert "true" in real_vm_if
+    offenders: list[str] = []
+    for name, job in doc["jobs"].items():
+        runs_on = job.get("runs-on")
+        labels = [runs_on] if isinstance(runs_on, str) else list(runs_on or [])
+        if isinstance(runs_on, dict):
+            labels = list(runs_on.get("labels", []))
+        if any("self-hosted" in str(label) for label in labels):
+            offenders.append(f"{name}: {runs_on!r}")
+    assert not offenders, (
+        "job(s) select a self-hosted runner, but this repository has no "
+        "self-hosted runners (measured 2026-09-22). Such a job cannot be "
+        "scheduled and its absence looks like a pass. See ADR-0077:\n  "
+        + "\n  ".join(offenders)
+    )
 
 
 def test_harness_logic_runs_hermetic_pytest() -> None:
@@ -181,58 +194,38 @@ def test_harness_logic_runs_hermetic_pytest() -> None:
     assert "tests/infra/test_vm_e2e_acceptance_gate.py" in runner_step
 
 
-def test_real_vm_job_env_does_not_reference_runner_context() -> None:
+def test_no_job_level_env_references_runner_context() -> None:
     """Regression-pin: job-level `env:` must not contain `${{ runner.* }}`.
 
     The validator error from PR #38 was
-    ``Unrecognized named-value: 'runner'`` at line 138 column 28,
-    pointing to ``${{ runner.temp }}/wakir-e2e`` inside the
-    ``real-vm`` job's job-level ``env:`` block. The ``runner.*``
-    context is only available inside steps and ``defaults.run``;
-    using it at job-level collapses the entire workflow definition
-    to 0 jobs. We pin this out explicitly.
+    ``Unrecognized named-value: 'runner'``, pointing at
+    ``${{ runner.temp }}/wakir-e2e`` inside a job-level ``env:``
+    block. The ``runner.*`` context is only available inside steps
+    and ``defaults.run``; using it at job-level collapses the entire
+    workflow definition to 0 jobs — and a workflow with 0 jobs is
+    another shape of a gate that grades nothing.
+
+    The job that carried the original defect has been withdrawn under
+    ADR-0077. The pin stays and now covers every job in the file,
+    because the defect was never a property of that one job.
     """
     doc = _load()
-    real_vm_env = doc["jobs"]["real-vm"].get("env", {}) or {}
-    for key, value in real_vm_env.items():
-        text = str(value)
-        assert "runner." not in text, (
-            f"real-vm job-level env.{key} references runner.* "
-            f"({value!r}); move this into a step. The validator "
-            f"will reject the workflow with "
-            f"'Unrecognized named-value: runner' and 0 jobs will run."
-        )
-
-
-def test_real_vm_seeds_state_dir_via_runner_temp_in_a_step() -> None:
-    """`WAKIR_E2E_STATE_DIR` must be seeded from `$RUNNER_TEMP` in a step.
-
-    Replaces the broken job-level `${{ runner.temp }}` reference.
-    The step writes to `$GITHUB_ENV` so subsequent steps consume
-    the env var in the normal way.
-    """
-    doc = _load()
-    steps = doc["jobs"]["real-vm"]["steps"]
-    run_commands = [s.get("run", "") for s in steps if "run" in s]
-    seeding_steps = [
-        cmd for cmd in run_commands
-        if "RUNNER_TEMP" in cmd and "WAKIR_E2E_STATE_DIR" in cmd
-        and "GITHUB_ENV" in cmd
-    ]
-    assert seeding_steps, (
-        "real-vm must seed WAKIR_E2E_STATE_DIR from $RUNNER_TEMP in a "
-        "step (writing to $GITHUB_ENV). The job-level env: route is "
-        "validator-rejected."
-    )
+    for job_name, job in doc["jobs"].items():
+        job_env = job.get("env", {}) or {}
+        for key, value in job_env.items():
+            text = str(value)
+            assert "runner." not in text, (
+                f"{job_name} job-level env.{key} references runner.* "
+                f"({value!r}); move this into a step. The validator "
+                f"will reject the workflow with "
+                f"'Unrecognized named-value: runner' and 0 jobs will run."
+            )
 
 
 def test_workflow_does_not_set_global_jobs_permissions_to_write() -> None:
     """Defence-in-depth: the workflow declares read-only contents.
 
-    Both lanes should run with `contents: read` and no write
-    permissions; the artefact-upload step uses
-    `actions/upload-artifact@v4` which only needs the implicit
-    runner write to the actions-cache, not repo-write.
+    The lane runs with `contents: read` and no write permissions.
     """
     doc = _load()
     perms = doc.get("permissions", {})

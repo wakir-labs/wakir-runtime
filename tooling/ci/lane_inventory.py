@@ -196,9 +196,12 @@ def parse_triggers(workflow: Path) -> tuple[tuple[str, ...], bool]:
 def _bash_arrays(lines: list[str]) -> dict[str, list[str]]:
     """Collect simple ``VAR=( ... )`` bash arrays defined in a workflow.
 
-    Needed for ``live-vm-acceptance.yml``, which builds its pytest
-    argument vector in an array and then expands it. Without this the
-    lane looks like it targets nothing.
+    Added for ``live-vm-acceptance.yml``, which built its pytest
+    argument vector in an array and then expanded it; without this the
+    lane looked like it targeted nothing. That workflow was withdrawn
+    under ADR-0077, but the pattern is not specific to it and the
+    derivation must keep seeing through it — a lane whose targets are
+    invisible to this function is a lane the assignment under-counts.
     """
     arrays: dict[str, list[str]] = {}
     i = 0

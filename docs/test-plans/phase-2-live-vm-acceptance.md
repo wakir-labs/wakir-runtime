@@ -11,6 +11,28 @@
 | Cross-Review (Zone M) | dev engineering (WAT-CLI on-VM), persona-engine engineering (persona-inspect on-VM), protocol engineering (bridge-forward subcommand semantics), infrastructure engineering (CI-Wrapper coupling), SRE engineering (heartbeat-freshness SLI overlap) |
 | Cross-Review (Zone N) | internal audit |
 
+## 0.0 Status note, 2026-09-22 — there is no CI side
+
+This plan speaks throughout of a "CI-triggerable" lane. **No CI lane
+invokes any of this, and none ever did.** The workflow written for it
+was withdrawn under ADR-0077: it aimed a hosted runner at a
+private-network address and read credentials from Actions secrets the
+repository does not hold, and it was never dispatched once between
+2026-05-16 and its removal.
+
+Read the column in section 2 as it was meant rather than as it is
+labelled: **"CI-triggerable" means unattended-safe** — the vector may
+run without a human watching the keyboard. It does not mean something
+runs it. What invokes these vectors today is an operator, either
+directly at a shell on the node or through
+`scripts/ci-live-vm-acceptance-wrapper.sh` from an operator host; the
+cadences in that table are targets nobody is currently meeting.
+
+The live evidence this document is the QA-side contract for was
+produced on 2026-09-21/22 by the on-node lane
+(`scripts/federation-live-vm-acceptance.sh`), by hand, and it failed —
+which is the first real reading this contract has ever had.
+
 ## 0. Why this document exists
 
 `tests/live_vm/test_phase_2_doppelbetrieb_live.py` (PR #108) is the
@@ -21,8 +43,9 @@ facing companion: it documents
 
 * the **pre-conditions** an operator must satisfy before invoking
   the suite,
-* which TV-LVD vectors are **Operator-Hand-only** vs. which are
-  **CI-triggerable** through the infrastructure engineering CI-Wrapper (PR #76),
+* which TV-LVD vectors need a human at the keyboard vs. which are
+  **unattended-safe** through the remote wrapper (PR #76) — see the
+  status note above on what that column does and does not claim,
 * the **Acceptance-Gate mapping** (§2.1–§2.5 of
   `docs/quality-gates/phase-2-doppelbetrieb.md`) each TV-LVD vector
   feeds, and
@@ -49,17 +72,17 @@ rather than a silent pass.
 * **Default target host:** `192.168.178.116` (wakir-pilot side per
   dogfood-LAN topology), override via
   `WAKIR_PEER_HOST`.
-* **Required:** the operator-host (or CI runner) has a private-key
-  whose public-key is installed in the target user's
-  `~/.ssh/authorized_keys`.
+* **Required:** the operator host has a private key whose public key is
+  installed in the target user's `~/.ssh/authorized_keys`. No CI runner
+  holds such a key, and per ADR-0077 none is meant to.
 * **Required:** the target user has `sudo`-NOPASSWD for the on-VM
   acceptance lane (the on-VM `federation-live-vm-acceptance.sh`
   needs root for `systemctl` / `podman exec` against root-Quadlets).
 * **Sandbox boundary:** the claude-dev Sandbox **cannot** reach
   `192.168.178.*`. The Sandbox-side checks for this Test-Plan are
   limited to verifying that the skip-by-default guard fires. Every
-  real run is Operator-Hand or a CI runner with explicit SSH
-  credentials to the target — never claude-dev itself.
+  real run is an operator hand — never claude-dev, and (since
+  ADR-0077) never a CI runner either.
 
 ### 1.2 wakir-pilot + wakir-orbit reachability
 
@@ -86,7 +109,7 @@ pytest CLI flag `--run-live-vm` AND the environment variable
 `WAKIR_LIVE_VM_ACCEPTANCE=1` must be set. Either alone produces a
 skip with an explicit reason.
 
-* **Why double-gate.** Belt-and-braces against (a) a CI runner that
+* **Why double-gate.** Belt-and-braces against (a) any automation that
   happens to carry the flag in a config file but should not actually
   point at the live VM and (b) an operator shell that has the env-var
   set but did not mean to run the live lane right now.
@@ -97,10 +120,11 @@ skip with an explicit reason.
       tests/live_vm/test_phase_2_doppelbetrieb_live.py
   ```
 
-* **CI invocation (via Wrapper):** the wrapper sets the env-var
-  internally on the on-VM side and passes the flag through. The CI
-  runner side itself does not need to set the env-var — the
-  wrapper-script is the gate.
+* **Remote invocation (via Wrapper):** the wrapper sets the env-var
+  internally on the on-VM side and passes the flag through, so the
+  calling host does not need to set it — the wrapper script is the
+  gate. Note that the wrapper itself has never been run; see its
+  header.
 
 ### 1.4 SSH-runner fixture installed
 
@@ -131,11 +155,13 @@ corresponding TV-LVD vector MUST be marked `xfail` with the
 substance-bug-ID until the CLI-shape lands; it MUST NOT be silently
 skipped.
 
-## 2. Operator-Hand vs. CI-triggerable matrix
+## 2. Attended vs. unattended-safe matrix
 
 The ten TV-LVD vectors are not all equally automation-safe. Some
 need a human to be on the keyboard ready to intervene; some are
-mechanical enough to run on a CI cadence without supervision.
+mechanical enough to run unsupervised on a cadence. The column below
+says which is which. It does not say that anything runs them — see the
+status note at the top.
 
 | Vector | Lane | Why this lane | Cadence (target) |
 |---|---|---|---|
@@ -150,18 +176,19 @@ mechanical enough to run on a CI cadence without supervision.
 | **TV-LVD-09** Subscribe-loop 100-burst symmetric | CI-triggerable | 100-burst is well under the §2.2 drop-rate budget (≤0.1% over 24h). | Continuous |
 | **TV-LVD-10** Bug-42 induced-reconnect | **Operator-Hand** | `--induce-reconnect-mid-burst` deliberately disturbs the subscribe-loop and could leak into unrelated traffic if the test-tag filter has a regression. Wants a human to watch the run. | On-demand (post-engine-update, regression-on-suspicion) |
 
-**Lane discipline.** The CI-triggerable lane is invoked through infrastructure engineering's
-`scripts/ci-live-vm-acceptance-wrapper.sh` (PR #76). The
-Operator-Hand lane is invoked directly via the `WAKIR_LIVE_VM_ACCEPTANCE=1`
-+ `--run-live-vm` double-gate at an operator shell, optionally
-deselecting CI-triggerable vectors with `-k 'tv_lvd_03 or tv_lvd_10'`.
+**Lane discipline.** The unattended-safe vectors are meant to be
+invoked through `scripts/ci-live-vm-acceptance-wrapper.sh` (PR #76)
+from an operator host. The attended vectors are invoked directly via
+the `WAKIR_LIVE_VM_ACCEPTANCE=1` + `--run-live-vm` double-gate at an
+operator shell, optionally deselecting the unattended ones with
+`-k 'tv_lvd_03 or tv_lvd_10'`.
 
-**Mixed-lane safety.** Nothing forbids a CI-triggerable run from also
-exercising the Operator-Hand vectors — they are gated by lane choice,
-not by hard separation. But the default CI-Wrapper invocation MUST
-deselect the Operator-Hand vectors (`-m 'live_vm and not operator_only'`,
-once that marker lands in the suite). The Wrapper-Run summary-JSON
-records which lane it ran.
+**Mixed-lane safety.** Nothing forbids an unattended run from also
+exercising the attended vectors — they are gated by selection, not by
+hard separation. But the default wrapper invocation MUST deselect the
+attended vectors (`-m 'live_vm and not operator_only'`, once that
+marker lands in the suite). The wrapper's summary-JSON records which
+selection it ran.
 
 ## 3. Acceptance-Gate mapping
 
