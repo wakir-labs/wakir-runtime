@@ -15,7 +15,7 @@ the Wakir Phase-1b single-org pilot. The hermetic test surface checks:
 8. The 8-phase output pattern is present and ordered.
 9. The script references ``resolve-image-pins.sh`` and
    ``proxmox-bringup-smoke`` (the two real-VM-side companion artefacts).
-10. Idempotency markers ("already present", "already active",
+10. Idempotency markers ("already present", the unit-convergence marker,
     "no DIGEST_PENDING_TOMAS_REVIEW placeholders found") are present.
 
 Sandbox boundary: every test reads the script SOURCE on disk and may
@@ -292,13 +292,24 @@ def test_references_smoke_binary(script_source: str) -> None:
 
 
 def test_idempotency_markers_present(script_source: str) -> None:
-    """An idempotent re-run must visibly say 'already X' (instead of
-    silently re-doing work that mutates state). The hermetic test
-    asserts that at least one 'already' marker per pre-existing
-    side-effect category is present in the source."""
+    """An idempotent re-run must visibly say what it skipped (instead
+    of silently re-doing work that mutates state). The hermetic test
+    asserts that at least one skip marker per pre-existing side-effect
+    category is present in the source.
+
+    Bug-40 re-point (Live-VM evidence 2026-09-21/22): the systemd-unit
+    marker used to be ``already active``. That phrasing was the bug --
+    it reported OK for a unit whose installed definition had never been
+    applied to the running container. The replacement marker has to say
+    what was actually compared, so the required string is now the
+    running-vs-installed statement, not the liveness of the unit.
+    """
     must_have = [
         "already present",       # repo, files
-        "already active",        # systemd units
+        # systemd units: skipped BECAUSE the running configuration was
+        # compared against the installed one -- not because the unit
+        # happened to be up.
+        "active, running configuration matches the installed unit",
         "no DIGEST_PENDING",     # image pins already resolved
         "already in",            # roster
     ]

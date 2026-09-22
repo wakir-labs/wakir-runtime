@@ -485,18 +485,33 @@ def test_step_6h_calls_wait_for_service_active_for_server() -> None:
     """Bootstrap step-6h must wait on the server unit before step-6i
     issues the join-token generate. If this call goes missing, the
     bootstrap races the server boot.
+
+    Bug-40 re-point: step 6h no longer starts the unit inline -- it
+    hands it to ``_converge_service_unit``, which carries the wait on
+    the start AND the restart path. The guard therefore asserts (a)
+    step 6h converges ``$server_unit``, and (b) the converge helper
+    waits for is-active. Behaviour coverage for both paths lives in
+    tests/infra/test_pilot_bootstrap_step6_convergence.py
+    (TV-CONV-8).
     """
     src = BOOTSTRAP.read_text()
-    # The server-start block is identifiable by the server_unit local var.
     m = re.search(
         r'server_unit="wakir-spire-server-federation-\$\{side\}\.service".*?'
-        r'_wait_for_service_active "\$server_unit"',
+        r'_converge_service_unit "\$server_unit" "server"',
         src,
         re.DOTALL,
     )
     assert m, (
-        "Bug-25 regression: step-6h must call _wait_for_service_active "
-        "on $server_unit after systemctl start"
+        "Bug-25/Bug-40 regression: step-6h must converge $server_unit "
+        "before step-6i issues the join-token generate"
+    )
+    helper = re.search(
+        r"_converge_service_unit\(\) \{.*?\n\}", src, re.DOTALL
+    )
+    assert helper, "_converge_service_unit helper missing"
+    assert '_wait_for_service_active "$unit"' in helper.group(0), (
+        "Bug-25 regression: the converge helper must wait for is-active "
+        "after the start/restart it issues"
     )
 
 
@@ -652,13 +667,15 @@ def test_mutation_rollback_breaks_drift_guard(tmp_path: Path) -> None:
     )
 
     # Symmetrically: removing the call site must also be detectable.
+    # Bug-40 re-point: the single call site is inside
+    # _converge_service_unit, which both step 6h and step 6j drive.
     mutated_call = original.replace(
-        '_wait_for_service_active "$server_unit" || return 2',
+        '_wait_for_service_active "$unit" || return 2',
         '# wait removed',
         1,
     )
     assert mutated_call != original, "call-site mutation must change the source"
-    assert '_wait_for_service_active "$server_unit" || return 2' not in mutated_call
+    assert '_wait_for_service_active "$unit" || return 2' not in mutated_call
 
 
 def test_mutation_rollback_breaks_smoke_retry_drift_guard() -> None:

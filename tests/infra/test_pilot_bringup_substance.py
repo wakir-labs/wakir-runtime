@@ -496,18 +496,42 @@ def test_tv_bringup_04_phase_6_has_idempotency_guard() -> None:
 def test_tv_bringup_04_phase_6_units_idempotent_on_active_units() -> None:
     """For the systemctl start invocations inside Phase 6, the script
     must guard ``systemctl start`` with ``is-active --quiet`` so a
-    re-run does not bounce already-running units."""
+    re-run does not bounce already-running units.
+
+    Bug-40 sharpening (Live-VM evidence 2026-09-21/22): the guard must
+    not degrade into "running is good enough". A unit whose installed
+    definition is not the one the running container was created from
+    has to be restarted -- otherwise the bootstrap installs a change,
+    logs OK, and never applies it. Phase 6 therefore either probes
+    ``is-active --quiet`` itself or delegates to a helper that probes
+    it AND checks the installed definition against the applied one.
+    """
     text = _bootstrap_text()
     m = re.search(
         r"step_6_quadlet\(\) \{.*?^\}", text, re.DOTALL | re.MULTILINE
     )
     assert m, "step_6_quadlet function body not found"
     phase_6 = m.group(0)
-    assert "is-active --quiet" in phase_6, (
+    converge = re.search(
+        r"_converge_service_unit\(\) \{.*?\n\}", text, re.DOTALL
+    )
+    guard_in_phase_6 = "is-active --quiet" in phase_6
+    guard_in_helper = bool(
+        converge
+        and "is-active --quiet" in converge.group(0)
+        and "_converge_service_unit" in phase_6
+    )
+    assert guard_in_phase_6 or guard_in_helper, (
         "Phase 6 must use ``systemctl is-active --quiet`` to guard\n"
         "``systemctl start`` so re-runs don't bounce healthy units.\n"
         "This is the runtime half of Bug 5."
     )
+    if guard_in_helper:
+        assert "_unit_definition_drifted" in converge.group(0), (
+            "Bug-40 regression: the active-unit guard must reconsider a\n"
+            "running unit whose installed definition changed; a plain\n"
+            "``is-active -> skip`` makes every Quadlet change a no-op."
+        )
 
 
 # ---------------------------------------------------------------------------

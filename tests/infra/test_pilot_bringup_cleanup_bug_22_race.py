@@ -672,12 +672,20 @@ def test_pre_start_sweeps_present_for_all_three_services() -> None:
     agent (step 6j), and NATS (step 6j).
 
     Mutation test: drop any of the three calls in source, this fails.
+
+    Bug-40 re-point: the sweep is no longer called from step 6h
+    directly. Step 6h hands the server kind to
+    ``_converge_service_unit``, which runs the sweep on both the start
+    and the restart path (a restart creates a new container, so podman
+    reconciles volume ownership there too). The invariant is unchanged;
+    the call site moved.
     """
     src = BOOTSTRAP.read_text()
-    # Server sweep is hard-coded with the literal kind string.
-    assert '_pre_start_chown_sweep "server"' in src, (
-        "Bug-22 regression: step 6h must call _pre_start_chown_sweep "
-        "for the server kind before systemctl start"
+    # Server kind reaches the sweep through the step-6h converge call.
+    assert '_converge_service_unit "$server_unit" "server"' in src, (
+        "Bug-22 regression: step 6h must converge the server unit with "
+        "the server kind so _pre_start_chown_sweep runs before the "
+        "container is (re)created"
     )
     # Agent + NATS share the step-6j case-dispatch loop; we assert
     # the kind tokens are present in the case branches.
