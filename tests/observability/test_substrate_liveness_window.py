@@ -448,3 +448,139 @@ def test_exit_code_is_the_gate(verdict, expected):
     pinned here rather than left to the reader of the source."""
     proc = run([wire(payload("node-a", verdict, NOW - 60))], ["node-a"])
     assert proc.returncode == expected
+
+
+# --- a node that is knowingly not reporting yet -----------------------
+#
+# Only one of the two federation nodes is being armed. The other is the
+# untouched evidence for ADR-0076 and will be rebuilt with the bilateral
+# root change, armed as part of that bring-up rather than by an
+# intervention before it.
+#
+# The tempting form is a shorter --expect list. That is exactly the gap
+# this instrument exists to close: a roster silently smaller than the
+# installation is green on a silence nobody declared. So absence is
+# declared, dated and justified instead of omitted.
+
+ABSENCE_REASON = (
+    "rebuilt with the bilateral root change per ADR-0076; armed as part of that "
+    "bring-up rather than by an intervention before it"
+)
+
+
+def test_known_absent_node_does_not_fail_the_window_before_its_date(tmp_path):
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=[
+            "--known-absent",
+            f"node-b=2026-12-31={ABSENCE_REASON}",
+            "--json-out",
+            str(tmp_path / "report.json"),
+        ],
+    )
+    assert proc.returncode == 0, proc.stdout
+    rep = report_of(proc, tmp_path)
+    assert rep["known_absent_nodes"]["node-b"]["state"] == "known-absent"
+    assert rep["known_absent_nodes"]["node-b"]["absent_until"] == "2026-12-31"
+    assert rep["failing_nodes"] == []
+    # and it is visible, not merely tolerated
+    assert "node-b" in proc.stdout
+
+
+def test_known_absent_turns_red_on_its_date(tmp_path):
+    """An absence without an end is a node quietly dropped from the
+    roster. The date is what makes it a decision instead of a habit."""
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=[
+            "--known-absent",
+            f"node-b=2026-09-22={ABSENCE_REASON}",
+            "--json-out",
+            str(tmp_path / "report.json"),
+        ],
+    )
+    assert proc.returncode == 1, proc.stdout
+    rep = report_of(proc, tmp_path)
+    assert rep["known_absent_nodes"]["node-b"]["state"] == "absence-expired"
+    assert "node-b" in rep["failing_nodes"]
+
+
+def test_absence_needs_a_reason_long_enough_to_be_one():
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=["--known-absent", "node-b=2026-12-31=later"],
+    )
+    assert proc.returncode == 2
+    assert "shrug" in proc.stdout
+
+
+def test_absence_needs_a_real_date():
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=["--known-absent", f"node-b=soon={ABSENCE_REASON}"],
+    )
+    assert proc.returncode == 2
+    assert "not an ISO date" in proc.stdout
+
+
+def test_malformed_absence_entry_is_unmeasurable_never_green():
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=["--known-absent", "node-b"],
+    )
+    assert proc.returncode == 2
+
+
+def test_a_node_cannot_be_both_expected_and_absent():
+    """A roster that contradicts itself has no answer to give, so it does
+    not get to give the convenient one."""
+    proc = run(
+        [wire(payload("node-a", "green", NOW - 60))],
+        ["node-a"],
+        extra=["--known-absent", f"node-a=2026-12-31={ABSENCE_REASON}"],
+    )
+    assert proc.returncode == 2
+    assert "contradicts itself" in proc.stdout
+
+
+def test_a_roster_of_only_absent_nodes_is_still_refused():
+    """Declaring every node absent would be the empty --expect list with
+    extra steps: a window satisfied by silence."""
+    proc = run(
+        [],
+        [],
+        extra=["--known-absent", f"node-b=2026-12-31={ABSENCE_REASON}"],
+    )
+    assert proc.returncode == 2
+    assert "expects no node" in proc.stdout
+
+
+def test_an_absent_node_that_starts_reporting_is_flagged_not_failed(tmp_path):
+    """Good news should not be red. The until-date already forces the
+    roster to be revisited, and making a returning node fail as well
+    would be the alert fatigue this instrument is meant to avoid."""
+    proc = run(
+        [
+            wire(payload("node-a", "green", NOW - 60)),
+            wire(payload("node-b", "green", NOW - 60)),
+        ],
+        ["node-a"],
+        extra=[
+            "--known-absent",
+            f"node-b=2026-12-31={ABSENCE_REASON}",
+            "--json-out",
+            str(tmp_path / "report.json"),
+        ],
+    )
+    assert proc.returncode == 0, proc.stdout
+    rep = report_of(proc, tmp_path)
+    assert rep["known_absent_nodes"]["node-b"]["unexpectedly_present"] is True
+    assert "but it is reporting" in proc.stdout
+    # and it is not counted as an unexpected label either — it is known,
+    # just not expected to speak
+    assert rep["unexpected_node_labels"] == []
