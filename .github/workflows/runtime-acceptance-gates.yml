@@ -463,6 +463,7 @@ jobs:
             tests/observability/test_stability_window_doc_mirror_routing.py \
             tests/observability/test_state_backing_alert_routing.py \
             tests/observability/test_subscribe_loop_alert_routing.py \
+            tests/observability/test_substrate_liveness_probe.py \
             tests/observability/test_trinary_routing_verdict_tile.py
 
   lane-phase-3c-acceptance:
