@@ -608,3 +608,57 @@ def test_carried_join_token_on_missing_file(substrate: Substrate) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "[]" in proc.stdout
+
+
+# ---------------------------------------------------------------------------
+# TV-CONV-13: never apply an agent unit that still has the placeholder.
+# ---------------------------------------------------------------------------
+
+
+def test_agent_unit_with_placeholder_token_is_not_applied(
+    substrate: Substrate,
+) -> None:
+    """Before convergence, an agent unit left holding
+    ``WAKIR_JOIN_TOKEN_PLACEHOLDER`` was survivable by accident: it was
+    never applied. It was still armed for the next VM reboot, where
+    systemd would start the agent with a literal placeholder as its
+    join-token (Bug-37 crash-loop). Now that the bootstrap applies what
+    it installs, that unit must be refused loudly, not applied."""
+    substrate.write_unit(
+        AGENT_CONTAINER_FILE,
+        "Exec=-config /etc/spire/agent/agent.conf "
+        "-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER\n",
+    )
+    substrate.set_active(AGENT_UNIT)
+
+    proc = substrate.run(
+        f'_converge_service_unit "{AGENT_UNIT}" "agent"; echo "rc=$?"'
+    )
+    assert "rc=2" in proc.stdout, (
+        f"expected a hard stop; stdout={proc.stdout} stderr={proc.stderr}"
+    )
+    assert "WAKIR_JOIN_TOKEN_PLACEHOLDER" in proc.stderr
+    assert not _restart_calls(substrate.calls, AGENT_UNIT), (
+        f"agent restarted into a placeholder unit; calls={substrate.calls}"
+    )
+    assert not _start_calls(substrate.calls, AGENT_UNIT)
+
+
+def test_step_6i_injects_whenever_the_placeholder_is_present() -> None:
+    """Drift guard for the other half: the token injection must key on
+    the placeholder being present, not on the agent being unattested.
+    A re-installed unit carries the placeholder again even when the
+    agent is long since attested."""
+    import re
+
+    src = BOOTSTRAP.read_text()
+    m = re.search(
+        r"if \[\[ -f \"\$agent_quadlet_dst\" \]\] \\\n"
+        r"\s+&& grep -q \"WAKIR_JOIN_TOKEN_PLACEHOLDER\" \"\$agent_quadlet_dst\"; then",
+        src,
+    )
+    assert m, (
+        "step 6i must issue a join-token whenever the installed agent "
+        "unit carries the placeholder, independent of the attestation "
+        "state -- otherwise step 6j has to refuse to apply the unit."
+    )

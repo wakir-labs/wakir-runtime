@@ -1726,6 +1726,25 @@ _converge_service_unit() {
     return 0
   fi
 
+  if [[ "$kind" == "agent" ]]; then
+    # Refuse to apply an agent unit that still carries the join-token
+    # placeholder. Before convergence this was survivable by accident:
+    # the unit was never applied, so nobody noticed that step 6i had
+    # left it incoherent -- until a VM reboot started the agent with
+    # ``-joinToken WAKIR_JOIN_TOKEN_PLACEHOLDER`` and it crash-looped
+    # (Bug-37). Now that the bootstrap applies what it installs, that
+    # unit must not be applied; it must be reported.
+    local agent_unit_file
+    agent_unit_file="$(_quadlet_dir)/wakir-spire-agent-${side}.container"
+    if [[ -f "$agent_unit_file" ]] \
+       && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_unit_file"; then
+      log_err "${unit}: installed unit still carries WAKIR_JOIN_TOKEN_PLACEHOLDER -- refusing to ${action} the agent into it"
+      log_note "step 6i must inject a join-token before the agent unit is applied"
+      log_note "diagnose: grep -n joinToken ${agent_unit_file}"
+      return 2
+    fi
+  fi
+
   if [[ -n "$kind" ]]; then
     # Bug-22 defensive re-chown immediately before the
     # start: podman reconciles volume ownership at container create,
@@ -2184,8 +2203,14 @@ step_6_quadlet() {
     agent_already_attested=1
     log_ok "agent already attested (skip join-token generate)"
   fi
-  if [[ "$agent_already_attested" -eq 0 ]] \
-     && [[ -f "$agent_quadlet_dst" ]] \
+  # Bug-40: the placeholder alone decides, not the
+  # attestation state. An already-attested agent whose unit was
+  # re-installed from the template carries the placeholder again; under
+  # "start only if stopped" that stayed invisible, under convergence it
+  # is a unit that must not be applied. Issuing a token that then goes
+  # unused costs nothing (TTL 1h, one row in the datastore); leaving
+  # the placeholder in an applied unit costs the agent.
+  if [[ -f "$agent_quadlet_dst" ]] \
      && grep -q "WAKIR_JOIN_TOKEN_PLACEHOLDER" "$agent_quadlet_dst"; then
     local jt_spiffe="spiffe://${WAKIR_TRUST_DOMAIN}/${WAKIR_ORG_ID}/agent/pilot"
     local jt_raw="" jt_token=""
@@ -2216,8 +2241,7 @@ step_6_quadlet() {
       log_note "diagnose: podman exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server token generate -spiffeID ${jt_spiffe} -ttl 3600"
       return 2
     fi
-  elif [[ "$agent_already_attested" -eq 0 ]] \
-       && [[ -f "$agent_quadlet_dst" ]]; then
+  elif [[ -f "$agent_quadlet_dst" ]]; then
     log_ok "join-token placeholder already substituted (no-op)"
   fi
 
