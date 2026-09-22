@@ -62,17 +62,21 @@
   },
   "live-vm-operator": {
    "profile": "operator-hand",
-   "reason": "TV-LVD live-VM acceptance. Reachable only through workflow_dispatch in live-vm-acceptance.yml and additionally gated by the --run-live-vm flag plus WAKIR_LIVE_VM_ACCEPTANCE=1. The design reason is sound — it needs a real Proxmox VM and cannot run on a GitHub runner. The evidence is not: the workflow has never been dispatched since it was added on 2026-05-16, so the module has never executed anywhere this repository can observe. 'Runs by operator hand' is at this point an untested claim about the operator.",
+   "reason": "TV-LVD live-VM acceptance. It needs a real VM and cannot run on a GitHub runner; that design reason still holds. What has changed is the evidence. On 2026-09-21/22 the acceptance ran for the first time, three times, by operator hand on the substrate nodes against dbdda5a — and the substrate failed it (5/8 and 4/8 smoke checks). So the module is no longer unexecuted, but it is also not passing, and the exemption now rests on a different footing than in May: not 'nobody has run it' but 'somebody ran it and the result is being worked off'. The named workflow path is still dead — live-vm-acceptance.yml has never been dispatched since 2026-05-16, targets a LAN address from a hosted runner and holds zero secrets, and the second lane's Real-VM job requires a self-hosted runner label that no runner carries. Both are the subject of a separate decision; neither is what produced this evidence.",
    "owner": "kai (container/infra)",
    "deliberate": true,
-   "review_by": "2026-09-30",
+   "review_by": "2026-10-24",
    "execution_evidence": {
-    "mechanism": "workflow_dispatch + --run-live-vm + WAKIR_LIVE_VM_ACCEPTANCE=1",
-    "enabled_by": ".github/workflows/live-vm-acceptance.yml",
-    "runs_total": 0,
-    "last_actual_run": "never",
-    "read": "2026-09-14, GitHub Actions API"
-   }
+    "mechanism": "Operator hand on the substrate node: bash scripts/federation-live-vm-acceptance.sh with WAKIR_SIDE, WAKIR_PEER_SIDE and WAKIR_PEER_HOST. The script pre-flights on the node itself (root, podman, /opt/wakir-runtime), so it cannot run from an operator host or a hosted runner.",
+    "enabled_by": "operator hand, out of band from CI. The workflow half remains dead: .github/workflows/live-vm-acceptance.yml is dispatch-only and has never been dispatched since 2026-05-16.",
+    "runs_total": 3,
+    "runs_total_via_workflow": 0,
+    "last_actual_run": "2026-09-22",
+    "result_at_last_run": "FAIL — 5/8 smoke checks on one side, 4/8 on the other. The three red checks share one root: the agent holds no valid trust bundle, never attests, and therefore never binds the workload API socket.",
+    "read": "2026-09-22, operator-hand run logs; the workflow half re-read the same day via the GitHub Actions API."
+   },
+   "renewed_on": "2026-09-22",
+   "renewal_reason": "Renewed because the run happened and failed, not because it was missed. The 2026-09-21/22 operator-hand runs found four defects, three of which only became visible once the one in front of them was fixed: a provisioner digest that was never valid (fixed, PR #550), a bootstrap step 6 that installs unit files and skips the restart so the running configuration is never the installed one, a trust anchor whose bundle volume has been empty since 2026-05-13 while the CA rotates every 24 hours without an upstream authority, and a federation asymmetry that turned out to be the stale container rather than the design it was filed as in May. ADR-0076 (approved 2026-09-22) settles the trust anchor; its acceptance requires seven days of unattended attestation, which cannot begin until the convergence fix lands. The new date is the earliest one by which that window can have closed and been evaluated. Dropping the exemption now would mark a substrate green that measurably does not attest."
   },
   "sbom-baseline-operator": {
    "profile": "operator-hand",
