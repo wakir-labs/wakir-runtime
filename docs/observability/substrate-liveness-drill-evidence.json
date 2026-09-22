@@ -1,0 +1,22 @@
+{
+  "schema": "wakir.substrate-liveness-drill-evidence/v1",
+  "owner": "SRE",
+  "what": "Level-3 fallback drill for the substrate liveness melder: with the probe, the timer, the emitter and the containers all running normally, feed the probe the frozen May state and require that the window goes red and the receiver opens exactly one issue.",
+  "why_dated": "A drill that is run once, at the moment somebody is proud of the thing, proves that it worked that day. That sentence is the May bilanz: 6/6 PASS on 2026-05-15 was true and meant nothing by 2026-05-17. The date below is compared against the calendar by tests/observability/test_substrate_liveness_drill_obligation.py, so the obligation cannot lapse quietly.",
+
+  "seven_day_window_started_on": null,
+  "seven_day_window_note": "Set this to the ISO date on which the substrate first attested without intervention, i.e. the start of the seven-day acceptance from Strang B. Until then the drill has nothing to be the eighth day of. null is a legitimate state, but not an indefinite one - see activate_by.",
+
+  "activate_by": "2026-11-30",
+  "activate_by_note": "The date by which seven_day_window_started_on must be set. Without this field, 'we have not started yet' would be a permanently green answer, which is the same shape as the defect this melder exists for. Chosen as roughly ten weeks after the melder was built: long enough for Strang A and Strang B, short enough that a slip is noticed while somebody still remembers why.",
+
+  "first_drill_due_days_after_window_start": 8,
+  "recheck_interval_days": 90,
+  "recheck_note": "After the first drill the obligation recurs. A fallback test that is never repeated decays into documentation of a thing that used to work.",
+
+  "runs": [],
+  "runs_note": "Append {\"ran_on\": \"YYYY-MM-DD\", \"result\": \"red-as-expected\" | \"unexpected\", \"evidence\": \"<run url or log path>\", \"by\": \"<who>\"}. A run with result other than red-as-expected does not satisfy the obligation - it is an incident.",
+
+  "renewals": [],
+  "renewals_note": "Moving activate_by requires an entry {\"renewed_on\": \"YYYY-MM-DD\", \"renewal_reason\": \"...\"} with a reason of at least 60 characters, per ADR-0075 section 3. Known gap, stated rather than discovered later: this file has no equivalent of tooling/ci/check_exemption_renewal.py, which diffs lane_assignment.json against the pull request base. So a moved date is caught by review here, not by tooling. If this file outlives the pilot, that half should be built."
+}

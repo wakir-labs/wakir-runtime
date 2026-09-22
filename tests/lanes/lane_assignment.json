@@ -17,13 +17,13 @@
   "date": "2026-09-22",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 420,
-  "required": 317,
+  "test_modules": 423,
+  "required": 320,
   "optional_ci": 100,
   "operator_hand": 2,
   "opt_in_marker": 1,
   "unassigned": 0,
-  "note": "Live counts. tests/lanes/test_lane_assignment.py::test_measured_counts_are_current re-derives these from the workflows on every run, so they cannot go stale in a report. After the Welle-3 lane promotion (ADR-0075) `unassigned` is 0: 97 modules went into required lanes, 80 into the non-blocking observation lane with a promotion date of 2026-10-31, and the standing exceptions keep their dates — which are now compared against the calendar by tooling/ci/exemption_expiry.py instead of merely being well-formed. 2026-09-22: +1 module, tests/observability/test_substrate_liveness_probe.py, into the hermetic-invariants lane as required — the substrate-liveness probe is a check about checks, so an unassigned lane would have been the joke telling itself."
+  "note": "Live counts. tests/lanes/test_lane_assignment.py::test_measured_counts_are_current re-derives these from the workflows on every run, so they cannot go stale in a report. After the Welle-3 lane promotion (ADR-0075) `unassigned` is 0: 97 modules went into required lanes, 80 into the non-blocking observation lane with a promotion date of 2026-10-31, and the standing exceptions keep their dates — which are now compared against the calendar by tooling/ci/exemption_expiry.py instead of merely being well-formed. 2026-09-22: +1 module, tests/observability/test_substrate_liveness_probe.py, into the hermetic-invariants lane as required — the substrate-liveness probe is a check about checks, so an unassigned lane would have been the joke telling itself. 2026-09-22: +3 further modules for the substrate-liveness melder (heartbeat emitter, expectation window, and the dated drill obligation), all required, landing after the probe."
  },
  "required_contexts": [
   "Cosign-Keyless-OIDC-Drift-Probe (daily)",
@@ -638,7 +638,16 @@
   "tests/observability/test_subscribe_loop_alert_routing.py": {
    "profile": "required"
   },
+  "tests/observability/test_substrate_heartbeat_emit.py": {
+   "profile": "required"
+  },
+  "tests/observability/test_substrate_liveness_drill_obligation.py": {
+   "profile": "required"
+  },
   "tests/observability/test_substrate_liveness_probe.py": {
+   "profile": "required"
+  },
+  "tests/observability/test_substrate_liveness_window.py": {
    "profile": "required"
   },
   "tests/observability/test_trinary_routing_verdict_tile.py": {
