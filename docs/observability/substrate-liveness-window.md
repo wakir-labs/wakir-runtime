@@ -93,6 +93,53 @@ the first green evaluation. The alternative — shipping the lane inert
 until somebody remembers to switch it on — is the failure mode this
 whole instrument exists to prevent.
 
+## 4a. Armed state, measured 2026-09-22
+
+One node is armed. The chain was measured end to end on real
+infrastructure, not in a fixture:
+
+| Measurement | Result |
+|---|---|
+| Emitter on the node, under systemd timer (15 min) | runs, exit 0 |
+| Heartbeat reaches the broker and is read by the evaluator | yes, age 12 s |
+| Signature verifies across the real boundary | `rejected_messages: 0` |
+| Window verdict for the armed node | `red / bundle_expired` — the node genuinely does not attest (ADR-0076) |
+| Receiver on a real failure | issue opened |
+| Receiver on a **second** real failure | **no second issue**, one comment appended |
+| The green path | proven separately, see below |
+
+### The green path is proven, under its own label
+
+A window that has only ever gone red has proven the easier half. So the
+green path was measured too: a freshly minted state file on the node,
+fed to the real probe, through the real emitter, the real broker and the
+real evaluator — **exit 0**.
+
+It ran under a throwaway label (`node-drill`), never under the armed
+node's label, so no green was ever recorded for a node that is not. The
+drill state was removed afterwards.
+
+**What this does and does not say.** It says the chain can carry a green
+verdict end to end. It says nothing about the substrate, which is red
+and honestly so.
+
+### One defect found by the instrument on its first live day
+
+The first timer-driven heartbeat carried
+`unmeasurable / agent_data_volume_absent` instead of the real verdict.
+Cause: the service unit shipped with `ProtectSystem=strict`, which hides
+`/var`, and the probe resolves the agent volume through podman.
+
+Two things worth separating. The unit was wrong, and it was mine.
+And the probe did exactly what it was built to do: it reported that it
+could not measure rather than reporting green, the evaluator counted
+that as red, and the lane said so. The rule earned its place on its
+first live encounter with a real defect.
+
+Corrected to `ProtectSystem=full`; the unit is in
+`scripts/systemd/wakir-substrate-heartbeat.{service,timer}` so it is not
+a thing that exists only on a node.
+
 ## 5. Arming checklist
 
 Each step is owned, and the lane stays red until all of them are done.
@@ -116,6 +163,35 @@ Each step is owned, and the lane stays red until all of them are done.
 5. **Confirm the expected labels** in the lane match the labels the nodes
    actually send. A mismatch reads as `missing`, which is red — the safe
    direction, but an avoidable morning. *(SRE)*
+
+### A node that is knowingly not reporting
+
+Arming one node of two raises a question with a tempting wrong answer:
+shorten the `--expect` list. That is exactly the gap this instrument
+exists to close — **a roster silently smaller than the installation is
+green on a silence nobody declared.**
+
+So absence is declared instead of omitted:
+
+```
+--known-absent "node-b=2026-12-31=<reason>"
+```
+
+Three fields, all mandatory: the label, an ISO date, and a reason of at
+least 40 characters. Before the date the node is reported and does not
+fail; **on the date it turns red.** An absence without an end is a node
+quietly dropped from the roster.
+
+Deliberate choices, both tested:
+
+* A roster of *only* known-absent nodes is refused. It would be the
+  empty expectation list with extra steps.
+* A label declared both expected and absent is refused — a roster that
+  contradicts itself does not get to give the convenient answer.
+* A known-absent node that *starts* reporting is flagged loudly but does
+  **not** fail. The date already forces the roster to be revisited, and
+  making good news red as well is the alert fatigue this instrument is
+  supposed to avoid.
 
 ## 6. Where the lane lives, and why not here
 

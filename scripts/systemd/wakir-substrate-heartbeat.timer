@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: Apache-2.0
+# 15-minute cadence. The measured quantity moves on the hour scale
+# (default_x509_svid_ttl = 1h), so a tighter cadence is load without
+# resolution. The evaluator window is 2h = eight of these.
+[Unit]
+Description=Wakir substrate liveness heartbeat (15-min cadence)
+Documentation=https://github.com/wakir-labs/wakir-runtime
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+RandomizedDelaySec=45s
+Persistent=true
+Unit=wakir-substrate-heartbeat.service
+
+[Install]
+WantedBy=timers.target

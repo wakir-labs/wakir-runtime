@@ -110,6 +110,51 @@ STATE_RED = "red"
 STATE_STALE = "stale"
 STATE_MISSING = "missing"
 STATE_UNMEASURABLE = "unmeasurable"
+#: A node that is deliberately not reporting yet, with a reason and a
+#: date. Not a failure before the date; a failure on it.
+STATE_KNOWN_ABSENT = "known-absent"
+STATE_ABSENCE_EXPIRED = "absence-expired"
+
+#: A roster entry that says "not yet" needs a reason long enough to be
+#: one. Same floor as the exemption machinery in tooling/ci.
+MIN_ABSENCE_REASON = 40
+
+
+def parse_known_absent(entries: list[str]) -> dict[str, dict]:
+    """``label=YYYY-MM-DD=reason`` per entry.
+
+    A node that is knowingly not reporting is not the same thing as a
+    node that fell silent, and it must not be the same thing as a node
+    that was quietly dropped from the roster. Leaving it out of
+    ``--expect`` would make the window green on its silence for ever,
+    which is the gap this instrument exists to close — so absence is
+    declared, dated and justified instead of omitted.
+    """
+    roster: dict[str, dict] = {}
+    for raw in entries:
+        parts = raw.split("=", 2)
+        if len(parts) != 3:
+            raise Unmeasurable(
+                f"--known-absent needs 'label=YYYY-MM-DD=reason', got {raw!r}"
+            )
+        label, until_raw, reason = (part.strip() for part in parts)
+        if not label:
+            raise Unmeasurable(f"--known-absent has an empty label: {raw!r}")
+        try:
+            until = dt.date.fromisoformat(until_raw)
+        except ValueError as exc:
+            raise Unmeasurable(
+                f"--known-absent {label}: {until_raw!r} is not an ISO date ({exc})"
+            ) from exc
+        if len(reason) < MIN_ABSENCE_REASON:
+            raise Unmeasurable(
+                f"--known-absent {label}: a reason of {len(reason)} characters is a "
+                f"shrug, not a reason (minimum {MIN_ABSENCE_REASON})"
+            )
+        if label in roster:
+            raise Unmeasurable(f"--known-absent {label}: declared twice")
+        roster[label] = {"until": until, "reason": reason}
+    return roster
 
 
 class Unmeasurable(Exception):
@@ -199,6 +244,13 @@ def classify(payload: dict | None, now: int, window: int) -> tuple[str, int | No
     return STATE_UNMEASURABLE, age
 
 
+def classify_absent(entry: dict, today: dt.date) -> str:
+    """A declared absence is fine until its date, and red on it."""
+    if today >= entry["until"]:
+        return STATE_ABSENCE_EXPIRED
+    return STATE_KNOWN_ABSENT
+
+
 def unwrap_stream(body: str) -> list[str]:
     """Heartbeat lines out of a broker poll stream.
 
@@ -266,8 +318,11 @@ def evaluate(
     expected: list[str],
     now: int,
     window: int,
+    known_absent: dict[str, dict] | None = None,
 ) -> dict:
+    known_absent = known_absent or {}
     newest, rejected = newest_per_node(messages, key)
+    today = dt.datetime.fromtimestamp(now, dt.timezone.utc).date()
 
     nodes = {}
     for node in expected:
@@ -281,8 +336,21 @@ def evaluate(
             "observed_at_epoch": payload["observed_at_epoch"] if payload else None,
         }
 
-    unexpected = sorted(set(newest) - set(expected))
+    absent = {}
+    for node, entry in sorted(known_absent.items()):
+        absent[node] = {
+            "state": classify_absent(entry, today),
+            "absent_until": entry["until"].isoformat(),
+            "reason": entry["reason"],
+            # Reported, not fatal. The date is the forcing function; making
+            # good news red as well would be the alert fatigue this
+            # instrument is supposed to avoid.
+            "unexpectedly_present": node in newest,
+        }
+
+    unexpected = sorted(set(newest) - set(expected) - set(known_absent))
     failing = sorted(n for n, r in nodes.items() if r["state"] != OK)
+    failing += sorted(n for n, r in absent.items() if r["state"] == STATE_ABSENCE_EXPIRED)
 
     return {
         "schema": "wakir.substrate-liveness-window/v1",
@@ -293,7 +361,8 @@ def evaluate(
         "window_seconds": window,
         "expected_nodes": sorted(expected),
         "nodes": nodes,
-        "failing_nodes": failing,
+        "known_absent_nodes": absent,
+        "failing_nodes": sorted(failing),
         "unexpected_node_labels": unexpected,
         "rejected_messages": rejected,
         "accepted_messages": sum(1 for _ in newest),
@@ -314,6 +383,12 @@ def render(report: dict) -> str:
         lines.append(
             f"  {node:<16} {result['state']:<13} age={age_text:<12} "
             f"probe_verdict={result['probe_verdict'] or '-'} reason={reason}"
+        )
+    for node, entry in sorted(report.get("known_absent_nodes", {}).items()):
+        marker = "!" if entry["state"] == STATE_ABSENCE_EXPIRED else " "
+        lines.append(
+            f" {marker}{node:<16} {entry['state']:<17} until={entry['absent_until']}"
+            + ("  (but it is reporting)" if entry["unexpectedly_present"] else "")
         )
     if report["unexpected_node_labels"]:
         lines.append(
@@ -336,6 +411,18 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         metavar="NODE",
         help="opaque node label that must report. Repeatable. At least one required.",
+    )
+    parser.add_argument(
+        "--known-absent",
+        action="append",
+        default=[],
+        metavar="LABEL=YYYY-MM-DD=REASON",
+        help=(
+            "a node that is knowingly not reporting yet. Repeatable. Not a "
+            "failure before the date, a failure on it. Declaring absence is "
+            "required rather than optional: a node quietly left out of "
+            "--expect would make the window green on its silence for ever."
+        ),
     )
     parser.add_argument("--window-seconds", type=int, default=DEFAULT_WINDOW_SECONDS)
     parser.add_argument("--lookback-seconds", type=int, default=None)
@@ -381,8 +468,23 @@ def main(argv: list[str] | None = None) -> int:
             # a heartbeat anyone can forge is not evidence.
             raise Unmeasurable("WAKIR_HEARTBEAT_HMAC_KEY is unset or empty")
 
+        absent_roster = parse_known_absent(args.known_absent)
+        both = sorted(set(args.expect) & set(absent_roster))
+        if both:
+            raise Unmeasurable(
+                f"{', '.join(both)}: declared both expected and known-absent. "
+                "A roster that contradicts itself has no answer to give."
+            )
+
         messages = read_messages(args.source, topic, lookback, args.source_format)
-        report = evaluate(messages, raw_key.encode("utf-8"), args.expect, now, args.window_seconds)
+        report = evaluate(
+            messages,
+            raw_key.encode("utf-8"),
+            args.expect,
+            now,
+            args.window_seconds,
+            absent_roster,
+        )
     except Unmeasurable as exc:
         report = {
             "schema": "wakir.substrate-liveness-window/v1",

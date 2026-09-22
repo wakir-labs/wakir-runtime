@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Substrate liveness heartbeat — run the probe, sign it, push it out.
+#
+# Sends whatever the probe said, including red and unmeasurable. The
+# heartbeat is the liveness signal; the verdict is its content. A run
+# that fails to SEND is a failure; a run that sends bad news is not.
+[Unit]
+Description=Wakir substrate liveness heartbeat
+Documentation=https://github.com/wakir-labs/wakir-runtime
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/wakir/substrate-heartbeat.env
+Environment=WAKIR_PROBE_CMD=/usr/local/lib/wakir/substrate-liveness-probe.sh
+ExecStart=/usr/local/lib/wakir/substrate-heartbeat-emit.sh
+# The probe is read-only and the emitter only needs outbound HTTPS.
+# ProtectSystem=strict hides /var, and podman needs /var/lib/containers to
+# resolve the volume. Under it the probe answered
+# unmeasurable/agent_data_volume_absent — correct behaviour from the probe,
+# wrong unit from me. Measured 2026-09-22.
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=false
+NoNewPrivileges=true
+Nice=10
