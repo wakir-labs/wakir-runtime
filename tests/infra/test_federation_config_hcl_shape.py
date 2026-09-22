@@ -472,3 +472,72 @@ def test_known_good_config_passes_validator():
     assert result == "", (
         f"known-good wakir config tripped {result!r} — false positive"
     )
+
+
+# ---------------------------------------------------------------------
+# T-FED-HCL-06 — gRPC bind reachable from the agent container
+# ---------------------------------------------------------------------
+#
+# Measured 2026-09-22 on both pilot VMs: the SPIRE-Agent fails with
+# ``connection refused`` on 8081, on both sides. Every federation
+# server config declared ``bind_address = "127.0.0.1"`` -- the
+# LOOPBACK OF THE SERVER CONTAINER'S network namespace. The agent runs
+# in its own container and dials the server over the container bridge
+# by NetworkAlias, so it never reached that socket. Unchanged since the
+# configs landed; the single-org config has bound 0.0.0.0 since the
+# 2026-05-14 bring-up, which is why the single-org path worked and the
+# federation path never did.
+#
+# The comment above the line claimed the bind kept the gRPC
+# control-plane private. It did not: what keeps 8081 off the network is
+# the Quadlet, which publishes it to the HOST loopback only. This pair
+# of vectors pins both halves -- reachable in the container network,
+# not published beyond host loopback -- so neither half can drift back
+# into a line that claims an intent its mechanism does not produce.
+
+SERVER_QUADLET = (
+    REPO_ROOT
+    / "infra"
+    / "spire"
+    / "federation"
+    / "quadlet"
+    / "wakir-spire-server-federation.container"
+)
+
+
+def test_grpc_bind_address_is_reachable_from_the_agent_container(config_text):
+    raw, stripped, path = config_text
+    m = re.search(r'bind_address\s*=\s*"([^"]+)"', raw)
+    assert m, f"{path.name}: server config must declare a bind_address"
+    assert m.group(1) == "0.0.0.0", (
+        f"{path.name}: bind_address is {m.group(1)!r}. That is the "
+        "loopback of the SERVER CONTAINER, not of the host. The "
+        "SPIRE-Agent runs in its own container and dials the gRPC API "
+        "over the container network -- a loopback bind gives it "
+        "``connection refused`` on every attestation attempt "
+        "(measured on both pilot VMs, 2026-09-22). Containment of the "
+        "gRPC control-plane is the Quadlet's PublishPort, not this line."
+    )
+
+
+def test_grpc_port_is_not_published_beyond_host_loopback():
+    """The other half of T-FED-HCL-06: binding 0.0.0.0 inside the
+    container is only acceptable because the Quadlet publishes 8081 to
+    the host loopback and nowhere else."""
+    text = SERVER_QUADLET.read_text(encoding="utf-8")
+    grpc_publishes = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip().startswith("PublishPort=")
+        and line.strip().endswith(":8081")
+    ]
+    assert grpc_publishes, (
+        "server Quadlet must declare the gRPC PublishPort explicitly"
+    )
+    for line in grpc_publishes:
+        assert line.startswith("PublishPort=127.0.0.1:"), (
+            f"gRPC API published beyond host loopback: {line!r}. The "
+            "gRPC surface is token-generate / agent-list / bundle-set; "
+            "a host-reachable mapping lets any reachable host act as "
+            "the operator's hand on the server."
+        )
