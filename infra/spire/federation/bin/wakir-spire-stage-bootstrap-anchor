@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# wakir-spire-stage-bootstrap-anchor -- stage the SPIRE-Agent's
+# bootstrap trust anchor from the running SPIRE-Server (ADR-0076,
+# step 3).
+#
+# What this fixes
+# ---------------
+#
+# The agent configs declare
+# ``trust_bundle_path = "/var/lib/spire/bundles/bootstrap.jwks"``. The
+# bootstrap created that volume and never wrote into it. Measured on
+# both pilot VMs 2026-09-22: the directory is empty and has been since
+# it was created in May. The agent lived off the bundle cache in its
+# own data volume until that cache aged out, and then it stopped
+# attesting -- silently, for 127 days.
+#
+# This script writes that file. It is the only supported way to write
+# it. The ``spire-fed-bundle`` CLIs in the same directory emit fixture
+# JWKS whose keys are not SPIRE CA keys; they carry a banner saying so.
+#
+# Where the content comes from
+# ----------------------------
+#
+#   podman exec <server-container> \
+#       /opt/spire/bin/spire-server bundle show -format spiffe
+#
+# against the running server -- SPIRE's own CLI, no local crypto, no
+# re-encoding. Measured working inside a live server container
+# 2026-09-22 (CTO measurement M9).
+#
+# Why a timer re-runs it
+# ----------------------
+#
+# ``ca_ttl`` stays at 24h by decision (ADR-0076): the signing
+# intermediate keeps rotating daily under the long-lived
+# ``UpstreamAuthority`` root, so the acceptance window observes six
+# rotations rather than hiding them. The staged file must therefore be
+# refreshed well inside that window. The companion units
+# ``wakir-spire-bootstrap-anchor-restage.{service,timer}`` run this
+# script every 30 minutes.
+#
+# Failure posture
+# ---------------
+#
+# Loud. Every failure path exits 2 with a diagnosis on stderr and
+# leaves the previously staged file untouched. A stager that half-
+# writes an anchor is worse than one that does not run: the agent
+# would fail to parse it and we would be debugging our own tooling
+# instead of the substrate. There is no "best effort" branch and no
+# path on which this script exits 0 without a verified file on disk.
+#
+# Sandbox boundary
+# ----------------
+#
+# No podman in the hermetic test surface. The tests drive this script
+# with ``WAKIR_STAGE_PODMAN`` pointed at a mock and
+# ``WAKIR_STAGE_TARGET_DIR`` pointed at a tmp tree, including the
+# negative controls (empty output, unparseable output, zero keys,
+# non-zero exit).
+#
+# -- Kai
+
+set -uo pipefail
+
+_PROG="wakir-spire-stage-bootstrap-anchor"
+
+die() { printf '%s: ERROR %s\n' "$_PROG" "$1" >&2; exit 2; }
+note() { printf '%s: %s\n' "$_PROG" "$1"; }
+
+usage() {
+  cat <<EOF
+Usage: ${_PROG} --side <side> [options]
+
+  --side <side>        Federation side token (wakir | orbit | partner).
+                       Selects the server container and bundles volume.
+  --container <name>   Override the server container name.
+  --volume <name>      Override the bundles volume name.
+  -h, --help           This text.
+
+Environment overrides (test hooks; do not use in production):
+  WAKIR_STAGE_PODMAN      podman binary (default: podman)
+  WAKIR_STAGE_TARGET_DIR  write here instead of resolving the volume
+  WAKIR_STAGE_CHOWN       1 (default) or 0 to skip the chown+owner check
+  WAKIR_STAGE_UID         owner uid for the staged file (default 1000)
+  WAKIR_STAGE_GID         owner gid for the staged file (default 1000)
+
+Exit: 0 staged and verified, 2 anything else.
+EOF
+}
+
+SIDE=""
+CONTAINER=""
+VOLUME=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --side)      SIDE="${2:-}"; shift 2 || die "--side needs a value" ;;
+    --container) CONTAINER="${2:-}"; shift 2 || die "--container needs a value" ;;
+    --volume)    VOLUME="${2:-}"; shift 2 || die "--volume needs a value" ;;
+    -h|--help)   usage; exit 0 ;;
+    *)           usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$SIDE" ]] || { usage >&2; die "--side is required"; }
+[[ "$SIDE" =~ ^[a-z0-9-]+$ ]] || die "--side must match [a-z0-9-]+ (got: ${SIDE})"
+
+PODMAN="${WAKIR_STAGE_PODMAN:-podman}"
+CONTAINER="${CONTAINER:-wakir-spire-server-federation-${SIDE}}"
+VOLUME="${VOLUME:-wakir-spire-server-federation-${SIDE}-bundles}"
+DO_CHOWN="${WAKIR_STAGE_CHOWN:-1}"
+OWNER_UID="${WAKIR_STAGE_UID:-1000}"
+OWNER_GID="${WAKIR_STAGE_GID:-1000}"
+ANCHOR_NAME="bootstrap.jwks"
+
+# ---------------------------------------------------------------------
+# 1. Resolve the target directory.
+# ---------------------------------------------------------------------
+
+target_dir="${WAKIR_STAGE_TARGET_DIR:-}"
+if [[ -z "$target_dir" ]]; then
+  target_dir=$("$PODMAN" volume inspect --format '{{.Mountpoint}}' "$VOLUME" 2>/dev/null) \
+    || die "podman volume inspect ${VOLUME} failed -- is the volume created? (bootstrap step 6b)"
+  target_dir="${target_dir%$'\n'}"
+fi
+[[ -n "$target_dir" ]] || die "could not resolve a mountpoint for volume ${VOLUME}"
+[[ -d "$target_dir" ]] || die "resolved target is not a directory: ${target_dir}"
+
+anchor_path="${target_dir}/${ANCHOR_NAME}"
+
+# ---------------------------------------------------------------------
+# 2. Read the bundle from the running server.
+# ---------------------------------------------------------------------
+
+raw_file=$(mktemp) || die "mktemp failed"
+trap 'rm -f "$raw_file" "${staged_tmp:-}"' EXIT
+
+if ! "$PODMAN" exec "$CONTAINER" \
+        /opt/spire/bin/spire-server bundle show -format spiffe \
+        > "$raw_file" 2>/dev/null; then
+  die "'spire-server bundle show -format spiffe' failed in container ${CONTAINER}; anchor left untouched at ${anchor_path}"
+fi
+
+# ---------------------------------------------------------------------
+# 3. Validate before anything is written.
+#
+# Two layers, deliberately. The shape check has no dependencies and
+# therefore always runs; jq is only a warn-if-missing tool in the
+# bootstrap (step 3), so a check that existed only in jq would
+# silently stop existing on a host without it. When jq IS present it
+# runs additionally and its verdict is binding.
+# ---------------------------------------------------------------------
+
+[[ -s "$raw_file" ]] || die "'bundle show' produced an empty document; anchor left untouched"
+
+body=$(tr -d '[:space:]' < "$raw_file")
+[[ -n "$body" ]] || die "'bundle show' produced whitespace only; anchor left untouched"
+[[ "${body:0:1}" == "{" ]] || die "bundle document does not start with '{' -- not a JWKS object; anchor left untouched"
+[[ "${body: -1}" == "}" ]] || die "bundle document does not end with '}' -- truncated output; anchor left untouched"
+
+open_braces=$(tr -cd '{' < "$raw_file" | wc -c)
+close_braces=$(tr -cd '}' < "$raw_file" | wc -c)
+[[ "$open_braces" -eq "$close_braces" ]] \
+  || die "bundle document braces unbalanced (${open_braces} open, ${close_braces} close) -- truncated output; anchor left untouched"
+
+case "$body" in
+  *'"keys":['*) : ;;
+  *) die "bundle document has no '\"keys\": [ ... ]' array -- not a JWKS; anchor left untouched" ;;
+esac
+
+key_count=$(grep -o '"kty"' "$raw_file" | wc -l | tr -d '[:space:]')
+[[ "${key_count:-0}" -ge 1 ]] \
+  || die "bundle document carries 0 keys -- an empty JWKS is not an anchor; anchor left untouched"
+
+if command -v jq >/dev/null 2>&1; then
+  jq -e '(.keys | type) == "array" and (.keys | length) >= 1' "$raw_file" >/dev/null 2>&1 \
+    || die "jq rejected the bundle document (not an object with a non-empty .keys array); anchor left untouched"
+  note "jq parse ok"
+else
+  note "jq not on PATH -- the dependency-free shape check alone decided (see header)"
+fi
+
+# ---------------------------------------------------------------------
+# 4. Write atomically: temp in the SAME directory, then rename.
+# ---------------------------------------------------------------------
+
+staged_tmp="${target_dir}/.${ANCHOR_NAME}.tmp.$$"
+cp "$raw_file" "$staged_tmp" || die "could not write ${staged_tmp}"
+chmod 0644 "$staged_tmp" || die "chmod 0644 ${staged_tmp} failed"
+
+if [[ "$DO_CHOWN" == "1" ]]; then
+  chown "${OWNER_UID}:${OWNER_GID}" "$staged_tmp" \
+    || die "chown ${OWNER_UID}:${OWNER_GID} ${staged_tmp} failed -- the agent runs as uid ${OWNER_UID} and would not read it"
+fi
+
+mv -f "$staged_tmp" "$anchor_path" || die "rename into ${anchor_path} failed"
+staged_tmp=""
+
+# ---------------------------------------------------------------------
+# 5. Read back and verify. Bug-21 discipline: the claim is stat-
+#    verified, not inferred from an exit code that already lied once.
+# ---------------------------------------------------------------------
+
+[[ -f "$anchor_path" ]] || die "anchor missing after rename: ${anchor_path}"
+cmp -s "$raw_file" "$anchor_path" \
+  || die "staged anchor differs from the bundle we read -- concurrent writer? ${anchor_path}"
+
+mode=$(stat -c '%a' "$anchor_path" 2>/dev/null || echo "")
+[[ "$mode" == "644" ]] || die "staged anchor mode is ${mode:-unknown}, expected 644"
+
+if [[ "$DO_CHOWN" == "1" ]]; then
+  owner=$(stat -c '%u:%g' "$anchor_path" 2>/dev/null || echo "")
+  [[ "$owner" == "${OWNER_UID}:${OWNER_GID}" ]] \
+    || die "staged anchor owner is ${owner:-unknown}, expected ${OWNER_UID}:${OWNER_GID}"
+fi
+
+bytes=$(stat -c '%s' "$anchor_path" 2>/dev/null || echo 0)
+note "staged ${anchor_path} (${key_count} key(s), ${bytes} bytes, mode 644) from ${CONTAINER}"
+
+# Known limit, stated rather than left to be discovered: this verifies
+# DAC (owner, mode, content). It does not verify that the agent's
+# SELinux context may read the file. The bundles volume is mounted
+# ``Z`` (private relabel) by the server and ``ro,Z`` by the agent --
+# two private relabels of one volume. Whether that holds on an
+# enforcing node is an open measurement on the live host, not an
+# assumption this script is entitled to make.
+exit 0

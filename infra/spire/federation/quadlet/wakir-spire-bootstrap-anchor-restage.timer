@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# ADR-0076 step 4 -- timer for
+# wakir-spire-bootstrap-anchor-restage-<SIDE>.service.
+#
+# Plain systemd .timer, installed under /etc/systemd/system/ (see the
+# .service companion for why it is not in the Quadlet directory).
+#
+# Cadence rationale: the anchor must be refreshed well inside
+# ``ca_ttl``, which stays at 24h by decision so that the acceptance
+# window observes at least six real rotations. 30 minutes gives a
+# margin of 48 ticks per rotation window -- a missed tick, a reboot or
+# a slow server start are all absorbed without the anchor ever going
+# stale. Tunable via OnUnitActiveSec= below; raising it above a couple
+# of hours starts trading away the margin the ADR bought.
+#
+# Persistent=true so a tick missed while the VM was down fires on the
+# next boot. The stager is idempotent, so a catch-up run is free.
+
+[Unit]
+Description=Re-stage the SPIRE-Agent bootstrap trust anchor every 30 min (<SIDE>, ADR-0076)
+
+[Timer]
+# Two minutes after boot the server container is normally up; if it is
+# not, the run fails loudly and the next tick picks it up.
+OnBootSec=2min
+OnUnitActiveSec=30min
+Unit=wakir-spire-bootstrap-anchor-restage-<SIDE>.service
+Persistent=true
+# The staging window does not need to be aligned across sides; a small
+# spread keeps two sides on one host from exec-ing at the same second.
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

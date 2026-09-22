@@ -3,6 +3,25 @@
 """spire-fed-bundle — hermetic Bundle-Export / Bundle-Import CLI for
 the SPIRE-Federation-Bundle-Endpoint substrate.
 
+FIXTURE ONLY -- NOT FOR LIVE BOOTSTRAP-ANCHOR STAGING.
+======================================================
+
+This CLI produces test fixtures. The JWKS it emits in hermetic mode
+does not contain SPIRE CA keys; it contains well-formed JWK JSON with
+the trust-domain in the ``kid`` claim. Writing its output to an
+agent's ``trust_bundle_path`` gives you a file at the right path, a
+green test, and an agent that still cannot attest. That failure mode
+is indistinguishable from success at every layer except the one that
+matters, which is why this banner is the first thing in the file
+(ADR-0076, context finding (c)).
+
+The live staging path is a different mechanism and lives elsewhere:
+``spire-server bundle show -format spiffe`` executed against the
+running server, staged by
+``infra/spire/federation/bin/wakir-spire-stage-bootstrap-anchor``
+and re-staged on a timer. Use that. Do not wire this CLI into the
+bootstrap, an acceptance check, or a repair runbook.
+
 This CLI orchestrates the manual bootstrap path of SPIRE-Federation:
 on the wakir side, ``spire-fed-bundle export --trust-domain wakir.test``
 emits the wakir trust-bundle as a JWKS document into a host file; on

@@ -171,8 +171,13 @@ def _bootstrap_volume_install_basenames(side: str) -> set[str]:
     # 6b-ii: federation-server volumes get the ``-${side}-`` segment
     # injected before the kind suffix IF the bootstrap actually does
     # the rename. Otherwise the source basename passes through.
+    # ADR-0076 added ``upstream-ca`` to the kind alternation in the
+    # bootstrap's 6b-ii rename. This mirror has to carry the same set,
+    # or a volume the bootstrap does rename looks unrenamed here and
+    # the resolves-test reports a defect that is only in the mirror.
     fed_rename = re.compile(
-        r"^wakir-spire-server-federation-(data|sockets|bundles)\.volume$"
+        r"^wakir-spire-server-federation-"
+        r"(data|sockets|bundles|upstream-ca)\.volume$"
     )
     for p in FED_QUADLET_DIR.glob("*.volume"):
         m = fed_rename.match(p.name)

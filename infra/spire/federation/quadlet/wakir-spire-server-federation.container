@@ -75,6 +75,14 @@
 #   podman volume rm wakir-spire-server-federation-<SIDE>-data
 #   podman volume rm wakir-spire-server-federation-<SIDE>-sockets
 #   podman volume rm wakir-spire-server-federation-<SIDE>-bundles
+#
+# NOT in the tear-down list, deliberately:
+#   wakir-spire-server-federation-<SIDE>-upstream-ca
+# Removing it destroys the trust-domain root (ADR-0076). A new
+# root invalidates every SVID and bundle on BOTH federation sides
+# and the peer rejects our bundle endpoint until it re-pins. If you
+# mean to do that, it is a bilateral maintenance window, not a
+# tear-down step.
 
 [Unit]
 Description=Wakir Phase-2.1 SPIRE-Server-Federation-Bundle-Endpoint (<SIDE>)
@@ -149,6 +157,26 @@ Volume=/etc/wakir/spire-federation/spire-server-<SIDE>.conf:/etc/spire/server/se
 Volume=wakir-spire-server-federation-<SIDE>-data.volume:/var/lib/spire/server:Z,U
 Volume=wakir-spire-server-federation-<SIDE>-sockets.volume:/run/spire/sockets:Z,U
 Volume=wakir-spire-server-federation-<SIDE>-bundles.volume:/var/lib/spire/bundles:Z,U
+
+# ADR-0076: the upstream CA root, read-only.
+#
+# ``UpstreamAuthority "disk"`` in the server config reads
+# root.crt/root.key from here and mints the daily signing
+# intermediates against them. Read-only because the server has no
+# business writing its own root: the material is created once by the
+# bootstrap and rotating it is a bilateral maintenance-window
+# operation.
+#
+# No ``U``: the chown is the bootstrap's job and it verifies it
+# (``_chown_volume_with_verify``). Letting the mount chown a volume
+# that holds a 0600 private key would move that decision into a flag
+# nobody reads.
+#
+# wakir-pilot-bootstrap.sh deletes this line when installing in
+# single-org mode -- that config declares no UpstreamAuthority, so the
+# mount would put a private key in front of a process with no use for
+# it.
+Volume=wakir-spire-server-federation-<SIDE>-upstream-ca.volume:/var/lib/spire/upstream-ca:ro,Z
 
 # Bug 12 substance-fix: the previous mode=0700 made
 # /run/spire root-only, which blocked the uid:1000 server process

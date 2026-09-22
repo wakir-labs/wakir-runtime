@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# Quadlet sidecar volume: the SPIRE-Server's upstream CA root material
+# (ADR-0076).
+#
+# Holds exactly two files, created once by wakir-pilot-bootstrap.sh
+# (step 6g-bis) and never rewritten by it:
+#
+#   root.crt  0644 uid 1000  self-signed EC P-256 root, multi-year
+#   root.key  0600 uid 1000  its private key
+#
+# The server mounts this volume READ-ONLY and reads it through
+# ``UpstreamAuthority "disk"``; it mints its daily signing
+# intermediates against this root rather than being its own root. That
+# is what makes a staged bootstrap anchor worth staging: without it
+# the root rotated every ca_ttl and every bundle copy was stale within
+# a day.
+#
+# Separate volume, deliberately. The server's data volume is
+# read-write for the server process and holds the datastore and the CA
+# journal; the root key has a different lifetime, a different blast
+# radius and a different access mode, and mixing them would mean the
+# key inherits the data volume's handling in every future runbook.
+#
+# Handling rules (ADR-0076 risk section):
+#   * never in the repository, never in git
+#   * no backups off the VM
+#   * 0600, owned by the container user
+#   * replacing the contents is a BILATERAL maintenance-window
+#     cutover, not a re-run: it invalidates every SVID and every
+#     bundle copy on both federation sides
+#
+# Tear-down note: ``podman volume rm`` on this volume destroys the
+# trust-domain root. The bootstrap will create a new one on the next
+# run and the peer will reject the new bundle until it is re-pinned.
+
+[Unit]
+Description=Wakir SPIRE-Server-Federation upstream CA root material (<SIDE>)
+
+[Volume]
+VolumeName=wakir-spire-server-federation-<SIDE>-upstream-ca
+
+[Install]
+WantedBy=multi-user.target default.target

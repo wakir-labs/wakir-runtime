@@ -1499,6 +1499,7 @@ _pre_start_chown_sweep() {
         "wakir-spire-server-federation-${side}-data"
         "wakir-spire-server-federation-${side}-sockets"
         "wakir-spire-server-federation-${side}-bundles"
+        "wakir-spire-server-federation-${side}-upstream-ca"
       )
       ;;
     agent)
@@ -1950,6 +1951,7 @@ _unit_tracked_files() {
         "${qdir}/wakir-spire-server-federation-${side}-data.volume" \
         "${qdir}/wakir-spire-server-federation-${side}-sockets.volume" \
         "${qdir}/wakir-spire-server-federation-${side}-bundles.volume" \
+        "${qdir}/wakir-spire-server-federation-${side}-upstream-ca.volume" \
         "${qdir}/wakir-orchestrator.network" \
         "${qdir}/wakir-federation.network"
       ;;
@@ -2120,6 +2122,310 @@ _converge_service_unit() {
 }
 
 # ---------------------------------------------------------------------------
+# ADR-0076 step 2: the long-lived upstream CA root.
+#
+# Until now the SPIRE-Server was its own root. It minted a fresh
+# self-signed root every ``ca_ttl`` (24h) and pruned the expired one,
+# so every copy of the trust bundle had a shelf life of one day. That
+# is the mechanism behind the 127 dead days: not that nobody staged an
+# anchor, but that no anchor could have survived being staged.
+#
+# With ``UpstreamAuthority "disk"`` in the server config the server
+# mints intermediates against a root that lives here. This helper
+# creates that root ONCE per side and then never touches it again.
+#
+# The single most important property of this function is what it does
+# NOT do: it does not regenerate. Replacing the root invalidates every
+# SVID and every bundle copy on BOTH federation sides -- the ADR calls
+# that out as a bilateral maintenance-window operation, not a re-run.
+# A bootstrap that quietly rolled the root on a repeat invocation would
+# be a one-command outage of the peer. So:
+#
+#   * both files present and the cert still valid  -> keep, log, return
+#   * exactly one of the two present               -> HARD ABORT
+#   * neither present                              -> generate
+#
+# The half-present case aborts rather than heals on purpose. A missing
+# key next to a present cert means either an interrupted first run or
+# somebody deleting things by hand; both want a human, and the
+# "helpful" branch of that decision is the one that takes the peer
+# down.
+#
+# Material shape (ADR-0076): EC P-256, self-signed, multi-year,
+# key 0600, cert 0644, owned by uid 1000 (the container user), in its
+# own named volume, never in the repository and never in git.
+# ---------------------------------------------------------------------------
+
+_upstream_ca_volume() {
+  printf 'wakir-spire-server-federation-%s-upstream-ca' "${1}"
+}
+
+_ensure_upstream_ca_material() {
+  local side="$1"
+  local vol dir crt key days subject
+  vol="$(_upstream_ca_volume "$side")"
+  days="${WAKIR_UPSTREAM_CA_DAYS:-1826}"
+  # Test hooks, same shape as WAKIR_BOOTSTRAP_SKIP_SOCKET_WAIT: the
+  # hermetic suite has no root and cannot chown to uid 1000. Defaults
+  # are the production values; nothing reads these on a real host.
+  local ca_uid="${WAKIR_UPSTREAM_CA_UID:-1000}"
+  local ca_gid="${WAKIR_UPSTREAM_CA_GID:-1000}"
+  local do_chown="${WAKIR_UPSTREAM_CA_CHOWN:-1}"
+
+  "$WAKIR_BOOTSTRAP_PODMAN" volume create --ignore "$vol" >/dev/null 2>&1 || true
+  dir=$("$WAKIR_BOOTSTRAP_PODMAN" volume inspect --format '{{.Mountpoint}}' "$vol" 2>/dev/null) \
+    || { log_err "podman volume inspect ${vol} failed"; return 2; }
+  dir="${dir%$'\n'}"
+  if [[ -z "$dir" || ! -d "$dir" ]]; then
+    log_err "could not resolve a mountpoint for volume ${vol}"
+    return 2
+  fi
+
+  crt="${dir}/root.crt"
+  key="${dir}/root.key"
+
+  if [[ -f "$crt" && -f "$key" ]]; then
+    # Present. Verify it is still usable and leave it alone.
+    if ! openssl x509 -in "$crt" -noout >/dev/null 2>&1; then
+      log_err "upstream CA certificate at ${crt} does not parse"
+      log_note "this is operator-hand territory: a broken root is a bilateral cutover, not a re-run (ADR-0076 migration)"
+      return 2
+    fi
+    if ! openssl x509 -in "$crt" -noout -checkend 0 >/dev/null 2>&1; then
+      log_err "upstream CA certificate at ${crt} has EXPIRED"
+      log_note "renewal replaces the trust-domain root and must be done bilaterally in a maintenance window (ADR-0076)"
+      return 2
+    fi
+    local not_after
+    not_after=$(openssl x509 -in "$crt" -noout -enddate 2>/dev/null | sed 's/^notAfter=//')
+    log_ok "upstream CA root retained (notAfter=${not_after:-unknown}) -- not regenerated"
+    _verify_upstream_ca_material "$crt" "$key" || return 2
+    return 0
+  fi
+
+  if [[ -f "$crt" || -f "$key" ]]; then
+    log_err "upstream CA material is half-present in ${dir} (cert=$([[ -f "$crt" ]] && echo yes || echo no), key=$([[ -f "$key" ]] && echo yes || echo no))"
+    log_note "refusing to generate over a partial root: a new root invalidates every SVID and bundle on BOTH federation sides"
+    log_note "operator-hand: decide whether to restore the missing half or run a bilateral root cutover (ADR-0076 migration)"
+    return 2
+  fi
+
+  # Neither present -> first generation.
+  if ! command -v openssl >/dev/null 2>&1; then
+    log_err "openssl not found on PATH -- cannot create the upstream CA root"
+    return 2
+  fi
+  local ossl_major
+  ossl_major=$(openssl version 2>/dev/null | sed -n 's/^OpenSSL \([0-9]\+\).*/\1/p')
+  if [[ -z "$ossl_major" || "$ossl_major" -lt 3 ]]; then
+    log_err "openssl 3.x required (found: $(openssl version 2>/dev/null || echo none))"
+    log_note "the generation call below uses -noenc and -addext, both 3.x surface"
+    return 2
+  fi
+
+  subject="/O=Wakir Labs/CN=${WAKIR_TRUST_DOMAIN} upstream CA"
+  local tmp_crt="${dir}/.root.crt.tmp.$$"
+  local tmp_key="${dir}/.root.key.tmp.$$"
+
+  log_note "creating upstream CA root for ${WAKIR_TRUST_DOMAIN} (EC P-256, ${days} days) in volume ${vol}"
+  if ! openssl req -x509 \
+        -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
+        -noenc \
+        -keyout "$tmp_key" -out "$tmp_crt" \
+        -days "$days" \
+        -subj "$subject" \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" \
+        >/dev/null 2>&1; then
+    rm -f "$tmp_crt" "$tmp_key"
+    log_err "openssl req -x509 failed while creating the upstream CA root"
+    return 2
+  fi
+
+  chmod 0600 "$tmp_key" || { rm -f "$tmp_crt" "$tmp_key"; log_err "chmod 0600 on the CA key failed"; return 2; }
+  chmod 0644 "$tmp_crt" || { rm -f "$tmp_crt" "$tmp_key"; log_err "chmod 0644 on the CA cert failed"; return 2; }
+  if [[ "$do_chown" == "1" ]]; then
+    chown "${ca_uid}:${ca_gid}" "$tmp_key" "$tmp_crt" \
+      || { rm -f "$tmp_crt" "$tmp_key"; log_err "chown ${ca_uid}:${ca_gid} on the CA material failed"; return 2; }
+  fi
+
+  _verify_upstream_ca_material "$tmp_crt" "$tmp_key" \
+    || { rm -f "$tmp_crt" "$tmp_key"; return 2; }
+
+  # Rename the KEY last: a reader that sees the cert without the key
+  # hits the half-present abort above rather than a server that starts
+  # against a root it cannot sign with.
+  mv -f "$tmp_crt" "$crt" || { rm -f "$tmp_crt" "$tmp_key"; log_err "rename of the CA cert failed"; return 2; }
+  mv -f "$tmp_key" "$key" || { log_err "rename of the CA key failed"; return 2; }
+
+  local mode_key mode_crt owner_key
+  mode_key=$(stat -c '%a' "$key" 2>/dev/null || echo "")
+  mode_crt=$(stat -c '%a' "$crt" 2>/dev/null || echo "")
+  if [[ "$mode_key" != "600" || "$mode_crt" != "644" ]]; then
+    log_err "upstream CA material landed with key=${mode_key:-?} cert=${mode_crt:-?}; expected 600 / 644"
+    return 2
+  fi
+  if [[ "$do_chown" == "1" ]]; then
+    owner_key=$(stat -c '%u:%g' "$key" 2>/dev/null || echo "")
+    if [[ "$owner_key" != "${ca_uid}:${ca_gid}" ]]; then
+      log_err "upstream CA key landed with owner=${owner_key:-?}; expected ${ca_uid}:${ca_gid}"
+      return 2
+    fi
+  fi
+
+  log_ok "upstream CA root created (${vol}: root.crt 0644, root.key 0600, uid ${ca_uid}) -- not in git, not backed up off-VM"
+  log_note "replacing this root later is a BILATERAL maintenance-window operation; it invalidates every SVID and bundle on both sides"
+  return 0
+}
+
+# Assert the material is what the SPIRE ``disk`` UpstreamAuthority
+# plugin needs as a ROOT CA: exactly one self-signed certificate with
+# CA:TRUE, and a key that belongs to it.
+#
+# The key/cert binding check is the one that matters. A cert next to
+# somebody else's key produces a server that starts, logs nothing
+# unusual, and fails at the first CSR -- hours later, in a log nobody
+# reads.
+_verify_upstream_ca_material() {
+  local crt="$1" key="$2"
+
+  local cert_count
+  cert_count=$(grep -c -- '-----BEGIN CERTIFICATE-----' "$crt" 2>/dev/null || echo 0)
+  if [[ "$cert_count" -ne 1 ]]; then
+    log_err "upstream CA cert file holds ${cert_count} certificates; root-CA operation needs exactly one (ADR-0076 / plugin doc)"
+    return 2
+  fi
+
+  if ! openssl x509 -in "$crt" -noout -text 2>/dev/null | grep -q 'CA:TRUE'; then
+    log_err "upstream CA certificate is not a CA certificate (basicConstraints CA:TRUE missing)"
+    return 2
+  fi
+
+  local subj issuer
+  subj=$(openssl x509 -in "$crt" -noout -subject 2>/dev/null)
+  issuer=$(openssl x509 -in "$crt" -noout -issuer 2>/dev/null)
+  if [[ "${subj#subject=}" != "${issuer#issuer=}" ]]; then
+    log_err "upstream CA certificate is not self-signed (subject != issuer); root-CA operation requires a self-signed root"
+    return 2
+  fi
+
+  local cert_pub key_pub
+  cert_pub=$(openssl x509 -in "$crt" -noout -pubkey 2>/dev/null)
+  key_pub=$(openssl pkey -in "$key" -pubout 2>/dev/null)
+  if [[ -z "$cert_pub" || -z "$key_pub" || "$cert_pub" != "$key_pub" ]]; then
+    log_err "upstream CA key does not belong to the upstream CA certificate"
+    return 2
+  fi
+
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# ADR-0076 step 3: stage the agent's bootstrap trust anchor.
+#
+# Runs between server start (6h) and agent start (6j). Delegates to
+# ``bin/wakir-spire-stage-bootstrap-anchor`` so the bring-up and the
+# 30-minute re-staging timer execute the SAME code -- a staging path
+# that drifts from its own refresh path is two mechanisms, and the
+# second one is always the one nobody tested.
+#
+# A failure here aborts the bring-up. That is the point: the whole
+# defect class this ADR addresses is a substrate that came up looking
+# healthy with an empty anchor directory.
+# ---------------------------------------------------------------------------
+
+_stager_installed_path() { printf '/var/lib/wakir/bin/wakir-spire-stage-bootstrap-anchor'; }
+
+_install_anchor_stager() {
+  local src="${WAKIR_REPO_ROOT}/infra/spire/federation/bin/wakir-spire-stage-bootstrap-anchor"
+  local dst
+  dst="$(_stager_installed_path)"
+  if [[ ! -f "$src" ]]; then
+    log_err "anchor stager not found in repo: ${src}"
+    return 2
+  fi
+  install -d -m 755 "$(dirname "$dst")" || return 2
+  install -m 0755 "$src" "$dst" || { log_err "install of the anchor stager failed"; return 2; }
+  log_ok "anchor stager installed at ${dst}"
+  return 0
+}
+
+_stage_bootstrap_anchor() {
+  local side="$1"
+  local stager
+  stager="$(_stager_installed_path)"
+  [[ -x "$stager" ]] || { log_err "anchor stager missing or not executable: ${stager}"; return 2; }
+
+  if ! WAKIR_STAGE_PODMAN="$WAKIR_BOOTSTRAP_PODMAN" "$stager" --side "$side"; then
+    log_err "bootstrap trust anchor could not be staged for side ${side}"
+    log_note "the agent's trust_bundle_path would be an empty directory -- the exact state this substrate spent 127 days in"
+    log_note "diagnose: ${WAKIR_BOOTSTRAP_PODMAN} exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server bundle show -format spiffe"
+    return 2
+  fi
+  log_ok "bootstrap trust anchor staged into the ${side} bundles volume"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# ADR-0076 step 4: the re-staging timer.
+#
+# ``ca_ttl`` stays at 24h by decision, so the signing intermediate
+# still rotates daily. A single staged anchor at bring-up time would
+# reproduce the May half-life with extra steps. The timer re-runs the
+# stager every 30 minutes -- well inside the rotation window and cheap
+# (one podman exec, one rename).
+#
+# Plain systemd units, not Quadlet: /etc/containers/systemd is read by
+# the podman system generator and only for container/volume/network
+# unit types. Same split the recovery-drill timer already uses.
+# ---------------------------------------------------------------------------
+
+_install_restage_timer() {
+  local side="$1"
+  local src_dir="${WAKIR_REPO_ROOT}/infra/spire/federation/quadlet"
+  local sysd="${WAKIR_BOOTSTRAP_SYSTEMD_UNIT_DIR:-/etc/systemd/system}"
+  local unit="wakir-spire-bootstrap-anchor-restage-${side}"
+  local f
+
+  install -d -m 755 "$sysd" || return 2
+  for f in service timer; do
+    local src="${src_dir}/wakir-spire-bootstrap-anchor-restage.${f}"
+    if [[ ! -f "$src" ]]; then
+      log_err "restage unit template not found: ${src}"
+      return 2
+    fi
+    _install_substituted_plain "$src" "${sysd}/${unit}.${f}" \
+        -e "s|<SIDE>|${side}|g" \
+        -e "s|<STAGER_PATH>|$(_stager_installed_path)|g" \
+      || { log_err "install of ${src} failed"; return 2; }
+  done
+
+  "$WAKIR_BOOTSTRAP_SYSTEMCTL" daemon-reload \
+    || { log_err "daemon-reload after restage-unit install failed"; return 2; }
+  if ! "$WAKIR_BOOTSTRAP_SYSTEMCTL" enable --now "${unit}.timer"; then
+    log_err "could not enable ${unit}.timer"
+    log_note "without it the staged anchor ages out under the 24h ca_ttl and the substrate dies the same death as in May"
+    return 2
+  fi
+  log_ok "${unit}.timer enabled (re-stages the bootstrap anchor every 30 min)"
+  return 0
+}
+
+# Same render-then-install-if-changed shape as step 6's
+# ``_install_substituted``, but usable outside step_6_quadlet (that one
+# is a nested function and only exists while the step runs).
+_install_substituted_plain() {
+  local src="$1" target="$2"
+  shift 2
+  local tmp
+  tmp=$(mktemp) || return 1
+  sed "$@" "$src" > "$tmp" || { rm -f "$tmp"; return 1; }
+  _install_if_changed "$tmp" "$target" || { rm -f "$tmp"; return 1; }
+  rm -f "$tmp"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
 # Step 6: Quadlet units
 # ---------------------------------------------------------------------------
 
@@ -2220,10 +2526,12 @@ step_6_quadlet() {
     #   -> wakir-spire-server-federation-${side}-sockets.volume
     # wakir-spire-server-federation-bundles.volume
     #   -> wakir-spire-server-federation-${side}-bundles.volume
+    #   wakir-spire-server-federation-upstream-ca.volume
+    #     -> wakir-spire-server-federation-${side}-upstream-ca.volume
     dest_base=$(printf '%s' "$base" \
-      | sed "s/^wakir-spire-server-federation-\(data\|sockets\|bundles\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/")
+      | sed "s/^wakir-spire-server-federation-\(data\|sockets\|bundles\|upstream-ca\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/")
     if [[ "$dest_base" == "$base" ]] \
-       && ! [[ "$base" =~ ^wakir-spire-server-federation-(data|sockets|bundles)\.volume$ ]]; then
+       && ! [[ "$base" =~ ^wakir-spire-server-federation-(data|sockets|bundles|upstream-ca)\.volume$ ]]; then
       # Unexpected federation volume name -- pass through with content sub only.
       :
     fi
@@ -2275,12 +2583,26 @@ step_6_quadlet() {
   fi
   local server_tpl="${fed_src}/wakir-spire-server-federation.container"
   if [[ -f "$server_tpl" ]]; then
+    local server_sed_args=(
+      -e "s/<SIDE>/${side}/g"
+      -e "s/<HOST_BUNDLE_PORT>/8443/g"
+      -e "s/<HOST_GRPC_PORT>/8082/g"
+      -e "s|<HOST_BUNDLE_BIND>|${host_bundle_bind}|g"
+    )
+    if [[ "$WAKIR_PILOT_MODE" == "single-org" ]]; then
+      # ADR-0076 scopes ``UpstreamAuthority "disk"`` to the three
+      # federation server configs. The single-org config does not
+      # declare it, so mounting the root material into a single-org
+      # server would place a private key in front of a process that
+      # has no use for it. Same sed-delete shape as the agent's
+      # peer-bundle mount two blocks down.
+      server_sed_args+=(
+        -e "\|wakir-spire-server-federation-<SIDE>-upstream-ca\.volume:/var/lib/spire/upstream-ca:ro,Z|d"
+      )
+    fi
     _install_substituted "$server_tpl" \
         "${dst}/wakir-spire-server-federation-${side}.container" \
-        -e "s/<SIDE>/${side}/g" \
-        -e "s/<HOST_BUNDLE_PORT>/8443/g" \
-        -e "s/<HOST_GRPC_PORT>/8082/g" \
-        -e "s|<HOST_BUNDLE_BIND>|${host_bundle_bind}|g" \
+        "${server_sed_args[@]}" \
       || { log_err "install $server_tpl failed"; return 2; }
 
     install -d -m 755 /etc/wakir/spire-federation
@@ -2473,6 +2795,7 @@ step_6_quadlet() {
       "wakir-spire-server-federation-${side}-data" \
       "wakir-spire-server-federation-${side}-sockets" \
       "wakir-spire-server-federation-${side}-bundles" \
+      "wakir-spire-server-federation-${side}-upstream-ca" \
       "wakir-spire-agent-${side}-data" \
       "wakir-spire-agent-${side}-sockets"
   do
@@ -2480,6 +2803,23 @@ step_6_quadlet() {
     _chown_volume_with_verify "$v" "step-6g-initial" || return 2
   done
   log_ok "named-volume permissions normalised (uid:gid 1000:1000, stat-verified)"
+
+  # 6g-bis (ADR-0076 step 2). The upstream CA root, BEFORE the server
+  # starts. The server's ``UpstreamAuthority "disk"`` block reads
+  # /var/lib/spire/upstream-ca/root.{crt,key} at start and at every
+  # CSR; a server started without it does not fall back to being its
+  # own root, it fails to configure the plugin.
+  #
+  # Federation mode only: ADR-0076 scopes UpstreamAuthority to the
+  # three federation server configs, and the single-org install drops
+  # the mount (see 6c). Generating a private key for a config that
+  # does not reference it would be key material without a consumer,
+  # which is its own kind of debt.
+  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
+    _ensure_upstream_ca_material "$side" || return 2
+  else
+    log_note "single-org mode: no UpstreamAuthority in this config, no root material created"
+  fi
 
   # 6h. Start the server FIRST. The agent depends on a running server
   # for the join-token attestation handshake; starting them in
@@ -2500,6 +2840,24 @@ step_6_quadlet() {
   # step 6i issues ``spire-server token generate`` against this server
   # immediately after and must not race its boot.
   _converge_service_unit "$server_unit" "server" || return 2
+
+  # 6h-bis (ADR-0076 step 3). Stage the agent's bootstrap trust anchor
+  # from the now-running server, before the agent is started.
+  #
+  # The agent configs have pointed ``trust_bundle_path`` at
+  # /var/lib/spire/bundles/bootstrap.jwks since May. Nothing ever
+  # wrote it. Measured 2026-09-22 on both VMs: the directory is empty
+  # and has been since it was created. The agent ran off its own
+  # bundle cache until the cache aged out under the 24h ca_ttl, and
+  # then it stopped attesting without anyone noticing for 127 days.
+  #
+  # Federation mode only: the single-org agent config bootstraps
+  # through the server handshake and its Quadlet does not even mount
+  # the bundles volume (6d drops the line).
+  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
+    _install_anchor_stager || return 2
+    _stage_bootstrap_anchor "$side" || return 2
+  fi
 
   # 6i. Bug 1/15 substance-fix: single-org Phase-1b
   # pilots use the join-token node-attestor. Token generation is a
@@ -2639,6 +2997,22 @@ step_6_quadlet() {
     # restart path -- a restart re-opens the same race as a cold start.
     _converge_service_unit "$unit" "$kind" || return 2
   done
+
+  # 6k (ADR-0076 step 4). The re-staging timer.
+  #
+  # One staged anchor at bring-up time is the May half-life with extra
+  # steps: ca_ttl stays at 24h by decision, so the signing
+  # intermediate keeps rotating daily. 30 minutes is far enough inside
+  # that window that a couple of missed ticks are survivable, and the
+  # run costs one podman exec and one rename.
+  #
+  # This timer is itself a standing obligation, and this house has
+  # just demonstrated what it does with those. It is named in the
+  # acceptance probe for that reason -- a refresher nobody watches is
+  # the next four months.
+  if [[ "$WAKIR_PILOT_MODE" == "federation" ]]; then
+    _install_restage_timer "$side" || return 2
+  fi
 
   return 0
 }

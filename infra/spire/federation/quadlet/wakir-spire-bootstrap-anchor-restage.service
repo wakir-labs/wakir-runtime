@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# ADR-0076 step 4 -- re-stage the SPIRE-Agent's bootstrap trust anchor.
+#
+# This is a PLAIN systemd unit, not a Quadlet. It is installed under
+# /etc/systemd/system/, not /etc/containers/systemd/: the podman system
+# generator only reads container/volume/network/pod/kube/build/image
+# units, and a .service dropped in that directory would be silently
+# ignored -- which is precisely the class of "installed but never
+# applied" defect this substrate is coming out of. The recovery-drill
+# timer under quadlet/ makes the same split for the same reason.
+#
+# Placeholders substituted at install time by wakir-pilot-bootstrap.sh:
+#   <SIDE>         federation side token (wakir | orbit | partner)
+#   <STAGER_PATH>  absolute path of the installed stager script
+#
+# Installed name: wakir-spire-bootstrap-anchor-restage-<SIDE>.service
+#
+# Why it exists: ca_ttl stays at 24h by decision (ADR-0076), so the
+# server's signing intermediate keeps rotating daily under the
+# long-lived root. A bootstrap anchor staged once at bring-up would
+# reproduce the May half-life. The stager is idempotent, atomic and
+# loud; re-running it costs one podman exec and one rename.
+#
+# Failure posture: the stager exits 2 with a diagnosis and leaves the
+# previous anchor in place. systemd records the failed unit; the
+# substrate-liveness probe is what turns that into something a human
+# sees. A refresher nobody watches is how this substrate spent four
+# months.
+
+[Unit]
+Description=Re-stage the SPIRE-Agent bootstrap trust anchor (<SIDE>, ADR-0076)
+Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/infra/spire/federation/README.md
+# The stager reads from the running server container. Without it there
+# is nothing to read; the unit then fails loudly rather than writing a
+# half anchor.
+After=wakir-spire-server-federation-<SIDE>.service
+Wants=wakir-spire-server-federation-<SIDE>.service
+
+[Service]
+Type=oneshot
+ExecStart=<STAGER_PATH> --side <SIDE>
+# One attempt per tick. The timer is the retry policy: a transient
+# failure is picked up 30 minutes later, and a persistent one should
+# show up as a failed unit rather than be buried under restarts.
+TimeoutStartSec=120s
