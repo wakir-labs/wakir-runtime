@@ -274,7 +274,11 @@ EnvironmentFile=/etc/wakir/persona-tomas.env
 # Health probe — the persona-engine ships a ``healthcheck``
 # subcommand that returns exit 0 when the spawn-session is in the
 # ``running`` lifecycle state (§3.7.2.4 spawn-state-machine).
-HealthCmd=/opt/wakir/bin/persona-engine healthcheck
+# Exec form, deliberately. Podman wraps a *string* HealthCmd in
+# /bin/sh -c; a JSON array is executed directly. Measured on the
+# live node 2026-09-22 (podman 5.8.1): the string form produces
+# ["CMD-SHELL", ...], the array form ["CMD", ...].
+HealthCmd=["/opt/wakir/bin/persona-engine", "healthcheck"]
 HealthInterval=15s
 HealthTimeout=5s
 HealthRetries=5

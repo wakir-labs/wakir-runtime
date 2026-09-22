@@ -17,13 +17,13 @@
   "date": "2026-09-22",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 424,
-  "required": 320,
+  "test_modules": 425,
+  "required": 321,
   "optional_ci": 101,
   "operator_hand": 2,
   "opt_in_marker": 1,
   "unassigned": 0,
-  "note": "Live counts. tests/lanes/test_lane_assignment.py::test_measured_counts_are_current re-derives these from the workflows on every run, so they cannot go stale in a report. After the Welle-3 lane promotion (ADR-0075) `unassigned` is 0: 97 modules went into required lanes, 80 into the non-blocking observation lane with a promotion date of 2026-10-31, and the standing exceptions keep their dates — which are now compared against the calendar by tooling/ci/exemption_expiry.py instead of merely being well-formed. 2026-09-22: +1 module, tests/observability/test_substrate_liveness_probe.py, into the hermetic-invariants lane as required — the substrate-liveness probe is a check about checks, so an unassigned lane would have been the joke telling itself. 2026-09-22: +3 further modules for the substrate-liveness melder (heartbeat emitter, expectation window, and the dated drill obligation), all required, landing after the probe. 2026-09-22: +1 module, tests/infra/test_pilot_bootstrap_step6_convergence.py, required — the step-6 convergence behaviour tests. The counts in this block were re-derived by tooling/ci/lane_inventory.py after the rebase that brought these two waves together, not carried over from either side of the conflict: two numbers that happen to add up are not a measurement."
+  "note": "Live counts. tests/lanes/test_lane_assignment.py::test_measured_counts_are_current re-derives these from the workflows on every run, so they cannot go stale in a report. After the Welle-3 lane promotion (ADR-0075) `unassigned` is 0: 97 modules went into required lanes, 80 into the non-blocking observation lane with a promotion date of 2026-10-31, and the standing exceptions keep their dates — which are now compared against the calendar by tooling/ci/exemption_expiry.py instead of merely being well-formed. 2026-09-22: +1 module, tests/observability/test_quadlet_healthcmd_exec_form.py, required — it enforces that a healthcheck which does not need a shell does not ask for one, after four SPIRE healthchecks were measured to have been publishing a verdict they never computed. 2026-09-22: +1 module, tests/observability/test_substrate_liveness_probe.py, into the hermetic-invariants lane as required — the substrate-liveness probe is a check about checks, so an unassigned lane would have been the joke telling itself. 2026-09-22: +3 further modules for the substrate-liveness melder (heartbeat emitter, expectation window, and the dated drill obligation), all required, landing after the probe. 2026-09-22: +1 module, tests/infra/test_pilot_bootstrap_step6_convergence.py, required — the step-6 convergence behaviour tests. The counts in this block were re-derived by tooling/ci/lane_inventory.py after the rebase that brought these two waves together, not carried over from either side of the conflict: two numbers that happen to add up are not a measurement."
  },
  "required_contexts": [
   "Cosign-Keyless-OIDC-Drift-Probe (daily)",
@@ -625,6 +625,9 @@
    "profile": "required"
   },
   "tests/observability/test_quadlet_15_binary_live_boot_test.py": {
+   "profile": "required"
+  },
+  "tests/observability/test_quadlet_healthcmd_exec_form.py": {
    "profile": "required"
   },
   "tests/observability/test_recovery_workflow_alert_routing.py": {

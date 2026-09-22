@@ -153,7 +153,11 @@ PodmanArgs=--cpus=0.5 --memory=256m
 # binary's own healthcheck subcommand — no HTTP endpoint, no /healthz.
 # Hermetic-friendly: the subcommand exits non-zero if the server is
 # not responsive on the configured admin socket.
-HealthCmd=/opt/spire/bin/spire-server healthcheck
+# Exec form, deliberately. Podman wraps a *string* HealthCmd in
+# /bin/sh -c; a JSON array is executed directly. Measured on the
+# live node 2026-09-22 (podman 5.8.1): the string form produces
+# ["CMD-SHELL", ...], the array form ["CMD", ...].
+HealthCmd=["/opt/spire/bin/spire-server", "healthcheck"]
 HealthInterval=10s
 HealthTimeout=5s
 HealthRetries=5
