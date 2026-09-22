@@ -65,6 +65,38 @@
 #   WAKIR_REPO_BRANCH         default: main
 #   WAKIR_REPO_URL            default: https://github.com/wakir-labs/wakir-runtime.git
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
+#   WAKIR_REPO_REF_MODE       default: track-remote
+#                             What step 4 does to the checkout on the
+#                             node:
+#                               track-remote  fetch origin/<branch> and
+#                                     reset --hard to it. The canonical
+#                                     path and the default.
+#                               pin   fetch WAKIR_REPO_REF and check the
+#                                     checkout out at it, detached. For
+#                                     measuring a change on the node
+#                                     BEFORE it is merged.
+#                               keep  leave the checkout exactly as it
+#                                     is. For measuring something that
+#                                     was placed on the node by hand.
+#                             Whatever the mode, step 4 measures the
+#                             resulting tree and writes a provenance
+#                             record; a run against a tree that is not
+#                             the canonical branch tip is not acceptance
+#                             evidence and the acceptance lanes refuse
+#                             to report it as such.
+#   WAKIR_REPO_REF            default: (unset) -- required by, and only
+#                             accepted in, WAKIR_REPO_REF_MODE=pin. Any
+#                             ref the remote will serve: a branch name,
+#                             a tag, refs/pull/<n>/head.
+#   WAKIR_REPO_PROVENANCE_FILE
+#                             default: /var/lib/wakir/bootstrap/repo-provenance.env
+#                             Where step 4 records which tree the run is
+#                             about to use. Read back by the acceptance
+#                             lanes through scripts/lib/repo-provenance.sh.
+#   WAKIR_PROVENANCE_RUN_ID   default: (unset) -- a nonce the caller
+#                             passes in and finds again in the record,
+#                             so a leftover record from an earlier run
+#                             cannot be mistaken for this one's.
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 0  (set to 1 for quick-pilot,
 #                             container pulls run against tag-only,
 #                             no digest pin -- DEV-ONLY)
@@ -163,6 +195,50 @@ fi
 : "${WAKIR_REPO_BRANCH:=main}"
 : "${WAKIR_REPO_URL:=https://github.com/wakir-labs/wakir-runtime.git}"
 : "${WAKIR_REPO_ROOT:=/opt/wakir-runtime}"
+
+# Which tree step 4 leaves on the node, and how the run says so.
+#
+# Until this existed, step 4 always ended with
+# ``reset --hard origin/<branch>``. That made the acceptance lane -- the
+# only means this repository has of producing live evidence -- able to
+# measure exactly one thing: what is already on the branch. A change
+# could not be measured on the substrate before it was merged, so the
+# order was: believe, merge, then measure. A run on 2026-09-22 spent
+# twenty minutes producing no evidence in either direction for exactly
+# this reason: the branch state that had been placed on the node was
+# reset away by step 4 before the step under test ran.
+#
+# The default stays "fetch the canonical tree". The deviation is
+# possible, has to be asked for, and -- this is the part that matters --
+# is visible in the result: step 4 measures the tree it ends up with and
+# records the measurement, and a lane that finds a non-canonical tree
+# refuses to report its run as acceptance evidence.
+: "${WAKIR_REPO_REF_MODE:=track-remote}"
+case "$WAKIR_REPO_REF_MODE" in
+  track-remote|pin|keep) : ;;
+  *)
+    echo "[$PROG] ERROR: WAKIR_REPO_REF_MODE must be 'track-remote', 'pin' or 'keep'; got '${WAKIR_REPO_REF_MODE}'" >&2
+    exit 1
+    ;;
+esac
+: "${WAKIR_REPO_REF:=}"
+if [[ "$WAKIR_REPO_REF_MODE" == "pin" && -z "$WAKIR_REPO_REF" ]]; then
+  echo "[$PROG] ERROR: WAKIR_REPO_REF_MODE=pin requires WAKIR_REPO_REF (a branch, tag or refs/pull/<n>/head)" >&2
+  exit 1
+fi
+if [[ "$WAKIR_REPO_REF_MODE" != "pin" && -n "$WAKIR_REPO_REF" ]]; then
+  # Silently ignoring it would mean the operator believes the run is
+  # pinned while it is not. That is the failure mode this whole block
+  # exists to remove, so it is an error rather than a warning.
+  echo "[$PROG] ERROR: WAKIR_REPO_REF is set but WAKIR_REPO_REF_MODE is '${WAKIR_REPO_REF_MODE}'; the ref would be ignored" >&2
+  exit 1
+fi
+if [[ -n "$WAKIR_REPO_REF" && "$WAKIR_REPO_REF" == -* ]]; then
+  echo "[$PROG] ERROR: WAKIR_REPO_REF must not start with '-'; got '${WAKIR_REPO_REF}'" >&2
+  exit 1
+fi
+: "${WAKIR_REPO_PROVENANCE_FILE:=/var/lib/wakir/bootstrap/repo-provenance.env}"
+: "${WAKIR_PROVENANCE_RUN_ID:=}"
 : "${WAKIR_SKIP_COSIGN_VERIFY:=0}"
 : "${WAKIR_SKIP_PROMPTS:=0}"
 : "${COSIGN_VERSION:=v2.4.1}"
@@ -473,8 +549,22 @@ ${_BOLD}Wakir-Pilot-VM Bring-up${_RESET}
   Peer-Host:     ${WAKIR_PEER_HOST:-(not set; Operator-Hand for /etc/hosts)}
   Repo-Branch:   ${WAKIR_REPO_BRANCH}
   Repo-Root:     ${WAKIR_REPO_ROOT}
+  Repo-Ref-Mode: ${WAKIR_REPO_REF_MODE}${WAKIR_REPO_REF:+ (ref: ${WAKIR_REPO_REF})}
   Resume-From:   ${RESUME_FROM}/${TOTAL_STEPS}
 EOF
+
+if [[ "$WAKIR_REPO_REF_MODE" != "track-remote" ]]; then
+  cat <<EOF
+
+${_YELLOW}${_BOLD}WARNING: WAKIR_REPO_REF_MODE=${WAKIR_REPO_REF_MODE}${_RESET}
+  Step 4 will NOT move the checkout to the canonical
+  origin/${WAKIR_REPO_BRANCH} tip. Whatever this run then measures, it
+  measures against a tree that is not the branch. That is a legitimate
+  thing to want -- it is how a change gets measured on the substrate
+  before it is merged -- but it is not acceptance evidence, and the
+  acceptance lanes will say so rather than print a PASS.
+EOF
+fi
 
 if [[ "$WAKIR_SKIP_COSIGN_VERIFY" == "1" ]]; then
   cat <<EOF
@@ -817,35 +907,167 @@ _git_repo() {
   return 0
 }
 
-step_4_repo_clone() {
-  log_step 4 "$TOTAL_STEPS" "Repo klonen nach ${WAKIR_REPO_ROOT}"
+# Same as _git_repo, but for measurement rather than for a load-bearing
+# step: quiet on failure, because a question that cannot be answered is
+# an answer here ("unknown"), not an error.
+_git_repo_q() {
+  ( cd "$WAKIR_REPO_ROOT" && "$WAKIR_BOOTSTRAP_GIT" "$@" ) 2>/dev/null
+}
 
-  if [[ -d "${WAKIR_REPO_ROOT}/.git" ]]; then
-    log_ok "repo already present; fetching latest on ${WAKIR_REPO_BRANCH}"
-    # Each of the three calls is load-bearing and each is checked. A
-    # failed fetch stops here: continuing would reset the checkout to a
-    # remote-tracking ref of unknown age, which is worse than not
-    # updating at all, because it looks like an update.
-    _git_repo "fetch" fetch --depth 1 origin "$WAKIR_REPO_BRANCH" \
-      >/dev/null || { log_err "cannot reach origin; refusing to reset the checkout to a stale remote-tracking ref"; return 2; }
-    _git_repo "checkout" checkout "$WAKIR_REPO_BRANCH" >/dev/null || return 2
-    _git_repo "reset" reset --hard "origin/${WAKIR_REPO_BRANCH}" \
-      >/dev/null || return 2
-    log_ok "repo updated to origin/${WAKIR_REPO_BRANCH}"
-    return 0
+# Measure the tree step 4 ended up with, and write it down.
+#
+# The verdict is measured, not declared. It does not ask which mode the
+# operator selected; it asks whether the commit checked out is the
+# freshly fetched origin/<branch> tip and whether the worktree is clean.
+# A pin that happens to land on the branch tip is therefore canonical,
+# and a track-remote run whose fetch produced nothing comparable is not.
+# The alternative -- trusting the mode flag -- would be one more check
+# that reports what it was told instead of what is there.
+_record_repo_provenance() {
+  local head remote_tip worktree canonical reason requested prov_file prov_dir
+
+  # ``rev-parse <ref>`` echoes the ref back and exits non-zero when it
+  # cannot resolve it, so taking its stdout without its status yields the
+  # literal string "origin/main" as if it were a commit -- the same class
+  # of defect this step is being repaired for. ``--verify --quiet``
+  # prints nothing and fails cleanly instead.
+  head=$(_git_repo_q rev-parse --verify --quiet HEAD) || head=""
+  [[ -z "$head" ]] && head="unknown"
+
+  # keep-mode does not fetch, so there is nothing current to compare
+  # against yet. Try once, purely to measure. A failure here is not
+  # fatal -- it only means the run cannot claim a canonical tree, which
+  # is the correct direction for a failed measurement.
+  if [[ "$WAKIR_REPO_REF_MODE" == "keep" ]]; then
+    if ! _git_repo_q fetch --depth 1 origin "$WAKIR_REPO_BRANCH" >/dev/null; then
+      log_warn "could not fetch origin/${WAKIR_REPO_BRANCH} for comparison; this run cannot claim a canonical tree"
+    fi
   fi
 
-  install -d -m 755 "$(dirname "$WAKIR_REPO_ROOT")" || return 2
+  remote_tip=$(_git_repo_q rev-parse --verify --quiet \
+    "refs/remotes/origin/${WAKIR_REPO_BRANCH}") || remote_tip=""
+  [[ -z "$remote_tip" ]] && remote_tip="unknown"
 
-  if ! "$WAKIR_BOOTSTRAP_GIT" clone \
-         --depth 1 \
-         --branch "$WAKIR_REPO_BRANCH" \
-         "$WAKIR_REPO_URL" \
-         "$WAKIR_REPO_ROOT" >/dev/null 2>&1; then
-    log_err "git clone failed: ${WAKIR_REPO_URL} (branch ${WAKIR_REPO_BRANCH})"
+  if [[ -n "$(_git_repo_q status --porcelain)" ]]; then
+    worktree="dirty"
+  else
+    worktree="clean"
+  fi
+
+  if [[ "$WAKIR_REPO_REF_MODE" == "pin" ]]; then
+    requested="$WAKIR_REPO_REF"
+  else
+    requested="$WAKIR_REPO_BRANCH"
+  fi
+
+  canonical="no"
+  if [[ "$head" == "unknown" ]]; then
+    reason="HEAD of ${WAKIR_REPO_ROOT} could not be read"
+  elif [[ "$remote_tip" == "unknown" ]]; then
+    reason="origin/${WAKIR_REPO_BRANCH} is not known on this node, so HEAD has nothing to be compared against"
+  elif [[ "$head" != "$remote_tip" ]]; then
+    reason="HEAD ${head} is not the origin/${WAKIR_REPO_BRANCH} tip ${remote_tip}"
+  elif [[ "$worktree" != "clean" ]]; then
+    reason="HEAD is the origin/${WAKIR_REPO_BRANCH} tip but the worktree carries uncommitted modifications"
+  else
+    canonical="yes"
+    reason="HEAD is the origin/${WAKIR_REPO_BRANCH} tip and the worktree is clean"
+  fi
+
+  if [[ "$canonical" == "yes" ]]; then
+    log_ok "tree: ${head} (canonical ${WAKIR_REPO_BRANCH} tip, clean worktree)"
+  else
+    log_warn "tree: ${head} is NOT the canonical tree -- ${reason}"
+    log_warn "a run against this tree is not acceptance evidence"
+  fi
+
+  # The record is load-bearing: a lane that cannot read one treats the
+  # tree as unknown and refuses to report evidence. So failing to write
+  # it fails the step, rather than leaving a run that looks fine and
+  # cannot be attributed to a tree.
+  prov_file="$WAKIR_REPO_PROVENANCE_FILE"
+  prov_dir=$(dirname "$prov_file")
+  if ! install -d -m 755 "$prov_dir" 2>/dev/null; then
+    log_err "cannot create the provenance directory ${prov_dir}"
     return 2
   fi
-  log_ok "repo cloned"
+  if ! cat >"$prov_file" <<EOF
+# Written by wakir-pilot-bootstrap.sh step 4. Machine-read by the
+# acceptance lanes via scripts/lib/repo-provenance.sh. Do not hand-edit:
+# the point of the file is that it was produced by a measurement.
+WAKIR_PROVENANCE_SCHEMA=wakir-runtime/repo-provenance@1
+WAKIR_PROVENANCE_RUN_ID=${WAKIR_PROVENANCE_RUN_ID}
+WAKIR_PROVENANCE_WRITTEN_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+WAKIR_PROVENANCE_REPO_ROOT=${WAKIR_REPO_ROOT}
+WAKIR_PROVENANCE_BRANCH=${WAKIR_REPO_BRANCH}
+WAKIR_PROVENANCE_REF_MODE=${WAKIR_REPO_REF_MODE}
+WAKIR_PROVENANCE_REQUESTED_REF=${requested}
+WAKIR_PROVENANCE_HEAD=${head}
+WAKIR_PROVENANCE_REMOTE_TIP=${remote_tip}
+WAKIR_PROVENANCE_WORKTREE=${worktree}
+WAKIR_PROVENANCE_CANONICAL=${canonical}
+WAKIR_PROVENANCE_REASON=${reason}
+EOF
+  then
+    log_err "cannot write the provenance record ${prov_file}"
+    return 2
+  fi
+  log_note "provenance record: ${prov_file}"
+  return 0
+}
+
+step_4_repo_clone() {
+  log_step 4 "$TOTAL_STEPS" \
+    "Repo klonen nach ${WAKIR_REPO_ROOT} (ref-mode ${WAKIR_REPO_REF_MODE})"
+
+  # (a) There has to be a checkout at all.
+  if [[ ! -d "${WAKIR_REPO_ROOT}/.git" ]]; then
+    if [[ "$WAKIR_REPO_REF_MODE" == "keep" ]]; then
+      log_err "WAKIR_REPO_REF_MODE=keep, but there is no checkout at ${WAKIR_REPO_ROOT} to keep"
+      return 2
+    fi
+    install -d -m 755 "$(dirname "$WAKIR_REPO_ROOT")" || return 2
+    if ! "$WAKIR_BOOTSTRAP_GIT" clone \
+           --depth 1 \
+           --branch "$WAKIR_REPO_BRANCH" \
+           "$WAKIR_REPO_URL" \
+           "$WAKIR_REPO_ROOT" >/dev/null 2>&1; then
+      log_err "git clone failed: ${WAKIR_REPO_URL} (branch ${WAKIR_REPO_BRANCH})"
+      return 2
+    fi
+    log_ok "repo cloned"
+  fi
+
+  # (b) Move it -- or deliberately do not -- to the requested ref.
+  case "$WAKIR_REPO_REF_MODE" in
+    track-remote)
+      log_ok "repo present; fetching latest on ${WAKIR_REPO_BRANCH}"
+      # Each of the three calls is load-bearing and each is checked. A
+      # failed fetch stops here: continuing would reset the checkout to
+      # a remote-tracking ref of unknown age, which is worse than not
+      # updating at all, because it looks like an update.
+      _git_repo "fetch" fetch --depth 1 origin "$WAKIR_REPO_BRANCH" \
+        >/dev/null || { log_err "cannot reach origin; refusing to reset the checkout to a stale remote-tracking ref"; return 2; }
+      _git_repo "checkout" checkout "$WAKIR_REPO_BRANCH" >/dev/null || return 2
+      _git_repo "reset" reset --hard "origin/${WAKIR_REPO_BRANCH}" \
+        >/dev/null || return 2
+      log_ok "repo updated to origin/${WAKIR_REPO_BRANCH}"
+      ;;
+    pin)
+      log_warn "WAKIR_REPO_REF_MODE=pin: moving the checkout to '${WAKIR_REPO_REF}', NOT to the ${WAKIR_REPO_BRANCH} tip"
+      _git_repo "fetch-ref" fetch --depth 1 origin "$WAKIR_REPO_REF" \
+        >/dev/null || return 2
+      _git_repo "checkout-ref" checkout --force --detach FETCH_HEAD \
+        >/dev/null || return 2
+      log_ok "repo pinned to requested ref '${WAKIR_REPO_REF}'"
+      ;;
+    keep)
+      log_warn "WAKIR_REPO_REF_MODE=keep: leaving the checkout at ${WAKIR_REPO_ROOT} exactly as it is; origin/${WAKIR_REPO_BRANCH} is NOT pulled"
+      ;;
+  esac
+
+  # (c) Say which tree this run is about to use.
+  _record_repo_provenance || return 2
   return 0
 }
 

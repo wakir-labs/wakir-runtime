@@ -33,6 +33,50 @@ produced on 2026-09-21/22 by the on-node lane
 (`scripts/federation-live-vm-acceptance.sh`), by hand, and it failed —
 which is the first real reading this contract has ever had.
 
+## 0.1 Status note, 2026-09-22 — which tree a run measured
+
+Until this date the answer was always `origin/main`, whatever was on the
+node. The on-node lane calls the full bootstrap, and its step 4 ended
+with `reset --hard origin/<branch>` unconditionally — so a change placed
+on a node to be verified was gone before the steps under test ran. The
+only lane this repository has for live evidence could measure only what
+was already merged. The order was backwards: believe, merge, then
+measure.
+
+Measured on 2026-09-22: a run set up to verify a convergence fix spent
+about twenty minutes producing no evidence in either direction for
+exactly this reason.
+
+Step 4 now takes `WAKIR_REPO_REF_MODE`:
+
+| Mode | What step 4 does | Evidence? |
+|---|---|---|
+| `track-remote` (default) | fetch and reset to the canonical branch tip | yes, if the tree measures clean |
+| `pin` (with `WAKIR_REPO_REF`) | fetch and check out that ref, e.g. `refs/pull/<n>/head` | only if it lands on the branch tip |
+| `keep` | leave the checkout exactly as it is | only if it already is the branch tip, clean |
+
+The switch is the smaller half. The larger half is that step 4 now
+**measures** the tree it ends up with — HEAD against the freshly fetched
+`origin/<branch>`, plus worktree cleanliness — and writes a provenance
+record carrying a per-run nonce. The acceptance lanes read it back,
+print which tree the run used on every path including failure paths, and
+end a non-canonical run as `NOT EVIDENCE` with exit 10 instead of
+`PASS`, with the regression list omitted.
+
+The verdict is measured, never taken from the mode flag: a `pin` that
+lands on the branch tip is canonical, and a `track-remote` run whose
+comparison could not be made is not. A missing or stale record is
+`UNKNOWN`, which is not evidence either — the absence of a measurement
+is not a passing measurement.
+
+Consequence for this plan: an acceptance result quoted in section 3 or
+section 7 is only admissible together with the tree line the run
+printed. A verdict without one is a verdict about an unnamed tree.
+
+Hermetic coverage: `tests/infra/test_acceptance_run_provenance.py`
+(TV-PROV-1..19) and `tests/infra/test_bootstrap_step4_fetch_failure.py`
+(TV-S4F-1..6).
+
 ## 0. Why this document exists
 
 `tests/live_vm/test_phase_2_doppelbetrieb_live.py` (PR #108) is the

@@ -209,6 +209,7 @@ class NodeRepo:
                 **GIT_ENV,
                 "WAKIR_REPO_ROOT": str(self.node),
                 "WAKIR_REPO_BRANCH": self.BRANCH,
+                "WAKIR_REPO_PROVENANCE_FILE": str(self.root / "provenance.env"),
                 "WAKIR_SKIP_PROMPTS": "1",
             },
             capture_output=True,

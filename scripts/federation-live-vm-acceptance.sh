@@ -63,16 +63,50 @@
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 1  (DEV-ONLY, parity with the
 # M-3 Live-Trial topology)
 #   WAKIR_REPO_ROOT           default: /opt/wakir-runtime
+#   WAKIR_REPO_REF_MODE       default: track-remote
+#   WAKIR_REPO_REF            default: (unset)
+#
+# Which tree this lane measures
+# -----------------------------
+#
+# Until 2026-09-22 the answer was always ``origin/main``, whatever was
+# on the node: the bootstrap's step 4 ended with
+# ``reset --hard origin/<branch>`` unconditionally, so a change placed
+# on the node was gone before the steps under test ran. The only lane
+# this house has for live evidence could measure only what was already
+# merged, which put the order the wrong way round -- believe, merge,
+# then measure.
+#
+# ``WAKIR_REPO_REF_MODE`` now selects what step 4 does:
+#
+#   track-remote  (default) fetch and reset to the canonical branch tip.
+#   pin           check out ``WAKIR_REPO_REF``, e.g. refs/pull/<n>/head,
+#                 to measure a change before it is merged.
+#   keep          leave the checkout exactly as it is.
+#
+# Whatever the mode, step 4 measures the resulting tree and writes a
+# provenance record, and this script reads it back and prints which tree
+# the run used -- in the summary and on every failure path. If the tree
+# is not the canonical branch tip, or cannot be established, the run
+# finishes with ``NOT EVIDENCE`` and exit 10 instead of ``PASS``, and
+# the regression list is not printed. A report you cannot tell apart
+# from a canonical one is worse than the old state, because in the old
+# state you at least knew it was always ``main``.
 #
 # Exit-Codes
 # ----------
 #
 #   0  Acceptance PASS — bootstrap-re-run finished cleanly without
-# operator-hand Patches, federation-mode active on the VM.
+# operator-hand Patches, federation-mode active on the VM, and the run
+#      used the canonical branch tip.
 #   1  Pre-Flight-Fehler (script not on the Pilot-VM, repo missing, ...)
 #   2  Bootstrap-Phase-Fehler (a step failed; check the bootstrap log)
 #   3  Acceptance-Verifikation fehlgeschlagen (bootstrap succeeded but
 #      a smoke-check did not).
+#  10  Every check passed, but NOT against the canonical tree, or the
+#      tree could not be established. Not a failure and not evidence —
+#      a third outcome on purpose, so that no caller can read it as
+#      either of the other two.
 #
 # -- dev-engineering
 
@@ -87,6 +121,8 @@ WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-}"
 WAKIR_PILOT_MODE="${WAKIR_PILOT_MODE:-federation}"
 WAKIR_SKIP_COSIGN_VERIFY="${WAKIR_SKIP_COSIGN_VERIFY:-1}"
 WAKIR_REPO_ROOT="${WAKIR_REPO_ROOT:-/opt/wakir-runtime}"
+WAKIR_REPO_REF_MODE="${WAKIR_REPO_REF_MODE:-track-remote}"
+WAKIR_REPO_REF="${WAKIR_REPO_REF:-}"
 
 log()  { printf '[fed-live-vm-acceptance] %s\n' "$*"; }
 warn() { printf '[fed-live-vm-acceptance] WARN: %s\n' "$*" >&2; }
@@ -114,7 +150,19 @@ if ! command -v podman >/dev/null 2>&1; then
   fail "podman not installed — the bootstrap script needs it for Quadlet" 1
 fi
 
-log "side=${WAKIR_SIDE} peer=${WAKIR_PEER_SIDE}@${WAKIR_PEER_HOST} mode=${WAKIR_PILOT_MODE} skip_cosign=${WAKIR_SKIP_COSIGN_VERIFY}"
+provenance_lib="${WAKIR_REPO_ROOT}/scripts/lib/repo-provenance.sh"
+if [[ ! -f "$provenance_lib" ]]; then
+  fail "provenance reader not found at $provenance_lib — this checkout predates the tree-provenance record, and a run from it cannot say which tree it measured" 1
+fi
+# shellcheck source=scripts/lib/repo-provenance.sh
+source "$provenance_lib"
+
+# The nonce the bootstrap writes into its record and this script
+# requires back. Without it a record left behind by an earlier run would
+# be read as a statement about this one.
+provenance_run_id="$(wakir_provenance_new_run_id)"
+
+log "side=${WAKIR_SIDE} peer=${WAKIR_PEER_SIDE}@${WAKIR_PEER_HOST} mode=${WAKIR_PILOT_MODE} skip_cosign=${WAKIR_SKIP_COSIGN_VERIFY} ref_mode=${WAKIR_REPO_REF_MODE}${WAKIR_REPO_REF:+ ref=${WAKIR_REPO_REF}}"
 
 # --- Phase 1: bootstrap-re-run ---------------------------------------------
 
@@ -128,10 +176,22 @@ WAKIR_SIDE="$WAKIR_SIDE" \
 WAKIR_PEER_SIDE="$WAKIR_PEER_SIDE" \
 WAKIR_PEER_HOST="$WAKIR_PEER_HOST" \
 WAKIR_SKIP_COSIGN_VERIFY="$WAKIR_SKIP_COSIGN_VERIFY" \
+WAKIR_REPO_ROOT="$WAKIR_REPO_ROOT" \
+WAKIR_REPO_REF_MODE="$WAKIR_REPO_REF_MODE" \
+WAKIR_REPO_REF="$WAKIR_REPO_REF" \
+WAKIR_PROVENANCE_RUN_ID="$provenance_run_id" \
 WAKIR_SKIP_PROMPTS=1 \
   bash "$bootstrap" >"$bootstrap_log" 2>&1
 rc=$?
 set -e
+
+# Read the tree back BEFORE the rc is handled, so that the failure paths
+# below name the tree too. A failing run whose tree is unknown has
+# wasted the operator's time twice over.
+set +e
+wakir_provenance_load "$provenance_run_id"
+set -e
+log "$(wakir_provenance_tree_line)"
 
 if [[ $rc -ne 0 ]]; then
   warn "bootstrap exited with rc=$rc"
@@ -238,8 +298,32 @@ log "Phase 3: smoke-test PASS"
 # --- Acceptance summary ----------------------------------------------------
 
 log ""
+if ! wakir_provenance_is_evidence; then
+  # Every check above passed. They passed against a tree that is not the
+  # canonical branch tip, or against one this run could not establish.
+  # The regression list below is precisely what gets quoted afterwards,
+  # so it is not printed: a list of bugs "regression-tested: clean"
+  # against an unknown tree is a claim about nothing.
+  log "Federation Live-VM Acceptance: NOT EVIDENCE"
+  log "  side=${WAKIR_SIDE} peer=${WAKIR_PEER_SIDE}@${WAKIR_PEER_HOST}"
+  log "  $(wakir_provenance_tree_line)"
+  log ""
+  log "  Every check in this run passed. The run is still not acceptance"
+  log "  evidence, because it did not measure the canonical tree. The"
+  log "  regression list is deliberately omitted."
+  log ""
+  log "  For evidence, re-run with WAKIR_REPO_REF_MODE=track-remote"
+  log "  (the default) once the change is on ${WAKIR_REPO_BRANCH:-main}."
+  log ""
+  log "Logs:"
+  log "  bootstrap: $bootstrap_log"
+  log "  smoke:     $smoke_log"
+  exit "$WAKIR_PROVENANCE_NOT_EVIDENCE_RC"
+fi
+
 log "Federation Live-VM Acceptance: PASS"
 log "  side=${WAKIR_SIDE} peer=${WAKIR_PEER_SIDE}@${WAKIR_PEER_HOST}"
+log "  $(wakir_provenance_tree_line)"
 log "  - bootstrap-re-run: clean, no Operator-Hand-Patches needed"
 log "  - SPIRE-Server: federation-mode active, no 'malformed configuration'"
 log "  - smoke-test: PASS"
