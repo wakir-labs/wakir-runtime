@@ -1,0 +1,20 @@
+{
+  "schema": "wakir-private-address-allowlist/v1",
+  "_note": [
+    "Time-boxed allow-list for tooling/ci/private_address_lint.py.",
+    "Empty is the intended state, and it is empty as of 2026-09-22.",
+    "Every entry needs path, addresses, reason, owner, until, tracking —",
+    "no more and no less. `addresses` holds the exact literals tolerated",
+    "in that file, not a wildcard: a path-only entry would also permit",
+    "every future address added to the same file.",
+    "`until` is compared against the calendar (ADR-0075 §3). A date in",
+    "the past fails the gate; it does not quietly stop applying. The",
+    "same semantics as tooling/ci/exemption_expiry.py and the same shape",
+    "as tooling/compat/compat-allowlist.json.",
+    "Before adding an entry, check whether the address can simply be an",
+    "RFC 5737 documentation address (192.0.2.0/24, 198.51.100.0/24,",
+    "203.0.113.0/24) instead. Almost always it can, and then there is",
+    "nothing to allow-list."
+  ],
+  "entries": []
+}

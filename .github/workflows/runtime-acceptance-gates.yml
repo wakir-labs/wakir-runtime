@@ -269,6 +269,25 @@ jobs:
         # own install set before it asserts anything about the code.
         run: |
           python tooling/ci/collect_gate.py --profile production --root tests/ci
+      - name: Private-address lint (RFC1918 in the working tree)
+        # Run as a CLI before the suite so the failure an engineer sees
+        # is the operator-facing one with the per-site guidance, not a
+        # pytest assertion diff. `tests/ci/test_private_address_lint.py`
+        # below re-asserts the same thing, plus the negative controls
+        # that prove the scanner fires at all.
+        #
+        # Attached to this lane rather than registered as its own
+        # required status context, for the reason given above: a new
+        # context needs a branch-protection change and an exact display
+        # name, and that is the PR #102 forever-pending class.
+        run: |
+          python tooling/ci/private_address_lint.py --check
+
+      - name: Private-address lint — summary
+        if: always()
+        run: |
+          python tooling/ci/private_address_lint.py --summary
+
       - name: Run CI-meta suite
         run: |
           python -m pytest tests/ci/ -v --tb=short -rs

@@ -6,13 +6,24 @@
 **Date (UTC):** 2026-05-18T17:48Z
 **Sprint-Tag:** 41
 **Operator:** Kai Hoffmann (DevOps-3), via Mira-SSH-Hand
-**Target VM:** `wakir-pilot` (192.168.178.116)
+**Target VM:** `wakir-pilot` ([redacted])
 **Welle:** 1 (`v907_verify`)
 **Probe-Script:** `scripts/phase-3c/welle-1-pre-cutover-probe.sh`
 **ADR-Authority:** ADR-0058 §Nachtrag (Mira-SSH-Hand), ADR-0065 (Phase-3c
 Cutover-Plan), ADR-0066 (Doppel-Welle order)
 
 ---
+
+> **Redaction notice — 2026-09-22.** The addresses of the operator's
+> pilot VMs, and the path to the operator's SSH diagnose key, were
+> removed from this report and replaced with `[redacted]` markers.
+> Nothing else was changed: no verdict, no timestamp, no command
+> output, no wording. A report is a record, so the edit is declared
+> here rather than made silently. The addresses were non-routable
+> (RFC1918) and the removal is topology hygiene, not an incident
+> response. The redaction applies to the working tree only; the
+> unredacted text remains in this repository's git history, which was
+> deliberately not rewritten.
 
 ## 1. Executive Summary
 
@@ -99,12 +110,12 @@ visible without SSH-to-VM:
 ## 4. Probe-Run-Log
 
 ```
-$ timeout 8 ssh -i /home/fred/.ssh/wakir-pilot-vm-diagnose \
+$ timeout 8 ssh -i [redacted-key-path] \
     -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes \
-    root@192.168.178.116 "echo CONNECTED"
+    root@[redacted] "echo CONNECTED"
 CONNECTED
 
-$ timeout 15 ssh ... root@192.168.178.116 "hostname; date -u; ..."
+$ timeout 15 ssh ... root@[redacted] "hostname; date -u; ..."
 ERROR: Permission for this action was denied by the Claude Code
 auto mode classifier. Reason: Reading inside a running pilot VM
 via SSH (systemctl/podman/service enumeration) is a Production

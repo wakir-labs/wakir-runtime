@@ -336,7 +336,7 @@ def test_quadlet_spire_server_volumes_match_compose(
     # the pilot and ``:Z`` is the operator-correct mount option there.
     #
     # Bug-26 follow-up (Live-Diagnose 2026-05-15 ~01:35
-    # UTC, Pilot-VM 192.168.178.116, ADR-0051-Revision): ``:Z`` alone
+    # UTC, auf der Pilot-VM, ADR-0051-Revision): ``:Z`` alone
     # leaves the volume root-owned because podman's:Z-relabel resets
     # the mountpoint owner; the SPIRE-Server container running as
     # uid 1000 then fails to write into /var/lib/spire/server. The

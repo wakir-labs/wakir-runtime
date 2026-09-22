@@ -23,8 +23,8 @@
 #
 # This script DOES NOT run in the claude-dev Sandbox. It runs on an
 # operator-controlled host (operator-hand) that has SSH access to the
-# Pilot-VM. The Sandbox cannot reach 192.168.178.* — that is the host-
-# operations boundary documented by `feedback_sandbox_host_trennung.md`.
+# Pilot-VM. The Sandbox cannot reach the operator LAN at all — that is
+# the host-operations boundary documented in the operations docs.
 #
 # CI integration
 # --------------
@@ -55,7 +55,10 @@
 #
 #   WAKIR_SIDE                default: orbit
 #   WAKIR_PEER_SIDE           default: wakir
-#   WAKIR_PEER_HOST           default: 192.168.178.116
+#   WAKIR_PEER_HOST           REQUIRED, no default. The peer VM's
+#                             address on the operator network, e.g.
+#                             192.0.2.116 (RFC 5737 documentation
+#                             range; substitute the real one).
 #   WAKIR_PILOT_MODE          default: federation
 #   WAKIR_SKIP_COSIGN_VERIFY  default: 1  (DEV-ONLY, parity with the
 # M-3 Live-Trial topology)
@@ -77,7 +80,10 @@ set -eu -o pipefail
 
 WAKIR_SIDE="${WAKIR_SIDE:-orbit}"
 WAKIR_PEER_SIDE="${WAKIR_PEER_SIDE:-wakir}"
-WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-192.168.178.116}"
+# No default: see the note in scripts/acceptance/wakir-pilot-acceptance.sh.
+# The pre-flight below aborts with the variable name when it is unset,
+# rather than silently probing whatever host used to be the default.
+WAKIR_PEER_HOST="${WAKIR_PEER_HOST:-}"
 WAKIR_PILOT_MODE="${WAKIR_PILOT_MODE:-federation}"
 WAKIR_SKIP_COSIGN_VERIFY="${WAKIR_SKIP_COSIGN_VERIFY:-1}"
 WAKIR_REPO_ROOT="${WAKIR_REPO_ROOT:-/opt/wakir-runtime}"
@@ -87,6 +93,13 @@ warn() { printf '[fed-live-vm-acceptance] WARN: %s\n' "$*" >&2; }
 fail() { printf '[fed-live-vm-acceptance] FAIL: %s\n' "$*" >&2; exit "${2:-1}"; }
 
 # --- Pre-flight ------------------------------------------------------------
+
+if [[ -z "$WAKIR_PEER_HOST" ]]; then
+  fail "WAKIR_PEER_HOST is not set, and this script federates against a peer VM.
+  Set it to the peer VM's address on your operator network and re-run, e.g.
+
+      WAKIR_PEER_HOST=<peer-vm-address> sudo -E bash $0"
+fi
 
 bootstrap="${WAKIR_REPO_ROOT}/infra/spire/federation/wakir-pilot-bootstrap.sh"
 if [[ ! -f "$bootstrap" ]]; then

@@ -49,12 +49,12 @@
 #       --ssh-key  ~/.ssh/wakir-orbit \
 #       --side     orbit \
 #       --peer-side wakir \
-#       --peer-host 192.168.178.116 \
+#       --peer-host 192.0.2.116 \
 #       --federation-mode auto
 #
 # Required flags:
 #   --target          SSH host (DNS name or IP). The wrapper does NOT
-#                     hard-code 192.168.178.* — the operator passes
+#                     hard-code any operator address — the operator passes
 #                     the target explicitly so the same wrapper works
 #                     for wakir-pilot AND wakir-orbit AND any future
 #                     Phase-3 production host.
@@ -69,7 +69,8 @@
 #   --side                  Same semantics as WAKIR_SIDE on the target.
 #                           Default: orbit.
 #   --peer-side             WAKIR_PEER_SIDE on the target. Default: wakir.
-#   --peer-host             WAKIR_PEER_HOST on the target. Default: 192.168.178.116
+#   --peer-host             WAKIR_PEER_HOST on the target. REQUIRED, no
+#                           default (see the note at PEER_HOST below).
 #                           (matches the dogfood-LAN topology).
 #   --federation-mode       single-org | federation | auto.
 #                           ``auto`` detects from the substrate state:
@@ -108,7 +109,7 @@
 #     "target":           "wakir-orbit",
 #     "side":             "orbit",
 #     "peer_side":        "wakir",
-#     "peer_host":        "192.168.178.116",
+#     "peer_host":        "192.0.2.116",
 #     "federation_mode":  "federation",
 #     "started_utc":      "2026-05-16T01:00:00Z",
 #     "finished_utc":     "2026-05-16T01:05:42Z",
@@ -136,7 +137,11 @@ SSH_USER=""
 SSH_KEY=""
 SIDE="orbit"
 PEER_SIDE="wakir"
-PEER_HOST="192.168.178.116"
+# No default. Until 2026-09 this line pinned a concrete address on the
+# operator LAN, which contradicted the "does NOT hard-code" promise in
+# the --target description above. `--peer-host` is a required flag now,
+# validated with the others below.
+PEER_HOST=""
 FEDERATION_MODE="auto"
 REPO_URL="https://github.com/wakir-labs/wakir-runtime.git"
 REPO_BRANCH="main"
@@ -145,7 +150,9 @@ SUMMARY_JSON=""
 PRE_CHECK_ONLY=0
 
 usage() {
-  sed -n '2,90p' "$0" | sed 's/^# \{0,1\}//'
+  # Window ends at the last flag line; it shifted when --peer-host lost
+  # its default, and it was already cutting the list mid-sentence before.
+  sed -n '2,95p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -176,6 +183,7 @@ missing=()
 [[ -z "$TARGET"   ]] && missing+=("--target")
 [[ -z "$SSH_USER" ]] && missing+=("--ssh-user")
 [[ -z "$SSH_KEY"  ]] && missing+=("--ssh-key")
+[[ -z "$PEER_HOST" ]] && missing+=("--peer-host")
 if [[ "${#missing[@]}" -gt 0 ]]; then
   echo "[$PROG] ERROR: missing required flags: ${missing[*]}" >&2
   usage >&2

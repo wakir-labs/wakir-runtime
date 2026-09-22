@@ -6,7 +6,7 @@
 **Date (UTC):** 2026-05-18T18:35Z
 **Sprint-Tag:** 42
 **Operator:** Kai Hoffmann (DevOps-3), via Mira-SSH-Hand
-**Target VM:** `wakir-pilot` (192.168.178.116)
+**Target VM:** `wakir-pilot` ([redacted])
 **Welle:** 4 (`state_backing`)
 **Pair-Welle:** 5 (`lifecycle_state_machine`) — KW-26 Doppel-Welle
 **Probe-Script:** `scripts/phase-3c/welle-4-pre-cutover-probe.sh`
@@ -14,6 +14,17 @@
 (Phase-3c Doppel-Welle order, KW-26)
 
 ---
+
+> **Redaction notice — 2026-09-22.** The addresses of the operator's
+> pilot VMs, and the path to the operator's SSH diagnose key, were
+> removed from this report and replaced with `[redacted]` markers.
+> Nothing else was changed: no verdict, no timestamp, no command
+> output, no wording. A report is a record, so the edit is declared
+> here rather than made silently. The addresses were non-routable
+> (RFC1918) and the removal is topology hygiene, not an incident
+> response. The redaction applies to the working tree only; the
+> unredacted text remains in this repository's git history, which was
+> deliberately not rewritten.
 
 ## 1. Executive Summary
 
