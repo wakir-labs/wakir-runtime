@@ -208,8 +208,11 @@ def test_combine_too_few_shares_raises_value_error() -> None:
 # - Exhaustive sweep over all 1024 lexicon words at the corruption
 #   site: 1023 replacements raise, exactly one does not -- the word
 #   that is already there. There is no second mechanism.
-# - The rate at which the old vector degenerated is therefore the rate
-#   at which the draw hits one specific lexicon entry, i.e. ~1/1024.
+# - 100 000 fresh splits run through the *old* test body: 95 did not
+#   raise, and the draw already carried "academic" at index 5 in
+#   exactly those same 95. The two counts are equal, which is the
+#   sampled form of the sweep result: the no-op is the only mechanism.
+#   Rate 9.50e-4 against a structural expectation of 1/1024 = 9.77e-4.
 #
 # The repair is neither a retry loop nor a ``flaky`` marker. Two
 # independent changes remove the randomness from the outcome:
