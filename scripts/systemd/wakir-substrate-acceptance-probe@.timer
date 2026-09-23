@@ -10,10 +10,27 @@
 # cannot count how many times it moved between two samples. The judge's
 # Z2 tolerance is TTL + one interval for exactly this reason.
 #
-# ``Persistent=true`` so a reboot inside the window does not silently
-# drop the sample that was due while the node was down; the judge treats
-# an unexplained gap as UNKNOWN, and a missing hour is easier to catch
-# up than to explain.
+# A reboot inside the window costs the sample that was due while the node
+# was down, and nothing here recovers it. ``OnBootSec=3min`` starts the
+# series again three minutes after the node comes back; the hour that was
+# missed stays missed.
+#
+# This file previously carried ``Persistent=true`` with a comment
+# claiming it caught that case up. It does not: *"Note that this setting
+# only has an effect on timers configured with OnCalendar="*
+# (``man systemd.timer``, verified against systemd 258 on 2026-09-23).
+# The behaviour was fine — ``OnBootSec=`` was doing the work — but the
+# assurance was false, and a false assurance in a comment about an
+# instrument is the exact shape of defect this whole acceptance exists
+# to answer, in miniature. The setting is gone rather than paired with
+# an ``OnCalendar=``, because even with one it would only add a sample
+# stamped *now*, which is what ``OnBootSec=`` already produces. It would
+# not fill the gap in the series.
+#
+# The gap is not hidden either way: the judge reports a stretch without
+# samples as an unexplained coverage gap and the window comes out
+# UNKNOWN. That is the correct answer about an hour nobody watched, and
+# it is better than a setting that looks like it prevented one.
 [Unit]
 Description=Wakir ADR-0076 acceptance sample (%i side, hourly)
 Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/test-plans/adr-0076-seven-day-acceptance-window.md
@@ -22,7 +39,6 @@ Documentation=https://github.com/wakir-labs/wakir-runtime/blob/main/docs/test-pl
 OnBootSec=3min
 OnUnitActiveSec=1h
 RandomizedDelaySec=60s
-Persistent=true
 Unit=wakir-substrate-acceptance-probe@%i.service
 
 [Install]

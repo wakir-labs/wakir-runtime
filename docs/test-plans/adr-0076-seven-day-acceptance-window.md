@@ -64,6 +64,16 @@ operator hand at the start of the window, stopped at the end. It is
 deliberately not wired into the bootstrap: the window is a dated
 measurement, not a standing service.
 
+**A reboot inside the window costs the sample that was due while the node
+was down, and nothing recovers it.** `OnBootSec=3min` restarts the series;
+the missed hour stays missed and shows up as an unexplained coverage gap,
+which turns the window `UNKNOWN`. That is the correct answer about an
+hour nobody watched. The timer briefly carried `Persistent=true` with a
+comment claiming otherwise — the setting does nothing without
+`OnCalendar=` (`man systemd.timer`) — and the claim is withdrawn rather
+than propped up, because even a working catch-up would only add a sample
+stamped *now* and would not fill the gap (TV-ACC-P-80..82).
+
 ### 1.1 What the sample contains
 
 Per side, per hour, with a timestamp:
@@ -579,7 +589,7 @@ TV-ACC-P-41 asserts it.
 
 | Module | Vectors |
 |---|---|
-| `tests/infra/test_substrate_acceptance_probe.py` | TV-ACC-P-01..03 (both trust topologies, rotation visibility), -10 (key hygiene), -20..28 (target-bad versus could-not-measure, one pair per source), -30..36 (record contract, markers, no SPIFFE ID), -40..42 (forbidden surfaces, the `infra/spire` seam, RFC1918 and home paths), -50..52 (probe and judge end to end, including the mandated negative control), -60..62 (the podman code path the fixtures bypass, driven through a stub, including the pair "container absent" = finding versus "podman absent" = not measured), -70..72 (the X.509 scoping of both authority sets, and a refusal named as a refusal) |
+| `tests/infra/test_substrate_acceptance_probe.py` | TV-ACC-P-01..03 (both trust topologies, rotation visibility), -10 (key hygiene), -20..28 (target-bad versus could-not-measure, one pair per source), -30..36 (record contract, markers, no SPIFFE ID), -40..42 (forbidden surfaces, the `infra/spire` seam, RFC1918 and home paths), -50..52 (probe and judge end to end, including the mandated negative control), -60..62 (the podman code path the fixtures bypass, driven through a stub, including the pair "container absent" = finding versus "podman absent" = not measured), -70..72 (the X.509 scoping of both authority sets, and a refusal named as a refusal), -80..82 (the unit files claim nothing systemd does not do, with the guard's own negative control) |
 | `tests/infra/test_substrate_acceptance_window.py` | TV-ACC-W-01..02 (mutation control), -10..13 (Z1), -20..24 (Z2), -30..32 (Z3), -40..43 (Z4), -50..52 (F1), -60..64 (F2), -70..76 (the negative control: never carried out, undone by the restore cadence, the count the operator checks in §6.4, the control that killed its own instrument, and the JWT-only anchor), -80..84 (the reader: verdict-carrying samples, schema, unparseable lines, two sides, empty log), -90..99 (coverage, open episodes, FAIL over UNKNOWN, the narrow `require_measured` path on all four assurances) |
 
 Both modules run in `lane-hermetic-invariants` and are required.

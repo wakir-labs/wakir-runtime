@@ -928,3 +928,96 @@ def test_tv_acc_p_72_refusal_is_named_as_refusal_not_as_silence(tmp_path, upstre
     blob = json.dumps(rec)
     assert "PermissionDenied" not in blob
     assert "rpc error" not in blob
+
+
+# ------------------------------------------- the units make no false claims
+
+
+UNIT_DIR = REPO_ROOT / "scripts" / "systemd"
+OWNED_UNITS = (
+    UNIT_DIR / "wakir-substrate-acceptance-probe@.service",
+    UNIT_DIR / "wakir-substrate-acceptance-probe@.timer",
+)
+
+
+def _directives(text: str) -> set[str]:
+    """Directive names actually set in a unit, comments excluded."""
+    out = set()
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("["):
+            continue
+        if "=" in line:
+            out.add(line.split("=", 1)[0].strip())
+    return out
+
+
+def _persistent_without_oncalendar(text: str) -> bool:
+    d = _directives(text)
+    return "Persistent" in d and "OnCalendar" not in d
+
+
+def test_tv_acc_p_80_the_timer_claims_nothing_it_cannot_keep():
+    """TV-ACC-P-80. ``Persistent=`` without ``OnCalendar=`` is an assurance that is not there.
+
+    ``man systemd.timer``, verified against systemd 258 on 2026-09-23:
+    *"Note that this setting only has an effect on timers configured
+    with OnCalendar="*. This timer carried it, with a comment saying it
+    caught up the sample missed over a reboot. The behaviour was fine —
+    ``OnBootSec=`` was doing that work — but the assurance was false.
+
+    A false assurance in a comment about an instrument is the miniature
+    of the defect this entire acceptance window exists to answer: a
+    trust-bundle path that was documented, correct and written by
+    nobody for 127 days. Caught in cross-review rather than by anything
+    that runs, which is why it is now something that runs.
+
+    Scoped to the two unit files this change owns. The same rule holds
+    for the re-staging timer beside them and is being applied there by
+    its owner; asserting it across a directory this module does not own
+    would be a lint wearing a test's clothes.
+    """
+    for unit in OWNED_UNITS:
+        text = unit.read_text(encoding="utf-8")
+        assert not _persistent_without_oncalendar(text), (
+            f"{unit.name} sets Persistent= without OnCalendar=, which systemd ignores"
+        )
+
+
+def test_tv_acc_p_81_the_timer_still_has_the_thing_that_does_the_work():
+    """TV-ACC-P-81. Removing the inert setting must not remove the working one.
+
+    ``OnBootSec=`` is what actually restarts the series after a reboot.
+    It was never the thing the comment credited, and it is the thing
+    that has to stay.
+    """
+    text = (UNIT_DIR / "wakir-substrate-acceptance-probe@.timer").read_text(encoding="utf-8")
+    d = _directives(text)
+    assert "OnBootSec" in d
+    assert "OnUnitActiveSec" in d
+    assert "Unit" in d
+
+
+def test_tv_acc_p_82_the_persistent_guard_can_actually_fail():
+    """TV-ACC-P-82 (negative control for TV-ACC-P-80). The guard is not vacuous.
+
+    A check over unit files is the kind that passes because its parser
+    found nothing, not because the files are clean. So the parser is
+    driven against the shape it is meant to reject, against the shape it
+    must accept, and against the trap of the same word appearing in a
+    comment.
+    """
+    bad = "[Timer]\nOnBootSec=3min\nOnUnitActiveSec=1h\nPersistent=true\n"
+    assert _persistent_without_oncalendar(bad)
+
+    good_with_calendar = "[Timer]\nOnCalendar=hourly\nPersistent=true\n"
+    assert not _persistent_without_oncalendar(good_with_calendar)
+
+    good_without = "[Timer]\nOnBootSec=3min\nOnUnitActiveSec=1h\n"
+    assert not _persistent_without_oncalendar(good_without)
+
+    # The word appears in this timer's comment, on purpose, explaining
+    # why it is gone. A guard that read comments would now be reporting
+    # the explanation as the defect.
+    commented = "# Persistent=true was removed because it does nothing here\n[Timer]\nOnBootSec=3min\n"
+    assert not _persistent_without_oncalendar(commented)
