@@ -104,7 +104,7 @@ stage_for_side() {
     local base dest
     base=$(basename "$f")
     dest=$(printf '%s' "$base" \
-      | sed "s/^wakir-spire-server-federation-\(data\|sockets\|bundles\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/")
+      | sed "s/^wakir-spire-server-federation-\(data\|sockets\|bundles\|upstream-ca\)\.volume$/wakir-spire-server-federation-${side}-\1.volume/")
     sed -e "s/<SIDE>/${side}/g" "$f" > "$out/$dest"
   done
 

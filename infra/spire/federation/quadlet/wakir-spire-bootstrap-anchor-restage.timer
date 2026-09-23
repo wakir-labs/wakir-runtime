@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# ADR-0076 step 4 -- timer for
+# wakir-spire-bootstrap-anchor-restage-<SIDE>.service.
+#
+# Plain systemd .timer, installed under /etc/systemd/system/ (see the
+# .service companion for why it is not in the Quadlet directory).
+#
+# Cadence rationale: the anchor must be refreshed well inside
+# ``ca_ttl``, which stays at 24h by decision so that the acceptance
+# window observes at least six real rotations. 30 minutes gives a
+# margin of 48 ticks per rotation window -- a missed tick, a reboot or
+# a slow server start are all absorbed without the anchor ever going
+# stale. Raising the cadence above a couple of hours starts trading
+# away both the margin the ADR bought and the freshness tolerance the
+# acceptance window judges against (2h, wakir-runtime#562).
+#
+# Why OnCalendar= and not OnUnitActiveSec= (Zone-L cross-review, NM-4):
+# ``Persistent=true`` only has an effect on timers configured with
+# ``OnCalendar=`` -- systemd.timer(5), and the previous version of this
+# unit set it next to ``OnUnitActiveSec=`` where it did nothing at all,
+# while a test vector certified the catch-up behaviour it was supposed
+# to provide. A unit that carries a setting for an effect it cannot
+# have is the same instrument class as a health check that never runs.
+# A fixed half-hourly wall-clock cadence is also the more honest
+# semantics for a refresher than "30 minutes after the last run
+# happened to become active".
+
+[Unit]
+Description=Re-stage the SPIRE-Agent bootstrap trust anchor every 30 min (<SIDE>, ADR-0076)
+
+[Timer]
+# Two minutes after boot the server container is normally up; if it is
+# not, the run fails loudly and the next tick picks it up.
+OnBootSec=2min
+OnCalendar=*:00/30
+Unit=wakir-spire-bootstrap-anchor-restage-<SIDE>.service
+# Now load-bearing rather than decorative: a tick missed while the VM
+# was down fires once on the next start. The stager is idempotent, so a
+# catch-up run is free.
+Persistent=true
+# The staging window does not need to be aligned across sides; a small
+# spread keeps two sides on one host from exec-ing at the same second.
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

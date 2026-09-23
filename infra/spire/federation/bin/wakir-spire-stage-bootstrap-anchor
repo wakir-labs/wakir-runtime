@@ -1,0 +1,493 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: BUSL-1.1
+# SPDX-FileCopyrightText: 2026 Callandor GmbH and contributors
+#
+# wakir-spire-stage-bootstrap-anchor -- stage the SPIRE-Agent's
+# bootstrap trust anchor from the running SPIRE-Server (ADR-0076,
+# step 3).
+#
+# What this fixes
+# ---------------
+#
+# The agent configs declare
+# ``trust_bundle_path = "/var/lib/spire/bundles/bootstrap.jwks"``. The
+# bootstrap created that volume and never wrote into it. Measured on
+# both pilot VMs 2026-09-22: the directory is empty and has been since
+# it was created in May. The agent lived off the bundle cache in its
+# own data volume until that cache aged out, and then it stopped
+# attesting -- silently, for 127 days.
+#
+# This script writes that file. It is the only supported way to write
+# it. The ``spire-fed-bundle`` CLIs in the same directory emit fixture
+# JWKS whose keys are not SPIRE CA keys; they carry a banner saying so.
+#
+# Where the content comes from
+# ----------------------------
+#
+#   podman exec <server-container> \
+#       /opt/spire/bin/spire-server bundle show -format spiffe
+#
+# against the running server -- SPIRE's own CLI, no local crypto, no
+# re-encoding. Measured working inside a live server container
+# 2026-09-22 (CTO measurement M9).
+#
+# Why a timer re-runs it
+# ----------------------
+#
+# ``ca_ttl`` stays at 24h by decision (ADR-0076): the signing
+# intermediate keeps rotating daily under the long-lived
+# ``UpstreamAuthority`` root, so the acceptance window observes six
+# rotations rather than hiding them. The staged file must therefore be
+# refreshed well inside that window. The companion units
+# ``wakir-spire-bootstrap-anchor-restage.{service,timer}`` run this
+# script every 30 minutes.
+#
+# What makes a document an anchor
+# -------------------------------
+#
+# Not "at least one key". Measured against a real SPIRE-Agent v1.14.6
+# (Zone-L cross-review of PR #561, BL-1): a bundle holding exactly one
+# ``jwt-svid`` key and no X.509 authority passed the old key count,
+# staged green -- and the agent answered
+# ``error="no certificates found in trust bundle"`` in a retry loop
+# that never ends. The old check counted keys; the agent needs
+# certificates. The difference is a dead anchor with a green log,
+# which is the defect class this ADR was written against.
+#
+# The anchor therefore has to carry:
+#
+#   1. at least one entry with ``use == "x509-svid"`` and a non-empty
+#      ``x5c`` -- the agent verifies the server over TLS, and for that
+#      it needs a certificate, not a signing key;
+#   2. among those, one whose certificate IS the configured upstream
+#      CA root. The bundle is base64 DER in ``x5c``; a PEM file is
+#      base64 DER between two armour lines. The comparison is
+#      therefore a string comparison after stripping the armour, with
+#      no new dependency and no crypto in this script.
+#
+# (2) also rules out two things (1) cannot: a well-formed fixture JWKS
+# from the ``spire-fed-bundle`` CLIs in this directory, and the
+# peer side's bundle staged into our own volume by a pair of swapped
+# ``--container``/``--volume`` overrides. "At least one" and not "all",
+# because during a bilateral root cutover the bundle legitimately
+# carries the old and the new root at the same time.
+#
+# The parser
+# ----------
+#
+# The shape check below has no dependencies and therefore always runs,
+# but it is a PRE-CHECK and no longer the decider. The decider is a
+# real JSON parser -- ``python3`` when it is on PATH, otherwise ``jq``
+# in ``--slurp`` mode -- and when neither is present this script
+# exits 3 and stages nothing. It does not fall back to the shape
+# check: a check whose strictness depends on what happens to be
+# installed is how a substrate ends up with two different answers to
+# the same question.
+#
+# ``--slurp`` is not decoration. Plain ``jq`` reads a *stream* of JSON
+# values, so a document accidentally emitted twice parses cleanly;
+# with ``--slurp`` the input becomes an array and the script requires
+# exactly one element. Both back ends are held to the same verdict
+# table by a test vector that runs the table through each of them.
+#
+# Tool survey on the live nodes, 2026-09-22 (SRE, both VMs, Fedora
+# CoreOS 44): ``bash``, ``jq``, ``curl``, ``openssl``, ``podman``
+# present -- and NO ``python3``. So on today's substrate the jq back
+# end is the one that runs, which is exactly why it had to stop being
+# the weaker one.
+#
+# Failure posture
+# ---------------
+#
+# Loud, and in two classes that are not the same thing:
+#
+#   * exit 2 -- measured, and bad. The document was read and it is not
+#     an anchor.
+#   * exit 3 -- could not decide. No JSON parser on PATH, or the
+#     upstream CA root this anchor has to be checked against could not
+#     be read. NOT a weaker check that passes.
+#
+# Both leave the previously staged file untouched, and every failure
+# path prints a diagnosis on stderr -- including the diagnosis podman
+# and SPIRE themselves produced, which an earlier version of this
+# script threw away with ``2>/dev/null``. There is no "best effort"
+# branch and no path on which this script exits 0 without a verified
+# file on disk.
+#
+# Sandbox boundary
+# ----------------
+#
+# No podman in the hermetic test surface. The tests drive this script
+# with ``WAKIR_STAGE_PODMAN`` pointed at a mock and
+# ``WAKIR_STAGE_TARGET_DIR`` pointed at a tmp tree, including the
+# negative controls (empty output, unparseable output, zero keys, a
+# JWT-only bundle, a foreign root, non-zero exit).
+#
+# -- the engineering zone
+
+set -uo pipefail
+
+_PROG="wakir-spire-stage-bootstrap-anchor"
+
+# exit 2 -- measured, and bad.
+die() { printf '%s: ERROR %s\n' "$_PROG" "$1" >&2; exit 2; }
+# exit 3 -- could not decide. Kept apart from die() on purpose: a
+# caller that cannot tell "this is not an anchor" from "nobody could
+# check" will eventually treat the second as the first.
+undecided() { printf '%s: UNDECIDED %s\n' "$_PROG" "$1" >&2; exit 3; }
+note() { printf '%s: %s\n' "$_PROG" "$1"; }
+
+# first_line <file> -- the first non-empty line, trimmed, for quoting a
+# foreign tool's diagnosis back to the operator without pasting a wall.
+first_line() {
+  [[ -s "${1:-}" ]] || { printf ''; return; }
+  sed -e 's/[[:space:]]\+$//' -e '/^[[:space:]]*$/d' "$1" 2>/dev/null | head -n 1
+}
+
+usage() {
+  cat <<EOF
+Usage: ${_PROG} --side <side> [options]
+
+  --side <side>        Federation side token (wakir | orbit | partner).
+                       Selects the server container and bundles volume.
+  --container <name>   Override the server container name.
+  --volume <name>      Override the bundles volume name.
+  --upstream-ca-cert <path>
+                       PEM of the upstream CA root the staged anchor
+                       must contain. Default: root.crt inside the
+                       upstream-ca volume of this side.
+  -h, --help           This text.
+
+Environment overrides (test hooks; do not use in production):
+  WAKIR_STAGE_PODMAN      podman binary (default: podman)
+  WAKIR_STAGE_TARGET_DIR  write here instead of resolving the volume
+  WAKIR_STAGE_CHOWN       1 (default) or 0 to skip the chown+owner check
+  WAKIR_STAGE_UID         owner uid for the staged file (default 1000)
+  WAKIR_STAGE_GID         owner gid for the staged file (default 1000)
+  WAKIR_STAGE_PARSER      force a back end: python3 | jq  (default: prefer
+                          python3, else jq). Used by the parity vector.
+
+Exit: 0 staged and verified
+      2 read, and not an anchor
+      3 could not decide (no JSON parser, or the upstream root could
+        not be read). Nothing is staged in either failure case.
+EOF
+}
+
+SIDE=""
+CONTAINER=""
+VOLUME=""
+CA_CERT=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --side)      SIDE="${2:-}"; shift 2 || die "--side needs a value" ;;
+    --container) CONTAINER="${2:-}"; shift 2 || die "--container needs a value" ;;
+    --volume)    VOLUME="${2:-}"; shift 2 || die "--volume needs a value" ;;
+    --upstream-ca-cert) CA_CERT="${2:-}"; shift 2 || die "--upstream-ca-cert needs a value" ;;
+    -h|--help)   usage; exit 0 ;;
+    *)           usage >&2; die "unknown argument: $1" ;;
+  esac
+done
+
+[[ -n "$SIDE" ]] || { usage >&2; die "--side is required"; }
+[[ "$SIDE" =~ ^[a-z0-9-]+$ ]] || die "--side must match [a-z0-9-]+ (got: ${SIDE})"
+
+PODMAN="${WAKIR_STAGE_PODMAN:-podman}"
+CONTAINER="${CONTAINER:-wakir-spire-server-federation-${SIDE}}"
+VOLUME="${VOLUME:-wakir-spire-server-federation-${SIDE}-bundles}"
+CA_VOLUME="wakir-spire-server-federation-${SIDE}-upstream-ca"
+DO_CHOWN="${WAKIR_STAGE_CHOWN:-1}"
+OWNER_UID="${WAKIR_STAGE_UID:-1000}"
+OWNER_GID="${WAKIR_STAGE_GID:-1000}"
+ANCHOR_NAME="bootstrap.jwks"
+
+# ---------------------------------------------------------------------
+# 1. Resolve the target directory.
+# ---------------------------------------------------------------------
+
+err_file=$(mktemp) || die "mktemp failed"
+raw_file=$(mktemp) || die "mktemp failed"
+trap 'rm -f "$raw_file" "$err_file" "${staged_tmp:-}"' EXIT
+
+# resolve_volume <name> -- mountpoint on stdout, podman's own diagnosis
+# quoted on failure (NM-1: the earlier version sent it to /dev/null).
+resolve_volume() {
+  local name="$1" out
+  if ! out=$("$PODMAN" volume inspect --format '{{.Mountpoint}}' "$name" 2>"$err_file"); then
+    printf '%s' "$(first_line "$err_file")"
+    return 1
+  fi
+  printf '%s' "${out%$'\n'}"
+}
+
+target_dir="${WAKIR_STAGE_TARGET_DIR:-}"
+if [[ -z "$target_dir" ]]; then
+  if ! target_dir=$(resolve_volume "$VOLUME"); then
+    die "podman volume inspect ${VOLUME} failed -- is the volume created? (bootstrap step 6b) -- podman said: ${target_dir:-<no output>}"
+  fi
+fi
+[[ -n "$target_dir" ]] || die "could not resolve a mountpoint for volume ${VOLUME}"
+[[ -d "$target_dir" ]] || die "resolved target is not a directory: ${target_dir}"
+
+anchor_path="${target_dir}/${ANCHOR_NAME}"
+
+# ---------------------------------------------------------------------
+# 1b. Resolve the upstream CA root the anchor is checked against.
+#
+# Unreadable is NOT "skip the check". It is exit 3: nobody could
+# decide whether the document is an anchor, and a stager that stages
+# on that basis is the same instrument as a health check that reports
+# on a command it never ran.
+# ---------------------------------------------------------------------
+
+if [[ -z "$CA_CERT" ]]; then
+  CA_CERT="${WAKIR_STAGE_UPSTREAM_CA_CERT:-}"
+fi
+if [[ -z "$CA_CERT" ]]; then
+  ca_dir="${WAKIR_STAGE_UPSTREAM_CA_DIR:-}"
+  if [[ -z "$ca_dir" ]]; then
+    if ! ca_dir=$(resolve_volume "$CA_VOLUME"); then
+      undecided "podman volume inspect ${CA_VOLUME} failed, so the anchor cannot be checked against the upstream root (bootstrap step 6g-bis) -- podman said: ${ca_dir:-<no output>}"
+    fi
+  fi
+  CA_CERT="${ca_dir}/root.crt"
+fi
+[[ -r "$CA_CERT" ]] || undecided "upstream CA root not readable at ${CA_CERT}; refusing to stage an anchor nobody can check"
+
+# A PEM file is base64 DER between two armour lines, and ``x5c`` is
+# base64 DER. Stripping the armour and all whitespace makes the two
+# directly comparable -- no openssl, no crypto, no new dependency.
+# Trailing padding is dropped on both sides so the comparison survives
+# an unpadded emitter.
+CA_ROOT_B64="$(sed -e '/-----BEGIN/d' -e '/-----END/d' "$CA_CERT" 2>/dev/null | tr -d '[:space:]' | sed -e 's/=\+$//')"
+[[ -n "$CA_ROOT_B64" ]] || undecided "upstream CA root at ${CA_CERT} holds no PEM body; refusing to stage an anchor nobody can check"
+
+# ---------------------------------------------------------------------
+# 2. Read the bundle from the running server.
+# ---------------------------------------------------------------------
+
+if ! "$PODMAN" exec "$CONTAINER" \
+        /opt/spire/bin/spire-server bundle show -format spiffe \
+        > "$raw_file" 2>"$err_file"; then
+  # NM-1: the diagnosis podman and SPIRE produce here is the whole
+  # difference between "the container is gone" and "the admin socket
+  # moved". Measured in the Zone-L review: both noise sources emit
+  # exactly one line, so there was never any noise to suppress.
+  die "'spire-server bundle show -format spiffe' failed in container ${CONTAINER}; anchor left untouched at ${anchor_path} -- the command said: $(first_line "$err_file")"
+fi
+
+# ---------------------------------------------------------------------
+# 3. Validate before anything is written.
+#
+# Two layers, and which one decides has changed. The shape check has
+# no dependencies and therefore always runs -- it is now a PRE-CHECK
+# that catches the cheap cases with a readable message. The decision
+# is made by a real JSON parser; when there is none, nothing is
+# staged (exit 3). See the header for why the earlier "jq if it
+# happens to be there" arrangement was the wrong shape.
+# ---------------------------------------------------------------------
+
+[[ -s "$raw_file" ]] || die "'bundle show' produced an empty document; anchor left untouched"
+
+body=$(tr -d '[:space:]' < "$raw_file")
+[[ -n "$body" ]] || die "'bundle show' produced whitespace only; anchor left untouched"
+[[ "${body:0:1}" == "{" ]] || die "bundle document does not start with '{' -- not a JWKS object; anchor left untouched"
+[[ "${body: -1}" == "}" ]] || die "bundle document does not end with '}' -- truncated output; anchor left untouched"
+
+open_braces=$(tr -cd '{' < "$raw_file" | wc -c)
+close_braces=$(tr -cd '}' < "$raw_file" | wc -c)
+[[ "$open_braces" -eq "$close_braces" ]] \
+  || die "bundle document braces unbalanced (${open_braces} open, ${close_braces} close) -- truncated output; anchor left untouched"
+
+case "$body" in
+  *'"keys":['*) : ;;
+  *) die "bundle document has no '\"keys\": [ ... ]' array -- not a JWKS; anchor left untouched" ;;
+esac
+
+# --- the decider -----------------------------------------------------
+#
+# Both back ends emit exactly the same three lines, or one ERR: line.
+# A test vector runs the same payload table through both and requires
+# identical verdicts, so "which parser is on this node" cannot mean
+# "how strict is this check on this node".
+#
+#   keys_total=<n>          entries in .keys
+#   x509_authorities=<n>    entries with use=="x509-svid" and non-empty x5c
+#   root_match=<0|1>        one of those carries the configured root
+
+PARSER="${WAKIR_STAGE_PARSER:-}"
+if [[ -z "$PARSER" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    PARSER="python3"
+  elif command -v jq >/dev/null 2>&1; then
+    PARSER="jq"
+  else
+    undecided "no JSON parser on PATH (looked for python3, then jq); refusing to decide a bundle document with a brace count"
+  fi
+fi
+
+verdict=""
+case "$PARSER" in
+  python3)
+    command -v python3 >/dev/null 2>&1 \
+      || undecided "WAKIR_STAGE_PARSER=python3 but python3 is not on PATH"
+    verdict="$(
+      WAKIR_ROOT_B64="$CA_ROOT_B64" python3 - "$raw_file" <<'PY' 2>"$err_file"
+import json, os, re, sys
+
+root = os.environ.get("WAKIR_ROOT_B64", "")
+try:
+    with open(sys.argv[1], "rb") as fh:
+        doc = json.loads(fh.read().decode("utf-8"))
+except Exception as exc:                      # noqa: BLE001 -- the reason is the message
+    print("ERR:python3 rejected the document: %s" % str(exc).replace("\n", " "))
+    raise SystemExit(0)
+
+if not isinstance(doc, dict):
+    print("ERR:the bundle document is not a JSON object")
+    raise SystemExit(0)
+keys = doc.get("keys")
+if not isinstance(keys, list):
+    print("ERR:the bundle document has no '.keys' array")
+    raise SystemExit(0)
+
+def norm(value):
+    return re.sub(r"=+$", "", re.sub(r"\s", "", value))
+
+x509 = []
+for entry in keys:
+    if not isinstance(entry, dict) or entry.get("use") != "x509-svid":
+        continue
+    chain = entry.get("x5c")
+    if not isinstance(chain, list) or not chain:
+        continue
+    first = chain[0]
+    if not isinstance(first, str) or not norm(first):
+        continue
+    x509.append(norm(first))
+
+print("keys_total=%d" % len(keys))
+print("x509_authorities=%d" % len(x509))
+print("root_match=%d" % (1 if root and norm(root) in x509 else 0))
+PY
+    )"
+    ;;
+  jq)
+    command -v jq >/dev/null 2>&1 \
+      || undecided "WAKIR_STAGE_PARSER=jq but jq is not on PATH"
+    # --slurp turns the input into an array, so a document emitted
+    # twice is length 2 and rejected. Plain jq reads a stream and would
+    # accept it; measured in the Zone-L review.
+    verdict="$(
+      jq --slurp --raw-output --arg root "$CA_ROOT_B64" '
+        def norm: gsub("\\s"; "") | sub("=+$"; "");
+        if length != 1 then
+          "ERR:the input is not exactly one JSON document (\(length) found)"
+        elif (.[0] | type) != "object" then
+          "ERR:the bundle document is not a JSON object"
+        elif (.[0].keys | type) != "array" then
+          "ERR:the bundle document has no '.keys' array"
+        else
+          (.[0].keys) as $keys
+          | ( $keys
+              | map(select(
+                  (type == "object")
+                  and (.use == "x509-svid")
+                  and ((.x5c | type) == "array")
+                  and ((.x5c | length) > 0)
+                  and ((.x5c[0] | type) == "string")
+                  and ((.x5c[0] | norm | length) > 0)
+                ))
+              | map(.x5c[0] | norm)
+            ) as $x509
+          | "keys_total=\($keys | length)",
+            "x509_authorities=\($x509 | length)",
+            "root_match=\(if ($root | length) > 0 and ($x509 | index($root | norm)) != null then 1 else 0 end)"
+        end
+      ' "$raw_file" 2>"$err_file"
+    )" || verdict=""
+    ;;
+  *)
+    undecided "unknown WAKIR_STAGE_PARSER=${PARSER} (known: python3, jq)"
+    ;;
+esac
+
+if [[ -z "$verdict" ]]; then
+  die "${PARSER} could not read the bundle document; anchor left untouched -- it said: $(first_line "$err_file")"
+fi
+case "$verdict" in
+  ERR:*) die "${verdict#ERR:}; anchor left untouched" ;;
+esac
+
+key_count=""
+x509_count=""
+root_match=""
+while IFS='=' read -r field value; do
+  case "$field" in
+    keys_total)       key_count="$value" ;;
+    x509_authorities) x509_count="$value" ;;
+    root_match)       root_match="$value" ;;
+  esac
+done <<< "$verdict"
+
+[[ "$key_count" =~ ^[0-9]+$ && "$x509_count" =~ ^[0-9]+$ && "$root_match" =~ ^[01]$ ]] \
+  || undecided "${PARSER} produced a verdict this script cannot read: $(printf '%s' "$verdict" | tr '\n' ' ')"
+
+(( key_count >= 1 )) \
+  || die "bundle document carries 0 keys -- an empty JWKS is not an anchor; anchor left untouched"
+
+# BL-1. This is the check whose absence staged a green, dead anchor.
+(( x509_count >= 1 )) \
+  || die "bundle document carries ${key_count} key(s) and NO X.509 authority (no entry with use=\"x509-svid\" and a non-empty x5c). The agent needs a certificate to verify the server, not a signing key; it would answer 'no certificates found in trust bundle' and retry forever. Anchor left untouched"
+
+(( root_match == 1 )) \
+  || die "none of the ${x509_count} X.509 authority/authorities in the bundle is the configured upstream CA root at ${CA_CERT}. Either this is the peer side's bundle, or a fixture, or the server is not signing under our root. Anchor left untouched"
+
+note "${PARSER} parse ok (${key_count} key(s), ${x509_count} X.509 authority/authorities, upstream root present)"
+
+# ---------------------------------------------------------------------
+# 4. Write atomically: temp in the SAME directory, then rename.
+# ---------------------------------------------------------------------
+
+staged_tmp="${target_dir}/.${ANCHOR_NAME}.tmp.$$"
+cp "$raw_file" "$staged_tmp" || die "could not write ${staged_tmp}"
+chmod 0644 "$staged_tmp" || die "chmod 0644 ${staged_tmp} failed"
+
+if [[ "$DO_CHOWN" == "1" ]]; then
+  chown "${OWNER_UID}:${OWNER_GID}" "$staged_tmp" \
+    || die "chown ${OWNER_UID}:${OWNER_GID} ${staged_tmp} failed -- the agent runs as uid ${OWNER_UID} and would not read it"
+fi
+
+mv -f "$staged_tmp" "$anchor_path" || die "rename into ${anchor_path} failed"
+staged_tmp=""
+
+# ---------------------------------------------------------------------
+# 5. Read back and verify. Bug-21 discipline: the claim is stat-
+#    verified, not inferred from an exit code that already lied once.
+# ---------------------------------------------------------------------
+
+[[ -f "$anchor_path" ]] || die "anchor missing after rename: ${anchor_path}"
+cmp -s "$raw_file" "$anchor_path" \
+  || die "staged anchor differs from the bundle we read -- concurrent writer? ${anchor_path}"
+
+mode=$(stat -c '%a' "$anchor_path" 2>/dev/null || echo "")
+[[ "$mode" == "644" ]] || die "staged anchor mode is ${mode:-unknown}, expected 644"
+
+if [[ "$DO_CHOWN" == "1" ]]; then
+  owner=$(stat -c '%u:%g' "$anchor_path" 2>/dev/null || echo "")
+  [[ "$owner" == "${OWNER_UID}:${OWNER_GID}" ]] \
+    || die "staged anchor owner is ${owner:-unknown}, expected ${OWNER_UID}:${OWNER_GID}"
+fi
+
+bytes=$(stat -c '%s' "$anchor_path" 2>/dev/null || echo 0)
+note "staged ${anchor_path} (${key_count} key(s), ${bytes} bytes, mode 644) from ${CONTAINER}"
+
+# Known limit, stated rather than left to be discovered: this verifies
+# DAC (owner, mode, content). It does not verify that the agent's
+# SELinux context may read the file. The bundles volume is mounted
+# ``Z`` (private relabel) by the server and ``ro,Z`` by the agent --
+# two private relabels of one volume. Whether that holds on an
+# enforcing node is an open measurement on the live host, not an
+# assumption this script is entitled to make.
+exit 0

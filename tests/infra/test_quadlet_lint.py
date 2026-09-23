@@ -234,7 +234,7 @@ def test_missing_quadlet_binary_exits_3(tmp_path: Path) -> None:
 
 
 def test_inventory_count_stable() -> None:
-    """The clean-run reports 27 units / side. Drift-guard: if the
+    """The clean-run reports 28 units / side. Drift-guard: if the
     Quadlet inventory grows or shrinks, this test surfaces the change
     so the next operator updates the expected count consciously rather
     than absorbing the drift.
@@ -258,12 +258,22 @@ def test_inventory_count_stable() -> None:
     wakir-rust-cli-welle7.container; each installs one wave-suffix
     Rust-CLI binary from a dedicated single-binary image per the
     Mini-wave policy inventory convention).
+
+    ADR-0076 trust anchor: 27 -> 28 (one new federation-side Quadlet
+    artefact --
+    wakir-spire-server-federation-<SIDE>-upstream-ca.volume, the
+    long-lived CA root the server's UpstreamAuthority reads). The two
+    companions that landed in the same change --
+    wakir-spire-bootstrap-anchor-restage.{service,timer} -- are plain
+    systemd units under /etc/systemd/system/ and are not part of the
+    Quadlet-generator inventory the lint walks, the same split the
+    recovery-drill timer above already makes.
     """
     proc = _run_lint(REPO_ROOT)
     assert proc.returncode == 0, proc.stderr
-    # The final OK line is e.g. ``all sides OK (27 units / side)``.
-    assert "(27 units / side)" in proc.stdout, (
-        f"inventory drift: expected 27 units / side in OK line, "
+    # The final OK line is e.g. ``all sides OK (28 units / side)``.
+    assert "(28 units / side)" in proc.stdout, (
+        f"inventory drift: expected 28 units / side in OK line, "
         f"got stdout={proc.stdout!r}"
     )
 
