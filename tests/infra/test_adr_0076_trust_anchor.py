@@ -61,6 +61,18 @@ Behaviour -- the anchor stager:
   * ``TV-0076-17``  MUTATION CONTROL: with the key-count guard cut out
     of a copy of the script, TV-0076-14's vector goes green -- proof
     the vector tests the guard and not the scaffolding.
+  * ``TV-0076-18``  the stager REWRITES on every run, including when
+    the bundle document is byte-identical to the one already staged.
+    ADR-0076 errata E3: the acceptance harness measures the re-staging
+    cadence at the anchor's mtime, and under ``UpstreamAuthority
+    "disk"`` the document is constant for the life of the root -- so a
+    later "skip the rename when nothing changed" would stop the mtime
+    on a HEALTHY substrate and produce a red window out of an
+    optimisation. The property is load-bearing; this is where it is
+    guarded rather than assumed.
+  * ``TV-0076-19``  MUTATION CONTROL for TV-0076-18: a copy of the
+    script with exactly that short-circuit spliced in must make
+    TV-0076-18's assertion fail.
 
 Behaviour -- the upstream CA root:
 
@@ -106,6 +118,8 @@ from __future__ import annotations
 import os
 import re
 import subprocess
+import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -398,6 +412,9 @@ def stage_env(tmp_path: Path):
 
     run.volume = vol  # type: ignore[attr-defined]
     run.anchor = vol / "bootstrap.jwks"  # type: ignore[attr-defined]
+    # Exposed so a mutation control can drive a modified copy of the
+    # script against the same mock and the same volume.
+    run.podman = mock  # type: ignore[attr-defined]
     return run
 
 
@@ -527,6 +544,105 @@ def test_tv_0076_17_mutation_control(tmp_path: Path, stage_env) -> None:
     )
     assert (vol / "bootstrap.jwks").exists()
 
+
+
+def test_tv_0076_18_restage_rewrites_unchanged_content(stage_env) -> None:
+    """The anchor is rewritten every run, unchanged content included.
+
+    This is not an aesthetic preference about atomic writes. The
+    seven-day acceptance harness (PR #562) measures whether the
+    re-staging timer is alive by looking at the anchor's mtime, and
+    under ``UpstreamAuthority "disk"`` there is nothing else it could
+    look at: the published bundle is the long-lived root, so the
+    document this script stages is byte-identical from one run to the
+    next for years. A future "only write when the content changed"
+    would therefore freeze the mtime permanently on a substrate that
+    is perfectly healthy, and the window would go red because someone
+    made the script faster.
+
+    ADR-0076 errata E3 names the property as load-bearing. A property
+    that is load-bearing and only written down in a header comment is
+    the same instrument class this substrate spent four months paying
+    for.
+    """
+    assert stage_env(VALID_JWKS).returncode == 0
+    first = stage_env.anchor.stat()
+    first_bytes = stage_env.anchor.read_bytes()
+
+    observed = []
+    for _ in range(2):
+        time.sleep(0.02)
+        assert stage_env(VALID_JWKS).returncode == 0, "re-run of the stager failed"
+        st = stage_env.anchor.stat()
+        observed.append(st)
+        assert stage_env.anchor.read_bytes() == first_bytes, (
+            "the re-run changed the staged bytes; the input was identical"
+        )
+
+    assert observed[-1].st_mtime_ns > first.st_mtime_ns, (
+        "the staged anchor's mtime did not move across re-runs with identical "
+        "content. The acceptance window reads that mtime as 'the re-staging "
+        "timer is running'; if this assertion fails, a healthy node now "
+        "reports a stopped timer (ADR-0076 errata E3)."
+    )
+    assert observed[-1].st_ino != first.st_ino, (
+        "the anchor kept its inode across re-runs -- the write stopped going "
+        "through temp+rename, which is both the atomicity guarantee and the "
+        "reason the mtime moves"
+    )
+
+
+def test_tv_0076_19_mutation_control_for_the_unconditional_write(
+    tmp_path: Path, stage_env
+) -> None:
+    """Splice the plausible optimisation in; TV-0076-18 must go red.
+
+    The optimisation is written here the way someone would actually
+    write it -- compare what we just read against what is on disk,
+    skip the rename when they match -- so the vector above is shown to
+    be measuring the write and not the scaffolding.
+    """
+    src = STAGER.read_text(encoding="utf-8")
+    needle = 'staged_tmp="${target_dir}/.${ANCHOR_NAME}.tmp.$$"'
+    assert src.count(needle) == 1, "write block moved; update the mutation"
+    short_circuit = textwrap.dedent(
+        """\
+        if cmp -s "$raw_file" "$anchor_path"; then
+          note "unchanged -- nothing to do"
+          exit 0
+        fi
+        """
+    )
+    mutated = src.replace(needle, short_circuit + needle)
+    assert mutated != src, "mutation did not apply"
+    mutant = tmp_path / "mutant-stager"
+    mutant.write_text(mutated)
+
+    # Prime the anchor with the real script, then let the mutant run
+    # twice against the same document.
+    assert stage_env(VALID_JWKS).returncode == 0
+    before = stage_env.anchor.stat()
+
+    env = dict(os.environ)
+    env.update(
+        WAKIR_STAGE_PODMAN=str(stage_env.podman),
+        WAKIR_STAGE_TARGET_DIR=str(stage_env.volume),
+        WAKIR_STAGE_CHOWN="0",
+    )
+    time.sleep(0.02)
+    proc = subprocess.run(
+        ["bash", str(mutant), "--side", "wakir"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert proc.returncode == 0, proc.stderr
+    after = stage_env.anchor.stat()
+
+    assert after.st_mtime_ns == before.st_mtime_ns, (
+        "with the short-circuit spliced in the mtime still moved -- "
+        "TV-0076-18 would then not be measuring the unconditional write"
+    )
 
 # =====================================================================
 # Behaviour: the upstream CA root
