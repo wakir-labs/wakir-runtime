@@ -17,8 +17,8 @@
   "date": "2026-09-22",
   "method": "tooling/ci/lane_inventory.py (static targeting, including the jobs that inherit the acceptance-gate aggregator's enforcement) cross-checked against a real pytest run of every lane target",
   "python": "3.14.7 local; the required lanes pin 3.12 (tests.yml) and 3.13 (runtime-acceptance-gates.yml)",
-  "test_modules": 428,
-  "required": 325,
+  "test_modules": 430,
+  "required": 327,
   "optional_ci": 100,
   "operator_hand": 1,
   "opt_in_marker": 2,
@@ -381,6 +381,9 @@
    "profile": "optional-ci",
    "group": "infra-substrate"
   },
+  "tests/infra/test_adr_0076_trust_anchor.py": {
+   "profile": "required"
+  },
   "tests/infra/test_bootstrap_podman_volume_selinux_discipline.py": {
    "profile": "optional-ci"
   },
@@ -453,15 +456,6 @@
   "tests/infra/test_phase_3_acceptance_gates.py": {
    "profile": "opt-in-marker",
    "group": "phase-3-skeleton-opt-in"
-  },
-  "tests/infra/test_acceptance_run_provenance.py": {
-   "profile": "required"
-  },
-  "tests/infra/test_adr_0076_trust_anchor.py": {
-   "profile": "required"
-  },
-  "tests/infra/test_bootstrap_step4_fetch_failure.py": {
-   "profile": "required"
   },
   "tests/infra/test_pilot_bootstrap.py": {
    "profile": "optional-ci",
