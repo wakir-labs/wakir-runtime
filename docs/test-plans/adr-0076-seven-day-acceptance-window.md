@@ -204,11 +204,14 @@ ignored: the agent selects by `use`, and a measurement more generous
 than its consumer is a measurement of something else
 (TV-ACC-P-70, TV-ACC-P-71, TV-ACC-W-76).
 
-The same gap exists at the writing end, in the staging step's own
-validity check, and is being closed there in parallel. It is worth
-having at both ends: the staging step decides what to write, this
-decides whether what is there is an anchor, and those are two different
-questions about the same file.
+The same gap existed at the writing end, in the staging step's own
+validity check, and has since been closed there — the stager now refuses
+a document with no entry carrying `use == "x509-svid"` and a non-empty
+`x5c`, and compares it against the root it holds. It is worth having at
+both ends: the staging step decides what to write, this decides whether
+what is there is an anchor, and those are two different questions about
+the same file. The second one also has to survive a file the first one
+never wrote.
 
 ---
 
