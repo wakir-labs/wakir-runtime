@@ -564,32 +564,33 @@ def test_tv_0076_18_restage_rewrites_unchanged_content(stage_env) -> None:
     that is load-bearing and only written down in a header comment is
     the same instrument class this substrate spent four months paying
     for.
+
+    The mtime is back-dated between the runs rather than compared
+    against a sleep: timestamp granularity and inode reuse are both
+    properties of whatever filesystem the runner happens to have, and
+    neither of them is the property under test. What Z4 reads is "the
+    file was written again", and back-dating measures exactly that on
+    any filesystem.
     """
     assert stage_env(VALID_JWKS).returncode == 0
-    first = stage_env.anchor.stat()
     first_bytes = stage_env.anchor.read_bytes()
 
-    observed = []
     for _ in range(2):
-        time.sleep(0.02)
+        backdated = int(time.time()) - 3600
+        os.utime(stage_env.anchor, (backdated, backdated))
+        stale_ns = stage_env.anchor.stat().st_mtime_ns
+
         assert stage_env(VALID_JWKS).returncode == 0, "re-run of the stager failed"
-        st = stage_env.anchor.stat()
-        observed.append(st)
+
         assert stage_env.anchor.read_bytes() == first_bytes, (
             "the re-run changed the staged bytes; the input was identical"
         )
-
-    assert observed[-1].st_mtime_ns > first.st_mtime_ns, (
-        "the staged anchor's mtime did not move across re-runs with identical "
-        "content. The acceptance window reads that mtime as 'the re-staging "
-        "timer is running'; if this assertion fails, a healthy node now "
-        "reports a stopped timer (ADR-0076 errata E3)."
-    )
-    assert observed[-1].st_ino != first.st_ino, (
-        "the anchor kept its inode across re-runs -- the write stopped going "
-        "through temp+rename, which is both the atomicity guarantee and the "
-        "reason the mtime moves"
-    )
+        assert stage_env.anchor.stat().st_mtime_ns > stale_ns, (
+            "the staged anchor's mtime did not move across a re-run with "
+            "identical content. The acceptance window reads that mtime as "
+            "'the re-staging timer is running'; if this assertion fails, a "
+            "healthy node now reports a stopped timer (ADR-0076 errata E3)."
+        )
 
 
 def test_tv_0076_19_mutation_control_for_the_unconditional_write(
@@ -618,10 +619,13 @@ def test_tv_0076_19_mutation_control_for_the_unconditional_write(
     mutant = tmp_path / "mutant-stager"
     mutant.write_text(mutated)
 
-    # Prime the anchor with the real script, then let the mutant run
-    # twice against the same document.
+    # Prime the anchor with the real script, back-date it exactly as
+    # TV-0076-18 does, then let the mutant run against the same
+    # document.
     assert stage_env(VALID_JWKS).returncode == 0
-    before = stage_env.anchor.stat()
+    backdated = int(time.time()) - 3600
+    os.utime(stage_env.anchor, (backdated, backdated))
+    stale_ns = stage_env.anchor.stat().st_mtime_ns
 
     env = dict(os.environ)
     env.update(
@@ -629,7 +633,6 @@ def test_tv_0076_19_mutation_control_for_the_unconditional_write(
         WAKIR_STAGE_TARGET_DIR=str(stage_env.volume),
         WAKIR_STAGE_CHOWN="0",
     )
-    time.sleep(0.02)
     proc = subprocess.run(
         ["bash", str(mutant), "--side", "wakir"],
         capture_output=True,
@@ -637,9 +640,8 @@ def test_tv_0076_19_mutation_control_for_the_unconditional_write(
         env=env,
     )
     assert proc.returncode == 0, proc.stderr
-    after = stage_env.anchor.stat()
 
-    assert after.st_mtime_ns == before.st_mtime_ns, (
+    assert stage_env.anchor.stat().st_mtime_ns == stale_ns, (
         "with the short-circuit spliced in the mtime still moved -- "
         "TV-0076-18 would then not be measuring the unconditional write"
     )
