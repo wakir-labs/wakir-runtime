@@ -2356,8 +2356,18 @@ _stage_bootstrap_anchor() {
   stager="$(_stager_installed_path)"
   [[ -x "$stager" ]] || { log_err "anchor stager missing or not executable: ${stager}"; return 2; }
 
-  if ! WAKIR_STAGE_PODMAN="$WAKIR_BOOTSTRAP_PODMAN" "$stager" --side "$side"; then
-    log_err "bootstrap trust anchor could not be staged for side ${side}"
+  local stage_rc=0
+  WAKIR_STAGE_PODMAN="$WAKIR_BOOTSTRAP_PODMAN" "$stager" --side "$side" || stage_rc=$?
+  if (( stage_rc != 0 )); then
+    # rc 2 and rc 3 are not the same sentence, and the bring-up log is
+    # where the difference is worth the two lines: "we read the bundle
+    # and it is not an anchor" versus "nobody could check it".
+    if (( stage_rc == 3 )); then
+      log_err "bootstrap trust anchor could NOT BE DECIDED for side ${side} (stager rc 3)"
+      log_note "either no JSON parser on PATH (python3, then jq) or the upstream CA root from step 6g-bis is unreadable"
+    else
+      log_err "bootstrap trust anchor could not be staged for side ${side} (stager rc ${stage_rc})"
+    fi
     log_note "the agent's trust_bundle_path would be an empty directory -- the exact state this substrate spent 127 days in"
     log_note "diagnose: ${WAKIR_BOOTSTRAP_PODMAN} exec wakir-spire-server-federation-${side} /opt/spire/bin/spire-server bundle show -format spiffe"
     return 2

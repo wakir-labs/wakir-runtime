@@ -234,12 +234,40 @@ Between server start and agent start the bootstrap runs
 ```
 
 which reads `spire-server bundle show -format spiffe` from the running
-server via `podman exec`, checks the document is a JWKS object with at
-least one key, writes it to a temp file in the target directory and
-renames it into place, then reads it back and stat-verifies mode and
-owner. Every failure path exits 2 with a diagnosis and leaves the
-previous anchor untouched. There is no branch on which it exits 0
-without a verified file on disk.
+server via `podman exec`, decides whether the document is an anchor,
+writes it to a temp file in the target directory and renames it into
+place, then reads it back and stat-verifies mode and owner.
+
+**What counts as an anchor** (sharpened after the Zone-L cross-review of
+PR #561): not "at least one key". A bundle holding one `jwt-svid` key and
+no X.509 authority passed the old key count, staged green, and left a
+real SPIRE-Agent v1.14.6 answering `no certificates found in trust
+bundle` in an endless retry loop. The document must carry
+
+1. at least one entry with `use == "x509-svid"` and a non-empty `x5c`,
+   and
+2. among those, the certificate of **our** upstream CA root
+   (`/var/lib/spire/upstream-ca/root.crt`). `x5c` is base64 DER and a PEM
+   file is base64 DER between two armour lines, so the comparison needs
+   no crypto and no new dependency.
+
+(2) also rejects a fixture JWKS from the `spire-fed-bundle` CLIs in this
+directory and the peer side's bundle staged into our own volume. "At
+least one" and not "all", because during a bilateral root cutover the
+bundle legitimately carries the old and the new root at once.
+
+**The decider is a real JSON parser** — `python3` when present, otherwise
+`jq` in `--slurp` mode; the dependency-free shape check is a pre-check
+only. `--slurp` matters: plain `jq` reads a *stream* of JSON values, so a
+document emitted twice parses cleanly. When neither parser is on PATH the
+stager exits **3** and stages nothing; it does not fall back to a weaker
+check.
+
+Exit codes: `0` staged and verified · `2` read, and not an anchor · `3`
+could not decide (no parser, or the upstream root unreadable). Both
+failure classes leave the previous anchor untouched and print the
+diagnosis the failing command itself produced. There is no branch on
+which the script exits 0 without a verified file on disk.
 
 `wakir-spire-bootstrap-anchor-restage-<side>.timer` re-runs the same
 script every 30 minutes. `ca_ttl` stays at 24h by decision, so the

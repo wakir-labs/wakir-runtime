@@ -58,9 +58,10 @@ Behaviour -- the anchor stager:
   * ``TV-0076-16``  every failure leaves the PREVIOUS anchor intact
     and no temp file behind. A stager that half-writes is worse than
     one that does not run.
-  * ``TV-0076-17``  MUTATION CONTROL: with the key-count guard cut out
-    of a copy of the script, TV-0076-14's vector goes green -- proof
-    the vector tests the guard and not the scaffolding.
+  * ``TV-0076-17``  MUTATION CONTROL for BL-1: with the two certificate
+    guards cut out of a copy of the script -- i.e. restored to what it
+    did before the Zone-L review -- the JWT-only document is accepted
+    again, and the empty key set is still rejected by its own guard.
   * ``TV-0076-18``  the stager REWRITES on every run, including when
     the bundle document is byte-identical to the one already staged.
     ADR-0076 errata E3: the acceptance harness measures the re-staging
@@ -73,6 +74,37 @@ Behaviour -- the anchor stager:
   * ``TV-0076-19``  MUTATION CONTROL for TV-0076-18: a copy of the
     script with exactly that short-circuit spliced in must make
     TV-0076-18's assertion fail.
+
+Behaviour -- what counts as an anchor (Zone-L cross-review, BL-1):
+
+  * ``TV-0076-30``  THE finding. A bundle with one JWT key and no X.509
+    authority is rejected. It used to stage green, and a real agent
+    answered ``no certificates found in trust bundle`` and retried for
+    ever.
+  * ``TV-0076-31``  ``use: x509-svid`` with an empty ``x5c`` is a label,
+    not a certificate -> exit 2.
+  * ``TV-0076-32``  a real certificate that is not OUR upstream root is
+    rejected -- covers the peer's bundle staged into our volume and a
+    server signing under something else.
+  * ``TV-0076-33``  the fixture CLI from this very repository, driven for
+    real, is rejected. A docstring marking is not a guard.
+  * ``TV-0076-34``  documents a JSON parser must refuse: the document
+    emitted twice (passed plain ``jq``, which reads a stream), a
+    trailing comma (passed on any node without ``jq``), garbage after
+    the document.
+  * ``TV-0076-36``  MUTATION CONTROL: cut only the root guard and the
+    foreign root is accepted -- isolates the sharp half from the weak
+    half.
+  * ``TV-0076-37``  PARITY: the whole table through both parser back
+    ends, verdicts required to match. Strictness must not depend on
+    which tool the node happens to carry. Skipped where ``jq`` is
+    absent, and that skip is named rather than counted as a pass.
+  * ``TV-0076-38``  no JSON parser on PATH -> exit 3 and nothing staged.
+    Not a quiet fallback to the brace count.
+  * ``TV-0076-39``  the upstream root unreadable -> exit 3, and the
+    previously staged anchor survives.
+  * ``TV-0076-40``  NM-1: the diagnosis podman and SPIRE produce reaches
+    the operator instead of ``/dev/null``.
 
 Behaviour -- the upstream CA root:
 
@@ -108,15 +140,25 @@ discovered:
   * that the agent's SELinux context may read the staged anchor. The
     bundles volume carries ``Z`` on the server mount and ``ro,Z`` on
     the agent mount; two private relabels of one volume want a
-    measurement on an enforcing node, and have not had one.
+    measurement on an enforcing node, and have not had one. The Zone-L
+    review supplied the podman documentation that turns this from a
+    suspicion into a derivation (NM-5) -- the change belongs with the
+    bilateral cutover, where the node can be measured, and is
+    deliberately not in this PR;
+  * that a node which carries neither ``python3`` nor ``jq`` is
+    survivable. It is not, by design: the stager exits 3 there. The
+    live nodes carry ``jq`` (SRE measurement 2026-09-22) and the CI
+    runners carry both.
 
 -- the engineering zone
 """
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import shutil
 import subprocess
 import textwrap
 import time
@@ -140,12 +182,61 @@ FEDERATION_SIDES = ("wakir", "orbit", "partner")
 #: Where the Quadlet mounts the root material inside the container.
 UPSTREAM_MOUNT = "/var/lib/spire/upstream-ca"
 
-VALID_JWKS = (
-    '{"keys":[{"kty":"EC","crv":"P-256",'
-    '"x":"MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcAAA",'
-    '"y":"BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",'
-    '"use":"x509-svid"}]}\n'
-)
+def _jwks(*entries: dict) -> str:
+    """A bundle document in the shape ``bundle show -format spiffe`` emits."""
+    return json.dumps({"keys": list(entries), "spiffe_refresh_hint": 300}) + "\n"
+
+
+def _x509_entry(cert_b64: str) -> dict:
+    return {
+        "use": "x509-svid",
+        "kty": "EC",
+        "crv": "P-256",
+        "x": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcAAA",
+        "y": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+        "x5c": [cert_b64],
+    }
+
+
+JWT_ENTRY = {
+    "use": "jwt-svid",
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcAAA",
+    "y": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+    "kid": "IqXkxdN0eDdyLmpFXzMsUHlXd2NBaGc",
+}
+
+
+def _pem_body(pem_path: Path) -> str:
+    """base64 DER out of a PEM file -- which is what ``x5c`` carries."""
+    return "".join(
+        line.strip()
+        for line in pem_path.read_text(encoding="utf-8").splitlines()
+        if "-----" not in line
+    )
+
+
+def _mint_root(target: Path, cn: str = "wakir.test upstream CA") -> Path:
+    """A self-signed EC P-256 root, exactly as the bootstrap mints one."""
+    target.mkdir(parents=True, exist_ok=True)
+    crt = target / "root.crt"
+    subprocess.run(
+        [
+            "openssl", "req", "-x509",
+            "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:P-256",
+            "-noenc",
+            "-keyout", str(target / "root.key"),
+            "-out", str(crt),
+            "-days", "1826",
+            "-subj", f"/O=Wakir Labs/CN={cn}",
+            "-addext", "basicConstraints=critical,CA:TRUE",
+            "-addext", "keyUsage=critical,keyCertSign,cRLSign",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    return crt
 
 
 def _server_conf(side: str) -> str:
@@ -344,9 +435,17 @@ def test_tv_0076_07_restage_timer_fires_below_ca_ttl() -> None:
     """Step 4. A cadence at or above ``ca_ttl`` is not a refresh."""
     assert RESTAGE_SERVICE.exists() and RESTAGE_TIMER.exists()
     timer = RESTAGE_TIMER.read_text(encoding="utf-8")
+    minutes = None
     m = re.search(r"^OnUnitActiveSec=(\d+)(min|h)$", timer, re.MULTILINE)
-    assert m, "restage timer must declare an explicit OnUnitActiveSec"
-    minutes = int(m.group(1)) * (60 if m.group(2) == "h" else 1)
+    if m:
+        minutes = int(m.group(1)) * (60 if m.group(2) == "h" else 1)
+    else:
+        cal = re.search(r"^OnCalendar=\*:\d{1,2}/(\d+)$", timer, re.MULTILINE)
+        assert cal, (
+            "restage timer must declare an explicit cadence, either "
+            "OnUnitActiveSec= or a minute-stepped OnCalendar="
+        )
+        minutes = int(cal.group(1))
     assert minutes < 24 * 60, (
         f"restage cadence {minutes} min is not below ca_ttl (1440 min); a "
         f"refresh that runs slower than the thing it refreshes reproduces "
@@ -355,12 +454,24 @@ def test_tv_0076_07_restage_timer_fires_below_ca_ttl() -> None:
     assert minutes <= 120, (
         f"restage cadence {minutes} min leaves too little margin: the ADR "
         f"asks for 'deutlich unter ca_ttl', and missed ticks, reboots and "
-        f"slow server starts all eat into it"
+        f"slow server starts all eat into it. It also has to stay inside the "
+        f"freshness tolerance the acceptance window judges against"
     )
-    assert "Persistent=true" in timer, (
-        "a tick missed while the VM was down must fire on next boot -- the "
-        "stager is idempotent so a catch-up run is free"
-    )
+    # NM-4, Zone-L cross-review. The previous version of this vector
+    # asserted Persistent=true AND explained in its own message that it
+    # makes a missed tick fire on the next boot. systemd.timer(5):
+    # "this setting only has an effect on timers configured with
+    # OnCalendar=". The unit set it next to OnUnitActiveSec=, where it
+    # does nothing -- and the test certified the effect anyway. A check
+    # that bears witness to a property the setting cannot have is the
+    # defect this ADR is about, in miniature and in our own test suite.
+    if "Persistent=true" in timer:
+        assert re.search(r"^OnCalendar=", timer, re.MULTILINE), (
+            "Persistent=true only has an effect on timers configured with "
+            "OnCalendar= (systemd.timer(5)). Either give the timer a calendar "
+            "cadence or drop the setting -- do not carry a line for an effect "
+            "it cannot have"
+        )
 
     service = RESTAGE_SERVICE.read_text(encoding="utf-8")
     assert re.search(r"^ExecStart=<STAGER_PATH> --side <SIDE>$", service, re.MULTILINE), (
@@ -377,7 +488,12 @@ def test_tv_0076_07_restage_timer_fires_below_ca_ttl() -> None:
 
 @pytest.fixture()
 def stage_env(tmp_path: Path):
-    """A mock ``podman`` whose ``exec`` output the test controls."""
+    """A mock ``podman`` whose ``exec`` output the test controls.
+
+    Also mints a real upstream CA root: since the Zone-L review the
+    stager checks the staged anchor against it, so a fixture that did
+    not provide one would only ever exercise the ``exit 3`` path.
+    """
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     out_file = tmp_path / "bundle-out"
@@ -393,8 +509,11 @@ def stage_env(tmp_path: Path):
     mock.chmod(0o755)
     vol = tmp_path / "bundles"
     vol.mkdir()
+    ca_dir = tmp_path / "upstream-ca"
+    root_crt = _mint_root(ca_dir)
+    root_b64 = _pem_body(root_crt)
 
-    def run(bundle_output: str, rc: int = 0, side: str = "wakir"):
+    def run(bundle_output: str, rc: int = 0, side: str = "wakir", **overrides):
         out_file.write_text(bundle_output)
         rc_file.write_text(f"{rc}\n")
         env = dict(os.environ)
@@ -402,7 +521,12 @@ def stage_env(tmp_path: Path):
             WAKIR_STAGE_PODMAN=str(mock),
             WAKIR_STAGE_TARGET_DIR=str(vol),
             WAKIR_STAGE_CHOWN="0",
+            WAKIR_STAGE_UPSTREAM_CA_DIR=str(ca_dir),
         )
+        env.update({k: v for k, v in overrides.items() if v is not None})
+        for k, v in overrides.items():
+            if v is None:
+                env.pop(k, None)
         return subprocess.run(
             ["bash", str(STAGER), "--side", side],
             capture_output=True,
@@ -415,15 +539,21 @@ def stage_env(tmp_path: Path):
     # Exposed so a mutation control can drive a modified copy of the
     # script against the same mock and the same volume.
     run.podman = mock  # type: ignore[attr-defined]
+    run.ca_dir = ca_dir  # type: ignore[attr-defined]
+    run.root_crt = root_crt  # type: ignore[attr-defined]
+    run.root_b64 = root_b64  # type: ignore[attr-defined]
+    # The document a healthy server hands over: our root as an X.509
+    # authority, plus the JWT authority that rides along with it.
+    run.valid = _jwks(_x509_entry(root_b64), JWT_ENTRY)  # type: ignore[attr-defined]
     return run
 
 
 def test_tv_0076_10_stager_positive(stage_env) -> None:
-    proc = stage_env(VALID_JWKS)
+    proc = stage_env(stage_env.valid)
     assert proc.returncode == 0, proc.stderr
     anchor = stage_env.anchor
     assert anchor.exists(), "stager reported success without writing the anchor"
-    assert anchor.read_text() == VALID_JWKS, (
+    assert anchor.read_text() == stage_env.valid, (
         "the staged anchor must be byte-identical to what the server "
         "returned -- no re-encoding, no local crypto"
     )
@@ -471,7 +601,7 @@ def test_tv_0076_16_failure_preserves_the_previous_anchor(stage_env) -> None:
     transient failure that clobbered the good anchor would turn a
     hiccup into an outage at the next agent restart.
     """
-    assert stage_env(VALID_JWKS).returncode == 0
+    assert stage_env(stage_env.valid).returncode == 0
     good = stage_env.anchor.read_bytes()
 
     for payload, rc in (("", 0), ("garbage\n", 0), ('{"keys":[]}\n', 0), ("", 1)):
@@ -492,58 +622,93 @@ def test_tv_0076_16_failure_preserves_the_previous_anchor(stage_env) -> None:
     )
 
 
-def test_tv_0076_17_mutation_control(tmp_path: Path, stage_env) -> None:
-    """Cut the key-count guard out and TV-0076-14 must go green.
+X509_GUARD = '(( x509_count >= 1 )) \\'
+ROOT_GUARD = '(( root_match == 1 )) \\'
 
-    Without this, a zero-key document passing would look like a test
-    doing its job, when it could equally be the scaffolding rejecting
-    everything for an unrelated reason.
-    """
-    src = STAGER.read_text(encoding="utf-8")
-    needle = '[[ "${key_count:-0}" -ge 1 ]] \\'
-    assert src.count(needle) == 1, "guard text moved; update the mutation"
-    mutated = src.replace(
-        needle
-        + '\n  || die "bundle document carries 0 keys -- an empty JWKS is not '
-          'an anchor; anchor left untouched"',
-        'true',
-    )
-    assert mutated != src, "mutation did not apply"
-    # ...and the jq layer would still catch it, so drop that too: the
-    # mutation has to isolate exactly one guard.
-    mutated = mutated.replace(
-        "if command -v jq >/dev/null 2>&1; then", "if false; then"
-    )
-    mutant = tmp_path / "mutant-stager"
-    mutant.write_text(mutated)
 
-    vol = tmp_path / "mutant-vol"
-    vol.mkdir()
-    bin_dir = tmp_path / "mutant-bin"
-    bin_dir.mkdir()
-    mock = bin_dir / "podman"
-    mock.write_text('#!/usr/bin/env bash\nprintf \'{"keys":[]}\\n\'\n')
-    mock.chmod(0o755)
+def _cut_guard(src: str, needle: str) -> str:
+    """Replace a ``(( ... )) \\ \n  || die "..."`` guard with ``true``."""
+    at = src.index(needle)
+    end = src.index('"\n', src.index('|| die "', at)) + 2
+    return src[:at] + "true\n" + src[end:]
 
+
+def _run_mutant(mutant: Path, stage_env, payload: str):
+    stage_env.podman  # the mock is primed by writing the payload below
+    (Path(stage_env.volume).parent / "bundle-out").write_text(payload)
     env = dict(os.environ)
     env.update(
-        WAKIR_STAGE_PODMAN=str(mock),
-        WAKIR_STAGE_TARGET_DIR=str(vol),
+        WAKIR_STAGE_PODMAN=str(stage_env.podman),
+        WAKIR_STAGE_TARGET_DIR=str(stage_env.volume),
         WAKIR_STAGE_CHOWN="0",
+        WAKIR_STAGE_UPSTREAM_CA_DIR=str(stage_env.ca_dir),
     )
-    proc = subprocess.run(
+    return subprocess.run(
         ["bash", str(mutant), "--side", "wakir"],
         capture_output=True,
         text=True,
         env=env,
     )
-    assert proc.returncode == 0, (
-        "with the key-count guard removed the zero-key document should be "
-        "accepted -- if it still fails, TV-0076-14 is not measuring that "
-        f"guard. stderr={proc.stderr!r}"
-    )
-    assert (vol / "bootstrap.jwks").exists()
 
+
+def test_tv_0076_17_mutation_control_bl1(tmp_path: Path, stage_env) -> None:
+    """Restore the pre-BL-1 behaviour and the JWT-only bundle goes green.
+
+    This is the mutation control for the finding itself. Cut the two
+    certificate guards out of a copy of the script -- which is exactly
+    what the script did before the Zone-L review -- and a bundle with
+    one JWT key and no X.509 authority must be accepted again. If it
+    is not, TV-0076-30 is measuring the scaffolding and not the guard.
+
+    The same mutant is then shown to still reject an EMPTY key set, so
+    the key-count guard is demonstrably a separate, living check and
+    not carried by the two that were cut.
+    """
+    src = STAGER.read_text(encoding="utf-8")
+    for needle in (X509_GUARD, ROOT_GUARD):
+        assert src.count(needle) == 1, f"guard text moved: {needle!r}"
+    mutated = _cut_guard(_cut_guard(src, X509_GUARD), ROOT_GUARD)
+    assert mutated != src, "mutation did not apply"
+    mutant = tmp_path / "mutant-stager"
+    mutant.write_text(mutated)
+
+    proc = _run_mutant(mutant, stage_env, _jwks(JWT_ENTRY))
+    assert proc.returncode == 0, (
+        "with the X.509 and root guards removed the JWT-only document "
+        "should be accepted again -- if it still fails, TV-0076-30 is not "
+        f"measuring those guards. stderr={proc.stderr!r}"
+    )
+    assert stage_env.anchor.exists()
+
+    stage_env.anchor.unlink()
+    proc = _run_mutant(mutant, stage_env, '{"keys":[]}\n')
+    assert proc.returncode == 2, (
+        "the empty key set must still be rejected by its own guard; if it "
+        "is not, TV-0076-14 was being carried by the certificate guards"
+    )
+    assert not stage_env.anchor.exists()
+
+
+def test_tv_0076_36_mutation_control_root_match(tmp_path: Path, stage_env) -> None:
+    """Cut only the root guard and the foreign root goes green.
+
+    Isolates the sharper half of the check from the weaker one: a
+    well-formed bundle carrying a real X.509 authority that is simply
+    not ours passes every other guard, so this mutant proves TV-0076-32
+    measures the root comparison and nothing else.
+    """
+    src = STAGER.read_text(encoding="utf-8")
+    assert src.count(ROOT_GUARD) == 1, "root guard text moved"
+    mutant = tmp_path / "mutant-stager"
+    mutant.write_text(_cut_guard(src, ROOT_GUARD))
+
+    foreign = _pem_body(_mint_root(tmp_path / "foreign-ca", cn="someone else"))
+    proc = _run_mutant(mutant, stage_env, _jwks(_x509_entry(foreign)))
+    assert proc.returncode == 0, (
+        "with the root guard removed a foreign root should be accepted -- "
+        f"otherwise TV-0076-32 is not measuring it. stderr={proc.stderr!r}"
+    )
+    assert stage_env.anchor.exists()
 
 
 def test_tv_0076_18_restage_rewrites_unchanged_content(stage_env) -> None:
@@ -572,7 +737,7 @@ def test_tv_0076_18_restage_rewrites_unchanged_content(stage_env) -> None:
     file was written again", and back-dating measures exactly that on
     any filesystem.
     """
-    assert stage_env(VALID_JWKS).returncode == 0
+    assert stage_env(stage_env.valid).returncode == 0
     first_bytes = stage_env.anchor.read_bytes()
 
     for _ in range(2):
@@ -580,7 +745,7 @@ def test_tv_0076_18_restage_rewrites_unchanged_content(stage_env) -> None:
         os.utime(stage_env.anchor, (backdated, backdated))
         stale_ns = stage_env.anchor.stat().st_mtime_ns
 
-        assert stage_env(VALID_JWKS).returncode == 0, "re-run of the stager failed"
+        assert stage_env(stage_env.valid).returncode == 0, "re-run of the stager failed"
 
         assert stage_env.anchor.read_bytes() == first_bytes, (
             "the re-run changed the staged bytes; the input was identical"
@@ -622,29 +787,241 @@ def test_tv_0076_19_mutation_control_for_the_unconditional_write(
     # Prime the anchor with the real script, back-date it exactly as
     # TV-0076-18 does, then let the mutant run against the same
     # document.
-    assert stage_env(VALID_JWKS).returncode == 0
+    assert stage_env(stage_env.valid).returncode == 0
     backdated = int(time.time()) - 3600
     os.utime(stage_env.anchor, (backdated, backdated))
     stale_ns = stage_env.anchor.stat().st_mtime_ns
 
-    env = dict(os.environ)
-    env.update(
-        WAKIR_STAGE_PODMAN=str(stage_env.podman),
-        WAKIR_STAGE_TARGET_DIR=str(stage_env.volume),
-        WAKIR_STAGE_CHOWN="0",
-    )
-    proc = subprocess.run(
-        ["bash", str(mutant), "--side", "wakir"],
-        capture_output=True,
-        text=True,
-        env=env,
-    )
+    proc = _run_mutant(mutant, stage_env, stage_env.valid)
     assert proc.returncode == 0, proc.stderr
 
     assert stage_env.anchor.stat().st_mtime_ns == stale_ns, (
         "with the short-circuit spliced in the mtime still moved -- "
         "TV-0076-18 would then not be measuring the unconditional write"
     )
+
+
+# ---------------------------------------------------------------------
+# BL-1 and the parser -- Zone-L cross-review of PR #561
+# ---------------------------------------------------------------------
+
+
+def test_tv_0076_30_jwt_only_bundle_is_not_an_anchor(stage_env) -> None:
+    """THE finding. A bundle with a JWT key and no certificate is dead.
+
+    Measured against a real SPIRE-Agent v1.14.6 in the Zone-L review:
+    the old key count staged it green and the agent answered
+    ``no certificates found in trust bundle`` in a retry loop that
+    never ends. File at the right path, right mode, right owner, stager
+    reporting success, substrate dead.
+    """
+    proc = stage_env(_jwks(JWT_ENTRY))
+    assert proc.returncode == 2, (
+        f"a JWT-only bundle was accepted as an anchor. stdout={proc.stdout!r}"
+    )
+    assert "NO X.509 authority" in proc.stderr, (
+        "the diagnosis has to name what is missing; 'invalid document' would "
+        "send the next operator looking at the wrong thing"
+    )
+    assert not stage_env.anchor.exists()
+
+
+def test_tv_0076_31_x509_entry_without_a_certificate(stage_env) -> None:
+    """``use: x509-svid`` with an empty ``x5c`` is a label, not a key."""
+    entry = _x509_entry(stage_env.root_b64)
+    entry["x5c"] = []
+    proc = stage_env(_jwks(entry, JWT_ENTRY))
+    assert proc.returncode == 2, proc.stdout
+    assert not stage_env.anchor.exists()
+
+
+def test_tv_0076_32_foreign_root_is_rejected(stage_env, tmp_path: Path) -> None:
+    """A real certificate that is not ours is not our anchor.
+
+    Covers two things at once: the peer side's bundle staged into our
+    volume by a pair of swapped ``--container``/``--volume`` overrides,
+    and a server that is not signing under the root we configured.
+    """
+    foreign = _pem_body(_mint_root(tmp_path / "foreign-ca", cn="someone else"))
+    proc = stage_env(_jwks(_x509_entry(foreign), JWT_ENTRY))
+    assert proc.returncode == 2, proc.stdout
+    assert "upstream CA root" in proc.stderr
+    assert not stage_env.anchor.exists()
+
+
+def test_tv_0076_33_the_repos_own_fixture_cli_is_rejected(stage_env) -> None:
+    """The fixture trap, closed with the fixture from this repository.
+
+    ``spire_fed_bundle.py export`` emits well-formed JWKS whose keys
+    are not SPIRE CA keys (ADR-0076 context (c)). It parses, it has the
+    right shape, and an agent handed that file answers
+    ``invalid EC key, X/Y are not on declared curve``. Marked
+    fixture-only in its docstring since step 5 -- and a marking is not
+    a guard, which is why this vector drives the real CLI rather than
+    a hand-written imitation of it.
+    """
+    proc = subprocess.run(
+        ["python3", str(FED / "bin" / "spire_fed_bundle.py"),
+         "export", "--trust-domain", "wakir.test"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, f"fixture CLI failed: {proc.stderr!r}"
+    staged = stage_env(proc.stdout)
+    assert staged.returncode == 2, (
+        "the fixture CLI's output was accepted as a bootstrap anchor"
+    )
+    assert not stage_env.anchor.exists()
+
+
+@pytest.mark.parametrize(
+    "case,payload",
+    [
+        ("doubled-document", None),
+        ("trailing-comma", '{"keys":[{"kty":"EC"},]}\n'),
+        ("garbage-after-document", None),
+    ],
+)
+def test_tv_0076_34_documents_a_json_parser_must_refuse(
+    stage_env, case, payload
+) -> None:
+    """The two holes the old arrangement left, each measured in review.
+
+    ``doubled-document`` passed plain ``jq``, which reads a *stream* of
+    JSON values. ``trailing-comma`` passed on any node without ``jq``,
+    because the dependency-free shape check cannot see it. Both now
+    fail on both back ends -- that is the point of making a parser the
+    decider instead of an optional second opinion.
+    """
+    if case == "doubled-document":
+        payload = stage_env.valid.strip() + stage_env.valid
+    elif case == "garbage-after-document":
+        payload = stage_env.valid.strip() + " not json\n"
+    proc = stage_env(payload)
+    assert proc.returncode == 2, f"{case}: accepted. stdout={proc.stdout!r}"
+    assert not stage_env.anchor.exists()
+
+
+@pytest.mark.skipif(shutil.which("jq") is None, reason="jq not installed")
+def test_tv_0076_37_both_parser_backends_return_the_same_verdict(
+    stage_env, tmp_path: Path
+) -> None:
+    """Strictness must not depend on what happens to be on the node.
+
+    The old arrangement had exactly that defect: with ``jq`` present a
+    trailing comma was rejected, without it accepted. The fix is not a
+    promise in a comment -- it is this table, run through both back
+    ends, with the verdicts required to match.
+
+    Skipped where ``jq`` is absent. That is a real gap in local runs and
+    not a pass: the live nodes carry ``jq`` and no ``python3`` (SRE
+    measurement 2026-09-22), so the jq column is the one that matters on
+    the substrate, and CI is where it gets exercised.
+    """
+    foreign = _pem_body(_mint_root(tmp_path / "foreign-ca", cn="someone else"))
+    entry_no_chain = _x509_entry(stage_env.root_b64)
+    entry_no_chain["x5c"] = []
+    table = {
+        "good": stage_env.valid,
+        "jwt-only": _jwks(JWT_ENTRY),
+        "empty-x5c": _jwks(entry_no_chain),
+        "foreign-root": _jwks(_x509_entry(foreign)),
+        "doubled": stage_env.valid.strip() + stage_env.valid,
+        "trailing-comma": '{"keys":[{"kty":"EC"},]}\n',
+        "zero-keys": '{"keys":[]}\n',
+    }
+    verdicts = {}
+    for backend in ("python3", "jq"):
+        for name, payload in table.items():
+            if stage_env.anchor.exists():
+                stage_env.anchor.unlink()
+            proc = stage_env(payload, WAKIR_STAGE_PARSER=backend)
+            verdicts.setdefault(name, {})[backend] = proc.returncode
+
+    mismatched = {k: v for k, v in verdicts.items() if v["python3"] != v["jq"]}
+    assert not mismatched, (
+        f"the two parser back ends disagree: {mismatched}. A check whose "
+        f"strictness depends on which tool is installed gives one substrate "
+        f"two answers to the same question"
+    )
+    assert verdicts["good"]["jq"] == 0, "the healthy document must still pass"
+    assert all(
+        v["jq"] == 2 for k, v in verdicts.items() if k != "good"
+    ), f"something in the table was accepted: {verdicts}"
+
+
+def test_tv_0076_38_no_parser_is_undecided_not_permissive(
+    stage_env, tmp_path: Path
+) -> None:
+    """No JSON parser on PATH: exit 3, and nothing staged.
+
+    The old script fell back to the brace count and staged anyway. That
+    is the shape of "the check degraded quietly", and it is the reason
+    the strictness table above had two columns in the first place.
+    """
+    bare = tmp_path / "bare-bin"
+    bare.mkdir()
+    for tool in ("bash", "sed", "tr", "grep", "wc", "cat", "cp", "mv", "rm",
+                 "chmod", "stat", "cmp", "mktemp", "head", "dirname", "env"):
+        found = shutil.which(tool)
+        if found:
+            (bare / tool).symlink_to(found)
+
+    proc = stage_env(stage_env.valid, PATH=str(bare))
+    assert proc.returncode == 3, (
+        f"with no parser available the stager must be UNDECIDED, not "
+        f"permissive. rc={proc.returncode} stdout={proc.stdout!r} "
+        f"stderr={proc.stderr!r}"
+    )
+    assert "UNDECIDED" in proc.stderr
+    assert not stage_env.anchor.exists()
+
+
+def test_tv_0076_39_unreadable_root_is_undecided(stage_env) -> None:
+    """The root is unreachable: exit 3, and the previous anchor survives.
+
+    Explicitly NOT a silent fallback to the weaker check. If nobody can
+    say whether this document is our anchor, nothing is staged.
+    """
+    assert stage_env(stage_env.valid).returncode == 0
+    good = stage_env.anchor.read_bytes()
+
+    proc = stage_env(
+        stage_env.valid,
+        WAKIR_STAGE_UPSTREAM_CA_DIR=str(stage_env.ca_dir) + "-gone",
+    )
+    assert proc.returncode == 3, proc.stderr
+    assert "UNDECIDED" in proc.stderr
+    assert stage_env.anchor.read_bytes() == good, (
+        "an undecided run overwrote the anchor it could not check"
+    )
+
+
+def test_tv_0076_40_foreign_diagnosis_is_quoted_back(stage_env, tmp_path: Path) -> None:
+    """NM-1: the tool's own error text reaches the operator.
+
+    The earlier version sent podman's and SPIRE's stderr to
+    /dev/null and printed "bundle show failed". Measured in review:
+    both noise sources emit exactly one line, so there was never any
+    noise to suppress -- only the one sentence that says whether the
+    container is gone or the admin socket moved.
+    """
+    failing = tmp_path / "podman-failing"
+    failing.write_text(
+        "#!/usr/bin/env bash\n"
+        'if [[ "$1" == "exec" ]]; then\n'
+        '  echo \'Error: no container with name or ID "wakir-spire-server-federation-wakir" found: no such container\' >&2\n'
+        "  exit 125\n"
+        "fi\n"
+        "exit 1\n"
+    )
+    failing.chmod(0o755)
+    proc = stage_env(stage_env.valid, WAKIR_STAGE_PODMAN=str(failing))
+    assert proc.returncode == 2
+    assert "no such container" in proc.stderr, (
+        "the diagnosis the failing command produced must be quoted back; "
+        f"got: {proc.stderr!r}"
+    )
+    assert not stage_env.anchor.exists()
 
 # =====================================================================
 # Behaviour: the upstream CA root
