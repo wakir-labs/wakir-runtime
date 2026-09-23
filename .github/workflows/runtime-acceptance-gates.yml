@@ -462,6 +462,8 @@ jobs:
             tests/infra/test_acceptance_run_provenance.py \
             tests/infra/test_adr_0076_trust_anchor.py \
             tests/infra/test_bootstrap_step4_fetch_failure.py \
+            tests/infra/test_substrate_acceptance_probe.py \
+            tests/infra/test_substrate_acceptance_window.py \
             tests/persona_engine/test_bridge_audit_writer_cross_lang_parity.py \
             tests/persona_engine/test_nats_subjects.py \
             tests/integration/test_bug_42_regression_suite.py \
