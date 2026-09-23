@@ -561,13 +561,21 @@ def test_tv_acc_w_70_missing_negative_control_is_unknown(tmp_path):
     assert rc == 2
 
 
-def test_tv_acc_w_71_negative_control_that_stays_green_fails_the_window(tmp_path):
-    """TV-ACC-W-71. The control was run, the anchor was not actually removed, the window falls.
+def test_tv_acc_w_71_a_control_that_never_saw_the_anchor_gone_is_unknown(tmp_path):
+    """TV-ACC-W-71. Markers set, anchor never actually missing: the control was not carried out.
 
-    This is the vector that makes the mechanism worth having. A control
-    that comes out green says the instrument cannot detect the thing it
-    was built to detect, and therefore the green window says nothing
-    either.
+    Rewritten after the DevOps cross-review of PR #562. The re-staging
+    timer restores the anchor on a cadence far below the probe's, so an
+    operator who removes it without stopping the timer first gets it
+    back before any sample can see it gone.
+
+    The old assertion here was ``FAIL`` with the reason "the negative
+    control did not go red". That sentence was wrong twice: nobody
+    performed the control, and the finding is about the procedure, not
+    about the instrument. Either way the window does not pass — but the
+    operator who reads this on day seven needs the message that names
+    the timer, and this file exists to keep "not measured" apart from
+    "measured and bad" everywhere, including here.
     """
     series = with_cold_agent(baseline())
     out = []
@@ -579,9 +587,53 @@ def test_tv_acc_w_71_negative_control_that_stays_green_fails_the_window(tmp_path
             s = sample(i, marker="negative-control-end")
         out.append(s)
     rc, payload = run(tmp_path, out)
-    assert state_of(payload, "NC") == "FAIL"
-    assert payload["verdict"] == "FAIL"
-    assert rc == 1
+    assert state_of(payload, "NC") == "UNKNOWN"
+    assert payload["verdict"] == "UNKNOWN"
+    assert rc == 2
+    assert "re-staging timer" in json.dumps(payload)
+
+
+def test_tv_acc_w_74_a_control_the_timer_undid_is_unknown_and_names_the_timer(tmp_path):
+    """TV-ACC-W-74. The blocking finding from the cross-review, as a vector.
+
+    The timer restores after at most half an hour; the probe samples
+    hourly. So the realistic shape is not "no sample saw it gone" but
+    "exactly one did" — and one is not two sampling intervals, which is
+    what the procedure asks for. A control the restore cadence undid has
+    measured the timer, not the assurance, and is therefore ``UNKNOWN``.
+    """
+    series = with_cold_agent(baseline())
+    out = []
+    for s in series:
+        i = (s["observed_at_epoch"] - T0) // HOUR
+        if i == 150:
+            s = sample(i, marker="negative-control-start",
+                       anchor_status="target_bad_anchor_absent")
+        elif i == 151:
+            s = sample(i, marker="negative-control-end")  # timer already put it back
+        out.append(s)
+    rc, payload = run(tmp_path, out)
+    nc = next(j for j in payload["judgements"] if j["name"].startswith("NC"))
+    assert nc["state"] == "UNKNOWN"
+    assert nc["observations"]["samples_with_anchor_absent"] == 1
+    assert "re-staging timer" in json.dumps(nc)
+    assert rc == 2
+
+
+def test_tv_acc_w_75_the_absent_count_is_reported_for_the_step_five_check(tmp_path):
+    """TV-ACC-W-75. The number the operator checks right after the control.
+
+    Test plan §6.5 makes the control's own acceptance criterion
+    ``samples_with_anchor_absent >= 2``, read from this report minutes
+    after the control instead of on day seven. A criterion that is only
+    evaluated at the end of the window is a criterion that costs a
+    window every time it is missed.
+    """
+    _, payload = run(tmp_path, full_window())
+    nc = next(j for j in payload["judgements"] if j["name"].startswith("NC"))
+    assert nc["state"] == "PASS"
+    assert nc["observations"]["samples_with_anchor_absent"] >= 2
+    assert nc["observations"]["samples_in_episodes"] >= nc["observations"]["samples_with_anchor_absent"]
 
 
 def test_tv_acc_w_72_negative_control_that_killed_the_probe_is_unknown(tmp_path):
@@ -821,3 +873,21 @@ def test_tv_acc_w_99_ok_agent_data_with_a_missing_mtime_is_unknown(tmp_path):
     rc, payload = run(tmp_path, series)
     assert state_of(payload, "Z3") == "UNKNOWN"
     assert rc == 2
+
+
+def test_tv_acc_w_76_a_jwt_only_anchor_is_red_however_many_kids_it_shares(tmp_path):
+    """TV-ACC-W-76. The judge side of TV-ACC-P-70.
+
+    The anchor holds no X.509 authority and shares its JWT key id with
+    the server. The overlap Z4 computes is over X.509 authorities only,
+    so the shared key id buys nothing and the window is red — which is
+    the correct answer about a substrate whose agent would sit in a
+    retry loop with *"no certificates found in trust bundle"*.
+    """
+    series = full_window()
+    for i in range(20, 60):
+        series[i] = sample(i, anchor_status="target_bad_anchor_holds_no_x509_authority")
+    rc, payload = run(tmp_path, series)
+    assert state_of(payload, "Z4") == "FAIL"
+    assert payload["verdict"] == "FAIL"
+    assert rc == 1

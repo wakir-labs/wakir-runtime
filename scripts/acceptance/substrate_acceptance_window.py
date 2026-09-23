@@ -130,6 +130,10 @@ DEFAULT_ANCHOR_RESTAGE_MAX_SECONDS = 2 * 3600
 #: over; SPIRE documents no cadence for it. Six hours is the same floor
 #: the substrate-liveness probe uses for state staleness.
 DEFAULT_Z3_MIN_SPAN_SECONDS = 6 * 3600
+#: The test plan asks for the anchor to stay removed for at least two
+#: sampling intervals. Two samples actually seeing it gone is the same
+#: statement, measured rather than intended.
+DEFAULT_NEGATIVE_CONTROL_MIN_ABSENT = 2
 
 
 class Unmeasured(Exception):
@@ -847,7 +851,7 @@ def judge_f2(samples: list[Sample], episodes: list[Episode], ca_overlap: int) ->
 
 
 def judge_negative_control(
-    samples: list[Sample], episodes: list[Episode], restage_max: int
+    samples: list[Sample], episodes: list[Episode], restage_max: int, min_absent: int
 ) -> Judgement:
     """The mandatory negative control: an emptied ``bundles`` volume must come out red.
 
@@ -879,6 +883,8 @@ def judge_negative_control(
         )
 
     violations, gaps = [], []
+    absent_total = 0
+    episode_total = 0
     for episode in controls:
         if episode.end is None:
             gaps.append(f"a negative-control episode opened at {episode.start} was never closed")
@@ -901,17 +907,73 @@ def judge_negative_control(
                 "volume"
             )
             continue
+        absent = [
+            s
+            for s in slice_
+            if s.anchor_status is not None
+            and s.anchor_status.startswith(TARGET_BAD_PREFIX)
+        ]
+        absent_total += len(absent)
+        episode_total += len(slice_)
+
+        # Three outcomes, and the first two are the reason this block
+        # was rewritten.
+        #
+        # The staged anchor is restored by a re-staging timer running
+        # well under ca_ttl -- 30 minutes against an hourly probe. An
+        # operator who removes the anchor without stopping that timer
+        # gets it back before a single sample can see it gone. The slice
+        # then contains no absent anchor, judge_z4 over it reads PASS,
+        # and the old code called that "the control did not go red" and
+        # failed the whole window on day seven.
+        #
+        # That sentence was wrong twice. The control did not fail to go
+        # red; it was never carried out -- and the finding is about the
+        # procedure, not about the instrument. "Nobody performed the
+        # control" and "the control was performed and the instrument
+        # could not see it" are different statements, and this file
+        # exists to keep exactly that pair apart.
+        if not absent:
+            gaps.append(
+                "the negative control was marked but no sample in it ever saw the anchor missing. "
+                "The most likely cause is that the re-staging timer was left running and put the "
+                "anchor back before the next sample: it restores on a cadence far below the probe's. "
+                "Stop the re-staging timer before removing the anchor, and start it again afterwards"
+            )
+            continue
+        if len(absent) < min_absent:
+            gaps.append(
+                f"the negative control saw the anchor missing in only {len(absent)} of {len(slice_)} "
+                f"samples, fewer than the {min_absent} the procedure asks for. Most likely the "
+                "re-staging timer put it back mid-control. The control has to outlast the restore "
+                "cadence or it measures the timer instead of the assurance"
+            )
+            continue
+
         inner = judge_z4(slice_, restage_max)
         if inner.state != FAIL:
+            # Defensive, and kept although judge_z4 cannot currently
+            # reach it: an absent anchor is a violation there, so this
+            # branch is unreachable today. It is the assertion the whole
+            # mechanism rests on -- that the instrument fails when the
+            # thing it watches is taken away -- and an assertion that is
+            # only true because of how some other function happens to be
+            # written today is exactly the kind that stops being true
+            # quietly.
             violations.append(
-                f"the negative control came out {inner.state}, not FAIL: {inner.reason}. A check that "
-                "cannot fail has not passed either, and the green window falls with it"
+                f"the negative control came out {inner.state}, not FAIL, although the anchor was "
+                f"measured as missing in {len(absent)} samples: {inner.reason}. A check that cannot "
+                "fail has not passed either, and the green window falls with it"
             )
     return settle(
         "NC the negative control goes red",
         violations,
         gaps,
-        {"episodes": len(controls)},
+        {
+            "episodes": len(controls),
+            "samples_in_episodes": episode_total,
+            "samples_with_anchor_absent": absent_total,
+        },
     )
 
 
@@ -987,7 +1049,12 @@ def evaluate(samples: list[Sample], args) -> tuple[str, list[Judgement], list[st
         judge_z4(judged, args.anchor_restage_max_seconds),
         judge_f1(judged, args.min_rotations, args.rotation_period_seconds),
         judge_f2(samples, episodes, args.ca_overlap_seconds),
-        judge_negative_control(samples, episodes, args.anchor_restage_max_seconds),
+        judge_negative_control(
+            samples,
+            episodes,
+            args.anchor_restage_max_seconds,
+            args.negative_control_min_absent_samples,
+        ),
         judge_coverage(samples, judged, episodes, args.window_seconds, args.max_sample_gap_seconds),
     ]
 
@@ -1068,6 +1135,14 @@ def build_parser() -> argparse.ArgumentParser:
                         "inside the window")
     p.add_argument("--max-sample-gap-seconds", type=int, default=None,
                    help="default: three probe intervals")
+    p.add_argument(
+        "--negative-control-min-absent-samples",
+        type=int,
+        default=DEFAULT_NEGATIVE_CONTROL_MIN_ABSENT,
+        help="how many samples inside the marked negative control must actually see the anchor "
+             "missing. Below this the control did not outlast the re-staging timer and the run is "
+             "UNKNOWN: a control the restore cadence undid has measured the timer, not the assurance",
+    )
     p.add_argument("--json", action="store_true", help="machine-readable report on stdout")
     return p
 

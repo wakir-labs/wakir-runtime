@@ -733,7 +733,9 @@ def test_tv_acc_p_52_the_negative_control_does_not_remove_what_it_tests(tmp_path
 # ------------------------------------------------- the podman code path
 
 
-def _podman_stub(tmp_path: Path, *, exec_rc: int, exec_out: str = "", volume_out: str = "") -> Path:
+def _podman_stub(
+    tmp_path: Path, *, exec_rc: int, exec_out: str = "", volume_out: str = "", exec_err: str = ""
+) -> Path:
     """A stand-in for podman, so the branch the fixtures bypass is reachable.
 
     The four ``*_FILE`` overrides make the probe hermetic by skipping
@@ -748,6 +750,7 @@ def _podman_stub(tmp_path: Path, *, exec_rc: int, exec_out: str = "", volume_out
         f"  printf '%s' {json.dumps(volume_out)}\n"
         f"  exit {0 if volume_out else 125}\n"
         "fi\n"
+        f"printf '%s' {json.dumps(exec_err)} >&2\n"
         f"printf '%s' {json.dumps(exec_out)}\n"
         f"exit {exec_rc}\n",
         encoding="utf-8",
@@ -829,3 +832,99 @@ def test_tv_acc_p_62_the_podman_path_reads_the_same_values(tmp_path, upstream):
         "svid_leaf_authority_id",
     ):
         assert via_stub[key] == via_fixture[key], key
+
+
+# ------------------- the authority sets are X.509 sets, by construction
+
+
+def _jwt_only_jwks(kid: str) -> str:
+    """A well-formed bundle with real key material and no X.509 authority."""
+    return json.dumps(
+        {"keys": [{"kty": "EC", "crv": "P-256", "x": "aa", "y": "bb", "use": "jwt-svid", "kid": kid}]}
+    )
+
+
+def test_tv_acc_p_70_a_jwt_only_anchor_sharing_a_kid_is_still_red(upstream):
+    """TV-ACC-P-70. The anchor shares a key with the server and is still dead.
+
+    Measured by the identity-substrate review against a real SPIRE
+    v1.14.6: a bundle holding exactly one ``jwt-svid`` key and no X.509
+    authority is well-formed, is genuine server-issued key material, and
+    puts the agent into a retry loop with *"no certificates found in
+    trust bundle"*.
+
+    If Z4's two sets were taken over all JWKS keys, such an anchor would
+    share its JWT key with the server's set, satisfy the overlap, and
+    read green over a substrate whose agent cannot start. The sets are
+    X.509 sets: the JWT key ids are recorded next to them and take part
+    in no comparison.
+    """
+    shared_kid = "jwt-1"  # the same kid the fixture bundle carries
+    upstream["files"]["anchor"].write_text(_jwt_only_jwks(shared_kid))
+    _, rec = run_probe(upstream["files"])
+    assert rec["anchor_status"] == "target_bad_anchor_holds_no_x509_authority"
+    assert rec["anchor_authority_ids"] == []
+    assert shared_kid in rec["bundle_jwt_kids"]
+
+
+def test_tv_acc_p_71_an_x5c_on_a_jwt_entry_is_not_counted(upstream):
+    """TV-ACC-P-71. An entry that does not declare itself an X.509 authority is ignored.
+
+    A measurement that is more generous than the consumer is a
+    measurement of the wrong thing: the agent selects its X.509
+    authorities by ``use``, so the probe does too. Before this the
+    extraction took any ``x5c`` it found, which happened to be right on
+    every well-formed bundle and was an inference rather than an
+    assertion.
+    """
+    smuggled = json.dumps(
+        {
+            "keys": [
+                {
+                    "kty": "EC",
+                    "use": "jwt-svid",
+                    "kid": "sneaky",
+                    "x5c": [_b64der(upstream["root"])],
+                }
+            ]
+        }
+    )
+    upstream["files"]["anchor"].write_text(smuggled)
+    _, rec = run_probe(upstream["files"])
+    assert rec["anchor_status"] == "target_bad_anchor_holds_no_x509_authority"
+    assert rec["anchor_authority_ids"] == []
+
+
+def test_tv_acc_p_72_refusal_is_named_as_refusal_not_as_silence(tmp_path, upstream):
+    """TV-ACC-P-72. "Nobody registered you" and "the agent is gone" are different sentences.
+
+    ``spire-agent api fetch x509`` returns *workload* SVIDs and needs a
+    registration entry pointing at the real agent id; without one, a
+    real SPIRE v1.14.6 answers ``PermissionDenied: no identity issued``.
+    The bootstrap creates no entries, so this is the state of a freshly
+    bootstrapped node — and the previous classification would have read
+    "the Workload API did not answer" for a week.
+
+    It is still a finding about the window; the verdict does not change.
+    What changes is what the operator reads, and whether step 0 of the
+    test plan can catch it in minutes.
+    """
+    stub = _podman_stub(
+        tmp_path,
+        exec_rc=1,
+        exec_err="rpc error: code = PermissionDenied desc = no identity issued",
+    )
+    files = dict(upstream["files"])
+    files["log"] = tmp_path / "denied.ndjson"
+    proc, rec = run_probe(
+        files, env={"WAKIR_ACC_PODMAN_BIN": str(stub), "WAKIR_ACC_SVID_JSON_FILE": ""}
+    )
+    assert rec["svid_status"] == "target_bad_no_identity_issued_to_the_probe"
+    assert rec["unmeasured"] == []
+    assert proc.returncode == 0
+    # The SPIRE error line can carry a SPIFFE ID; on this substrate the
+    # agent's own id embeds the join-token UUID. It is matched and
+    # dropped, never recorded.
+    blob = json.dumps(rec)
+    assert "PermissionDenied" not in blob
+    assert "rpc error" not in blob

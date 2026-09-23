@@ -337,12 +337,36 @@ cert_epoch() {
   date -u -d "$raw" +%s 2>/dev/null
 }
 
-# jwks_x5c <file> -- one base64 DER certificate per line.
+# jwks_x5c <file> -- one base64 DER certificate per line, taken ONLY
+# from entries that declare ``"use":"x509-svid"``.
+#
+# The scoping is load-bearing and was measured, not reasoned about. A
+# bundle that holds exactly one ``jwt-svid`` key and no X.509 authority
+# is well-formed, is real server-issued key material, and kills the
+# agent: ``no certificates found in trust bundle``, measured against a
+# real SPIRE v1.14.6. If the authority sets on the two sides of Z4's
+# comparison were taken over all JWKS keys, such an anchor would share
+# its JWT key with the server's set, satisfy the overlap, and read green
+# over a substrate whose agent is in a retry loop.
+#
+# So the sets are X.509 sets by construction. An ``x5c`` on an entry
+# that does not declare itself an X.509 authority is ignored rather than
+# counted: the agent will not use it either, and a measurement that is
+# more generous than the consumer is a measurement of the wrong thing.
+#
+# Each JWK is an innermost JSON object -- every member of a SPIFFE
+# bundle entry is a string or an array of strings -- so the objects can
+# be isolated without a JSON parser and without jq, which neither node
+# has.
 jwks_x5c() {
-  tr -d ' \t\n\r' < "$1" 2>/dev/null \
-    | grep -o '"x5c":\[[^]]*\]' \
-    | grep -o '"[A-Za-z0-9+/=]\{16,\}"' \
-    | tr -d '"'
+  local obj
+  while IFS= read -r obj || [[ -n "$obj" ]]; do
+    [[ "$obj" == *'"use":"x509-svid"'* ]] || continue
+    printf '%s' "$obj" \
+      | grep -o '"x5c":\[[^]]*\]' \
+      | grep -o '"[A-Za-z0-9+/=]\{16,\}"' \
+      | tr -d '"'
+  done < <(tr -d ' \t\n\r' < "$1" 2>/dev/null | grep -o '{[^{}]*}')
 }
 
 # jwks_kids <file> -- the JWT authority key ids, informational.
@@ -399,9 +423,28 @@ measure_svid() {
       note_unmeasured svid podman_absent
       return
     fi
+    local errfile="${TMPDIR_ACC}/svid.err"
     resp="$("$PODMAN_BIN" exec "$AGENT_CTR" "$AGENT_BIN" api fetch x509 \
-              -socketPath "$AGENT_SOCKET" -output json 2>/dev/null)"
+              -socketPath "$AGENT_SOCKET" -output json 2>"$errfile")"
     rc=$?
+    # The stderr text is matched against a closed set of patterns and
+    # then dropped. It is never copied into the record: a SPIRE error
+    # line can carry a SPIFFE ID, and on this substrate the agent's own
+    # ID embeds the join-token UUID.
+    if (( rc != 0 )) && [[ -s "$errfile" ]] \
+       && grep -qE 'PermissionDenied|no identity issued' "$errfile" 2>/dev/null; then
+      # The Workload API answered and refused. That is a different
+      # sentence from "the API is dead", and on a freshly bootstrapped
+      # node it is the likely one: the bootstrap creates no registration
+      # entries, so nothing matches the caller. Still a finding about the
+      # window -- a substrate that issues no identity is the thing being
+      # measured -- but an operator reading a week of red needs to know
+      # it says "nobody is registered" and not "the agent is gone".
+      # Step 0 of the test plan exists to catch this in minutes.
+      M_SVID_STATUS="target_bad_no_identity_issued_to_the_probe"
+      resp=""
+      return
+    fi
     if (( rc == 125 )); then
       # Podman's own "I could not start this at all" code: no such
       # container, or it is not running. Still a measurement of the
